@@ -43,13 +43,13 @@ def vendor = 'The Apache Software Foundation'
 version = "0.4.2"
 application {
     mainClass = "org.waveprotocol.box.server.ServerMain"
+    applicationDefaultJvmArgs = [
+            "-Xmx1024M",
+            "-Dorg.eclipse.jetty.LEVEL=DEBUG",
+            "-Djava.util.logging.config.file=config/wiab-logging.conf",
+            "-Djava.security.auth.login.config=config/jaas.config"
+    ]
 }
-applicationDefaultJvmArgs = [
-        "-Xmx1024M",
-        "-Dorg.eclipse.jetty.LEVEL=DEBUG",
-        "-Djava.util.logging.config.file=config/wiab-logging.conf",
-        "-Djava.security.auth.login.config=config/jaas.config"
-]
 java {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
@@ -467,8 +467,9 @@ test {
 task testGwt(type: Test) {
     include "**/*GwtTest*"
 
-    classpath += files('src/main/java/')
-    classpath += files('src/test/java/')
+    // Use explicit test outputs and runtime classpath (avoids Gradle 9 deprecation)
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
 
     minHeapSize = "512m"
     maxHeapSize = "1024m"
