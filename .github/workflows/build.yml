@@ -1,0 +1,58 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  server-jdk17:
+    name: Server Build (JDK 17)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Gradle build
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-disabled: false
+      
+      - name: Build PST and Wave
+        run: ./gradlew --no-daemon --warning-mode all :pst:build :wave:build
+
+      - name: Publish test results (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/test-results/**/*
+            **/build/reports/tests/**/*
+
+  client-gwt:
+    if: ${{ false }} # enable after Phase 4 (GWT modernization)
+    name: Client (GWT) Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK toolchains
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Gradle build (GWT)
+        run: ./gradlew --no-daemon --warning-mode all :wave:compileGwt

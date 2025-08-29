@@ -1,0 +1,538 @@
+# Apache Wave Modernization Plan: JDK 17 and Latest GWT
+
+Status: In Progress
+Version: 1.0
+Owner: Project Maintainers
+
+Purpose
+- Modernize the codebase to run the Wave server on JDK 17 and compile/run the GWT client with the latest compatible GWT 2.x version.
+- Upgrade critical tooling, build scripts, and dependencies while keeping the system functional and testable throughout.
+- Provide detailed, self-contained tasks with tests, AI agent guidance, and clear Definition of Done (DoD).
+
+Notes
+- Commands are assumed to run from the repo root: /Users/vega/devroot/incubator-wave unless specified.
+- Prefer non-interactive commands; pass --no-daemon and --warning-mode all as needed.
+- Keep changes incremental and verifiable per phase.
+
+How we track task status and updates
+- Each task includes a Status field with one of: Planned | In Progress | Completed.
+- When work starts, update Status: In Progress and add a short Work Log subsection if useful.
+- If you discover new information that changes the scope or approach, update the Task Description and Steps accordingly and add a Note: Updated on YYYY-MM-DD with a one-line summary.
+- When finished, set Status: Completed and verify the DoD checklist.
+- Update this file (docs/modernization-plan.md) in the same commit as the code changes whenever it affects tasks.
+
+Definitions
+- DoD = Definition of Done: the verifications required to mark a task Completed.
+- AI Agent Guidance = Extra details to help an AI agent make the correct edits and run the right checks.
+
+Milestones / Phases
+- Phase 0: Baseline, safety nets, and reproducibility
+- Phase 1: Protobuf and PST generation stabilization (done in part)
+- Phase 2: JDK 17 compatibility for the server
+- Phase 3: Gradle modernization (to Gradle 8.x) and deprecation cleanup
+- Phase 4: GWT upgrade to latest 2.x and JDK 17 toolchain integration
+- Phase 5: Jetty upgrade and (optionally) Jakarta migration
+- Phase 6: Library upgrades for security and maintainability
+- Phase 7: Packaging, distribution, and developer experience
+- Phase 8 (optional): J2CL/GWT 3 migration path outline
+
+-------------------------------------------------------------------------------
+Phase 0 — Baseline, safety nets, and reproducibility
+-------------------------------------------------------------------------------
+
+Task P0-T1: Pin Java toolchains and document local requirements
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Added docs/DEV_SETUP.md. Attempted Gradle toolchains on Gradle 7.6; observed conflict with project-level source/target settings. Deferred enabling toolchains until Phase 3 (Gradle 8 upgrade). For now, require local JDK 17 via JAVA_HOME.
+- Goal: Ensure builds run with predictable JDKs and document the local developer setup.
+- Context: We will target JDK 17. GWT compilation may require a different toolchain version if the latest GWT does not fully support 17; we’ll gate that in Phase 4.
+- Steps:
+  1) (Deferred to Phase 3) Enable Gradle Java toolchains after upgrading to Gradle 8.x.
+  2) Document the required Java versions and installation options (sdkman, asdf).
+  3) Add a top-level docs/DEV_SETUP.md with minimal steps to build server and client.
+- Tests:
+  - Run: ./gradlew --no-daemon --warning-mode all :wave:compileJava on a machine using JDK 17 (JAVA_HOME) and verify success.
+- AI Agent Guidance:
+  - Files to edit: docs/DEV_SETUP.md; (later) build.gradle for toolchains when on Gradle 8.
+  - Search for sourceCompatibility/targetCompatibility to avoid conflicts once toolchains are re-enabled.
+- DoD:
+  - DEV_SETUP.md created with verified steps to run a minimal server build.
+  - Decision recorded to enable toolchains in Phase 3 with Gradle 8.
+
+Task P0-T2: Establish CI matrix (JDK 17 + optional fallback for GWT)
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Added .github/workflows/build.yml with server-jdk17 job and a stubbed client-gwt job (disabled until Phase 4).
+- Goal: Add CI checks for server build on JDK 17, and a separate job for GWT compilation once Phase 4 lands.
+- Steps:
+  1) Add .github/workflows/build.yml with jobs:
+     - server-jdk17: cache Gradle, run server build and tests.
+     - client-gwt: cache Gradle, run GWT compile (enable after Phase 4).
+  2) Ensure CI artifacts: build reports, test results.
+- Tests:
+  - Push a branch; confirm CI runs server job successfully.
+- AI Agent Guidance:
+  - Create new YAML under .github/workflows/build.yml.
+  - Refer to standard Gradle + Java actions.
+- DoD:
+  - CI workflow added with server JDK 17 job; client job stub present and disabled pending Phase 4.
+
+Task P0-T3: Baseline smoke tests and data points
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Ran :pst:build and :wave:build successfully. Captured results in docs/SMOKE_TESTS.md (notes on Gradle deprecations; additional CheckStyle warnings may appear depending on tasks executed). See docs/SMOKE_TESTS.md.
+- Goal: Capture current behavior before large upgrades.
+- Steps:
+  1) Run: ./gradlew --no-daemon --warning-mode all :pst:build :wave:build
+  2) Note failing areas (GWT compile, deprecations), and save a short checklist in docs/SMOKE_TESTS.md.
+- Tests:
+  - Verify PST jar and wave jar are produced (or document where failures occur now).
+- AI Agent Guidance:
+  - Use existing Gradle tasks; no code changes.
+- DoD:
+  - SMOKE_TESTS.md committed with current results and gaps.
+
+-------------------------------------------------------------------------------
+Phase 1 — Protobuf and PST generation stabilization
+-------------------------------------------------------------------------------
+
+Task P1-T1: Finalize protoc and plugin configuration
+- Status: Planned
+- Goal: Ensure protoc 3.x works across Apple Silicon and CI; sources generate before compile.
+- Context: We’ve already moved to protoc 3.21.12 and plugin 0.9.4; PST shadowJar excludes protobuf runtime to avoid conflicts.
+- Steps:
+  1) Verify pst/build.gradle has:
+     - protoc artifact 3.21.12 (or bump to >=3.25.x if desired and compatible).
+     - generatedFilesBaseDir set and compileJava.dependsOn generateProto.
+     - shadowJar excludes com/google/protobuf/** and META-INF/**/*.
+     - tasks.withType(ProcessResources) { duplicatesStrategy = EXCLUDE }.
+  2) Verify wave/build.gradle has:
+     - protoProtobuf includes PST shadow JAR for .proto includes.
+     - protoImplementation depends on protobuf-java runtime.
+     - generateMessages uses only PST shadow JAR + protobuf runtime to avoid conflicts.
+  3) Add explicit dependsOn edges (Phase 3 has a task) to remove implicit dependency warnings.
+- Tests:
+  - Run: ./gradlew --no-daemon :pst:shadowJar :wave:generateMessages
+  - Confirm success and that generated sources/classes exist:
+    - wave/build/classes/java/proto/... and generated/main/java/ are populated.
+- AI Agent Guidance:
+  - Files: pst/build.gradle, wave/build.gradle.
+  - Search terms: protoc, generatedFilesBaseDir, shadowJar, generateMessages, protoProtobuf, protoImplementation.
+- DoD:
+  - Protobuf generation passes on local machine; no classpath conflicts during generateMessages.
+
+Task P1-T2: Add a targeted test for PST codegen contract
+- Status: Planned
+- Goal: Ensure PstMain generates expected stubs from a representative proto class.
+- Steps:
+  1) Create a small test that invokes generateMessages for a known class and verifies outputs exist.
+  2) Optionally create a Gradle verification task that asserts the files are generated.
+- Tests:
+  - ./gradlew :wave:generateMessages and then a small JUnit test that checks presence of known generated files.
+- AI Agent Guidance:
+  - If adding a test, write it under wave/src/test/java/... and use Java file IO checks.
+- DoD:
+  - Test passes and fails if outputs are missing.
+
+-------------------------------------------------------------------------------
+Phase 2 — JDK 17 compatibility for the server
+-------------------------------------------------------------------------------
+
+Task P2-T1: Resolve Java 9+ module name collisions
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Replaced wildcard com.google.inject.* import in ServerMain with explicit imports (Module, Injector, AbstractModule, Guice, Key) to avoid ambiguity with java.lang.Module on Java 9+.
+- Goal: Eliminate ambiguous reference between java.lang.Module and com.google.inject.Module.
+- Steps:
+  1) Replace wildcard import in wave/src/main/java/org/waveprotocol/box/server/ServerMain.java
+     from: import com.google.inject.*;
+     to:   explicit imports for Module, Injector, AbstractModule, Guice, Key.
+- Tests:
+  - ./gradlew :wave:compileJava (must succeed).
+- AI Agent Guidance:
+  - Search for "import com.google.inject.*;" in wave.
+- DoD:
+  - wave:compileJava succeeds; no ambiguity errors.
+
+Task P2-T2: Upgrade Guice to 5.1.x for Java 17
+- Status: Planned
+- Goal: Move from Guice 3.x/4.x artifacts to 5.1.x to align with modern JDKs.
+- Steps:
+  1) In wave/build.gradle, update dependencies:
+     - com.google.inject:guice:5.1.0
+     - com.google.inject.extensions:guice-servlet:5.1.0
+     - com.google.inject.extensions:guice-assistedinject:5.1.0
+  2) Keep javax.inject:javax.inject:1 unless migration to jakarta.inject is planned (not required by Guice 5).
+- Tests:
+  - ./gradlew :wave:compileJava
+  - Run server smoke (see P2-T5).
+- AI Agent Guidance:
+  - Be careful of duplicate/old Guice lines in wave/build.gradle; deduplicate.
+- DoD:
+  - Compiles on JDK 17 with Guice 5.1.x; no runtime classloading issues for Guice modules.
+
+Task P2-T3: Upgrade com.typesafe:config to 1.4.3
+- Status: Planned
+- Goal: Current version (1.2.1) is dated. 1.4.3 supports modern JDKs and fixes issues.
+- Steps:
+  1) In wave/build.gradle, change dependency to com.typesafe:config:1.4.3.
+- Tests:
+  - ./gradlew :wave:compileJava
+  - Start server and ensure configuration loads (P2-T5).
+- AI Agent Guidance:
+  - Search in wave/build.gradle for existing config entries (there are duplicates); keep a single definitive entry.
+- DoD:
+  - Code compiles and loads configs at runtime.
+
+Task P2-T4: Set per-project Java toolchains (server=17)
+- Status: Planned
+- Goal: Configure wave to use Java 17 toolchain explicitly; allow client tasks to override later.
+- Steps:
+  1) In wave/build.gradle, add java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }.
+  2) Keep sourceCompatibility/targetCompatibility consistent or rely on toolchain.
+- Tests:
+  - ./gradlew :wave:compileJava and verify JDK 17 toolchain is used (Gradle logs).
+- AI Agent Guidance:
+  - Insert the block near the top; ensure it doesn’t conflict with plugin application.
+- DoD:
+  - wave compiles via Java 17 toolchain on all developer machines and CI.
+
+Task P2-T5: Server smoke run (no GWT)
+- Status: Planned
+- Goal: Verify server starts, basic endpoints/servlets are reachable.
+- Steps:
+  1) ./gradlew :wave:installDist
+  2) ./wave/build/install/wave/bin/wave (start server)
+  3) curl http://localhost:9898/ (or configured port) and a few servlet endpoints:
+     - /search/*, /profile/*, /gadget/gadgetlist, /webclient/remote_logging
+- Tests:
+  - Process stays up; endpoints return expected HTTP codes.
+- AI Agent Guidance:
+  - If port/config differs, read wave/config/reference.conf.
+- DoD:
+  - Server starts and responds on key endpoints without GWT compiled assets.
+
+-------------------------------------------------------------------------------
+Phase 3 — Gradle modernization (8.x) and deprecation cleanup
+-------------------------------------------------------------------------------
+
+Task P3-T1: Upgrade Gradle wrapper to 8.x
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Upgraded wrapper to Gradle 8.7; verified builds run.
+- Goal: Use current Gradle for improved toolchain, performance, and plugin compatibility.
+- Steps:
+  1) ./gradlew wrapper --gradle-version 8.7 --distribution-type all
+  2) Commit gradle/wrapper files.
+- Tests:
+  - ./gradlew help
+- AI Agent Guidance:
+  - Ensure plugins used (protobuf, shadow) support Gradle 8.
+- DoD:
+  - Wrapper upgraded; builds run under Gradle 8.x.
+
+Task P3-T2: Replace deprecated DSL usages
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Replaced baseName -> archiveBaseName, destinationDir -> destinationDirectory, and JavaExec main -> mainClass across build scripts (root, pst, wave).
+- Goal: Remove warnings: baseName -> archiveBaseName, destinationDir -> destinationDirectory, version -> archiveVersion, JavaExec main -> mainClass.
+- Steps:
+  1) Update root, pst, and wave build.gradle files accordingly.
+  2) For JavaExec, set mainClass = '...' or mainClass.set('...') with tasks.named where appropriate.
+- Tests:
+  - ./gradlew --warning-mode all build shows no deprecation warnings from these.
+- AI Agent Guidance:
+  - Search for baseName, destinationDir, version in jar tasks; set archiveBaseName/Version.
+  - Search for setMain( or main = in javaexec blocks; replace with mainClass property.
+- DoD:
+  - No DSL deprecation warnings remain (or are drastically reduced).
+
+Task P3-T3: Add explicit task dependencies to remove implicit dependency warnings
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Added explicit dependsOn on :pst:jar and :pst:shadowJar for tasks in wave that consume PST artifacts; warnings resolved.
+- Goal: Fix Gradle warnings where wave tasks consume pst outputs without dependsOn.
+- Steps:
+  1) In wave/build.gradle, add dependsOn(':pst:shadowJar') for tasks reading wave-pst-*.jar (e.g., extractProtoProto, extractIncludeProto, extractIncludeTestProto).
+  2) Add dependsOn(':pst:jar') for tasks that read pst-0.1.jar (e.g., compileJava, startScripts, distZip, distTar) or better depend on configurations instead of artifact file paths.
+- Tests:
+  - ./gradlew build shows the warnings are gone.
+- AI Agent Guidance:
+  - Identify tasks by searching for '../pst/build/libs' file references.
+- DoD:
+  - No implicit dependency warnings for pst artifacts.
+
+Task P3-T4: Keep GWT out of default build unless explicitly requested
+- Status: Completed
+- Work Log:
+  - 2025-08-29: Created :wave:gwtBuild aggregate task; ensured default server build does not depend on GWT tasks.
+- Goal: Avoid GWT failures during server build on JDK 17; re-enable in Phase 4.
+- Steps:
+  1) Ensure jar.dependsOn does not include compileGwt.
+  2) Create a dedicated :wave:gwtBuild aggregate task to run all GWT-specific steps.
+- Tests:
+  - ./gradlew :wave:build completes without invoking GWT tasks.
+- AI Agent Guidance:
+  - Search jar.dependsOn; verify removed compileGwt dependency.
+- DoD:
+  - Server builds without requiring GWT until Phase 4 lands.
+
+-------------------------------------------------------------------------------
+Phase 4 — GWT upgrade to latest 2.x and JDK 17 toolchain integration
+-------------------------------------------------------------------------------
+
+Important: At the time of writing, GWT 2.10.0+ supports newer JDKs. If the very latest 2.x (e.g., 2.11.0) is not available in your repository mirror, use 2.10.0 as a fallback. We will parameterize the GWT version as gwtVersion.
+
+Task P4-T1: Bump GWT dependencies
+- Status: Planned
+- Goal: Upgrade gwt-dev, gwt-user, gwt-codeserver to the latest 2.x (default 2.11.0; fallback 2.10.0).
+- Steps:
+  1) In wave/build.gradle, define ext.gwtVersion = '2.11.0' (or '2.10.0' if resolution fails).
+  2) Set dependencies to use ${gwtVersion} for gwt-dev, gwt-user, gwt-codeserver.
+  3) Keep guava-gwt aligned; if resolution issues occur, try guava-gwt 31.1-jre or the most recent compatible. If guava-gwt is unavailable, keep existing temporarily and raise a follow-up task to migrate off guava-gwt (see P6 tasks).
+- Tests:
+  - ./gradlew :wave:compileJava (server unaffected).
+  - ./gradlew :wave:compileGwt (may fail if toolchain not set; proceed to next task).
+- AI Agent Guidance:
+  - Search for 'com.google.gwt' dependencies and replace versions consistently.
+- DoD:
+  - Gradle can resolve the new GWT artifacts.
+
+Task P4-T2: Configure Java toolchain for GWT tasks
+- Status: Planned
+- Goal: Ensure GWT compiler runs under a compatible JDK if 17 is not supported for the compiler itself.
+- Steps:
+  1) Use Gradle toolchains to set Java 17 for server and (if needed) Java 11 for GWT javaexec tasks via JavaToolchainService.
+  2) Alternatively, try running GWT under Java 17 first; if errors persist, pin to Java 11 only for the GWT tasks.
+- Tests:
+  - ./gradlew :wave:compileGwt and observe that the toolchain is selected accordingly.
+- AI Agent Guidance:
+  - Edit GWT javaexec tasks (compileGwt, compileGwtDev, compileGwtDemo) to use a JavaLauncher from the toolchain if necessary.
+- DoD:
+  - GWT compiles with the configured toolchain.
+
+Task P4-T3: Fix GWT module/linker issues and logging
+- Status: Planned
+- Goal: Resolve typical GWT 2.8 -> 2.10/11 changes (logging, module inheritance, classpath).
+- Steps:
+  1) Address compiler errors after P4-T2:
+     - Ensure .gwt.xml modules inherit com.google.gwt.user.User and any needed modules.
+     - Replace obsolete GWT logging patterns, if any, with supported ones.
+  2) Verify public resources and ClientBundle references are still valid.
+- Tests:
+  - ./gradlew :wave:compileGwt success.
+- AI Agent Guidance:
+  - The error logs will point to specific modules and inherit statements.
+- DoD:
+  - GWT compilation succeeds end-to-end on CI and local.
+
+Task P4-T4: Client smoke test
+- Status: Planned
+- Goal: Verify the compiled client assets run in a browser.
+- Steps:
+  1) Ensure compiled GWT output is packaged under wave/war (or equivalent distribution path).
+  2) Start server (P2-T5) and load the web UI.
+  3) Validate login, search page, and a few UI flows.
+- Tests:
+  - Manual or simple scripted curl checks for static assets (HTTP 200 from webclient entry points).
+- AI Agent Guidance:
+  - If using DevMode/CodeServer locally, ensure firewall permissions are open.
+- DoD:
+  - UI loads and basic flows respond without client-side errors in browser console (or document/triage remaining issues).
+
+-------------------------------------------------------------------------------
+Phase 5 — Jetty upgrade and (optionally) Jakarta migration
+-------------------------------------------------------------------------------
+
+Task P5-T1: Decide and document path: Jetty 10 (javax) vs Jetty 11/12 (jakarta)
+- Status: Planned
+- Goal: Choose Jetty 11 or 12 (Jakarta) for long-term support or use Jetty 10 if we must retain javax short-term.
+- Steps:
+  1) Record decision in docs/jetty-migration.md with rationale.
+  2) If Jakarta path is chosen, plan import changes (javax.servlet.* -> jakarta.servlet.*) and web.xml schema updates.
+- Tests:
+  - N/A (planning task).
+- AI Agent Guidance:
+  - Grep for javax.servlet and locations of web.xml if present.
+- DoD:
+  - Decision documented with impact assessment.
+
+Task P5-T2: Upgrade Jetty dependencies
+- Status: Planned
+- Goal: Replace 9.2.x with chosen target (e.g., Jetty 11.0.x or 12.x).
+- Steps:
+  1) Update org.eclipse.jetty:* dependencies in wave/build.gradle.
+  2) If Jakarta path: replace javax.servlet-api with jakarta.servlet-api and update imports.
+- Tests:
+  - ./gradlew :wave:compileJava
+  - Start server and hit endpoints.
+- AI Agent Guidance:
+  - Watch for servlet filter/servlet registration changes.
+- DoD:
+  - Server starts cleanly under the new Jetty.
+
+Task P5-T3: Migrate servlet code and configuration (if Jakarta)
+- Status: Planned
+- Goal: Refactor imports and any programmatic registrations to jakarta.*
+- Steps:
+  1) Update imports across server code.
+  2) Update web.xml or equivalent to Jakarta schema if used.
+- Tests:
+  - Integration smoke (P2-T5) must pass.
+- AI Agent Guidance:
+  - Use IDE refactoring or scripted replacement; confirm all imports updated.
+- DoD:
+  - No javax.servlet references remain; server works.
+
+-------------------------------------------------------------------------------
+Phase 6 — Library upgrades for security and maintainability
+-------------------------------------------------------------------------------
+
+Task P6-T1: Upgrade protobuf-java to 3.25.x (optional)
+- Status: Planned
+- Goal: Align with recent protobuf runtime while keeping PST shading rules to avoid conflicts.
+- Steps:
+  1) Update protobuf-java deps in pst and wave to 3.25.x (if compatible with protoc version).
+  2) Keep pst shadowJar excluding protobuf runtime.
+- Tests:
+  - :pst:shadowJar :wave:generateMessages
+- AI Agent Guidance:
+  - Verify protoc/protobuf versions match matrix support.
+- DoD:
+  - Codegen and runtime both work with updated protobuf.
+
+Task P6-T2: Upgrade Typesafe Config, Commons, and other utilities
+- Status: Planned
+- Goal: Bring common libs to supported versions to reduce CVEs.
+- Steps:
+  1) commons-io to 2.15+, commons-codec 1.16+, commons-fileupload 1.5+, etc.
+  2) Keep changes small; verify compile and smoke.
+- Tests:
+  - ./gradlew build and server smoke.
+- AI Agent Guidance:
+  - One lib at a time; keep commit scope small.
+- DoD:
+  - Build green; server smoke passes.
+
+Task P6-T3: MongoDB driver modernization (scoped)
+- Status: Planned
+- Goal: 2.11.2 is obsolete; modern drivers are 4.x+. This may require code changes; scope carefully.
+- Steps:
+  1) Create a spike branch to test 4.x driver.
+  2) Document required code changes; split into follow-up tasks.
+- Tests:
+  - Unit tests for persistence layer; integration test if available.
+- AI Agent Guidance:
+  - Identify usage via grep for com.mongodb.* APIs.
+- DoD:
+  - Spike findings documented with actionable tasks.
+
+Task P6-T4: Guava upgrade strategy (scoped)
+- Status: Planned
+- Goal: Server-side can move to modern Guava; client-side guava-gwt is complicated.
+- Steps:
+  1) Upgrade server-side to com.google.guava:guava:32.1.3-jre (or latest) and fix breakages.
+  2) Keep client-side guava-gwt as-is initially; open epic to migrate client code away from guava-gwt (or verify GWT 2.10+/J2CL compatibility of modern guava if possible).
+- Tests:
+  - ./gradlew :wave:compileJava and unit tests.
+- AI Agent Guidance:
+  - Expect Optional, FluentIterable, Suppliers changes; automated IDE helps.
+- DoD:
+  - Server builds with modern Guava; client remains functional; follow-up epic created.
+
+-------------------------------------------------------------------------------
+Phase 7 — Packaging, distribution, and developer experience
+-------------------------------------------------------------------------------
+
+Task P7-T1: Distributions
+- Status: Planned
+- Goal: Ensure distZip/distTar produce runnable server + client artifacts.
+- Steps:
+  1) Confirm :wave:distZip and :wave:distTar work without implicit dependency warnings.
+  2) Include config/, war/, and necessary jars.
+- Tests:
+  - Unzip and run start script; smoke endpoints.
+- AI Agent Guidance:
+  - Review wave/distributions config in build.gradle.
+- DoD:
+  - Distributables run out-of-the-box.
+
+Task P7-T2: Dockerfile for local dev
+- Status: Planned
+- Goal: Provide a containerized way to run the server.
+- Steps:
+  1) Create Dockerfile with JDK 17 base, copy installDist, expose port.
+  2) Add simple docker-compose.yml if helpful.
+- Tests:
+  - docker build && docker run; curl endpoints.
+- AI Agent Guidance:
+  - Ensure file paths match installDist layout.
+- DoD:
+  - Docker run works and serves endpoints.
+
+Task P7-T3: Developer docs and scripts
+- Status: Planned
+- Goal: Improve onboarding and productivity.
+- Steps:
+  1) Create scripts: scripts/build-server.sh, scripts/build-client.sh.
+  2) Update README.md with modern instructions and supported JDK.
+- Tests:
+  - Run scripts locally; ensure success.
+- AI Agent Guidance:
+  - Keep scripts non-interactive; set -euo pipefail.
+- DoD:
+  - Docs and scripts usable by new contributors.
+
+-------------------------------------------------------------------------------
+Phase 8 (optional) — J2CL / GWT 3 migration path outline
+-------------------------------------------------------------------------------
+
+Task P8-T1: Feasibility assessment and roadmap
+- Status: Planned
+- Goal: Outline steps to migrate the client to J2CL (GWT 3), which uses Closure Compiler and JsInterop extensively.
+- Steps:
+  1) Inventory GWT-specific APIs and legacy widgets; map replacements in J2CL world (Elemental2, JsInterop).
+  2) Identify blockers (guava-gwt usage, RPCs, legacy generators).
+- Tests:
+  - N/A; planning.
+- AI Agent Guidance:
+  - Start from wave/src/main/java/org/waveprotocol/box/webclient and related modules.
+- DoD:
+  - Document with identified epics and estimates.
+
+-------------------------------------------------------------------------------
+Appendix A — Common edit points and search tips (AI Agent)
+-------------------------------------------------------------------------------
+
+- Build files (Gradle):
+  - Root: build.gradle
+  - PST: pst/build.gradle
+  - Wave: wave/build.gradle
+- Frequent search terms:
+  - baseName, destinationDir, setMain(, mainClassName, com.google.inject.*,
+    javax.servlet., gwt-dev, gwt-user, gwt-codeserver, guava-gwt,
+    protobuf-java, protoc, shadowJar, generateMessages
+- Typical commands:
+  - ./gradlew --no-daemon --warning-mode all build
+  - ./gradlew :pst:shadowJar :wave:generateMessages
+  - ./gradlew :wave:compileJava
+  - ./gradlew :wave:installDist && ./wave/build/install/wave/bin/wave
+- When editing code, prefer explicit imports over wildcard to avoid JDK 9+ conflicts.
+- Keep PST shadowJar free of protobuf runtime to avoid runtime NoSuchMethodErrors.
+
+-------------------------------------------------------------------------------
+Appendix B — Status update template
+-------------------------------------------------------------------------------
+
+When you touch a task, update its block:
+- Status: In Progress
+- Work Log: YYYY-MM-DD: short note of change.
+- If scope changes, update Steps/Description and add Note: Updated on YYYY-MM-DD: <reason>.
+- On completion, switch Status: Completed and check DoD items.
+
+-------------------------------------------------------------------------------
+Changelog (for this plan)
+-------------------------------------------------------------------------------
+- 1.0 (Planned): Initial modernization plan created.
+- 1.1 (2025-08-29): Updated statuses for P0-T1..T3, P2-T1, P3-T1..T4; added work logs.
+
