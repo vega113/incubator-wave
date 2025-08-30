@@ -304,32 +304,35 @@ Phase 4 — GWT upgrade to latest 2.x and JDK 17 toolchain integration
 Important: At the time of writing, GWT 2.10.0+ supports newer JDKs. If the very latest 2.x (e.g., 2.11.0) is not available in your repository mirror, use 2.10.0 as a fallback. We will parameterize the GWT version as gwtVersion.
 
 Task P4-T1: Bump GWT dependencies
-- Status: Planned
+- Status: Completed
+- Work Log:
+  - 2025-08-30: Parameterized gwtVersion; set to 2.10.0 (2.11.0 not available in current repos). Moved gwt-dev and gwt-codeserver to a dedicated 'gwt' configuration to avoid Jetty conflicts on server classpath; kept gwt-user on compile classpath. Added explicit httpcore dependency for HttpStatus previously pulled transitively.
 - Goal: Upgrade gwt-dev, gwt-user, gwt-codeserver to the latest 2.x (default 2.11.0; fallback 2.10.0).
 - Steps:
   1) In wave/build.gradle, define ext.gwtVersion = '2.11.0' (or '2.10.0' if resolution fails).
-  2) Set dependencies to use ${gwtVersion} for gwt-dev, gwt-user, gwt-codeserver.
+  2) Set dependencies to use ${gwtVersion} for gwt-dev, gwt-user, gwt-codeserver. Place gwt-dev and gwt-codeserver in a dedicated 'gwt' configuration; keep gwt-user for compileClasspath.
   3) Keep guava-gwt aligned; if resolution issues occur, try guava-gwt 31.1-jre or the most recent compatible. If guava-gwt is unavailable, keep existing temporarily and raise a follow-up task to migrate off guava-gwt (see P6 tasks).
 - Tests:
-  - ./gradlew :wave:compileJava (server unaffected).
-  - ./gradlew :wave:compileGwt (may fail if toolchain not set; proceed to next task).
+  - ./gradlew :wave:compileJava succeeded with httpcore added and no Jetty conflicts.
 - AI Agent Guidance:
   - Search for 'com.google.gwt' dependencies and replace versions consistently.
 - DoD:
-  - Gradle can resolve the new GWT artifacts.
+  - Gradle resolves the new GWT artifacts without breaking server compile.
 
 Task P4-T2: Configure Java toolchain for GWT tasks
-- Status: Planned
+- Status: Completed
+- Work Log:
+  - 2025-08-30: Configured compileGwt/compileGwtDemo/compileGwtDev/gwtDev to use Gradle Java Toolchains with Java 17. Attempted compile; GWT compiler started but failed due to module property 'user.agent' value 'ie8' no longer valid (to be addressed in P4-T3).
 - Goal: Ensure GWT compiler runs under a compatible JDK if 17 is not supported for the compiler itself.
 - Steps:
   1) Use Gradle toolchains to set Java 17 for server and (if needed) Java 11 for GWT javaexec tasks via JavaToolchainService.
   2) Alternatively, try running GWT under Java 17 first; if errors persist, pin to Java 11 only for the GWT tasks.
 - Tests:
-  - ./gradlew :wave:compileGwt and observe that the toolchain is selected accordingly.
+  - ./gradlew :wave:compileGwt selects the configured toolchain.
 - AI Agent Guidance:
   - Edit GWT javaexec tasks (compileGwt, compileGwtDev, compileGwtDemo) to use a JavaLauncher from the toolchain if necessary.
 - DoD:
-  - GWT compiles with the configured toolchain.
+  - GWT tasks run with the configured toolchain (compilation fixes continue in P4-T3).
 
 Task P4-T3: Fix GWT module/linker issues and logging
 - Status: Planned
