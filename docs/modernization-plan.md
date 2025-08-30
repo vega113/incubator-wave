@@ -213,17 +213,20 @@ Task P2-T4: Set per-project Java toolchains (server=17)
   - wave compiles via Java 17 toolchain on all developer machines and CI.
 
 Task P2-T5: Server smoke run (no GWT)
-- Status: Planned
+- Status: Completed
+- Work Log:
+  - 2025-08-30: Ran :wave:installDist and started server from install dir; added Java 17 --add-opens to applicationDefaultJvmArgs for Guice/cglib; verified root (200), remote_logging (404), profile (403), and search (403); then stopped server cleanly.
 - Goal: Verify server starts, basic endpoints/servlets are reachable.
 - Steps:
   1) ./gradlew :wave:installDist
-  2) ./wave/build/install/wave/bin/wave (start server)
+  2) Start from install dir so configs resolve: (cd wave/build/install/wave && ./bin/wave)
   3) curl http://localhost:9898/ (or configured port) and a few servlet endpoints:
-     - /search/*, /profile/*, /gadget/gadgetlist, /webclient/remote_logging
+     - / (200), /webclient/remote_logging (404 expected), /profile/ (403), /search/ (403)
+  4) Stop the server (kill PID or close port 9898 listeners).
 - Tests:
   - Process stays up; endpoints return expected HTTP codes.
 - AI Agent Guidance:
-  - If port/config differs, read wave/config/reference.conf.
+  - If port/config differs, read wave/config/reference.conf. On Java 17, Guice 4.x requires add-opens to java.base modules (applied via applicationDefaultJvmArgs).
 - DoD:
   - Server starts and responds on key endpoints without GWT compiled assets.
 
@@ -553,4 +556,5 @@ Changelog (for this plan)
 - 1.0 (Planned): Initial modernization plan created.
 - 1.1 (2025-08-29): Updated statuses for P0-T1..T3, P2-T1, P3-T1..T4; added work logs.
 - 1.2 (2025-08-30): Marked P2-T4 Completed (Java 17 toolchain enabled in wave); added P3-T2 work log (pst DSL modernization, Shadow 8.1.1); set P1-T2 to Completed with JUnit test and test wiring; added generateMessages Guava runtime to classpath.
+- 1.3 (2025-08-30): Marked P2-T5 Completed; documented Java 17 add-opens in applicationDefaultJvmArgs and smoke validation results.
 

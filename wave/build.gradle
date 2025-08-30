@@ -47,7 +47,10 @@ application {
             "-Xmx1024M",
             "-Dorg.eclipse.jetty.LEVEL=DEBUG",
             "-Djava.util.logging.config.file=config/wiab-logging.conf",
-            "-Djava.security.auth.login.config=config/jaas.config"
+            "-Djava.security.auth.login.config=config/jaas.config",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens=java.base/java.util=ALL-UNNAMED"
     ]
 }
 java {
