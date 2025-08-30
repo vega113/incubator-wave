@@ -122,7 +122,9 @@ Task P1-T1: Finalize protoc and plugin configuration
   - Protobuf generation passes on local machine; no classpath conflicts during generateMessages.
 
 Task P1-T2: Add a targeted test for PST codegen contract
-- Status: Planned
+- Status: In Progress
+- Work Log:
+  - 2025-08-30: Added verifyPstCodegen Gradle verification task and wired it into :wave:check; it asserts presence of generated Java sources.
 - Goal: Ensure PstMain generates expected stubs from a representative proto class.
 - Steps:
   1) Create a small test that invokes generateMessages for a known class and verifies outputs exist.
@@ -195,7 +197,9 @@ Task P2-T3: Upgrade com.typesafe:config to 1.4.3
   - Code compiles and loads configs at runtime.
 
 Task P2-T4: Set per-project Java toolchains (server=17)
-- Status: Planned
+- Status: Completed
+- Work Log:
+  - 2025-08-30: Enabled java toolchain (Java 17) in wave/build.gradle; ran :wave:compileJava and :wave:test successfully on Gradle 8.7/JDK 17.
 - Goal: Configure wave to use Java 17 toolchain explicitly; allow client tasks to override later.
 - Steps:
   1) In wave/build.gradle, add java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }.
@@ -246,6 +250,7 @@ Task P3-T2: Replace deprecated DSL usages
 - Work Log:
   - 2025-08-29: Replaced baseName -> archiveBaseName, destinationDir -> destinationDirectory, and JavaExec main -> mainClass across build scripts (root, pst, wave).
   - 2025-08-29: Moved applicationDefaultJvmArgs into application {} and set explicit testGwt classpath/testClassesDirs to remove Gradle 9 deprecation warnings.
+  - 2025-08-30: Modernized pst/build.gradle: migrated to java { ... } DSL and upgraded Shadow plugin to 8.1.1; validated with :pst:build and :wave:build.
 - Goal: Remove warnings: baseName -> archiveBaseName, destinationDir -> destinationDirectory, version -> archiveVersion, JavaExec main -> mainClass.
 - Steps:
   1) Update root, pst, and wave build.gradle files accordingly.
@@ -546,4 +551,5 @@ Changelog (for this plan)
 -------------------------------------------------------------------------------
 - 1.0 (Planned): Initial modernization plan created.
 - 1.1 (2025-08-29): Updated statuses for P0-T1..T3, P2-T1, P3-T1..T4; added work logs.
+- 1.2 (2025-08-30): Marked P2-T4 Completed (Java 17 toolchain enabled in wave); added P3-T2 work log (pst DSL modernization, Shadow 8.1.1); set P1-T2 to In Progress with verifyPstCodegen verification task.
 

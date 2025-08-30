@@ -53,6 +53,9 @@ application {
 java {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 compileJava {
     options.incremental = true
@@ -230,6 +233,27 @@ protobuf {
 //=============================================================================
 // Task - Generation Tasks (External Compilers)
 //=============================================================================
+
+task verifyPstCodegen {
+    description = 'Verifies PST code generation produced Java sources.'
+    dependsOn 'generateMessages'
+    doLast {
+        File outDir = file('generated/main/java')
+        if (!outDir.exists()) {
+            throw new GradleException("PST codegen output directory not found: ${outDir}")
+        }
+        def javaFiles = fileTree(dir: outDir, include: '**/*.java')
+        if (javaFiles.isEmpty()) {
+            throw new GradleException("No generated Java sources found under ${outDir}")
+        }
+        println "verifyPstCodegen: Found ${javaFiles.files.size()} generated Java source files"
+    }
+}
+
+// Ensure verification runs with the standard checks
+tasks.named('check') {
+    dependsOn(verifyPstCodegen)
+}
 
 task generateMessages {
     description = 'Generates source files from Antlr String types and protobuf'

@@ -20,7 +20,7 @@
 //=============================================================================
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
     id 'com.google.protobuf' version '0.9.4'
 }
 apply plugin: 'checkstyle'
@@ -30,8 +30,10 @@ apply plugin: 'com.google.protobuf'
 // Project Level Settings
 //=============================================================================
 version = 0.1
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
 def title = 'Apache Wave PST Compiler'
 def vendor = 'The Apache Software Foundation'
 
