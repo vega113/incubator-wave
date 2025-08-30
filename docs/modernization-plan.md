@@ -399,6 +399,25 @@ Follow-up options (planning):
 - Option B: Migrate tests away from hosted Dev/JUnitShell to gwtmockito or pure-JRE tests where possible.
 - Option C: Plan J2CL/J2KT path (see Phase 8) and gradually retire legacy hosted GWT tests.
 
+Task P4-T7: Move to GWT 2.12.x when artifacts resolve
+- Status: Planned
+- Goal: Adopt GWT 2.12.x for improved compiler and test harness compatibility.
+- Steps:
+  1) Try locally with: ./gradlew -PgwtVersion=2.12.2 :wave:compileGwt
+  2) If resolution fails, verify artifact coordinates and repositories:
+     - Prefer org.gwtproject group for gwt-user, gwt-dev, gwt-codeserver if needed.
+     - Ensure mavenCentral is present; add any missing repos cautiously.
+  3) Update wave/build.gradle dependencies to the correct group if resolution requires it.
+  4) Re-run :wave:compileGwt and then optional hosted tests (:wave:testGwtHosted). Adjust module properties as needed.
+  5) If hosted harness improves on 2.12.x, consider re-enabling a CI job for hosted tests.
+- Tests:
+  - :wave:compileGwt succeeds; optional hosted tests run under testGwtHosted without compiler exceptions.
+- AI Agent Guidance:
+  - Use the -PgwtVersion override first to validate artifact availability without editing files.
+  - If groupId mismatch occurs, switch dependency coordinates accordingly.
+- DoD:
+  - GWT 2.12.x compiles successfully; decision recorded about hosted test re-enablement.
+
 -------------------------------------------------------------------------------
 Phase 5 — Jetty upgrade and (optionally) Jakarta migration
 -------------------------------------------------------------------------------
