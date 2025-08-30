@@ -42,7 +42,6 @@ import org.eclipse.jetty.proxy.ProxyServlet;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.session.HashSessionManager;
 import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.servlets.GzipFilter;
@@ -54,6 +53,7 @@ import org.eclipse.jetty.websocket.servlet.ServletUpgradeResponse;
 import org.eclipse.jetty.websocket.servlet.WebSocketCreator;
 import org.eclipse.jetty.websocket.servlet.WebSocketServlet;
 import org.eclipse.jetty.websocket.servlet.WebSocketServletFactory;
+import org.eclipse.jetty.server.session.SessionHandler;
 import org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolAuthenticate;
 import org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolAuthenticationResult;
 import org.waveprotocol.box.server.authentication.SessionManager;
@@ -100,7 +100,7 @@ public class ServerRpcProvider {
   private final InetSocketAddress[] httpAddresses;
   private final Executor threadPool;
   private final SessionManager sessionManager;
-  private final org.eclipse.jetty.server.SessionManager jettySessionManager;
+  private final SessionHandler sessionHandler;
   private Server httpServer = null;
   private final boolean sslEnabled;
   private final String sslKeystorePath;
@@ -271,13 +271,13 @@ public class ServerRpcProvider {
    */
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
       String[] resourceBases, Executor threadPool, SessionManager sessionManager,
-      org.eclipse.jetty.server.SessionManager jettySessionManager, String sessionStoreDir,
+      SessionHandler sessionHandler, String sessionStoreDir,
       boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword) {
     this.httpAddresses = httpAddresses;
     this.resourceBases = resourceBases;
     this.threadPool = threadPool;
     this.sessionManager = sessionManager;
-    this.jettySessionManager = jettySessionManager;
+    this.sessionHandler = sessionHandler;
     this.sessionStoreDir = sessionStoreDir;
     this.sslEnabled = sslEnabled;
     this.sslKeystorePath = sslKeystorePath;
@@ -289,23 +289,23 @@ public class ServerRpcProvider {
    */
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
       String[] resourceBases, SessionManager sessionManager,
-      org.eclipse.jetty.server.SessionManager jettySessionManager, String sessionStoreDir,
+      SessionHandler sessionHandler, String sessionStoreDir,
       boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword,
       Executor executor) {
     this(httpAddresses, resourceBases, executor,
-        sessionManager, jettySessionManager, sessionStoreDir, sslEnabled, sslKeystorePath,
+        sessionManager, sessionHandler, sessionStoreDir, sslEnabled, sslKeystorePath,
         sslKeystorePassword);
   }
 
   @Inject
   public ServerRpcProvider(Config config,
-                           SessionManager sessionManager, org.eclipse.jetty.server.SessionManager jettySessionManager,
+                           SessionManager sessionManager, SessionHandler sessionHandler,
                            @ClientServerExecutor Executor executorService) {
     this(parseAddressList(config.getStringList("core.http_frontend_addresses"),
                     config.getString("core.http_websocket_public_address")),
             config.getStringList("core.resource_bases").toArray(new String[0]),
             sessionManager,
-            jettySessionManager,
+            sessionHandler,
             config.getString("core.sessions_store_directory"),
             config.getBoolean("security.enable_ssl"),
             config.getString("security.ssl_keystore_path"),
@@ -327,13 +327,8 @@ public class ServerRpcProvider {
 
     context.setParentLoaderPriority(true);
 
-    if (jettySessionManager != null) {
-      // This disables JSessionIDs in URLs redirects
-      // see: http://stackoverflow.com/questions/7727534/how-do-you-disable-jsessionid-for-jetty-running-with-the-eclipse-jetty-maven-plu
-      // and: http://jira.codehaus.org/browse/JETTY-467?focusedCommentId=114884&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-114884
-      jettySessionManager.setSessionIdPathParameterName(null);
-
-      context.getSessionHandler().setSessionManager(jettySessionManager);
+    if (sessionHandler != null) {
+      context.setSessionHandler(sessionHandler);
     }
     final ResourceCollection resources = new ResourceCollection(resourceBases);
     context.setBaseResource(resources);
@@ -360,7 +355,6 @@ public class ServerRpcProvider {
       httpServer.setHandler(context);
 
       httpServer.start();
-      restoreSessions();
 
     } catch (Exception e) { // yes, .start() throws "Exception"
       LOG.severe("Fatal error starting http server.", e);
@@ -369,17 +363,6 @@ public class ServerRpcProvider {
     LOG.fine("WebSocket server running.");
   }
 
-  private void restoreSessions() {
-    try {
-      HashSessionManager hashSessionManager = (HashSessionManager) jettySessionManager;
-      hashSessionManager.setStoreDirectory(FileUtils.createDirIfNotExists(sessionStoreDir,
-          "Session persistence"));
-      hashSessionManager.setSavePeriod(60);
-      hashSessionManager.restoreSessions();
-    } catch (Exception e) {
-      LOG.warning("Cannot restore sessions");
-    }
-  }
   public void addWebSocketServlets() {
     // Servlet where the websocket connection is served from.
     ServletHolder wsholder = addServlet("/socket", WaveWebSocketServlet.class);

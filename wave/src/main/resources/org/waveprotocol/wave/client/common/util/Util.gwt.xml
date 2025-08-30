@@ -36,15 +36,6 @@
     <when-property-is name="user.agent" value="gecko1_8"/>
   </replace-with>
    
-  <replace-with class="org.waveprotocol.wave.client.common.util.UserAgentStaticProperties.IEImpl">
-    <when-type-is class="org.waveprotocol.wave.client.common.util.UserAgentStaticProperties"/>
-     
-    <any>
-      <when-property-is name="user.agent" value="ie6"/>
-      <when-property-is name="user.agent" value="ie8"/>
-    </any>
-  </replace-with>
-   
   <!-- Following rules are order dependent: android and iphone have to come after "simple" safari -->
   <replace-with class="org.waveprotocol.wave.client.common.util.UserAgentStaticProperties.SafariImpl">
     <when-type-is class="org.waveprotocol.wave.client.common.util.UserAgentStaticProperties"/>

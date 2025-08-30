@@ -724,7 +724,7 @@ public final class WaveletBasedSupplement implements ObservablePrimitiveSuppleme
 
   private void triggerOnFolderRemoved(int oldFolder) {
     for (Listener listener : listeners) {
-      listener.onFolderAdded(oldFolder);
+      listener.onFolderRemoved(oldFolder);
     }
   }
 

@@ -44,6 +44,8 @@ version = "0.4.2"
 ext {
     // Allow overriding from the command line: ./gradlew -PgwtVersion=2.12.2
     gwtVersion = findProperty('gwtVersion') ?: '2.10.0'
+    // Allow overriding Jetty version for server via -PjettyVersion
+    jettyVersion = findProperty('jettyVersion') ?: '9.4.54.v20240208'
 }
 application {
     mainClass = "org.waveprotocol.box.server.ServerMain"
@@ -163,24 +165,23 @@ dependencies {
             [group: "org.apache.velocity", name: "velocity", version: "1.6.3"],
             [group: "org.apache.lucene", name: "lucene-core", version: "3.5.0"],
             [group: "org.bouncycastle", name: "bcprov-jdk16", version: "1.45"],
-            [group: "org.eclipse.jetty", name: "jetty-annotations", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-client", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-continuation", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-http", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-io", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-proxy", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-security", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-server", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-servlet", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-servlets", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-util", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-webapp", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty", name: "jetty-xml", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty.websocket", name: "websocket-api", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty.websocket", name: "websocket-client", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty.websocket", name: "websocket-common", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty.websocket", name: "websocket-server", version: "9.2.14.v20151106"],
-            [group: "org.eclipse.jetty.websocket", name: "websocket-servlet", version: "9.2.14.v20151106"],
+            [group: "org.eclipse.jetty", name: "jetty-annotations", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-client", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-http", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-io", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-proxy", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-security", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-server", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-servlet", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-servlets", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-util", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-webapp", version: jettyVersion],
+            [group: "org.eclipse.jetty", name: "jetty-xml", version: jettyVersion],
+            [group: "org.eclipse.jetty.websocket", name: "websocket-api", version: jettyVersion],
+            [group: "org.eclipse.jetty.websocket", name: "websocket-client", version: jettyVersion],
+            [group: "org.eclipse.jetty.websocket", name: "websocket-common", version: jettyVersion],
+            [group: "org.eclipse.jetty.websocket", name: "websocket-server", version: jettyVersion],
+            [group: "org.eclipse.jetty.websocket", name: "websocket-servlet", version: jettyVersion],
             [group: "org.jdom", name: "jdom", version: "1.1.3"],
             [group: "org.mongodb", name: "mongo-java-driver", version: "2.11.2"],
             [group: "org.apache.httpcomponents", name: "httpcore", version: "4.4.16"],

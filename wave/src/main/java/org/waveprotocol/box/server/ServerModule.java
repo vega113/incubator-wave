@@ -28,7 +28,9 @@ import com.google.inject.name.Named;
 import com.google.inject.name.Names;
 
 import com.typesafe.config.Config;
-import org.eclipse.jetty.server.session.HashSessionManager;
+import org.eclipse.jetty.server.session.DefaultSessionCache;
+import org.eclipse.jetty.server.session.FileSessionDataStore;
+import org.eclipse.jetty.server.session.SessionHandler;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.SessionManagerImpl;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
@@ -127,9 +129,23 @@ public class ServerModule extends AbstractModule {
 
   @Provides
   @Singleton
-  public org.eclipse.jetty.server.SessionManager provideSessionManager(Config config) {
-    HashSessionManager sessionManager = new HashSessionManager();
-    sessionManager.getSessionCookieConfig().setMaxAge(config.getInt("network.session_cookie_max_age"));
-    return sessionManager;
+  public SessionHandler provideSessionHandler(Config config) {
+    SessionHandler sessionHandler = new SessionHandler();
+    // Configure cookie max age if available
+    try {
+      sessionHandler.getSessionCookieConfig().setMaxAge(config.getInt("network.session_cookie_max_age"));
+    } catch (Exception ignore) {}
+
+    // File-backed session data store for persistence
+    DefaultSessionCache cache = new DefaultSessionCache(sessionHandler);
+    FileSessionDataStore dataStore = new FileSessionDataStore();
+    java.io.File storeDir = new java.io.File(config.getString("core.sessions_store_directory"));
+    if (!storeDir.exists()) {
+      storeDir.mkdirs();
+    }
+    dataStore.setStoreDir(storeDir);
+    cache.setSessionDataStore(dataStore);
+    sessionHandler.setSessionCache(cache);
+    return sessionHandler;
   }
 }

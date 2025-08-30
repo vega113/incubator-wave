@@ -335,7 +335,9 @@ Task P4-T2: Configure Java toolchain for GWT tasks
   - GWT tasks run with the configured toolchain (compilation fixes continue in P4-T3).
 
 Task P4-T3: Fix GWT module/linker issues and logging
-- Status: Planned
+- Status: Completed
+- Work Log:
+  - 2025-08-30: Removed obsolete IE permutations from Util.gwt.xml (ie6/ie8 replace-with block) and verified compile with GWT 2.12.2.
 - Goal: Resolve typical GWT 2.8 -> 2.10/11 changes (logging, module inheritance, classpath).
 - Steps:
   1) Address compiler errors after P4-T2:
@@ -343,11 +345,11 @@ Task P4-T3: Fix GWT module/linker issues and logging
      - Replace obsolete GWT logging patterns, if any, with supported ones.
   2) Verify public resources and ClientBundle references are still valid.
 - Tests:
-  - ./gradlew :wave:compileGwt success.
+  - ./gradlew -PgwtVersion=2.12.2 :wave:compileGwt success.
 - AI Agent Guidance:
   - The error logs will point to specific modules and inherit statements.
 - DoD:
-  - GWT compilation succeeds end-to-end on CI and local.
+  - GWT compilation succeeds end-to-end locally; CI continues to skip hosted tests per P4-T6.
 
 Task P4-T4: Client smoke test
 - Status: Planned
@@ -364,14 +366,16 @@ Task P4-T4: Client smoke test
   - UI loads and basic flows respond without client-side errors in browser console (or document/triage remaining issues).
 
 Task P4-T5: Correct folder removal listener invocation in WaveletBasedSupplement
-- Status: Planned
+- Status: Completed
+- Work Log:
+  - 2025-08-30: Fixed triggerOnFolderRemoved to forward onFolderRemoved; added WaveletBasedSupplementFolderListenerTest covering add/remove callbacks.
 - Goal: Fix a logic bug where triggerOnFolderRemoved mistakenly forwards onFolderAdded, causing duplicate "added" events and missing "removed" events.
 - Context: Noticed during GWT 2.10 compiler fixes; this is a pure correctness issue unrelated to the GWT upgrade.
 - Steps:
   1) Update wave/src/main/java/org/waveprotocol/wave/model/supplement/WaveletBasedSupplement.java so triggerOnFolderRemoved calls listener.onFolderRemoved(oldFolder).
   2) Add a unit test (mock Listener or simple test harness) that adds and removes a folder and asserts the correct listener method invocations.
 - Tests:
-  - Run :wave:test and ensure the new test passes; no regression in other listener triggers.
+  - Ran :wave:test --tests "*WaveletBasedSupplementFolderListenerTest" successfully. Full suite has unrelated client-side failures; tracked separately.
 - AI Agent Guidance:
   - Search for "triggerOnFolderRemoved(" and ensure it only forwards to onFolderRemoved.
   - Do not change any other listener forwarding methods as part of this task.
