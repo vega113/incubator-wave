@@ -141,6 +141,12 @@ public class ServerModule extends AbstractModule {
       if (enableSsl) {
         sessionHandler.getSessionCookieConfig().setSecure(true);
       }
+      // Attempt to set SameSite=LAX if supported by this Jetty
+      try {
+        Class<?> sameSiteClass = Class.forName("org.eclipse.jetty.http.HttpCookie$SameSite");
+        Object lax = Enum.valueOf((Class<Enum>) sameSiteClass, "LAX");
+        SessionHandler.class.getMethod("setSameSite", sameSiteClass).invoke(sessionHandler, lax);
+      } catch (Throwable ignored) {}
     } catch (Exception ignore) {}
 
     // File-backed session data store for persistence

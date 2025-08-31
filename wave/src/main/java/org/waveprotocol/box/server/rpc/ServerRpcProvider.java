@@ -45,6 +45,7 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.HttpConfiguration;
 import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.server.ForwardedRequestCustomizer;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -117,6 +118,7 @@ public class ServerRpcProvider {
   private final String[] resourceBases;
 
   private final String sessionStoreDir;
+  private final boolean enableForwardedHeaders;
 
   /**
    * Internal, static container class for any specific registered service
@@ -275,7 +277,8 @@ public class ServerRpcProvider {
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
       String[] resourceBases, Executor threadPool, SessionManager sessionManager,
       SessionHandler sessionHandler, String sessionStoreDir,
-      boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword) {
+      boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword,
+      boolean enableForwardedHeaders) {
     this.httpAddresses = httpAddresses;
     this.resourceBases = resourceBases;
     this.threadPool = threadPool;
@@ -285,6 +288,7 @@ public class ServerRpcProvider {
     this.sslEnabled = sslEnabled;
     this.sslKeystorePath = sslKeystorePath;
     this.sslKeystorePassword = sslKeystorePassword;
+    this.enableForwardedHeaders = enableForwardedHeaders;
   }
 
   /**
@@ -297,7 +301,7 @@ public class ServerRpcProvider {
       Executor executor) {
     this(httpAddresses, resourceBases, executor,
         sessionManager, sessionHandler, sessionStoreDir, sslEnabled, sslKeystorePath,
-        sslKeystorePassword);
+        sslKeystorePassword, false);
   }
 
   @Inject
@@ -307,13 +311,15 @@ public class ServerRpcProvider {
     this(parseAddressList(config.getStringList("core.http_frontend_addresses"),
                     config.getString("core.http_websocket_public_address")),
             config.getStringList("core.resource_bases").toArray(new String[0]),
+            executorService,
             sessionManager,
             sessionHandler,
             config.getString("core.sessions_store_directory"),
             config.getBoolean("security.enable_ssl"),
             config.getString("security.ssl_keystore_path"),
             config.getString("security.ssl_keystore_password"),
-            executorService);
+            config.hasPath("network.enable_forwarded_headers") &&
+                config.getBoolean("network.enable_forwarded_headers"));
   }
 
   public void startWebSocketServer(final Injector injector) {
@@ -452,6 +458,9 @@ public class ServerRpcProvider {
     // Base HTTP configuration
     HttpConfiguration httpConfig = new HttpConfiguration();
     httpConfig.setSendServerVersion(false);
+    if (enableForwardedHeaders) {
+      httpConfig.addCustomizer(new ForwardedRequestCustomizer());
+    }
 
     String[] excludeCiphers = {"SSL_RSA_EXPORT_WITH_RC4_40_MD5", "SSL_RSA_EXPORT_WITH_DES40_CBC_SHA",
                                "SSL_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA", "SSL_RSA_WITH_DES_CBC_SHA",
@@ -481,6 +490,9 @@ public class ServerRpcProvider {
 
       httpsConfig = new HttpConfiguration(httpConfig);
       httpsConfig.addCustomizer(new org.eclipse.jetty.server.SecureRequestCustomizer());
+      if (enableForwardedHeaders) {
+        httpsConfig.addCustomizer(new ForwardedRequestCustomizer());
+      }
     }
 
     for (InetSocketAddress address : httpAddresses) {

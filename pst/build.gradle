@@ -31,8 +31,12 @@ apply plugin: 'com.google.protobuf'
 //=============================================================================
 version = 0.1
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    // Compile and target JDK 17 bytecode
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 def title = 'Apache Wave PST Compiler'
 def vendor = 'The Apache Software Foundation'

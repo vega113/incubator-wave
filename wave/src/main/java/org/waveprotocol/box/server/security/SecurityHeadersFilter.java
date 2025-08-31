@@ -29,6 +29,7 @@ import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
 /**
@@ -68,6 +69,7 @@ public final class SecurityHeadersFilter implements Filter {
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
       throws IOException, ServletException {
+    HttpServletRequest req = (request instanceof HttpServletRequest) ? (HttpServletRequest) request : null;
     if (response instanceof HttpServletResponse) {
       HttpServletResponse http = (HttpServletResponse) response;
 
@@ -81,6 +83,16 @@ public final class SecurityHeadersFilter implements Filter {
         http.setHeader("Content-Security-Policy", csp);
         http.setHeader("Referrer-Policy", referrer);
         http.setHeader("X-Content-Type-Options", xcto);
+
+        // Conditionally add HSTS when connection is secure
+        try {
+          int hstsMaxAge = config.hasPath("security.hsts_max_age") ? config.getInt("security.hsts_max_age") : 0;
+          boolean hstsIncludeSub = config.hasPath("security.hsts_include_subdomains") && config.getBoolean("security.hsts_include_subdomains");
+          if (hstsMaxAge > 0 && req != null && req.isSecure()) {
+            String value = "max-age=" + hstsMaxAge + (hstsIncludeSub ? "; includeSubDomains" : "");
+            http.setHeader("Strict-Transport-Security", value);
+          }
+        } catch (Throwable ignored) {}
       }
     }
 
