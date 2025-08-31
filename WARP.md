@@ -525,7 +525,7 @@ Notes:
 
 ## Git commit Guidelines
 
-- Always commit changes to git given the tunrn is complete.
+- Always commit changes to git given the turn is complete.
 - Use clear, descriptive commit messages that summarize the changes made.
 - If multiple related changes are made, consider using a single commit with a detailed message.
 - Consider making small, incremental commits to facilitate easier reviews and rollbacks if necessary.
