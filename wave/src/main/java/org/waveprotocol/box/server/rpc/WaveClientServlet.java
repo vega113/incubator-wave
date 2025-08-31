@@ -125,8 +125,14 @@ public class WaveClientServlet extends HttpServlet {
     String userDomain = id.getDomain();
 
     try {
+      // Use the request Host header for websocket address to ensure cookies and
+      // origin match (e.g., localhost vs 127.0.0.1).
+      String hostHeader = request.getHeader("Host");
+      String wsAddressForPage = (hostHeader != null && !hostHeader.isEmpty())
+          ? hostHeader
+          : websocketPresentedAddress;
       WaveClientPage.write(response.getWriter(), new GxpContext(request.getLocale()),
-          getSessionJson(request.getSession(false)), getClientFlags(request), websocketPresentedAddress,
+          getSessionJson(request.getSession(false)), getClientFlags(request), wsAddressForPage,
           TopBar.getGxpClosure(username, userDomain), analyticsAccount);
     } catch (IOException e) {
       LOG.warning("Failed to write GXP for request " + request, e);

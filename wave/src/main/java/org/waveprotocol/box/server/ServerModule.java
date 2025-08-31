@@ -136,8 +136,16 @@ public class ServerModule extends AbstractModule {
       sessionHandler.getSessionCookieConfig().setMaxAge(config.getInt("network.session_cookie_max_age"));
     } catch (Exception ignore) {}
     try {
-      sessionHandler.getSessionCookieConfig().setHttpOnly(true);
-      boolean enableSsl = config.getBoolean("security.enable_ssl");
+      boolean httpOnly = true;
+      try {
+        if (config.hasPath("network.session_cookie_http_only")) {
+          httpOnly = config.getBoolean("network.session_cookie_http_only");
+        }
+      } catch (Exception ignored) {}
+      sessionHandler.getSessionCookieConfig().setHttpOnly(httpOnly);
+
+      boolean enableSsl = false;
+      try { enableSsl = config.getBoolean("security.enable_ssl"); } catch (Exception ignored) {}
       if (enableSsl) {
         sessionHandler.getSessionCookieConfig().setSecure(true);
       }

@@ -77,6 +77,24 @@ import java.io.File;
  */
 public class ServerMain {
 
+  private static void printStackTraceLite(Throwable t) {
+    java.io.PrintStream err = System.err;
+    err.println(t.getClass().getName());
+    for (StackTraceElement ste : t.getStackTrace()) {
+      err.println("\tat " + ste.toString());
+    }
+    Throwable cause = t.getCause();
+    java.util.Set<Throwable> seen = new java.util.HashSet<>();
+    while (cause != null && !seen.contains(cause)) {
+      seen.add(cause);
+      err.println("Caused by: " + cause.getClass().getName());
+      for (StackTraceElement ste : cause.getStackTrace()) {
+        err.println("\tat " + ste.toString());
+      }
+      cause = cause.getCause();
+    }
+  }
+
   private static final Log LOG = Log.get(ServerMain.class);
 
   public static void main(String... args) {
@@ -92,9 +110,17 @@ public class ServerMain {
     try {
       Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
         try {
-          LOG.severe("Uncaught exception on thread " + thread.getName(), throwable);
+          // Avoid passing the Throwable to logging to prevent Guice/ASM formatting issues
+          LOG.severe("Uncaught exception on thread " + thread.getName() + " (" + throwable.getClass().getName() + ")");
         } catch (Throwable ignored) {
           // Avoid throwing from the handler itself
+        } finally {
+          try {
+            // Print minimal stack trace without invoking Throwable.toString()/getMessage()
+            printStackTraceLite(throwable);
+          } catch (Throwable ignore2) {
+            // ignore
+          }
         }
       });
     } catch (Throwable ignore) {
@@ -105,10 +131,10 @@ public class ServerMain {
 
         @Override
         protected void configure() {
-          Config config =
-              ConfigFactory.load().withFallback(
-                  ConfigFactory.parseFile(new File("config/application.conf")).withFallback(
-                      ConfigFactory.parseFile(new File("config/reference.conf"))));
+          Config config = ConfigFactory.defaultOverrides()
+              .withFallback(ConfigFactory.parseFile(new File("config/application.conf")))
+              .withFallback(ConfigFactory.parseFile(new File("config/reference.conf")))
+              .resolve();
           bind(Config.class).toInstance(config);
           bind(Key.get(String.class, Names.named(CoreSettingsNames.WAVE_SERVER_DOMAIN)))
               .toInstance(config.getString("core.wave_server_domain"));
@@ -122,7 +148,13 @@ public class ServerMain {
     } catch (WaveServerException e) {
       LOG.severe("WaveServerException when running server:", e);
     } catch (Throwable t) {
-      LOG.severe("Unexpected fatal error when running server:", t);
+      // Avoid passing Throwable into logging to bypass Guice/ASM message formatting
+      LOG.severe("Unexpected fatal error when running server (" + t.getClass().getName() + ")");
+      try {
+        printStackTraceLite(t);
+      } catch (Throwable ignore) {
+        // ignore
+      }
     }
   }
 

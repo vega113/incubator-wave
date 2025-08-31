@@ -54,6 +54,7 @@ application {
             "-Xmx1024M",
             "-Dorg.eclipse.jetty.LEVEL=DEBUG",
             "-Dlogback.configurationFile=config/logback.xml",
+            "-Dguice_include_stack_traces=OFF",
             "-Djava.security.auth.login.config=config/jaas.config",
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
             "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
