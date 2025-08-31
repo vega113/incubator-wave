@@ -521,3 +521,12 @@ Notes:
 - If a task is blocked, clearly state what is needed to unblock it.
 - Include references to files, paths, or commits for traceability when applicable.
 - Follow any organization-specific retention or privacy policies when journaling sensitive information.
+
+
+## Git commit Guidelines
+
+- Always commit changes to git given the tunrn is complete.
+- Use clear, descriptive commit messages that summarize the changes made.
+- If multiple related changes are made, consider using a single commit with a detailed message.
+- Consider making small, incremental commits to facilitate easier reviews and rollbacks if necessary.
+- Ensure that the codebase builds and passes all tests before committing changes.
