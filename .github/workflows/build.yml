@@ -30,6 +30,9 @@ jobs:
       - name: Build PST and Wave
         run: ./gradlew --no-daemon --warning-mode all :pst:build :wave:build
 
+      - name: Smoke UI (server startup + probes)
+        run: ./gradlew --no-daemon --warning-mode all :wave:smokeUi
+
       - name: Publish test results (if any)
         if: always()
         uses: actions/upload-artifact@v4
