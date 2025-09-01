@@ -268,3 +268,22 @@ but the build no longer relies on Ant and we do not ship Solr helpers. If you wa
 experiment, point `core.search_type = solr` and set `core.solr_base_url`, then run a
 separate Solr instance yourself. Contributions to re-enable and modernize Solr support
 via Gradle are welcome.
+## Docker
+
+Build the image (multi-stage, Java 17):
+
+    docker build -t wave:dev .
+
+Run (HTTP on 9898):
+
+    docker run --rm -p 9898:9898 wave:dev
+
+Mount a custom config (optional):
+
+    docker run --rm -p 9898:9898 -v "$PWD/wave/config:/opt/wave/config" wave:dev
+
+Enable SSL in the container (mount keystore and set env):
+
+    docker run --rm -p 9898:9898 \
+      -v "$PWD/wave/config:/opt/wave/config" \
+      -e WAVE_SSL_KEYSTORE_PASSWORD=changeme wave:dev

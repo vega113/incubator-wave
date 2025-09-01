@@ -144,14 +144,13 @@ dependencies {
             [group: "com.googlecode.protobuf-java-format", name: "protobuf-java-format", version: "1.2"],
 [group: "com.typesafe", name: "config", version: "1.4.3"],
             [group: "commons-codec", name: "commons-codec", version: "1.16.0"],
-            [group: "commons-io", name: "commons-io", version: "2.15.1"],
-            [group: "commons-collections", name: "commons-collections", version: "3.2.2"],
+            [group: "commons-io", name: "commons-io", version: "2.16.1"],
             [group: "commons-configuration", name: "commons-configuration", version: "1.6"],
             [group: "commons-httpclient", name: "commons-httpclient", version: "3.1"],
             [group: "commons-lang", name: "commons-lang", version: "2.5"],
             [group: "commons-fileupload", name: "commons-fileupload", version: "1.5"],
-            [group: "commons-logging", name: "commons-logging-api", version: "1.1"],
-            [group: "commons-logging", name: "commons-logging", version: "1.1.1"],
+            // Route any Commons Logging calls through SLF4J instead of pulling commons-logging
+            [group: "org.slf4j", name: "jcl-over-slf4j", version: "1.7.36"],
             [group: "com.google.code.findbugs", name: "jsr305", version: "2.0.1"],
             [group: "com.google.code.gson", name: "gson", version: "2.2.4"],
             // Use constraints below to control Guava version; keep guava-gwt out of runtime
@@ -736,4 +735,16 @@ tasks.register('smokeUi', Exec) {
     description = 'Runs a short-lived server and probes UI endpoints via scripts/wave-smoke-ui.sh.'
     workingDir = rootProject.projectDir
     commandLine 'bash', 'scripts/wave-smoke-ui.sh'
+}
+
+//=============================================================================
+// Smoke Installed Distribution (installDist)
+//=============================================================================
+
+tasks.register('smokeInstalled', Exec) {
+    group = 'verification'
+    description = 'Builds installDist and runs scripts/wave-smoke.sh against it.'
+    dependsOn tasks.named('installDist')
+    workingDir = rootProject.projectDir
+    commandLine 'bash', '-lc', 'scripts/wave-smoke.sh start && scripts/wave-smoke.sh check && scripts/wave-smoke.sh stop'
 }

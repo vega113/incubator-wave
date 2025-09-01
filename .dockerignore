@@ -1,0 +1,14 @@
+# Ignore VCS and local build artifacts
+.git
+.gitignore
+.idea
+*.iml
+**/build
+**/.gradle
+**/.DS_Store
+logs
+wave/logs
+
+# Ignore CI artifacts
+.github
+

@@ -581,11 +581,11 @@ Task P7-T1: Distributions
   - Distributables run out-of-the-box.
 
 Task P7-T2: Dockerfile for local dev
-- Status: Planned
+- Status: Completed
 - Goal: Provide a containerized way to run the server.
 - Steps:
-  1) Create Dockerfile with JDK 17 base, copy installDist, expose port.
-  2) Add simple docker-compose.yml if helpful.
+  1) Added multi-stage Dockerfile (JDK 17) building :wave:installDist and packaging a slim runtime.
+  2) Documented usage in README (build/run, mounting config, SSL env var).
 - Tests:
   - docker build && docker run; curl endpoints.
 - AI Agent Guidance:
@@ -594,11 +594,11 @@ Task P7-T2: Dockerfile for local dev
   - Docker run works and serves endpoints.
 
 Task P7-T3: Developer docs and scripts
-- Status: Planned
+- Status: In Progress
 - Goal: Improve onboarding and productivity.
 - Steps:
-  1) Create scripts: scripts/build-server.sh, scripts/build-client.sh.
-  2) Update README.md with modern instructions and supported JDK.
+  1) Added scripts/wave-smoke-ui.sh and scripts/wave-smoke.sh previously; wired to Gradle tasks :wave:smokeUi and :wave:smokeInstalled.
+  2) Updated README (Quick Start, Dev/Prod, Docker).
 - Tests:
   - Run scripts locally; ensure success.
 - AI Agent Guidance:
