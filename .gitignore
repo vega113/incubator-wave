@@ -72,3 +72,5 @@ journal/
 /wave/config/dev-keystore.jks.bak
 /gradle.pid
 /run.out
+/run.ui.out
+/gradle.ui.pid
