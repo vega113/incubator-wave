@@ -19,7 +19,7 @@
 
 package org.waveprotocol.wave.client.wavepanel.render;
 
-import com.google.gwt.core.client.Scheduler;
+import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Timer;
@@ -31,6 +31,7 @@ public final class DomScrollerImpl {
   private final Element body = Document.get().getBody();
   private int pendingY = 0;
   private Timer throttleTimer = null;
+  private Integer throttleMsOverride = null; // for tests or explicit override
 
   public int getScrollTop() {
     return body.getScrollTop();
@@ -42,20 +43,73 @@ public final class DomScrollerImpl {
     int max = Math.max(0, content - Math.max(0, viewport));
     final int y = RenderUtil.clamp(yRaw, 0, max);
     pendingY = y;
-    if (throttleTimer == null) {
-      int delay = 50;
-      try {
-        Integer knob = ClientFlags.get().dynamicScrollThrottleMs();
-        if (knob != null) delay = Math.max(1, knob);
-      } catch (Exception ignored) {}
-      throttleTimer = new Timer() {
-        @Override public void run() {
-          body.setScrollTop(pendingY);
-          throttleTimer = null;
-        }
-      };
-      // Use same throttle knob as dynamic renderer for unified control
-      throttleTimer.schedule(delay);
+    int delay = resolveDelayMs();
+    // If delay is 0, apply immediately using deferred scheduling to avoid layout jank.
+    if (delay <= 0) {
+      cancel();
+      body.setScrollTop(pendingY);
+      return;
     }
+    // Debounce: cancel previous pending write and schedule a fresh one.
+    if (throttleTimer != null) {
+      throttleTimer.cancel();
+      throttleTimer = null;
+    }
+    throttleTimer = new Timer() {
+      @Override public void run() {
+        body.setScrollTop(pendingY);
+        throttleTimer = null;
+      }
+    };
+    throttleTimer.schedule(delay);
+  }
+
+  /** For tests: override throttle window in ms. Use 0 for immediate writes. */
+  void setThrottleMsOverride(Integer overrideMs) {
+    if (overrideMs != null && overrideMs < 0) {
+      throw new IllegalArgumentException("throttleMsOverride must be >= 0");
+    }
+    this.throttleMsOverride = overrideMs;
+  }
+
+  /** Applies any pending value immediately and clears the timer. */
+  void flush() {
+    if (throttleTimer != null) {
+      throttleTimer.cancel();
+      throttleTimer = null;
+    }
+    body.setScrollTop(pendingY);
+  }
+
+  /** Cancels pending scheduled write, if any. */
+  void cancel() {
+    if (throttleTimer != null) {
+      throttleTimer.cancel();
+      throttleTimer = null;
+    }
+  }
+
+  private int resolveDelayMs() {
+    if (throttleMsOverride != null) return throttleMsOverride;
+    int delay = 50;
+    try {
+      Integer knob = ClientFlags.get().dynamicScrollThrottleMs();
+      if (knob != null) delay = knob;
+    } catch (Exception ex) {
+      if (shouldLog()) GWT.log("DomScrollerImpl: failed to read throttle knob", ex);
+    }
+    if (delay < 0) {
+      if (shouldLog()) GWT.log("DomScrollerImpl: negative throttle ms=" + delay + ", clamping to 0");
+      delay = 0;
+    } else if (delay > 5000) {
+      if (shouldLog()) GWT.log("DomScrollerImpl: excessive throttle ms=" + delay + ", clamping to 5000");
+      delay = 5000;
+    }
+    return delay;
+  }
+
+  private static boolean shouldLog() {
+    try { return Boolean.TRUE.equals(ClientFlags.get().enableViewportStats()); }
+    catch (Exception ignored) { return false; }
   }
 }
