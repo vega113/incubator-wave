@@ -180,6 +180,7 @@ Task P2-T2: Upgrade Guice to 5.1.x for Java 17
     - Excluded com/google/common/** from PST shadowJar to avoid bundling Guava 19 in wave runtime.
     - Tried aligning Guava to 30.1.1-jre; error persisted. Root cause: Guice/Guava method compatibility and classpath mixing with GWT/legacy libs.
   - Decision: Defer Guice 5.x until server-side Guava is upgraded and classpaths are isolated from GWT (see P6-T4). Keep Guice at 4.1.0 for now to maintain a green build.
+  - 2025-09-01: Groundwork staged: added waveGuavaVersion (default 20.0, overrideable via -PwaveGuavaVersion=32.1.3-jre), dependency constraints to align server Guava, and ensured guava-gwt is compileOnly and excluded from runtime; generateMessages now uses waveGuavaVersion. No API upgrades yet — this isolates classpaths in preparation for the Guice 5 bump and allows easy spike builds with a newer Guava.
 - Goal: Move from Guice 3.x/4.x artifacts to 5.1.x to align with modern JDKs.
 - Steps:
   1) In wave/build.gradle, update dependencies:
