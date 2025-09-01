@@ -787,10 +787,14 @@ public interface StageTwo {
               org.waveprotocol.wave.client.render.undercurrent.ScreenControllerImpl.createDefault();
           if (screen != null && getConversations() != null && getModelAsViewProvider() != null
               && getBlipQueue() != null && getPagingHandler() != null) {
+            org.waveprotocol.wave.client.wavepanel.render.FragmentRequester requester =
+                Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetch())
+                    ? new org.waveprotocol.wave.client.wavepanel.render.ClientFragmentRequester()
+                    : org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.NO_OP;
             org.waveprotocol.wave.client.wavepanel.render.DynamicRendererImpl dyn =
                 org.waveprotocol.wave.client.wavepanel.render.DynamicRendererImpl.create(
                     getConversations(), getModelAsViewProvider(), getBlipQueue(), getPagingHandler(),
-                    org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.NO_OP,
+                    requester,
                     screen);
             dyn.init();
           }

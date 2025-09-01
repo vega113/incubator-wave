@@ -413,7 +413,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - When enabled, reduces initial load and keeps dynamic rendering responsive on very large waves
 
 - Status
-  - Scaffolded (client) — 2025-09-01. Added `FragmentRequester` (no-op) and integrated call from `DynamicRendererImpl` under `enableFragmentFetch`. Server path not implemented yet.
+  - Implemented (minimal stub) — 2025-09-01. Client: added `ClientFragmentRequester` (GWT RequestBuilder) used when `enableFragmentFetch=true`. Server: added `/fragments` servlet that echoes requested range. This is a placeholder for real fragment logic; feature remains optional and off by default.
   - Addendum — 2025-09-01. `FragmentRequester` now includes `Callback` with `onSuccess/onError` for failures.
 
 -------------------------------------------------------------------------------

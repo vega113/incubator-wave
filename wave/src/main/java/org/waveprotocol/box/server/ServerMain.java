@@ -244,6 +244,8 @@ public class ServerMain {
     server.addServlet("/profile/*", FetchProfilesServlet.class);
     server.addServlet("/iniavatars/*", InitialsAvatarsServlet.class);
     server.addServlet("/waveref/*", WaveRefServlet.class);
+    // Optional fragment fetch endpoint for dynamic rendering Phase 6
+    server.addServlet("/fragments/*", FragmentsServlet.class);
 
     String gadgetServerHostname = config.getString("core.gadget_server_hostname");
     int gadgetServerPort = config.getInt("core.gadget_server_port");
