@@ -1,7 +1,7 @@
 # Apache Wave Modernization Plan: JDK 17 and Latest GWT
 
 Status: In Progress
-Version: 1.0
+Version: 1.1
 Owner: Project Maintainers
 
 Purpose
@@ -24,6 +24,21 @@ How we track task status and updates
 Definitions
 - DoD = Definition of Done: the verifications required to mark a task Completed.
 - AI Agent Guidance = Extra details to help an AI agent make the correct edits and run the right checks.
+
+At‑a‑Glance Checklist
+- [x] Phase 0: Baseline/CI/smoke scaffolding
+- [x] Phase 1: PST/protobuf generation stabilization
+- [x] Phase 2: Java 17 server compatibility (most tasks)
+- [~] P2‑T2: Upgrade to Guice 5.x (blocked by Guava alignment)
+- [x] Phase 3: Gradle 8 + deprecation cleanup
+- [x] Phase 4: GWT 2.x on JDK 17 compiles
+- [x] P4‑T4: Client smoke (script + README)
+- [x] P4‑T6: Skip hosted GWT tests in CI
+- [x] Phase 5: Jetty 9.4 baseline modernization
+- [ ] P5‑T1..T3: Jakarta migration decision + implementation
+- [ ] Phase 6: Library upgrades (protobuf/commons/mongo/guava)
+- [ ] Phase 7: Packaging & DX (dist/Docker)
+- [ ] Phase 8: J2CL/GWT 3 roadmap
 
 Milestones / Phases
 - Phase 0: Baseline, safety nets, and reproducibility
@@ -352,18 +367,21 @@ Task P4-T3: Fix GWT module/linker issues and logging
   - GWT compilation succeeds end-to-end locally; CI continues to skip hosted tests per P4-T6.
 
 Task P4-T4: Client smoke test
-- Status: Planned
+- Status: Completed
+- Work Log:
+  - 2025-09-01: Added scripts/wave-smoke-ui.sh to launch server briefly and probe UI endpoints (root, webclient assets). Updated README Quick Start.
 - Goal: Verify the compiled client assets run in a browser.
 - Steps:
   1) Ensure compiled GWT output is packaged under wave/war (or equivalent distribution path).
   2) Start server (P2-T5) and load the web UI.
   3) Validate login, search page, and a few UI flows.
+  4) For automation, run scripts/wave-smoke-ui.sh to check HTML and key endpoints.
 - Tests:
-  - Manual or simple scripted curl checks for static assets (HTTP 200 from webclient entry points).
+  - Manual or scripted checks: scripts/wave-smoke-ui.sh returns non-zero on failure.
 - AI Agent Guidance:
   - If using DevMode/CodeServer locally, ensure firewall permissions are open.
 - DoD:
-  - UI loads and basic flows respond without client-side errors in browser console (or document/triage remaining issues).
+  - UI loads and basic flows respond without client-side errors in browser console (or document/triage remaining issues). Script runs successfully on a fresh build.
 
 Task P4-T5: Correct folder removal listener invocation in WaveletBasedSupplement
 - Status: Completed
@@ -642,4 +660,3 @@ Changelog (for this plan)
 - 1.2 (2025-08-30): Marked P2-T4 Completed (Java 17 toolchain enabled in wave); added P3-T2 work log (pst DSL modernization, Shadow 8.1.1); set P1-T2 to Completed with JUnit test and test wiring; added generateMessages Guava runtime to classpath.
 - 1.3 (2025-08-30): Marked P2-T5 Completed; documented Java 17 add-opens in applicationDefaultJvmArgs and smoke validation results.
 - 1.4 (2025-08-31): Completed Jetty 9.4 baseline modernization (P5-T0): session API, SSL, gzip, security headers/HSTS toggle, forwarded headers, WebSocket token fix, access logs, static caching, and health endpoints. Enforced Java 17 across modules; added request/ops hardening.
-
