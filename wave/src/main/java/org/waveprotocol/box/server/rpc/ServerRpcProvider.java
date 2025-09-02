@@ -127,6 +127,7 @@ public class ServerRpcProvider {
   private final String sessionStoreDir;
   private final boolean enableForwardedHeaders;
   private final boolean nativeServletRegistration;
+  private final boolean enableProgrammaticPoc;
 
   /**
    * Internal, static container class for any specific registered service
@@ -286,7 +287,8 @@ public class ServerRpcProvider {
       String[] resourceBases, Executor threadPool, SessionManager sessionManager,
       SessionHandler sessionHandler, String sessionStoreDir,
       boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword,
-      boolean enableForwardedHeaders, boolean nativeServletRegistration) {
+      boolean enableForwardedHeaders, boolean nativeServletRegistration,
+      boolean enableProgrammaticPoc) {
     this.httpAddresses = httpAddresses;
     this.resourceBases = resourceBases;
     this.threadPool = threadPool;
@@ -298,6 +300,7 @@ public class ServerRpcProvider {
     this.sslKeystorePassword = sslKeystorePassword;
     this.enableForwardedHeaders = enableForwardedHeaders;
     this.nativeServletRegistration = nativeServletRegistration;
+    this.enableProgrammaticPoc = enableProgrammaticPoc;
   }
 
   /**
@@ -310,7 +313,7 @@ public class ServerRpcProvider {
       Executor executor) {
     this(httpAddresses, resourceBases, executor,
         sessionManager, sessionHandler, sessionStoreDir, sslEnabled, sslKeystorePath,
-        sslKeystorePassword, false, false);
+        sslKeystorePassword, false, false, false);
   }
 
   @Inject
@@ -330,7 +333,9 @@ public class ServerRpcProvider {
             config.hasPath("network.enable_forwarded_headers") &&
                 config.getBoolean("network.enable_forwarded_headers"),
             config.hasPath("experimental.native_servlet_registration") &&
-                config.getBoolean("experimental.native_servlet_registration"));
+                config.getBoolean("experimental.native_servlet_registration"),
+            config.hasPath("experimental.enable_programmatic_poc") &&
+                config.getBoolean("experimental.enable_programmatic_poc"));
   }
 
   public void startWebSocketServer(final Injector injector) {
@@ -369,6 +374,16 @@ public class ServerRpcProvider {
     context.setBaseResource(resources);
 
     addWebSocketServlets();
+
+    // POC: programmatic servlet/filter registration to unblock Jakarta migration
+    if (enableProgrammaticPoc) {
+      try {
+        addServlet("/poc/hello", org.waveprotocol.box.server.poc.ProgrammaticHelloServlet.class);
+        addFilter("/*", org.waveprotocol.box.server.poc.SecurityHeadersFilter.class);
+      } catch (Throwable t) {
+        LOG.warning("Failed to register POC programmatic servlet/filter (ignored)", t);
+      }
+    }
 
     try {
 
