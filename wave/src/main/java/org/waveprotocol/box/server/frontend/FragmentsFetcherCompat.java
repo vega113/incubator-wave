@@ -19,13 +19,32 @@
 
 package org.waveprotocol.box.server.frontend;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import java.util.HashMap;
+import org.waveprotocol.box.server.persistence.blocks.VersionRange;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.model.wave.data.BlipData;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.id.SegmentId;
 import org.waveprotocol.wave.util.logging.Log;
+import org.waveprotocol.wave.model.conversation.ObservableConversation;
+import org.waveprotocol.wave.model.conversation.ObservableConversationBlip;
+import org.waveprotocol.wave.model.conversation.ObservableConversationView;
+import org.waveprotocol.wave.model.conversation.WaveBasedConversationView;
+import org.waveprotocol.wave.model.conversation.BlipIterators;
+import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
+import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
+import org.waveprotocol.wave.model.wave.data.IndexedDocumentFactory;
+import org.waveprotocol.wave.model.schema.conversation.ConversationSchemas;
+import org.waveprotocol.wave.model.id.IdGenerator;
+import org.waveprotocol.wave.model.id.IdGeneratorImpl;
+import org.waveprotocol.wave.model.id.WaveId;
+import org.waveprotocol.wave.model.wave.ReadOnlyWaveView;
+import org.waveprotocol.wave.model.wave.data.impl.WaveletDataImpl;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +89,13 @@ public final class FragmentsFetcherCompat {
     return out;
   }
 
+  /** Returns committed snapshot version for convenience (or 0 if missing). */
+  public static long getCommittedVersion(WaveletProvider provider, WaveletName wn) throws WaveServerException {
+    org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot snap = provider.getSnapshot(wn);
+    if (snap == null || snap.committedVersion == null) return 0L;
+    return snap.committedVersion.getVersion();
+  }
+
   /** Slice around start id in given direction; if start is null, take from beginning. */
   public static List<String> slice(Map<String, BlipMeta> metas, String startId, String direction, int limit) {
     if (metas.isEmpty() || limit <= 0) return Collections.emptyList();
@@ -99,5 +125,88 @@ public final class FragmentsFetcherCompat {
       for (int i = idx; i < ordered.size() && out.size() < limit; i++) out.add(ordered.get(i));
     }
     return out;
+  }
+
+  /** Returns blip ids in manifest (document) order using the conversation model. */
+  public static List<String> manifestOrder(WaveletProvider provider, WaveletName wn)
+      throws WaveServerException {
+    org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot snap = provider.getSnapshot(wn);
+    ReadableWaveletData data = (snap != null) ? snap.snapshot : null;
+    if (data == null) return Collections.emptyList();
+
+    // Create an ObservableWaveletData copy using conversation schemas
+    ObservableWaveletData obs = WaveletDataImpl.Factory.create(
+        new IndexedDocumentFactory(new ConversationSchemas())).create(data);
+    // Build a minimal ReadOnlyWaveView to host the observable wavelet
+    WaveId waveId = data.getWaveId();
+    ReadOnlyWaveView wv = new ReadOnlyWaveView(waveId);
+    OpBasedWavelet wavelet = OpBasedWavelet.createReadOnly(obs);
+    wv.addWavelet(wavelet);
+    // Lightweight IdGenerator seeded deterministically per domain
+    IdGenerator idGen = new IdGeneratorImpl(waveId.getDomain(), () -> "fragments");
+    ObservableConversationView view = WaveBasedConversationView.create(wv, idGen);
+    ObservableConversation root = view.getRoot();
+    if (root == null || root.getRootThread() == null) return Collections.emptyList();
+    List<String> ordered = new ArrayList<>();
+    for (ObservableConversationBlip blip : BlipIterators.breadthFirst(root)) {
+      ordered.add(blip.getId());
+    }
+    return ordered;
+  }
+
+  /** Slice using a provided total order; falls back to mtime/id ordering if needed. */
+  public static List<String> sliceUsingOrder(Map<String, BlipMeta> metas, List<String> totalOrder,
+      String startId, String direction, int limit) {
+    List<String> order = (totalOrder == null || totalOrder.isEmpty()) ? null : totalOrder;
+    if (order == null) {
+      return slice(metas, startId, direction, limit);
+    }
+    // Filter to known metas
+    List<String> filtered = new ArrayList<>(order.size());
+    for (String id : order) if (metas.containsKey(id)) filtered.add(id);
+    if (filtered.isEmpty()) return Collections.emptyList();
+    String dir = (direction == null) ? "forward" : direction.trim().toLowerCase();
+    if (!"forward".equals(dir) && !"backward".equals(dir)) dir = "forward";
+    int idx = 0;
+    if (startId != null && metas.containsKey(startId)) idx = filtered.indexOf(startId);
+    if (idx < 0) idx = 0;
+    List<String> out = new ArrayList<>(limit);
+    if ("backward".equals(dir)) {
+      for (int i = Math.max(0, idx - limit + 1); i <= idx && out.size() < limit; i++) out.add(filtered.get(i));
+    } else {
+      for (int i = idx; i < filtered.size() && out.size() < limit; i++) out.add(filtered.get(i));
+    }
+    return out;
+  }
+
+  /**
+   * Builds a map of VersionRanges to request for the given segments.
+   *
+   * Compat policy:
+   * - If req.ranges is provided, intersect with segmentIds and return as-is.
+   * - Else if common start/end are provided, apply that range to all segments.
+   * - Else fall back to [snapshotVersion, snapshotVersion] for all segments.
+   */
+  public static ImmutableMap<SegmentId, VersionRange> computeRangesForSegments(
+      long snapshotVersion,
+      FragmentsRequest req,
+      List<SegmentId> segmentIds) {
+    ImmutableMap.Builder<SegmentId, VersionRange> out = ImmutableMap.builder();
+    if (req != null && req.ranges != null && !req.ranges.isEmpty()) {
+      for (SegmentId id : segmentIds) {
+        VersionRange vr = req.ranges.get(id);
+        if (vr != null) out.put(id, vr);
+      }
+      return out.build();
+    }
+    long from = (req != null && req.startVersion != FragmentsRequest.NO_VERSION)
+        ? req.startVersion : snapshotVersion;
+    long to = (req != null && req.endVersion != FragmentsRequest.NO_VERSION)
+        ? req.endVersion : snapshotVersion;
+    if (from > to) { long t = from; from = to; to = t; }
+    for (SegmentId id : segmentIds) {
+      out.put(id, VersionRange.of(from, to));
+    }
+    return out.build();
   }
 }

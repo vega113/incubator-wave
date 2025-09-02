@@ -143,7 +143,8 @@ Goal: Port a compatible `FragmentsRequest` and `FragmentsFetcher` that compute V
 - DoD:
   - Request object ready for fetcher; used only in Phase 3.2.
 
-- Status: completed — added compat builder (commit included in current cycle)
+- Status: completed — commit 842be858
+  - Summary: Added compat builder with validation and unit tests (FragmentsRequestTest) covering ranges/common versions and invalid inputs.
 
 ### Task 3.2 — FragmentsFetcher (compat)
 
