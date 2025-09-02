@@ -3,6 +3,20 @@
 Owner: Migration Engineering
 Last updated: 2025-09-02
 
+-------------------------------------------------------------------------------
+
+## Delta Since Last Edit (2025-09-02)
+
+- Flags (Task A): Added `enableDynamicRendering`, `enableQuasiDeletionUi`, `enableFragmentFetch`; server/gradle plumbing to pass flags via `-PclientFlags` and merge defaults.
+- Quasi (Phase 2 / Task B): Implemented `QuasiConversationViewAdapter` and `QuasiDeletable`; StageTwo wiring behind `enableQuasiDeletionUi`.
+- Deleted UI (Phase 3 / Task C): Added `BlipViewDomImpl#setQuasiDeleted(boolean)` and `.blip.deleted` styles; renderer marks quasi state before final removal.
+- Viewport plumbing (Phase 4 / Task D): Implemented `ScreenController` + `ScreenControllerImpl`; added `DomScrollerImpl` with clamped, throttled scroll writes sharing `dynamicScrollThrottleMs` with renderer.
+- Dynamic renderer (Phase 5 / Task E): Implemented MVP windowing with page-in/out, placeholders, robust DOM reads, and resource cleanup on page-out via `BlipResourceCleaner` + `BlipAsyncRegistry`.
+- Resources: Added `Render.css` and loader; optimized placeholder toggling to avoid redundant DOM churn.
+- Fragment fetch (Phase 6 / Task F): Added `ClientFragmentRequester` and minimal `/fragments` servlet; gated by `enableFragmentFetch` and callback with error logging.
+- Hardening & logging: Narrowed exception scopes, gated debug logs behind `enableViewportStats` or non-prod, added safe fallbacks.
+
+
 This document outlines how to port wiab.pro’s Conversation Renderer improvements into Apache Wave (incubator-wave), with a focus on:
 
 - Dynamic rendering of only the visible screen area (virtualized/viewport rendering)
@@ -444,6 +458,76 @@ Each task below is self-contained for an AI agent, includes context, concrete st
 - Performance
   - CPU usage during fast scroll acceptable; no GC thrash obvious
   - Memory footprint drops vs. full-render baseline on large waves
+
+-------------------------------------------------------------------------------
+
+## 6.1) End-to-End Test Plan (Detailed)
+
+- Environments
+  - Dev (local): run via `./gradlew :wave:run -PclientFlags="enableDynamicRendering=true,enableQuasiDeletionUi=true"`
+  - Dev (with fragments): add `enableFragmentFetch=true` (requires `/fragments` servlet; currently a stub)
+
+- Smoke Tests
+  - Open a wave with many blips (≥ 500). Verify initial render completes without freezing.
+  - Scroll top→bottom→top rapidly. Observe no JS errors and steady responsiveness.
+
+- Functional Tests
+  - Quasi deletion: delete a blip with `enableQuasiDeletionUi=true`. Confirm deleted styling appears momentarily and then is removed when the blip is finally removed.
+  - Placeholder behavior: while scrolling, confirm offscreen blips show `.placeholder` and are replaced with real content on page-in.
+  - Resource cleanup: attach a gadget or widget under a blip (if available), scroll the blip far offscreen, and confirm it is orphaned on page-out (no lingering timers, exceptions).
+
+- Performance Tests
+  - DOM steady-state: use browser devtools to record Node count at rest with dynamic rendering on vs. baseline (off). Expect drop proportional to viewport window size.
+  - CPU during scroll: record JS CPU (Performance tab) for a 5-second fast scroll. Expect minimal jank (few long tasks) with `dynamicScrollThrottleMs=30–50`.
+  - Memory: compare heap snapshots idle vs. scrolled; ensure no growth trend after multiple scroll passes.
+
+- Fragment Fetch (stub) Tests
+  - With `enableFragmentFetch=true`, verify network calls to `/fragments?top=..&bottom=..` occur during scroll and return 200 OK.
+  - Confirm UI remains responsive even if `/fragments` returns non-200 (we log errors, no user-facing breakage).
+
+- Regression Tests (flag-off)
+  - With all new flags false, verify legacy behavior: no placeholders, all blips render as before; no new errors.
+
+-------------------------------------------------------------------------------
+
+## 6.2) Manual QA Checklist
+
+- Rendering
+  - [ ] Initial viewport renders quickly with large waves
+  - [ ] Page-in only affects visible window + buffer
+  - [ ] Page-out removes content and leaves placeholder
+
+- Quasi
+  - [ ] Deleted blips show proper styling before removal
+  - [ ] No interaction allowed with quasi blips
+
+- Stability
+  - [ ] No console errors during long scrolls
+  - [ ] No runaway timers or retained widgets after page-out
+
+- Flags
+  - [ ] All features are off-by-default
+  - [ ] Each flag works independently (quasi only; dynamic only; fragments only)
+
+-------------------------------------------------------------------------------
+
+## 11) Remaining Work to Complete Implementation
+
+- Quasi polish
+  - Tooltip/context data on quasi deleted blips (source op context) — Completed (initial): show "Deleted by <author> at <time>" on blip root element; future enhancement is to pass true operation context if available.
+
+- Dynamic renderer polish
+  - Optional: expose `isBlipReady`/lookup helpers if needed by future features
+  - Optional: adjust prerender/window margins per device profile
+
+- Fragments (Phase 6)
+  - Replace stub `/fragments` with real server logic: compute visible segments, return fragments, merge on client
+  - Define contract and error semantics; add integration tests
+
+- Observability
+  - Optional metrics (DOM node count, scroll latency) gated by flags
+
+-------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 
