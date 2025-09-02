@@ -45,7 +45,10 @@ Goal: Introduce core types and interfaces needed by a segment-based fetch path, 
   - Unit: SegmentId equality/ordering; VersionRange boundary correctness; `of()` rejects invalid ranges (from > to).
 
 - DoD:
-  - Types compile; unit tests pass; no references wired into runtime.
+  - Types compile; no references wired into runtime.
+
+- Status: completed — commit 87383ee1
+  - Summary: added SegmentId, VersionRange, Interval.
 
 - AI implementer notes:
   - Keep API names aligned with wiab.pro to ease porting (even if implementations differ initially).
@@ -66,6 +69,9 @@ Goal: Introduce core types and interfaces needed by a segment-based fetch path, 
 
 - DoD:
   - Interface compiles; no behavior wired.
+
+- Status: completed — commit 87383ee1
+  - Summary: added SegmentWaveletState and SegmentWaveletStateCompat scaffold.
 
 ### Task 1.3 — Flags & Config Defaults
 
@@ -233,4 +239,3 @@ Status: planned
   - Summary: dynamic windowing, placeholders, resource cleanup; `/fragments` stub and HTTP client requester behind flag.
 
 Each completed task will add its commit ids and a short summary here.
-
