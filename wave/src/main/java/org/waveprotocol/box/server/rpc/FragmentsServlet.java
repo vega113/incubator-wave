@@ -19,27 +19,90 @@
 
 package org.waveprotocol.box.server.rpc;
 
+import com.google.inject.Inject;
+import org.waveprotocol.box.server.waveserver.WaveServerException;
+import org.waveprotocol.box.server.waveserver.WaveletProvider;
+import org.waveprotocol.box.server.frontend.FragmentsFetcherCompat;
+import org.waveprotocol.box.common.Receiver;
+import org.waveprotocol.wave.model.id.WaveletName;
+import org.waveprotocol.wave.model.id.WaveId;
+import org.waveprotocol.wave.model.id.WaveletId;
+import org.waveprotocol.wave.model.id.IdUtil;
+import org.waveprotocol.box.server.util.UrlParameters;
+import org.waveprotocol.wave.model.util.Pair;
+import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.wave.model.waveref.WaveRef;
+import org.waveprotocol.wave.util.escapers.jvm.JavaWaverefEncoder;
+import org.waveprotocol.wave.util.logging.Log;
+
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Minimal placeholder endpoint for client fragment fetching (Phase 6).
- * Returns a simple JSON envelope; real server-side logic can replace this later.
+ * Fragments endpoint (compat): returns a JSON list of blip ids + metadata near viewport.
  */
 public final class FragmentsServlet extends HttpServlet {
+  private static final Log LOG = Log.get(FragmentsServlet.class);
+
+  private final WaveletProvider waveletProvider;
+  private final SessionManager sessionManager;
+
+  @Inject
+  public FragmentsServlet(WaveletProvider waveletProvider, SessionManager sessionManager) {
+    this.waveletProvider = waveletProvider;
+    this.sessionManager = sessionManager;
+  }
+
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     resp.setContentType("application/json;charset=UTF-8");
-    // Echo back the requested viewport range for debugging.
-    String top = req.getParameter("top");
-    String bottom = req.getParameter("bottom");
-    if (top == null) top = "";
-    if (bottom == null) bottom = "";
-    String json = "{\"status\":\"ok\",\"top\":\"" + top + "\",\"bottom\":\"" + bottom + "\"}";
-    resp.getWriter().write(json);
-    resp.setStatus(HttpServletResponse.SC_OK);
+    ParticipantId user = sessionManager.getLoggedInUser(req.getSession(false));
+    if (user == null) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return; }
+
+    String ref = req.getParameter("ref");
+    String start = req.getParameter("startBlipId");
+    String dir = req.getParameter("direction");
+    String lim = req.getParameter("limit");
+    int limit = 50;
+    if (lim != null) { try { limit = Math.max(1, Math.min(200, Integer.parseInt(lim))); } catch (Exception ignored) {} }
+    if (dir == null || dir.isEmpty()) dir = "forward";
+
+    if (ref == null || ref.isEmpty()) { resp.setStatus(HttpServletResponse.SC_BAD_REQUEST); return; }
+    WaveletName wn;
+    try {
+      WaveRef waveref = JavaWaverefEncoder.decodeWaveRefFromPath(ref);
+      wn = WaveletName.of(waveref.getWaveId(), waveref.getWaveletId());
+    } catch (Exception e) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST); return;
+    }
+
+    try {
+      // Best-effort permission check
+      if (!waveletProvider.checkAccessPermission(wn, user)) {
+        resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return;
+      }
+      Map<String, FragmentsFetcherCompat.BlipMeta> metas = FragmentsFetcherCompat.listBlips(waveletProvider, wn);
+      List<String> slice = FragmentsFetcherCompat.slice(metas, start, dir, limit);
+      StringBuilder sb = new StringBuilder();
+      sb.append("{\"status\":\"ok\",\"waveRef\":\"").append(ref).append("\",\"blips\":[");
+      boolean first = true;
+      for (String id : slice) {
+        if (!first) sb.append(','); first = false;
+        FragmentsFetcherCompat.BlipMeta m = metas.get(id);
+        sb.append("{\"id\":\"").append(id).append("\",\"author\":\"")
+          .append(m.author == null?"":m.author.getAddress())
+          .append("\",\"lastModifiedTime\":").append(m.lastModifiedTime).append('}');
+      }
+      sb.append("]}");
+      resp.getWriter().write(sb.toString());
+      resp.setStatus(HttpServletResponse.SC_OK);
+    } catch (WaveServerException e) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
   }
 }
-
