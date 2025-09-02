@@ -92,7 +92,7 @@ Goal: Introduce core types and interfaces needed by a segment-based fetch path, 
 
 ## Phase 2 — Compatibility SegmentWaveletState (no storage migration)
 
-Status: planned
+Status: in_progress
 
 Goal: Provide a basic implementation that can return intervals reconstructed from the current store, sufficient for building fragment ranges and returning metadata.
 
@@ -160,7 +160,7 @@ Goal: Port a compatible `FragmentsRequest` and `FragmentsFetcher` that compute V
 
 ## Phase 4 — Server Endpoint & Transport Prep
 
-Status: planned
+Status: in_progress
 
 Goal: Replace `/fragments` stub with real fetcher-backed JSON; spec the future WebSocket proto.
 
@@ -177,6 +177,9 @@ Goal: Replace `/fragments` stub with real fetcher-backed JSON; spec the future W
 
 - DoD:
   - Endpoint returns structured results; safe to run in dev.
+
+- Status: completed (compat) — commit d1aedf2b
+  - Summary: Implemented FragmentsFetcherCompat (snapshot-based blip listing) and wired `/fragments` to return blip ids with author/mtime; accepts `ref`, `startBlipId`, `direction`, `limit`.
 
 ### Task 4.2 — Proto & RPC handler (spec only in this phase)
 
