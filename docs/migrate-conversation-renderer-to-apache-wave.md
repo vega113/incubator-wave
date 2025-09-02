@@ -420,6 +420,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - ResourceCleaner implemented — 2025-09-01: `BlipResourceCleaner` orphans any widgets under the blip DOM in `LogicalPanel` and cancels timers registered via `BlipAsyncRegistry`. Hook attached when `enableDynamicRendering=true`.
 - Robustness: extra null-safety in placeholder toggling and defensive DOM reads; `DomScrollerImpl` clamps scroll values. `FragmentRequester` now uses a callback for error handling.
   - Unified throttle: `DomScrollerImpl` now uses the same `dynamicScrollThrottleMs` knob as the dynamic renderer to coalesce scroll writes.
+  - Tuning: speed-based prerender boost (flags: `dynamicSpeedBoostThresholdPx`, `dynamicSpeedBoostFactor`) temporarily enlarges prerender margins during fast scrolls to reduce visible pop-in.
 
 ---
 
@@ -526,6 +527,43 @@ Each task below is self-contained for an AI agent, includes context, concrete st
 
 - Observability
   - Optional metrics (DOM node count, scroll latency) gated by flags
+
+-------------------------------------------------------------------------------
+
+## 12) Flag Reference and Cleanup Plan
+
+- Client flags (new)
+  - `enableDynamicRendering` (bool, default false): enable viewport windowing renderer
+  - `enableQuasiDeletionUi` (bool, default false): enable quasi-deletion visual state
+  - `enableFragmentFetch` (bool, default false): enable optional fragment fetch path
+  - `dynamicPrerenderUpperPx` (int, default 600): prerender margin above viewport
+  - `dynamicPrerenderLowerPx` (int, default 800): prerender margin below viewport
+  - `dynamicPageOutSlackPx` (int, default 1200): offscreen slack before page-out
+  - `dynamicScrollThrottleMs` (int, default 50): unified throttle window for scroll updates
+  - `dynamicSpeedBoostThresholdPx` (int, default 800): scroll delta threshold to boost prerender margins
+  - `dynamicSpeedBoostFactor` (double, default 1.8): multiplier for boosted prerender margins
+
+- How to set flags during development
+  - Gradle property: `-PclientFlags="k=v,k2=v2"` (applies to run/gwtDev/compileGwt tasks)
+  - Request params: append `?flag=value` to the webclient URL for ad hoc overrides
+  - JVM property (dev only): `-Dwave.clientFlags="k=v,..."` (merged by WaveClientServlet)
+  - Server config (preferred long-term): reference.conf with overrides in application.conf (merged by Typesafe Config) under `client.flags.defaults`
+
+- Example reference.conf
+  ```
+  client.flags.defaults = "enableDynamicRendering=false,enableQuasiDeletionUi=false,enableFragmentFetch=false"
+  ```
+
+- Example application.conf (dev)
+  ```
+  client.flags.defaults = "enableDynamicRendering=true,enableQuasiDeletionUi=true,dynamicScrollThrottleMs=30"
+  ```
+
+- Cleanup plan
+  - Before GA: remove JVM `-Dwave.clientFlags` path, keep only config-based defaults and URL overrides
+  - Consolidate tuning into sane defaults; remove `dynamicSpeedBoost*` if not needed
+  - Downgrade verbose logs; ensure `enableViewportStats` gates all debug logging
+  - Document final flag set in user/admin docs and deprecate experimental flags
 
 -------------------------------------------------------------------------------
 
