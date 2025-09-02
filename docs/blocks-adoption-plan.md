@@ -180,6 +180,8 @@ Goal: Replace `/fragments` stub with real fetcher-backed JSON; spec the future W
 
 - Status: completed (compat) — commit d1aedf2b
   - Summary: Implemented FragmentsFetcherCompat (snapshot-based blip listing) and wired `/fragments` to return blip ids with author/mtime; accepts `ref`, `startBlipId`, `direction`, `limit`.
+  - Follow-up: commit 51e7c932 (ordering/logging)
+    - Added ASF header, robust ordering by (mtime,id), direction validation, and logging in compat fetcher.
 
 ### Task 4.2 — Proto & RPC handler (spec only in this phase)
 
