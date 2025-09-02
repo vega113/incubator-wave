@@ -633,7 +633,29 @@ public interface StageTwo {
               if (v instanceof org.waveprotocol.wave.client.wavepanel.view.impl.BlipViewImpl) {
                 Object intrinsic = ((org.waveprotocol.wave.client.wavepanel.view.impl.BlipViewImpl<?>) v).getIntrinsic();
                 if (intrinsic instanceof org.waveprotocol.wave.client.wavepanel.view.dom.BlipViewDomImpl) {
-                  ((org.waveprotocol.wave.client.wavepanel.view.dom.BlipViewDomImpl) intrinsic).setQuasiDeleted(true);
+                  org.waveprotocol.wave.client.wavepanel.view.dom.BlipViewDomImpl dom =
+                      (org.waveprotocol.wave.client.wavepanel.view.dom.BlipViewDomImpl) intrinsic;
+                  dom.setQuasiDeleted(true);
+                  // Build a tooltip of the form: "Deleted by <author> at <time>"
+                  String author = "unknown";
+                  org.waveprotocol.wave.model.wave.ParticipantId pid = blip.getAuthorId();
+                  if (pid != null) {
+                    String addr = pid.getAddress();
+                    if (addr != null && addr.length() > 0) author = addr;
+                    try {
+                      org.waveprotocol.wave.client.account.Profile p = getProfileManager().getProfile(pid);
+                      if (p != null) {
+                        String name = p.getFullName();
+                        if (name != null && name.trim().length() > 0) author = name;
+                      }
+                    } catch (Exception ex) {
+                      GWT.log("Quasi tooltip: profile lookup failed for " + pid, ex);
+                    }
+                  }
+                  String time = org.waveprotocol.wave.client.common.util.DateUtils.getInstance()
+                      .formatDateTime(new java.util.Date(blip.getLastModifiedTime()));
+                  String tooltip = "Deleted by " + author + " at " + time;
+                  dom.getElement().setTitle(tooltip);
                 }
               }
             }
