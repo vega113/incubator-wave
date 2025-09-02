@@ -505,14 +505,20 @@ Task P5-T1: Jakarta migration decision
   - Decision documented; downstream tasks unblocked with clear prerequisites.
 
 Task P5-T2: Upgrade Jetty dependencies
-- Status: Planned (blocked on DI wiring prototype)
-- Goal: Replace 9.4.x (current) with chosen target (Jetty 11/12 for Jakarta) or 10.x if staying on javax short-term.
+- Status: In Progress
+- Work Log:
+  - 2025-09-02: Added a Jakarta (Jetty 12) POC source set and Gradle tasks without touching the main javax build:
+    - New source set: `src/jakarta/java` containing `org.waveprotocol.box.server.poc.JakartaJettySmoke` (minimal embedded server).
+    - New deps (isolated): `org.eclipse.jetty:jetty-server:${jettyEe10Version}`, `org.eclipse.jetty.ee10:jetty-ee10-servlet:${jettyEe10Version}`, `org.eclipse.jetty.ee10:jetty-ee10-webapp:${jettyEe10Version}`, and `jakarta.servlet:jakarta.servlet-api:6.0.0`.
+    - New tasks: `:wave:compileJakarta` (compiles POC) and `:wave:runJakartaPoc` (runs on port 9899). CI compiles POC non‑blocking.
+  - Next: swap main server deps to Jetty 12 behind a build flag, then proceed with code migration (P5‑T3).
+- Goal: Replace 9.4.x (current) with chosen target (Jetty 12 / Jakarta) in a controlled, non-breaking way.
 - Steps:
   1) Update org.eclipse.jetty:* dependencies in wave/build.gradle.
   2) If Jakarta path: replace javax.servlet-api with jakarta.servlet-api and update imports.
 - Tests:
-  - ./gradlew :wave:compileJava
-  - Start server and hit endpoints.
+  - ./gradlew :wave:compileJakarta
+  - Optional: ./gradlew :wave:runJakartaPoc and GET http://localhost:9899/poc/hello
 - AI Agent Guidance:
   - Watch for servlet filter/servlet registration changes.
 - DoD:
