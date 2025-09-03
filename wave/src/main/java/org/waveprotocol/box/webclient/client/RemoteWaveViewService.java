@@ -153,6 +153,12 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
     public boolean hasMarker() {
       return update.hasMarker() && update.getMarker();
     }
+
+    @Override
+    public boolean hasFragments() { return false; }
+
+    @Override
+    public org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload getFragments() { return null; }
   }
 
   /**

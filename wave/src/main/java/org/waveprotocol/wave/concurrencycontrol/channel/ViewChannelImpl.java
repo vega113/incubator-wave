@@ -359,6 +359,9 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
               openListener.onUpdate(waveletId, update.getDeltaList(),
                   lastCommittedVersion, currentVersion);
             }
+            if (update.hasFragments()) {
+              openListener.onFragments(waveletId, update.getFragments());
+            }
             if (update.hasMarker()) {
               openListener.onOpenFinished();
             }

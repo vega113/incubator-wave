@@ -175,6 +175,27 @@ message ProtocolWaveletUpdate {
   // Channel id, set only in the first update to a client.
   // The client includes it in submits.
   optional string channel_id = 7;
+
+  // Experimental: server-side fragments window for a wavelet.
+  // Carries version window and per-segment ranges for the client's current viewport.
+  optional ProtocolFragments fragments = 8;
+}
+
+// Experimental fragments payload (viewport window description)
+message ProtocolFragments {
+  // Snapshot (committed) version at the time of computing the window
+  optional int64 snapshot_version = 1;
+  // Requested start/end versions for the window
+  optional int64 start_version = 2;
+  optional int64 end_version = 3;
+  // Ranges for each segment (e.g., index, manifest, blip:<id>)
+  repeated ProtocolFragmentRange range = 4;
+}
+
+message ProtocolFragmentRange {
+  required string segment = 1; // e.g., "index", "manifest", or "blip:b+123"
+  required int64 from = 2;
+  required int64 to = 3;
 }
 
 /**
