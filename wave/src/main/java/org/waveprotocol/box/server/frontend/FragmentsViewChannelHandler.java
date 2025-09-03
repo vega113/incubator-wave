@@ -74,5 +74,37 @@ public final class FragmentsViewChannelHandler {
         + " segments=" + segments + " ranges=" + ranges);
     return ranges;
   }
-}
 
+  /**
+   * Computes a small set of visible segments using manifest order, including INDEX and MANIFEST.
+   * Compat heuristic: take the first N blips in manifest order.
+   */
+  public List<SegmentId> computeVisibleSegments(WaveletName wn, int limit) {
+    List<SegmentId> out = new java.util.ArrayList<>();
+    out.add(SegmentId.INDEX_ID);
+    out.add(SegmentId.MANIFEST_ID);
+    try {
+    // Build ordered blip list, then select first N
+    Map<String, FragmentsFetcherCompat.BlipMeta> metas = FragmentsFetcherCompat.listBlips(provider, wn);
+    List<String> order = FragmentsFetcherCompat.manifestOrder(provider, wn);
+    int added = 0;
+    if (!order.isEmpty()) {
+      for (String id : order) {
+        if (!metas.containsKey(id)) continue;
+        out.add(SegmentId.ofBlipId(id));
+        if (++added >= Math.max(1, limit)) break;
+      }
+    }
+    // Fallback: if no ordered blips were added, take first N from metas iteration order
+    if (added == 0 && !metas.isEmpty()) {
+      for (String id : metas.keySet()) {
+        out.add(SegmentId.ofBlipId(id));
+        if (++added >= Math.max(1, limit)) break;
+      }
+    }
+    } catch (Exception e) {
+      LOG.warning("computeVisibleSegments failed; falling back to INDEX/MANIFEST only", e);
+    }
+    return out;
+  }
+}

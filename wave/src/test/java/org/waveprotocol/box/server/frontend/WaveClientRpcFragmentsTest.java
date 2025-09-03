@@ -128,11 +128,25 @@ public final class WaveClientRpcFragmentsTest {
 
     final boolean[] seen = { false };
     RpcCallback<ProtocolWaveletUpdate> cb = update -> {
-      // Snapshots arrive with channel id, commit, resulting version. We also expect fragments.
-      if (update.hasFragments()) {
-        seen[0] = true;
-        assertTrue(update.getFragments().getRangeCount() >= 1);
+      if (!update.hasFragments()) return;
+      seen[0] = true;
+      WaveClientRpc.ProtocolFragments f = update.getFragments();
+      assertTrue("Expected at least one fragment range", f.getRangeCount() >= 1);
+      java.util.Set<String> segments = new java.util.HashSet<>();
+      boolean hasIndex = false, hasManifest = false, hasBlip = false;
+      for (WaveClientRpc.ProtocolFragmentRange r : f.getRangeList()) {
+        String s = r.getSegment();
+        assertNotNull("segment must not be null", s);
+        assertTrue("from must be <= to", r.getFrom() <= r.getTo());
+        assertTrue("duplicate segment: " + s, segments.add(s));
+        if ("index".equals(s)) hasIndex = true;
+        else if ("manifest".equals(s)) hasManifest = true;
+        else if (s.startsWith("blip:")) hasBlip = true;
+        else fail("Unexpected segment name: " + s);
       }
+      assertTrue("Expected index segment", hasIndex);
+      assertTrue("Expected manifest segment", hasManifest);
+      assertTrue("Expected at least one blip segment", hasBlip);
     };
 
     rpc.open(controller, request, cb);

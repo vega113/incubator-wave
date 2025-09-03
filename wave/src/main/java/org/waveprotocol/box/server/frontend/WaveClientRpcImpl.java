@@ -151,41 +151,67 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
               }
             }
             // Experimental: attach fragments window if enabled
-            try {
-              FragmentsViewChannelHandler fh = fragmentsHandler;
-              if (fh != null && fh.isEnabled()) {
-                long startV;
-                if (snapshot != null) {
-                  startV = snapshot.snapshot.getHashedVersion().getVersion();
-                } else if (committedVersion != null) {
-                  startV = committedVersion.getVersion();
-                } else {
-                  startV = 0L;
+            FragmentsViewChannelHandler fh = fragmentsHandler;
+            if (fh != null && fh.isEnabled()) {
+              long startV = 0L;
+              if (snapshot != null) {
+                startV = snapshot.snapshot.getHashedVersion().getVersion();
+              } else if (committedVersion != null) {
+                startV = committedVersion.getVersion();
+              }
+              long endV = startV;
+
+              List<SegmentId> segs = new ArrayList<>();
+              segs.add(SegmentId.INDEX_ID);
+              segs.add(SegmentId.MANIFEST_ID);
+              // Prefer blips from current snapshot when available
+              if (snapshot != null) {
+                int added = 0;
+                for (String docId : snapshot.snapshot.getDocumentIds()) {
+                  if (docId != null && docId.startsWith("b+")) {
+                    segs.add(SegmentId.ofBlipId(docId));
+                    if (++added >= 5) break;
+                  }
                 }
-                long endV = startV;
-                List<SegmentId> segs = new ArrayList<>();
-                segs.add(SegmentId.INDEX_ID);
-                segs.add(SegmentId.MANIFEST_ID);
-                java.util.Map<SegmentId, VersionRange> ranges =
-                    fh.fetchFragments(waveletName, segs, startV, endV);
+              }
+              if (segs.size() <= 2) {
+                try {
+                  segs = fh.computeVisibleSegments(waveletName, 5);
+                } catch (Exception e) {
+                  LOG.warning("computeVisibleSegments failed during fragments emission; using INDEX/MANIFEST only for " + waveletName, e);
+                  segs = new ArrayList<>();
+                  segs.add(SegmentId.INDEX_ID);
+                  segs.add(SegmentId.MANIFEST_ID);
+                }
+              }
+
+              try {
+                java.util.Map<SegmentId, VersionRange> ranges = fh.fetchFragments(waveletName, segs, startV, endV);
                 org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragments.Builder fb =
                     org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragments.newBuilder()
                         .setSnapshotVersion(startV)
                         .setStartVersion(startV)
                         .setEndVersion(endV);
                 for (java.util.Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
+                  long from = e.getValue().from(); long to = e.getValue().to();
+                  if (from > to) {
+                    LOG.warning("Skipping invalid fragment range (from>to) for " + e.getKey() + " wavelet=" + waveletName);
+                    continue;
+                  }
                   org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange r =
                       org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange.newBuilder()
                           .setSegment(e.getKey().asString())
-                          .setFrom(e.getValue().from())
-                          .setTo(e.getValue().to())
+                          .setFrom(from)
+                          .setTo(to)
                           .build();
                   fb.addRange(r);
                 }
                 builder.setFragments(fb.build());
+              } catch (org.waveprotocol.box.server.waveserver.WaveServerException wse) {
+                LOG.warning("WaveServerException fetching fragments for " + waveletName + ": " + wse.getMessage(), wse);
+              } catch (Exception ex) {
+                LOG.warning("Unexpected error fetching fragments for " + waveletName, ex);
               }
-            } catch (Throwable err) {
-              LOG.warning("Fragments emission failed; continuing without fragments", err);
             }
             done.run(builder.build());
           }
