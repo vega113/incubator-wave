@@ -163,6 +163,13 @@ public class ServerMain {
             if (config.hasPath("wave.fragments.applier.warnMs")) {
               System.setProperty("wave.fragments.applier.warnMs", Integer.toString(config.getInt("wave.fragments.applier.warnMs")));
             }
+            // Enable basic fragments metrics if profiling or explicit flag is on
+            boolean metrics = false;
+            try {
+              if (config.hasPath("wave.fragments.metrics.enabled")) metrics = config.getBoolean("wave.fragments.metrics.enabled");
+              else if (config.hasPath("core.enable_profiling")) metrics = config.getBoolean("core.enable_profiling");
+            } catch (Exception ignore) {}
+            org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.setEnabled(metrics);
           } catch (Throwable t) {
             LOG.warning("Failed to apply fragments applier config", t);
           }

@@ -77,8 +77,18 @@ public final class FragmentsServlet extends HttpServlet {
     try {
       if (!waveletProvider.checkAccessPermission(wn, user)) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return; }
       Map<String, FragmentsFetcherCompat.BlipMeta> metas = FragmentsFetcherCompat.listBlips(waveletProvider, wn);
-      List<String> order = FragmentsFetcherCompat.manifestOrder(waveletProvider, wn);
+      List<String> order;
+      try {
+        order = FragmentsFetcherCompat.manifestOrder(waveletProvider, wn);
+      } catch (Exception ex) {
+        // Manifest order may fail in compat paths; log and fall back to time-based ordering.
+        LOG.warning("FragmentsServlet: manifestOrder failed for " + wn + ", falling back to time-based ordering", ex);
+        order = null;
+      }
       List<String> slice = FragmentsFetcherCompat.sliceUsingOrder(metas, order, start, dir, limit);
+      if (order == null) {
+        LOG.fine("FragmentsServlet: using time-based blip order for " + wn + ", slice size=" + slice.size());
+      }
       long snapshotVersion = FragmentsFetcherCompat.getCommittedVersion(waveletProvider, wn);
       FragmentsRequest fReq = buildFragmentsRequest(snapshotVersion, startVersion, endVersion);
       com.google.common.collect.ImmutableMap<SegmentId, VersionRange> ranges =
@@ -90,7 +100,11 @@ public final class FragmentsServlet extends HttpServlet {
       resp.getWriter().write(json);
       resp.setStatus(HttpServletResponse.SC_OK);
     } catch (WaveServerException e) {
+        LOG.warning("Error fetching fragments", e);
       resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      try { resp.getWriter().write("{\"status\":\"error\"}"); } catch (Exception ignore) {
+          LOG.warning("Error writing error response", e);
+      }
     }
   }
 

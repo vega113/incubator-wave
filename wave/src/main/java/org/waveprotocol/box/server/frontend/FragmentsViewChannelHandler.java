@@ -76,8 +76,18 @@ public final class FragmentsViewChannelHandler {
   }
 
   /**
-   * Computes a small set of visible segments using manifest order, including INDEX and MANIFEST.
-   * Compat heuristic: take the first N blips in manifest order.
+   * Computes a small set of visible segments using manifest order, including
+   * INDEX and MANIFEST. Compat heuristic: take the first {@code limit} blips in
+   * manifest order if available. Falls back to snapshot metadata ordering when
+   * manifest order cannot be computed.
+   *
+   * Notes for readers:
+   * - This method is a bring‑up utility; it does not modify server state.
+   * - Results are best‑effort and intended for viewport alignment during
+   *   compatibility phases. Production logic should be driven by a real blocks
+   *   backend.
+   *
+   * Thread-safety: delegates to snapshot reads; constructs a new list per call.
    */
   public List<SegmentId> computeVisibleSegments(WaveletName wn, int limit) {
     List<SegmentId> out = new java.util.ArrayList<>();
@@ -104,6 +114,34 @@ public final class FragmentsViewChannelHandler {
     }
     } catch (Exception e) {
       LOG.warning("computeVisibleSegments failed; falling back to INDEX/MANIFEST only", e);
+    }
+    return out;
+  }
+
+  /**
+   * Viewport-aware variant using {@code startBlipId}, {@code direction}
+   * ("forward" or "backward"), and {@code limit} to select the visible window
+   * of blips. Always includes INDEX and MANIFEST first.
+   *
+   * When manifest order is unavailable, falls back to time-based ordering from
+   * snapshot metadata.
+   */
+  public List<SegmentId> computeVisibleSegments(WaveletName wn, String startBlipId, String direction, int limit) {
+    List<SegmentId> out = new java.util.ArrayList<>();
+    out.add(SegmentId.INDEX_ID);
+    out.add(SegmentId.MANIFEST_ID);
+    try {
+      Map<String, FragmentsFetcherCompat.BlipMeta> metas = FragmentsFetcherCompat.listBlips(provider, wn);
+      List<String> order = FragmentsFetcherCompat.manifestOrder(provider, wn);
+      List<String> slice = FragmentsFetcherCompat.sliceUsingOrder(metas, order, startBlipId, direction, Math.max(1, limit));
+      for (String id : slice) out.add(SegmentId.ofBlipId(id));
+      if (slice.isEmpty() && !metas.isEmpty()) {
+        // fallback to first N
+        int added = 0;
+        for (String id : metas.keySet()) { out.add(SegmentId.ofBlipId(id)); if (++added >= limit) break; }
+      }
+    } catch (Exception e) {
+      LOG.warning("computeVisibleSegments(viewport) failed; using INDEX/MANIFEST only", e);
     }
     return out;
   }

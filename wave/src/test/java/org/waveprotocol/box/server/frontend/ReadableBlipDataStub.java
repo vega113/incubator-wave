@@ -30,9 +30,10 @@ import org.waveprotocol.wave.model.operation.SilentOperationSink;
 import org.waveprotocol.wave.model.document.operation.DocOp;
 
 /** Minimal ReadableBlipData stub for tests. */
-final class ReadableBlipDataStub implements ReadableBlipData {
-  private final ParticipantId author; private final long lmt;
-  ReadableBlipDataStub(ParticipantId a, long t) { this.author=a; this.lmt=t; }
+public final class ReadableBlipDataStub implements ReadableBlipData {
+  private final ParticipantId author; private final long lmt; private final String id;
+  public ReadableBlipDataStub(String id, ParticipantId a, long t) { this.id=id; this.author=a; this.lmt=t; }
+  public ReadableBlipDataStub(ParticipantId a, long t) { this("b+stub", a, t); }
   @Override public ReadableWaveletData getWavelet() { return null; }
   @Override public ParticipantId getAuthor() { return author; }
   @Override public java.util.Set<ParticipantId> getContributors() { return java.util.Collections.emptySet(); }
@@ -46,5 +47,5 @@ final class ReadableBlipDataStub implements ReadableBlipData {
       @Override public void init(SilentOperationSink<? super DocOp> outputSink) { }
     };
   }
-  @Override public String getId() { return "b+stub"; }
+  @Override public String getId() { return id; }
 }

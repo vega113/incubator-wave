@@ -30,11 +30,11 @@ import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.model.wave.data.ReadableBlipData;
 
 /** Minimal stub implementing ReadableWaveletData for tests. */
-final class ReadableWaveletDataStub implements ReadableWaveletData {
+public final class ReadableWaveletDataStub implements ReadableWaveletData {
   private final WaveId waveId; private final WaveletId waveletId; private final HashedVersion hv;
   private final Map<String, ReadableBlipData> docs = new LinkedHashMap<>();
-  ReadableWaveletDataStub(WaveId w, WaveletId wid, HashedVersion hv) { this.waveId=w; this.waveletId=wid; this.hv=hv; }
-  ReadableWaveletDataStub addDoc(String id, ReadableBlipData blip) { docs.put(id, blip); return this; }
+  public ReadableWaveletDataStub(WaveId w, WaveletId wid, HashedVersion hv) { this.waveId=w; this.waveletId=wid; this.hv=hv; }
+  public ReadableWaveletDataStub addDoc(String id, ReadableBlipData blip) { docs.put(id, blip); return this; }
   @Override public WaveId getWaveId() { return waveId; }
   @Override public WaveletId getWaveletId() { return waveletId; }
   @Override public HashedVersion getHashedVersion() { return hv; }

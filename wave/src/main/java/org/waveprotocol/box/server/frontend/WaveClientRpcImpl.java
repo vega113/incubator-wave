@@ -207,10 +207,19 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
                   fb.addRange(r);
                 }
                 builder.setFragments(fb.build());
+                if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+                  org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionCount.incrementAndGet();
+                }
               } catch (org.waveprotocol.box.server.waveserver.WaveServerException wse) {
                 LOG.warning("WaveServerException fetching fragments for " + waveletName + ": " + wse.getMessage(), wse);
+                if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+                  org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionErrors.incrementAndGet();
+                }
               } catch (Exception ex) {
                 LOG.warning("Unexpected error fetching fragments for " + waveletName, ex);
+                if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+                  org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionErrors.incrementAndGet();
+                }
               }
             }
             done.run(builder.build());
