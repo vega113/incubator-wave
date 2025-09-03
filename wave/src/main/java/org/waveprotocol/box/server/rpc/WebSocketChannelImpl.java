@@ -71,7 +71,8 @@ public class WebSocketChannelImpl extends WebSocketChannel {
       if (session == null) {
         LOG.warning("Websocket is not connected");
       } else {
-        session.getRemote().sendStringByFuture(data);
+        // Use blocking send to reduce flakiness in tests that rely on timely delivery
+        session.getRemote().sendString(data);
       }
     }
   }

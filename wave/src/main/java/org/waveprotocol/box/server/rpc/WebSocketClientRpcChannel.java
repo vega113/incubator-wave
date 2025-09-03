@@ -64,17 +64,22 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
     ProtoCallback callback = new ProtoCallback() {
       @Override
       public void message(int sequenceNo, Message message) {
-        final ClientRpcController controller;
-        controller = activeMethodMap.remove(sequenceNo);
-        if (message instanceof Rpc.RpcFinished) {
-          Rpc.RpcFinished finished = (Rpc.RpcFinished) message;
-          if (finished.getFailed()) {
+        final ClientRpcController controller = activeMethodMap.get(sequenceNo);
+        if (controller == null) {
+          LOG.warning("Received message for unknown sequence " + sequenceNo + ": " + message);
+          return;
+        }
+        if (message instanceof Rpc.RpcFinished finished) {
+            if (finished.getFailed()) {
             controller.failure(finished.getErrorText());
           } else {
             controller.response(null);
           }
         } else {
           controller.response(message);
+        }
+        if (controller.status() == ClientRpcController.Status.COMPLETE) {
+          activeMethodMap.remove(sequenceNo);
         }
       }
     };

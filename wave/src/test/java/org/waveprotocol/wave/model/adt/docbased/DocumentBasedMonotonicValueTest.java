@@ -235,7 +235,7 @@ public class DocumentBasedMonotonicValueTest extends TestCase {
 
   private void check() {
     stack.listener.finished();
-    assertEquals(new Integer(stack.listener.getLast()), getTarget().get());
+    assertEquals(Integer.valueOf(stack.listener.getLast()), getTarget().get());
   }
 
   /**
@@ -280,7 +280,7 @@ public class DocumentBasedMonotonicValueTest extends TestCase {
     createTargetOn(10);
     getTarget().set(5);
 
-    assertEquals(new Integer(10), getTarget().get());
+    assertEquals(Integer.valueOf(10), getTarget().get());
     assertSubstrateEquals(10);
   }
 

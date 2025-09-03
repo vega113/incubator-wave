@@ -15,7 +15,15 @@ This page documents configuration flags and environment variables recently added
 
 - network.enable_forwarded_headers: boolean (default: false)
   - Purpose: Add Forwarded/Proxy header support in Jetty Http/HTTPS configurations.
-  - Impact: When true, enables ForwardedRequestCustomizer for correct client IP/host handling behind proxies.
+  - Impact: When true, enables `ForwardedRequestCustomizer` so request attributes (scheme, server host/port, remote address) are derived from proxy headers.
+  - Security note: Only enable when the server is deployed behind a trusted reverse proxy or load balancer. Otherwise clients could spoof headers and affect authentication, redirects, and logging.
+  - Behavior (Jetty 9.4 vs Jetty 12 EE10)
+    - Header support: Both paths honor RFC 7239 `Forwarded` and the de‑facto `X‑Forwarded‑*` family (`X‑Forwarded‑For`, `X‑Forwarded‑Proto`, `X‑Forwarded‑Host`, `X‑Forwarded‑Port`). If both are present, the standardized `Forwarded` header takes precedence.
+    - Application point: In both paths we attach `ForwardedRequestCustomizer` to the `HttpConfiguration` used by each connector. In EE10 we construct each `ServerConnector` with `new HttpConnectionFactory(httpConfig)` to ensure the customizer is active.
+    - Request fields affected: `HttpServletRequest.getScheme()`, `isSecure()`, `getServerName()`, `getServerPort()`, and `getRemoteAddr()` reflect the forwarded values when present and valid.
+    - Invalid/malformed headers: In both paths, invalid values are ignored and the connection’s actual scheme/remote address are used (see jakartaTests `ForwardedHeadersJakartaIT`).
+    - Access logs: With access logging enabled, both paths log the effective client IP (derived from forwarding headers) once this flag is enabled.
+  - Jakarta (Jetty 12) implementation details in this repo: The EE10 `HttpConfiguration` is created in the Jakarta `ServerRpcProvider` and gets a `ForwardedRequestCustomizer` when this flag is true; all `ServerConnector`s are built with that `HttpConfiguration`.
 
 - experimental.native_servlet_registration: boolean (default: false)
   - Purpose: Bypass guice-servlet and register servlets/filters programmatically (Jetty) using a Guice child injector for instance creation.

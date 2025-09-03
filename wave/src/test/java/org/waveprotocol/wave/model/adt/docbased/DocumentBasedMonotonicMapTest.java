@@ -254,7 +254,7 @@ public class DocumentBasedMonotonicMapTest extends TestCase {
   public void testPutOnEmptyMapIsReturnedByGet() {
     createEmptyMap();
     getTarget().put(KEY1, 10);
-    assertEquals(new Integer(10), getTarget().get(KEY1));
+    assertEquals(Integer.valueOf(10), getTarget().get(KEY1));
   }
 
   public void testPutOnEmptyMapInsertsIntoSubstrate() {
@@ -288,7 +288,7 @@ public class DocumentBasedMonotonicMapTest extends TestCase {
 
     getTarget().put(KEY1, 05);
 
-    assertEquals(new Integer(10), getTarget().get(KEY1));
+    assertEquals(Integer.valueOf(10), getTarget().get(KEY1));
     assertSubstrateEquals(new ListBuilder<String, Integer>()
         .add(KEY1, 10)
         .add(KEY2, 20));
@@ -319,7 +319,7 @@ public class DocumentBasedMonotonicMapTest extends TestCase {
     getTarget().remove(KEY1);
     getTarget().put(KEY1, 5);
 
-    assertEquals(new Integer(5), getTarget().get(KEY1));
+    assertEquals(Integer.valueOf(5), getTarget().get(KEY1));
     assertSubstrateEquals(new ListBuilder<String, Integer>()
         .add(KEY1, 5)
         .add(KEY2, 20));
@@ -333,7 +333,7 @@ public class DocumentBasedMonotonicMapTest extends TestCase {
 
     getTarget().put(KEY1, 30);
 
-    assertEquals(new Integer(30), getTarget().get(KEY1));
+    assertEquals(Integer.valueOf(30), getTarget().get(KEY1));
     assertSubstrateEquals(new ListBuilder<String, Integer>()
         .add(KEY1, 30)
         .add(KEY2, 20));
@@ -348,7 +348,7 @@ public class DocumentBasedMonotonicMapTest extends TestCase {
     // Add an entry remotely.
     addEntry(KEY1, 10);
 
-    assertEquals(new Integer(30), getTarget().get(KEY1));
+    assertEquals(Integer.valueOf(30), getTarget().get(KEY1));
     assertSubstrateEquals(new ListBuilder<String, Integer>()
         .add(KEY1, 30)
         .add(KEY2, 20)
@@ -369,7 +369,7 @@ public class DocumentBasedMonotonicMapTest extends TestCase {
     // Add an entry remotely.
     addEntry(KEY1, 30);
 
-    assertEquals(new Integer(30), getTarget().get(KEY1));
+    assertEquals(Integer.valueOf(30), getTarget().get(KEY1));
     assertSubstrateEquals(new ListBuilder<String, Integer>()
         .add(KEY1, 10)
         .add(KEY2, 20)

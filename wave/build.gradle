@@ -635,6 +635,9 @@ task gwtDev {
 test {
     include "**/*Test*"
     exclude "**/*GwtTest*"
+    // Exclude GWT client unit tests from the default JVM test task. These rely on GWT runtime
+    // or hosted mode and are covered by dedicated tasks (testGwt/testGwtHosted).
+    exclude "org/waveprotocol/wave/client/**/*Test*"
     exclude "**/server/persistence/mongodb/**/*Test*"
     exclude "**/*LargeTest*"
 

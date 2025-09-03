@@ -184,7 +184,7 @@ public class DocumentBasedBasicValueTest extends TestCase {
   public void testSetOnEmptyStateIsReturnedByGet() {
     createEmptyMap();
     getTarget().set(10);
-    assertEquals(new Integer(10), getTarget().get());
+    assertEquals(Integer.valueOf(10), getTarget().get());
   }
 
   public void testSetOnEmptyStateInsertsIntoSubstrate() {
@@ -195,14 +195,14 @@ public class DocumentBasedBasicValueTest extends TestCase {
 
   public void testSubstrateValueIsReflected() {
     createTargetOn(10);
-    assertEquals(new Integer(10), getTarget().get());
+    assertEquals(Integer.valueOf(10), getTarget().get());
   }
 
   public void testSetReplacesValue() {
     createTargetOn(10);
     getTarget().set(5);
 
-    assertEquals(new Integer(5), getTarget().get());
+    assertEquals(Integer.valueOf(5), getTarget().get());
     assertSubstrateEquals(5);
   }
 
@@ -210,7 +210,7 @@ public class DocumentBasedBasicValueTest extends TestCase {
     createTargetOn(10);
     setValue(5);
 
-    assertEquals(new Integer(5), getTarget().get());
+    assertEquals(Integer.valueOf(5), getTarget().get());
     assertSubstrateEquals(5);
   }
 }

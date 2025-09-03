@@ -149,6 +149,6 @@ public abstract class ObservableSingletonTestBase extends TestCase {
 
   protected static void assertValue(Singleton<Integer, String> target, int expected) {
     assertTrue(target.hasValue());
-    assertEquals(new Integer(expected), target.get());
+    assertEquals(Integer.valueOf(expected), target.get());
   }
 }

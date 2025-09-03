@@ -105,7 +105,7 @@ public class RpcTest extends TestCase {
    * Tests a complete, simple end-to-end RPC.
    */
   public void testSimpleRpc() throws Exception {
-    final int TIMEOUT_SECONDS = 5;
+    final int TIMEOUT_SECONDS = Integer.getInteger("test.rpc.timeoutSeconds", 5);
     final String USER = "thorogood@google.com";
     final String WAVE = "foowave";
     final AtomicBoolean receivedOpenRequest = new AtomicBoolean(false);
@@ -177,7 +177,7 @@ public class RpcTest extends TestCase {
    * Tests a RPC that will fail.
    */
   public void testFailedRpc() throws Exception {
-    final int TIMEOUT_SECONDS = 5;
+    final int TIMEOUT_SECONDS = Integer.getInteger("test.rpc.timeoutSeconds", 5);
     final String ERROR_TEXT = "This error should flow down over the RPC connection!";
     final CountDownLatch responseLatch = new CountDownLatch(1);
     final List<ProtocolWaveletUpdate> responses = Lists.newArrayList();
@@ -238,7 +238,7 @@ public class RpcTest extends TestCase {
    * streaming message, then cancelling the RPC.
    */
   public void testCancelStreamingRpc() throws Exception {
-    final int TIMEOUT_SECONDS = 5;
+    final int TIMEOUT_SECONDS = Integer.getInteger("test.rpc.timeoutSeconds", 5);
     final int MESSAGES_BEFORE_CANCEL = 5;
     final ProtocolWaveletUpdate cannedResponse =
         ProtocolWaveletUpdate.newBuilder().setWaveletName("").build();

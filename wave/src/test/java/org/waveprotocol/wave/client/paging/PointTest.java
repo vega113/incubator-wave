@@ -132,7 +132,7 @@ public final class PointTest extends TestCase {
     Point [] points = buildComplex().toArray(new Point [] {});
     for (int i = 0; i < points.length; i++) {
       for (int j = 0; j < points.length; j++) {
-        assertEquals(new Integer(i).compareTo(new Integer(j)), points[i].compareTo(points[j]));
+        assertEquals(Integer.compare(i, j), points[i].compareTo(points[j]));
       }
     }
   }
