@@ -21,10 +21,17 @@ package org.waveprotocol.box.server.rpc;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
-import com.google.protobuf.Descriptors;
 import com.google.protobuf.Service;
 import com.typesafe.config.Config;
-import org.eclipse.jetty.server.session.SessionHandler;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.session.SessionHandler;
+import org.eclipse.jetty.ee10.servlet.DefaultServlet;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.websocket.jakarta.server.config.JakartaWebSocketServletContainerInitializer;
+import org.eclipse.jetty.server.handler.gzip.GzipHandler;
+import org.eclipse.jetty.util.resource.Resource;
+import org.eclipse.jetty.util.resource.ResourceCollection;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.wave.util.logging.Log;
@@ -63,6 +70,8 @@ import java.util.concurrent.Executor;
 public class ServerRpcProvider {
   private static final Log LOG = Log.get(ServerRpcProvider.class);
   private final Config config;
+  private final SessionHandler sessionHandler;
+  private Server httpServer;
 
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
                            String[] resourceBases, Executor threadPool,
@@ -73,6 +82,7 @@ public class ServerRpcProvider {
                            boolean enableProgrammaticPoc) {
     // No-op: stub constructor
     this.config = null;
+    this.sessionHandler = sessionHandler;
   }
 
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
@@ -88,10 +98,105 @@ public class ServerRpcProvider {
                            SessionManager sessionManager, SessionHandler sessionHandler,
                            @org.waveprotocol.box.server.executor.ExecutorAnnotations.ClientServerExecutor Executor executorService) {
     this.config = config;
+    this.sessionHandler = sessionHandler;
   }
 
   public void startWebSocketServer(final Injector injector) {
-    LOG.info("[Jakarta stub] startWebSocketServer: not implemented yet");
+    try {
+      httpServer = new Server();
+      // Build connectors for all configured addresses (compat with legacy)
+      int added = 0;
+      try {
+        List<String> addrs = (config != null && config.hasPath("core.http_frontend_addresses"))
+            ? config.getStringList("core.http_frontend_addresses")
+            : java.util.Collections.singletonList("127.0.0.1:9898");
+        for (String a : addrs) {
+          if (a == null || a.isBlank() || !a.contains(":")) continue;
+          int idx = a.lastIndexOf(':');
+          String host = a.substring(0, idx);
+          int port = Integer.parseInt(a.substring(idx + 1));
+          ServerConnector c = new ServerConnector(httpServer);
+          c.setHost(host);
+          c.setPort(port);
+          httpServer.addConnector(c);
+          added++;
+        }
+      } catch (Exception e) {
+        LOG.warning("Failed to parse core.http_frontend_addresses; falling back to 127.0.0.1:9898", e);
+      }
+      if (added == 0) {
+        ServerConnector c = new ServerConnector(httpServer);
+        c.setHost("127.0.0.1");
+        c.setPort(9898);
+        httpServer.addConnector(c);
+      }
+
+      ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
+      context.setContextPath("/");
+      if (sessionHandler != null) {
+        context.setSessionHandler(sessionHandler);
+      }
+
+      // Static resources (multiple bases) similar to legacy ResourceCollection
+      try {
+        if (config != null && config.hasPath("core.resource_bases")) {
+          java.util.List<String> bases = config.getStringList("core.resource_bases");
+          if (bases != null && !bases.isEmpty()) {
+            java.util.List<Resource> resources = new java.util.ArrayList<>();
+            for (String b : bases) {
+              if (b != null && !b.isBlank()) resources.add(Resource.newResource(b));
+            }
+            if (!resources.isEmpty()) {
+              context.setBaseResource(new ResourceCollection(resources.toArray(new Resource[0])));
+            }
+          }
+        }
+      } catch (Exception ignore) {}
+
+      // DefaultServlet mappings with caching semantics
+      java.util.Map<String,String> staticParams = new java.util.HashMap<>();
+      staticParams.put("etags", "true");
+      staticParams.put("cacheControl", "public, max-age=31536000, immutable");
+      ServletHolder staticHolder = new ServletHolder(DefaultServlet.class);
+      staticHolder.setInitParameters(staticParams);
+      context.addServlet(staticHolder, "/static/*");
+
+      java.util.Map<String,String> webclientParams = new java.util.HashMap<>();
+      webclientParams.put("etags", "true");
+      webclientParams.put("cacheControl", "no-cache, no-store, must-revalidate");
+      ServletHolder webclientHolder = new ServletHolder(DefaultServlet.class);
+      webclientHolder.setInitParameters(webclientParams);
+      context.addServlet(webclientHolder, "/webclient/*");
+
+      // Register Jakarta WebSocket endpoint programmatically
+      JakartaWebSocketServletContainerInitializer.configure(context, (ctx, container) -> {
+        org.waveprotocol.box.server.rpc.jakarta.WaveWebSocketEndpoint.provider = this;
+        container.addEndpoint(org.waveprotocol.box.server.rpc.jakarta.WaveWebSocketEndpoint.class);
+      });
+
+      // Wrap with GzipHandler (prefer server-side gzip over legacy filters)
+      GzipHandler gzip = new GzipHandler();
+      gzip.setMinGzipSize(1024);
+      gzip.setIncludedMethods("GET", "POST");
+      gzip.setInflateBufferSize(8 * 1024);
+      gzip.setHandler(context);
+
+      httpServer.setHandler(gzip);
+      httpServer.start();
+      // Log all bound addresses
+      var connectors = httpServer.getConnectors();
+      StringBuilder sb = new StringBuilder("Jakarta WebSocket server started at: ");
+      for (int i = 0; i < connectors.length; i++) {
+        if (connectors[i] instanceof ServerConnector) {
+          ServerConnector sc = (ServerConnector) connectors[i];
+          if (i > 0) sb.append(", ");
+          sb.append("ws://").append(sc.getHost()).append(":").append(sc.getLocalPort()).append("/socket");
+        }
+      }
+      LOG.info(sb.toString());
+    } catch (Exception e) {
+      LOG.severe("Fatal error starting Jakarta http server.", e);
+    }
   }
 
   /**
@@ -142,7 +247,25 @@ public class ServerRpcProvider {
   }
 
   public void stopServer() throws IOException {
-    LOG.info("[Jakarta stub] stopServer");
+    try {
+      if (httpServer != null) httpServer.stop();
+    } catch (Exception e) {
+      LOG.warning("Error stopping Jakarta http server", e);
+    }
+  }
+
+  /** Returns bound ws addresses for testing/logging. */
+  public java.util.List<java.net.InetSocketAddress> getBoundAddresses() {
+    java.util.List<java.net.InetSocketAddress> out = new java.util.ArrayList<>();
+    if (httpServer != null) {
+      for (var conn : httpServer.getConnectors()) {
+        if (conn instanceof ServerConnector) {
+          ServerConnector sc = (ServerConnector) conn;
+          out.add(new java.net.InetSocketAddress(sc.getHost(), sc.getLocalPort()));
+        }
+      }
+    }
+    return out;
   }
 
   public void registerService(Service service) {

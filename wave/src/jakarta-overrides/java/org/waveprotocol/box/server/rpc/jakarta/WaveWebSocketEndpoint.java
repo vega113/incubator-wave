@@ -31,17 +31,11 @@ import jakarta.websocket.server.ServerEndpoint;
 @ServerEndpoint("/socket")
 public class WaveWebSocketEndpoint {
   @OnOpen
-  public void onOpen(Session session) {
-    // no-op
-  }
+  public void onOpen(Session session) { /* no-op */ }
 
   @OnMessage
-  public void onMessage(Session session, String data) {
-    session.getAsyncRemote().sendText(data);
-  }
+  public void onMessage(Session session, String data) { session.getAsyncRemote().sendText(data); }
 
   @OnClose
-  public void onClose() {
-    // no-op
-  }
+  public void onClose() { /* no-op */ }
 }
