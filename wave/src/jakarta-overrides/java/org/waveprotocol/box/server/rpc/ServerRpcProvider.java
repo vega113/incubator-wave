@@ -27,6 +27,11 @@ import com.google.protobuf.Descriptors.MethodDescriptor;
 import com.typesafe.config.Config;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.CustomRequestLog;
+import org.eclipse.jetty.server.RequestLogWriter;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.ForwardedRequestCustomizer;
 import org.eclipse.jetty.session.SessionHandler;
 import org.eclipse.jetty.ee10.servlet.DefaultServlet;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
@@ -119,6 +124,29 @@ public class ServerRpcProvider {
   public void startWebSocketServer(final Injector injector) {
     try {
       httpServer = new Server();
+      // Configure access logging (NCSA) similar to legacy defaults
+      try {
+        java.io.File logDir = new java.io.File("logs");
+        if (!logDir.exists()) logDir.mkdirs();
+        RequestLogWriter logWriter = new RequestLogWriter(new java.io.File(logDir, "access.yyyy_mm_dd.log").getPath());
+        logWriter.setAppend(true);
+        logWriter.setRetainDays(7);
+        CustomRequestLog requestLog = new CustomRequestLog(logWriter, CustomRequestLog.NCSA_FORMAT);
+        httpServer.setRequestLog(requestLog);
+      } catch (Throwable t) {
+        LOG.warning("Failed to initialize access logging", t);
+      }
+
+      // Forwarded headers toggle mirrors legacy flag: network.enable_forwarded_headers
+      boolean enableFwd = false;
+      try {
+        enableFwd = (config != null && config.hasPath("network.enable_forwarded_headers")
+            && config.getBoolean("network.enable_forwarded_headers"));
+      } catch (Throwable ignore) {}
+      final HttpConfiguration httpConfig = new HttpConfiguration();
+      if (enableFwd) {
+        httpConfig.addCustomizer(new ForwardedRequestCustomizer());
+      }
       // Build connectors for all configured addresses (compat with legacy)
       int added = 0;
       java.util.List<String> invalidAddrs = new java.util.ArrayList<>();
@@ -132,7 +160,7 @@ public class ServerRpcProvider {
           String host = a.substring(0, idx);
           int port = Integer.parseInt(a.substring(idx + 1));
           if (port <= 0 || port > 65535) throw new IllegalArgumentException("Port out of range");
-          ServerConnector c = new ServerConnector(httpServer);
+          ServerConnector c = new ServerConnector(httpServer, new HttpConnectionFactory(httpConfig));
           c.setHost(host);
           c.setPort(port);
           httpServer.addConnector(c);
@@ -151,14 +179,14 @@ public class ServerRpcProvider {
           int idx = def.lastIndexOf(':');
           String host = def.substring(0, idx);
           int port = Integer.parseInt(def.substring(idx + 1));
-          ServerConnector c = new ServerConnector(httpServer);
+          ServerConnector c = new ServerConnector(httpServer, new HttpConnectionFactory(httpConfig));
           c.setHost(host);
           c.setPort(port);
           httpServer.addConnector(c);
           LOG.info("No valid addresses configured; using default " + host + ":" + port);
         } catch (Exception ex) {
           LOG.severe("Invalid core.default_http_frontend_address '" + def + "'; using 127.0.0.1:9898", ex);
-          ServerConnector c = new ServerConnector(httpServer);
+          ServerConnector c = new ServerConnector(httpServer, new HttpConnectionFactory(httpConfig));
           c.setHost("127.0.0.1");
           c.setPort(9898);
           httpServer.addConnector(c);
