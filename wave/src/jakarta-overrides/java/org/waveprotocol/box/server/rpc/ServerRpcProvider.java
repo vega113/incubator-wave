@@ -22,6 +22,8 @@ import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Singleton;
 import com.google.protobuf.Service;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.Descriptors.MethodDescriptor;
 import com.typesafe.config.Config;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
@@ -45,6 +47,8 @@ import java.net.SocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ConcurrentHashMap;
+import jakarta.websocket.server.ServerEndpointConfig;
 
 /**
  * Minimal Jakarta-compatible stub of ServerRpcProvider to allow compiling the
@@ -71,6 +75,9 @@ public class ServerRpcProvider {
   private static final Log LOG = Log.get(ServerRpcProvider.class);
   private final Config config;
   private final SessionHandler sessionHandler;
+  final SessionManager sessionManager;
+  final Executor threadPool;
+  final Map<Descriptors.Descriptor, RegisteredServiceMethod> registeredServices = new ConcurrentHashMap<>();
   private Server httpServer;
 
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
@@ -82,6 +89,8 @@ public class ServerRpcProvider {
                            boolean enableProgrammaticPoc) {
     // No-op: stub constructor
     this.config = null;
+    this.threadPool = threadPool;
+    this.sessionManager = sessionManager;
     this.sessionHandler = sessionHandler;
   }
 
@@ -91,6 +100,10 @@ public class ServerRpcProvider {
                            boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword,
                            Executor executor) {
     // No-op: stub constructor
+    this.config = null;
+    this.threadPool = executor;
+    this.sessionManager = sessionManager;
+    this.sessionHandler = sessionHandler;
   }
 
   @Inject
@@ -99,6 +112,8 @@ public class ServerRpcProvider {
                            @org.waveprotocol.box.server.executor.ExecutorAnnotations.ClientServerExecutor Executor executorService) {
     this.config = config;
     this.sessionHandler = sessionHandler;
+    this.sessionManager = sessionManager;
+    this.threadPool = executorService;
   }
 
   public void startWebSocketServer(final Injector injector) {
@@ -106,29 +121,48 @@ public class ServerRpcProvider {
       httpServer = new Server();
       // Build connectors for all configured addresses (compat with legacy)
       int added = 0;
-      try {
-        List<String> addrs = (config != null && config.hasPath("core.http_frontend_addresses"))
-            ? config.getStringList("core.http_frontend_addresses")
-            : java.util.Collections.singletonList("127.0.0.1:9898");
-        for (String a : addrs) {
-          if (a == null || a.isBlank() || !a.contains(":")) continue;
+      java.util.List<String> invalidAddrs = new java.util.ArrayList<>();
+      List<String> addrs = (config != null && config.hasPath("core.http_frontend_addresses"))
+          ? config.getStringList("core.http_frontend_addresses")
+          : java.util.Collections.singletonList("127.0.0.1:9898");
+      for (String a : addrs) {
+        if (a == null || a.isBlank() || !a.contains(":")) { invalidAddrs.add(String.valueOf(a)); continue; }
+        try {
           int idx = a.lastIndexOf(':');
           String host = a.substring(0, idx);
           int port = Integer.parseInt(a.substring(idx + 1));
+          if (port <= 0 || port > 65535) throw new IllegalArgumentException("Port out of range");
           ServerConnector c = new ServerConnector(httpServer);
           c.setHost(host);
           c.setPort(port);
           httpServer.addConnector(c);
           added++;
+        } catch (Exception ex) {
+          invalidAddrs.add(a);
         }
-      } catch (Exception e) {
-        LOG.warning("Failed to parse core.http_frontend_addresses; falling back to 127.0.0.1:9898", e);
+      }
+      if (!invalidAddrs.isEmpty()) {
+        LOG.warning("Ignoring invalid core.http_frontend_addresses entries: " + invalidAddrs);
       }
       if (added == 0) {
-        ServerConnector c = new ServerConnector(httpServer);
-        c.setHost("127.0.0.1");
-        c.setPort(9898);
-        httpServer.addConnector(c);
+        String def = (config != null && config.hasPath("core.default_http_frontend_address"))
+            ? config.getString("core.default_http_frontend_address") : "127.0.0.1:9898";
+        try {
+          int idx = def.lastIndexOf(':');
+          String host = def.substring(0, idx);
+          int port = Integer.parseInt(def.substring(idx + 1));
+          ServerConnector c = new ServerConnector(httpServer);
+          c.setHost(host);
+          c.setPort(port);
+          httpServer.addConnector(c);
+          LOG.info("No valid addresses configured; using default " + host + ":" + port);
+        } catch (Exception ex) {
+          LOG.severe("Invalid core.default_http_frontend_address '" + def + "'; using 127.0.0.1:9898", ex);
+          ServerConnector c = new ServerConnector(httpServer);
+          c.setHost("127.0.0.1");
+          c.setPort(9898);
+          httpServer.addConnector(c);
+        }
       }
 
       ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
@@ -168,10 +202,52 @@ public class ServerRpcProvider {
       webclientHolder.setInitParameters(webclientParams);
       context.addServlet(webclientHolder, "/webclient/*");
 
-      // Register Jakarta WebSocket endpoint programmatically
+      // Register Jakarta WebSocket endpoint programmatically with DI configurator
       JakartaWebSocketServletContainerInitializer.configure(context, (ctx, container) -> {
-        org.waveprotocol.box.server.rpc.jakarta.WaveWebSocketEndpoint.provider = this;
-        container.addEndpoint(org.waveprotocol.box.server.rpc.jakarta.WaveWebSocketEndpoint.class);
+        ServerEndpointConfig sec = ServerEndpointConfig.Builder
+            .create(org.waveprotocol.box.server.rpc.jakarta.WaveWebSocketEndpoint.class, "/socket")
+            .configurator(new ServerEndpointConfig.Configurator() {
+              @Override
+              public <T> T getEndpointInstance(Class<T> endpointClass) {
+                try {
+                  T ep = endpointClass.getDeclaredConstructor().newInstance();
+                  // Build immutable service table and validate entries
+                  @SuppressWarnings("unchecked")
+                  Map<Descriptors.Descriptor, Object[]> table = new java.util.HashMap<>();
+      for (Map.Entry<Descriptors.Descriptor, RegisteredServiceMethod> e : registeredServices.entrySet()) {
+        table.put(e.getKey(), new Object[] { e.getValue().service, e.getValue().method });
+      }
+                  if (threadPool == null || sessionManager == null) {
+                    throw new IllegalStateException("Missing required dependencies (executor/sessionManager)");
+                  }
+                  // Validate table contents
+                  for (Map.Entry<Descriptors.Descriptor, Object[]> e : table.entrySet()) {
+                    if (e.getKey() == null || e.getValue() == null || e.getValue().length != 2) {
+                      throw new IllegalStateException("Invalid service table entry for descriptor: " + e.getKey());
+                    }
+                    if (!(e.getValue()[0] instanceof com.google.protobuf.Service) ||
+                        !(e.getValue()[1] instanceof Descriptors.MethodDescriptor)) {
+                      throw new IllegalStateException("Service table entry types are invalid for: " + e.getKey());
+                    }
+                  }
+                  var m = endpointClass.getMethod("setDependencies", java.util.concurrent.Executor.class,
+                      org.waveprotocol.box.server.authentication.SessionManager.class,
+                      java.util.Map.class);
+                  Class<?>[] ptypes = m.getParameterTypes();
+                  if (ptypes.length != 3 || !java.util.concurrent.Executor.class.isAssignableFrom(ptypes[0])
+                      || !ptypes[1].getName().equals("org.waveprotocol.box.server.authentication.SessionManager")
+                      || !java.util.Map.class.isAssignableFrom(ptypes[2])) {
+                    throw new IllegalStateException("setDependencies signature mismatch on endpoint: " + m);
+                  }
+                  m.invoke(ep, threadPool, sessionManager, java.util.Collections.unmodifiableMap(table));
+                  return ep;
+                } catch (Throwable t) {
+                  throw new RuntimeException("Failed to create endpoint instance", t);
+                }
+              }
+            })
+            .build();
+        container.addEndpoint(sec);
       });
 
       // Wrap with GzipHandler (prefer server-side gzip over legacy filters)
@@ -217,7 +293,30 @@ public class ServerRpcProvider {
         return;
       }
       jakarta.websocket.server.ServerContainer sc = (jakarta.websocket.server.ServerContainer) attr;
-      sc.addEndpoint(org.waveprotocol.box.server.rpc.jakarta.WaveWebSocketEndpoint.class);
+      ServerEndpointConfig sec = ServerEndpointConfig.Builder
+          .create(org.waveprotocol.box.server.rpc.jakarta.WaveWebSocketEndpoint.class, "/socket")
+          .configurator(new ServerEndpointConfig.Configurator() {
+            @Override
+            public <T> T getEndpointInstance(Class<T> endpointClass) {
+              try {
+                T ep = endpointClass.getDeclaredConstructor().newInstance();
+                @SuppressWarnings("unchecked")
+                Map<Descriptors.Descriptor, Object[]> table = new java.util.HashMap<>();
+                  for (Map.Entry<Descriptors.Descriptor, RegisteredServiceMethod> e : registeredServices.entrySet()) {
+                    table.put(e.getKey(), new Object[] { e.getValue().service, e.getValue().method });
+                  }
+                endpointClass.getMethod("setDependencies", java.util.concurrent.Executor.class,
+                    org.waveprotocol.box.server.authentication.SessionManager.class,
+                    java.util.Map.class)
+                    .invoke(ep, threadPool, sessionManager, table);
+                return ep;
+              } catch (Throwable t) {
+                throw new RuntimeException("Failed to create endpoint instance", t);
+              }
+            }
+          })
+          .build();
+      sc.addEndpoint(sec);
       LOG.info("Registered Jakarta WebSocket endpoint at /socket");
     } catch (Throwable t) {
       LOG.warning("Failed to register Jakarta WebSocket endpoint", t);
@@ -268,13 +367,41 @@ public class ServerRpcProvider {
     return out;
   }
 
-  public void registerService(Service service) {
-    // no-op
+  /** Exposes the registered service map for per-connection dispatchers. */
+  public Map<Descriptors.Descriptor, RegisteredServiceMethod> getRegisteredServices() {
+    return registeredServices;
   }
 
-  // Called by the Jakarta WebSocket endpoint to forward messages into the
-  // provider's dispatch machinery (stubbed here; implement as part of full migration).
+  /** Exposes the executor used for running RPC controllers. */
+  public Executor getThreadPool() {
+    return threadPool;
+  }
+
+  /** Exposes the session manager for authentication. */
+  public SessionManager getSessionManager() {
+    return sessionManager;
+  }
+
+  public void registerService(Service service) {
+    for (MethodDescriptor methodDescriptor : service.getDescriptorForType().getMethods()) {
+      registeredServices.put(methodDescriptor.getInputType(),
+          new RegisteredServiceMethod(service, methodDescriptor));
+    }
+  }
+
+  /** Internal container mapping input types to handlers, mirrored from legacy path. */
+  static class RegisteredServiceMethod {
+    final Service service;
+    final MethodDescriptor method;
+    RegisteredServiceMethod(Service service, MethodDescriptor method) {
+      this.service = service;
+      this.method = method;
+    }
+  }
+
+  /** Deprecated: Jakarta endpoint now dispatches directly per-connection. */
+  @Deprecated
   public void receiveWebSocketMessage(int sequenceNo, com.google.protobuf.Message message) {
-    // TODO: wire to actual dispatcher once Jakarta path is complete
+    LOG.info("receiveWebSocketMessage is deprecated on Jakarta path; no-op");
   }
 }

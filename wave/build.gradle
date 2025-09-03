@@ -362,10 +362,18 @@ checkstyle {
 
 // Route reports to files and allow disabling via -PdisableCheckstyle to avoid noisy console output
 tasks.withType(Checkstyle).configureEach {
-    // Disable entirely when -PdisableCheckstyle is provided
-    enabled = !project.hasProperty('disableCheckstyle')
+    // Disable entirely only when -PdisableCheckstyle=true is provided
+    enabled = !(project.hasProperty('disableCheckstyle') && project.property('disableCheckstyle').toString().toBoolean())
     // Only fail the build if explicitly requested; otherwise just produce reports
     ignoreFailures = project.hasProperty('ignoreCheckstyleFailures')
+    // Exclude all generated sources across the board
+    // - PST and proto outputs:    $projectDir/generated/**
+    // - Tool-generated outputs:   $buildDir/generated/**
+    exclude '**/generated/**'
+    exclude { details ->
+        def p = details.file.toPath().normalize().toString()
+        return p.contains("${projectDir}/generated/") || p.contains("${buildDir}/generated/")
+    }
     reports {
         // Disable XML to reduce size; keep HTML report per-task
         xml.required.set(false)
