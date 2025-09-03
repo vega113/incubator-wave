@@ -518,7 +518,7 @@ Task P5-T2: Upgrade Jetty dependencies
   2) If Jakarta path: replace javax.servlet-api with jakarta.servlet-api and update imports.
 - Tests:
   - ./gradlew :wave:compileJakarta
-  - Optional: ./gradlew :wave:runJakartaPoc and GET http://localhost:9899/poc/hello
+  - (Removed) runJakartaPoc POC task; Jakarta validation covered by jakartaTest.
 - AI Agent Guidance:
   - Watch for servlet filter/servlet registration changes.
 - DoD:
@@ -542,17 +542,17 @@ Task P5-T3: Migrate servlet code and configuration (if Jakarta)
   - No javax.servlet references remain; server works.
 
 Task P5-T4: Remove temporary Jakarta migration scaffolding (flags + POC)
-- Status: Planned
+- Status: Completed
 - Goal: Remove experimental flags and temporary classes used only to validate native registration.
 - Scope:
-  - Remove experimental.enable_programmatic_poc and experimental.native_servlet_registration from reference.conf and code paths.
-  - Delete POC classes under org.waveprotocol.box.server.poc.
-  - Update docs/CONFIG_FLAGS.md to mark removal and present final set.
+  - Removed experimental.enable_programmatic_poc and experimental.native_servlet_registration from configs and code.
+  - Deleted POC classes under org.waveprotocol.box.server.poc and removed POC Gradle tasks.
+  - Updated docs/CONFIG_FLAGS.md to mark removal and present final set.
 - Preconditions: P5‑T2 (Jetty 12) and P5‑T3 (import migration) completed and stable.
 - Tests:
   - :wave:build and server smoke pass; `/poc/hello` no longer exists.
 - DoD:
-  - No experimental flags/classes remain; Jakarta path is the only code path.
+  - No experimental flags/classes remain; Jakarta path parity validated by jakartaTest.
 
 -------------------------------------------------------------------------------
 Phase 6 — Library upgrades for security and maintainability

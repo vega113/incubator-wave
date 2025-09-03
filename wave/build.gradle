@@ -676,22 +676,8 @@ tasks.register('testJakarta', Test) {
 }
 
 // Compile-only check for the Jakarta POC code
-tasks.register('compileJakarta') {
-    group = 'verification'
-    description = 'Compile the Jakarta (Jetty 12) POC sources.'
-    dependsOn tasks.named('jakartaClasses')
-}
 
 // Run the Jakarta POC server
-tasks.register('runJakartaPoc', JavaExec) {
-    group = 'application'
-    description = 'Run the Jakarta (Jetty 12) POC server on port 9899.'
-    classpath = sourceSets.jakarta.runtimeClasspath
-    mainClass = 'org.waveprotocol.box.server.poc.JakartaJettySmoke'
-    jvmArgs = [
-            '-Dorg.eclipse.jetty.LEVEL=INFO'
-    ]
-}
 
 task testGwt(type: Test) {
     include "**/*GwtTest*"

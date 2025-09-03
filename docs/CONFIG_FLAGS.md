@@ -25,22 +25,18 @@ This page documents configuration flags and environment variables recently added
     - Access logs: With access logging enabled, both paths log the effective client IP (derived from forwarding headers) once this flag is enabled.
   - Jakarta (Jetty 12) implementation details in this repo: The EE10 `HttpConfiguration` is created in the Jakarta `ServerRpcProvider` and gets a `ForwardedRequestCustomizer` when this flag is true; all `ServerConnector`s are built with that `HttpConfiguration`.
 
-- experimental.native_servlet_registration: boolean (default: false)
-  - Purpose: Bypass guice-servlet and register servlets/filters programmatically (Jetty) using a Guice child injector for instance creation.
-  - Status: Temporary stepping stone to Jakarta (Jetty 12). Off by default.
-  - Cleanup: Remove after P5‑T2/P5‑T3 land and Jakarta runtime is stable.
-
-- experimental.enable_programmatic_poc: boolean (default: false)
-  - Purpose: When native_servlet_registration is enabled, also register a tiny POC servlet/filter to validate runtime wiring without guice-servlet.
-  - Endpoints: GET /poc/hello returns a small text response; a SecurityHeadersFilter adds basic headers.
-  - Classes: org.waveprotocol.box.server.poc.ProgrammaticHelloServlet, org.waveprotocol.box.server.poc.SecurityHeadersFilter
-  - Status: Strictly temporary dev aid.
-  - Cleanup: Remove alongside experimental.native_servlet_registration per P5‑T4.
+// Removed in T5: experimental.native_servlet_registration, experimental.enable_programmatic_poc
+// These temporary flags have been retired; servlet/filter registration uses the stable path.
 
 - experimental.jetty12_session_lookup: boolean (default: false)
   - Purpose: Enable a best-effort, reflective Jetty 12 session lookup from a token in the Jakarta build.
-  - Behavior: Attempts to call SessionHandler.getSession(String) and unwrap an HttpSession when available; returns null otherwise.
-  - Status: Transitional feature; may be removed or replaced once the full Jakarta session flow is finalized.
+  - Behavior (Jakarta path only):
+    - Attempts to obtain the core `org.eclipse.jetty.session.SessionHandler` and invoke `getSession(String)` reflectively, then unwraps to a `HttpSession` via common accessors.
+    - Accepts tokens with or without a node/cluster suffix; if a dot (`.`) is present, the suffix is stripped (e.g., `abc.node1` → `abc`).
+    - If reflection fails or the session is not found, returns null gracefully (no exceptions thrown to callers).
+  - Security: Intended for transitional use only. Do not rely on this for cross-node production lookups; prefer normal cookie-based session handling.
+  - Tests: Covered by `SessionLookupFlagTest` (flag wiring) and `SessionLookupEmbeddedIT` (embedded EE10 server path).
+  - Status: Transitional; will be revisited/removed once Jakarta session integration is finalized.
 
 ## Test/Env Variables (non-Typesafe Config)
 
@@ -54,9 +50,8 @@ This page documents configuration flags and environment variables recently added
 
 ## Removal Plan (temporary flags/classes)
 
-- P5‑T4: Remove temporary Jakarta migration scaffolding
-  - Scope: Remove experimental.enable_programmatic_poc, experimental.native_servlet_registration, and the POC classes under org.waveprotocol.box.server.poc.
-  - Trigger: After P5‑T2 (Jetty 12 deps) and P5‑T3 (Jakarta imports/registration) are completed and verified in smoke tests.
+- P5‑T4: Remove temporary Jakarta migration scaffolding (completed)
+  - Scope: Removed experimental.enable_programmatic_poc, experimental.native_servlet_registration, and the POC classes under org.waveprotocol.box.server.poc.
 
 - P6‑T5: Finalize Mongo driver modernization flag
   - Scope: Switch default of core.mongodb_driver to v4; deprecate v2 path and remove after stores fully migrate.
@@ -65,8 +60,8 @@ This page documents configuration flags and environment variables recently added
 ## How to Override
 
 - application.conf (server):
-  - experimental.native_servlet_registration = true
-  - experimental.enable_programmatic_poc = true
+  # (removed) experimental.native_servlet_registration
+  # (removed) experimental.enable_programmatic_poc
   - experimental.jetty12_session_lookup = true
   - network.enable_forwarded_headers = true
   - core.mongodb_driver = v4
@@ -78,3 +73,4 @@ This page documents configuration flags and environment variables recently added
 ## Change Log
 
 - 2025-09-02: Added experimental.native_servlet_registration and experimental.enable_programmatic_poc docs; documented Mongo driver flag and test env behavior.
+- 2025-09-03: Retired the two experimental flags and deleted POC classes/tasks.

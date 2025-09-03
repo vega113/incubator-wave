@@ -126,8 +126,7 @@ public class ServerRpcProvider {
 
   private final String sessionStoreDir;
   private final boolean enableForwardedHeaders;
-  private final boolean nativeServletRegistration;
-  private final boolean enableProgrammaticPoc;
+  // Removed experimental flags: nativeServletRegistration, enableProgrammaticPoc
 
   /**
    * Internal, static container class for any specific registered service
@@ -299,8 +298,7 @@ public class ServerRpcProvider {
     this.sslKeystorePath = sslKeystorePath;
     this.sslKeystorePassword = sslKeystorePassword;
     this.enableForwardedHeaders = enableForwardedHeaders;
-    this.nativeServletRegistration = nativeServletRegistration;
-    this.enableProgrammaticPoc = enableProgrammaticPoc;
+    // experimental flags removed; keep parameters for binary compatibility but ignore
   }
 
   /**
@@ -332,10 +330,8 @@ public class ServerRpcProvider {
             config.getString("security.ssl_keystore_password"),
             config.hasPath("network.enable_forwarded_headers") &&
                 config.getBoolean("network.enable_forwarded_headers"),
-            config.hasPath("experimental.native_servlet_registration") &&
-                config.getBoolean("experimental.native_servlet_registration"),
-            config.hasPath("experimental.enable_programmatic_poc") &&
-                config.getBoolean("experimental.enable_programmatic_poc"));
+            false,
+            false);
   }
 
   public void startWebSocketServer(final Injector injector) {
@@ -375,48 +371,18 @@ public class ServerRpcProvider {
 
     addWebSocketServlets();
 
-    // POC: programmatic servlet/filter registration to unblock Jakarta migration
-    if (enableProgrammaticPoc) {
-      try {
-        addServlet("/poc/hello", org.waveprotocol.box.server.poc.ProgrammaticHelloServlet.class);
-        addFilter("/*", org.waveprotocol.box.server.poc.SecurityHeadersFilter.class);
-      } catch (Throwable t) {
-        LOG.warning("Failed to register POC programmatic servlet/filter (ignored)", t);
-      }
-    }
-
     try {
 
       final ServletModule servletModule = getServletModule();
-
-      if (!nativeServletRegistration) {
-        ServletContextListener contextListener = new GuiceServletContextListener() {
-          private final Injector childInjector = injector.createChildInjector(servletModule);
-          @Override
-          protected Injector getInjector() {
-            return childInjector;
-          }
-        };
-        context.addEventListener(contextListener);
-        context.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
-      } else {
-        // Experimental: native servlet/filter registration using Guice child injector for instances
-        Injector childInjector = injector.createChildInjector(servletModule);
-        for (Pair<String, ServletHolder> entry : servletRegistry) {
-          String url = entry.getFirst();
-          Class<? extends Servlet> clazz = entry.getSecond().getHeldClass();
-          Map<String,String> params = entry.getSecond().getInitParameters();
-          ServletHolder holder = new ServletHolder(childInjector.getInstance(clazz));
-          if (params != null) holder.setInitParameters(params);
-          context.addServlet(holder, url);
+      ServletContextListener contextListener = new GuiceServletContextListener() {
+        private final Injector childInjector = injector.createChildInjector(servletModule);
+        @Override
+        protected Injector getInjector() {
+          return childInjector;
         }
-        for (Pair<String, Class<? extends Filter>> entry : filterRegistry) {
-          String url = entry.getFirst();
-          Class<? extends Filter> clazz = entry.getSecond();
-          FilterHolder fh = new FilterHolder(childInjector.getInstance(clazz));
-          context.addFilter(fh, url, EnumSet.allOf(DispatcherType.class));
-        }
-      }
+      };
+      context.addEventListener(contextListener);
+      context.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
 
       // Prefer server-side gzip handler over legacy filter
       GzipHandler gzip = new GzipHandler();
