@@ -186,7 +186,7 @@ public class FetchServletTest extends TestCase {
 
   private <T extends Message> T fetchWaverRefAndParse(WaveRef waveref, Class<T> klass) throws Exception {
     String message = fetchWaveRef(waveref);
-    JsonElement json = new JsonParser().parse(message);
+    JsonElement json = JsonParser.parseString(message);
     return protoSerializer.fromJson(json, klass);
   }
 }

@@ -147,7 +147,7 @@ public class WaveSignatureVerifier {
 
     if (cn == null) {
       throw new SignatureException("no common name found in signer " +
-          "certificate " + certificate.getSubjectDN().toString());
+          "certificate " + certificate.getSubjectX500Principal().toString());
     }
 
     if (cn.equals(authority)) {

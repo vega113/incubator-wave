@@ -973,7 +973,7 @@ public class WaveService {
 
     // Compute the hash of the body.
     byte[] rawBody = jsonBody.getBytes(UTF_8);
-    byte[] hash = DigestUtils.sha(rawBody);
+    byte[] hash = DigestUtils.sha1(rawBody);
     byte[] encodedHash = Base64.encodeBase64(hash);
     message.addParameter(OAUTH_BODY_HASH, new String(encodedHash, UTF_8));
 

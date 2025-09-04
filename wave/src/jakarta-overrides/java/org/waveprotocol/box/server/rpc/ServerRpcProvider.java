@@ -90,8 +90,7 @@ public class ServerRpcProvider {
                            SessionManager sessionManager,
                            SessionHandler sessionHandler, String sessionStoreDir,
                            boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword,
-                           boolean enableForwardedHeaders, boolean nativeServletRegistration,
-                           boolean enableProgrammaticPoc) {
+                           boolean enableForwardedHeaders) {
     // No-op: stub constructor
     this.config = null;
     this.threadPool = threadPool;

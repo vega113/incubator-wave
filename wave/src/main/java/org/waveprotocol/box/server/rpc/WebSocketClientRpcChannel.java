@@ -128,36 +128,57 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
 
   private WebSocketClient openWebSocket(WebSocketChannel clientChannel,
       InetSocketAddress inetAddress) throws IOException {
-    URI uri;
+    // Validate input early to avoid ambiguous failures
+    if (inetAddress == null || inetAddress.getPort() <= 0) {
+      throw new IllegalArgumentException("Invalid server address: " + inetAddress);
+    }
+
+    final URI uri;
     try {
-      uri = new URI("ws", null, inetAddress.getHostName(), inetAddress.getPort(), "/socket",
-          null, null);
+      uri = new URI(
+          "ws",
+          null,
+          inetAddress.getHostString(),
+          inetAddress.getPort(),
+          "/socket",
+          null,
+          null);
     } catch (URISyntaxException e) {
       LOG.severe("Unable to create ws:// uri from given address (" + inetAddress + ")", e);
       throw new IllegalStateException(e);
     }
-    WebSocketClient client = new WebSocketClient();
-    int attempts = 0;
+
+    final WebSocketClient client = new WebSocketClient();
+    client.setConnectTimeout(2000L);
     Exception last = null;
     try {
       client.start();
-    } catch (Exception ex) {
-      throw new RuntimeException(ex);
-    }
-    while (attempts < 3) {
-      attempts++;
-      ClientUpgradeRequest request = new ClientUpgradeRequest();
-      try {
-        client.connect(clientChannel, uri, request).get();
-        return client;
-      } catch (Exception ex) {
-        last = ex;
-        LOG.warning("WebSocket connect attempt " + attempts + " failed to " + uri + ": " + ex.getMessage(), ex);
-        try { Thread.sleep(300L * attempts); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+      final int maxAttempts = 3;
+      for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          ClientUpgradeRequest request = new ClientUpgradeRequest();
+          client.connect(clientChannel, uri, request).get();
+          return client;
+        } catch (Exception ex) {
+          last = ex;
+          LOG.warning("WebSocket connect attempt " + attempt + "/" + maxAttempts +
+              " failed to " + uri + ": " + ex.getMessage(), ex);
+          if (attempt == maxAttempts) break;
+          try {
+            // Exponential backoff with basic jitter
+            long backoff = 250L * attempt + (long)(Math.random() * 100L);
+            Thread.sleep(backoff);
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            break;
+          }
+        }
       }
+    } catch (Exception startEx) {
+      last = startEx;
     }
     try { client.stop(); } catch (Exception ignore) {}
-    IOException ioe = new IOException("Failed to open WebSocket to " + inetAddress + " after " + attempts + " attempts");
+    IOException ioe = new IOException("Failed to open WebSocket to " + inetAddress + " after retries");
     if (last != null) ioe.initCause(last);
     throw ioe;
   }

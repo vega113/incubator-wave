@@ -77,6 +77,10 @@ java {
 }
 compileJava {
     options.incremental = true
+    options.compilerArgs += [
+        '-Xlint:deprecation',
+        '-Xlint:removal'
+    ]
 }
 
 //=============================================================================
@@ -657,6 +661,16 @@ test {
         println ' Running unit tests. '
         println '---------------------'
         println ''
+    }
+}
+
+// Enable deprecation/removal warnings for test and jakartaTest compiles
+tasks.withType(JavaCompile).configureEach { t ->
+    if (t.name in ['compileTestJava', 'compileJakartaTestJava']) {
+        options.compilerArgs += [
+            '-Xlint:deprecation',
+            '-Xlint:removal'
+        ]
     }
 }
 

@@ -205,7 +205,7 @@ public class SolrSearchProviderImpl extends AbstractSearchProviderImpl {
   }
 
   private static JsonArray extractDocsJson(InputStreamReader isr) {
-    JsonObject json = new JsonParser().parse(isr).getAsJsonObject();
+    JsonObject json = JsonParser.parseReader(isr).getAsJsonObject();
     JsonObject responseJson = json.getAsJsonObject("response");
     return responseJson.getAsJsonArray("docs");
   }
