@@ -170,6 +170,21 @@ public class ServerMain {
               else if (config.hasPath("core.enable_profiling")) metrics = config.getBoolean("core.enable_profiling");
             } catch (Exception ignore) {}
             org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.setEnabled(metrics);
+
+            // Configure viewport limits (Typesafe Config)
+            try {
+              int defLimit = org.waveprotocol.box.server.frontend.WaveClientRpcImpl.getDefaultViewportLimit();
+              int maxLimit = org.waveprotocol.box.server.frontend.WaveClientRpcImpl.getMaxViewportLimit();
+              if (config.hasPath("wave.fragments.defaultViewportLimit")) {
+                defLimit = config.getInt("wave.fragments.defaultViewportLimit");
+              }
+              if (config.hasPath("wave.fragments.maxViewportLimit")) {
+                maxLimit = config.getInt("wave.fragments.maxViewportLimit");
+              }
+              org.waveprotocol.box.server.frontend.WaveClientRpcImpl.setViewportLimits(defLimit, maxLimit);
+            } catch (Exception e) {
+              LOG.warning("Failed to configure fragments viewport limits; using defaults", e);
+            }
           } catch (Throwable t) {
             LOG.warning("Failed to apply fragments applier config", t);
           }

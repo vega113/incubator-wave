@@ -65,12 +65,22 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
   private static final Log LOG = Log.get(WaveClientRpcImpl.class);
   /** Default and maximum number of blip segments to include when the client
    * supplies viewport hints but omits or provides an out-of-range limit.
-   *
-   * Implementation note: These are intentionally conservative; if we need to
-   * tune them at runtime, we can source them from Typesafe Config via
-   * ServerMain and plumb here. */
-  private static final int DEFAULT_VIEWPORT_LIMIT = 5;
-  private static final int MAX_VIEWPORT_LIMIT = 50;
+   * Values are configurable; see {@link #setViewportLimits(int, int)}. */
+  private static volatile int DEFAULT_VIEWPORT_LIMIT = 5;
+  private static volatile int MAX_VIEWPORT_LIMIT = 50;
+
+  /** Config hook to adjust viewport limits at runtime (eager-read at startup). */
+  public static void setViewportLimits(int defaultLimit, int maxLimit) {
+    if (defaultLimit <= 0) defaultLimit = 1;
+    if (maxLimit < defaultLimit) maxLimit = defaultLimit;
+    DEFAULT_VIEWPORT_LIMIT = defaultLimit;
+    MAX_VIEWPORT_LIMIT = maxLimit;
+    LOG.info("Configured viewport limits: default=" + DEFAULT_VIEWPORT_LIMIT + ", max=" + MAX_VIEWPORT_LIMIT);
+  }
+
+  // Visible for tests
+  public static int getDefaultViewportLimit() { return DEFAULT_VIEWPORT_LIMIT; }
+  public static int getMaxViewportLimit() { return MAX_VIEWPORT_LIMIT; }
 
   private final ClientFrontend frontend;
   private final boolean handleAuthentication;
