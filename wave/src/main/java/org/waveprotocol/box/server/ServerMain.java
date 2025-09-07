@@ -159,7 +159,19 @@ public class ServerMain {
                 applierEnabled = config.getBoolean("client.flags.defaults.enableFragmentsApplier");
               }
             } catch (Exception ignore) {}
-            org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplierEnabled(applierEnabled);
+            // Wire a default applier instance based on the flag
+            try {
+              if (applierEnabled) {
+                org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplier(
+                    new org.waveprotocol.wave.concurrencycontrol.channel.impl.SkeletonRawFragmentsApplier());
+              } else {
+                org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplier(
+                    new org.waveprotocol.wave.concurrencycontrol.channel.impl.NoOpRawFragmentsApplier());
+              }
+              org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplierEnabled(applierEnabled);
+            } catch (Throwable t) {
+              LOG.warning("Failed to wire fragments applier instance; proceeding without applier", t);
+            }
             if (config.hasPath("wave.fragments.applier.warnMs")) {
               System.setProperty("wave.fragments.applier.warnMs", Integer.toString(config.getInt("wave.fragments.applier.warnMs")));
             }
@@ -294,8 +306,20 @@ public class ServerMain {
     server.addServlet("/profile/*", FetchProfilesServlet.class);
     server.addServlet("/iniavatars/*", InitialsAvatarsServlet.class);
     server.addServlet("/waveref/*", WaveRefServlet.class);
-    // Optional fragment fetch endpoint for dynamic rendering Phase 6
-    server.addServlet("/fragments/*", FragmentsServlet.class);
+    // Optional fragment fetch endpoint for dynamic rendering (gated)
+    try {
+      boolean enableFragmentsHttp = false;
+      if (config.hasPath("server.enableFragmentsHttp")) {
+        enableFragmentsHttp = config.getBoolean("server.enableFragmentsHttp");
+      }
+      if (enableFragmentsHttp) {
+        server.addServlet("/fragments/*", FragmentsServlet.class);
+      } else {
+        LOG.info("Fragments HTTP endpoint is disabled (server.enableFragmentsHttp=false)");
+      }
+    } catch (Exception e) {
+      LOG.warning("Failed to evaluate server.enableFragmentsHttp; leaving /fragments disabled", e);
+    }
 
     String gadgetServerHostname = config.getString("core.gadget_server_hostname");
     int gadgetServerPort = config.getInt("core.gadget_server_port");
