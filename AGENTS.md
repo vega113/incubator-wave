@@ -84,3 +84,5 @@ Suggested phrasing to the tools in this environment:
 - If needed group changes by relevant topics into separate commits.
 - If you have made changes that you do not want to keep, you MUST revert those changes
 
+## Code Guidelines
+- Make sure to follow the [Codex Code Guidelines](CODE_GUIDELINES.md)
