@@ -70,6 +70,8 @@ public final class PreferSegmentStateTest {
   @Test
   public void filtersRangesToKnownSegmentsWhenPreferEnabled() throws Exception {
     Config cfg = ConfigFactory.parseString("server.enableFetchFragmentsRpc=true, server.preferSegmentState=true");
+    // Also exercise registry size bound config
+    org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateRegistry.setMaxEntries(2);
     WaveletProvider provider = new DummyProvider();
     FragmentsViewChannelHandler h = new FragmentsViewChannelHandler(provider, cfg);
 
@@ -85,4 +87,3 @@ public final class PreferSegmentStateTest {
     assertFalse(ranges.containsKey(SegmentId.ofBlipId("b+1")));
   }
 }
-

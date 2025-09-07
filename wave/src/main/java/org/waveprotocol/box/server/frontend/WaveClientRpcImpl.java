@@ -205,6 +205,12 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
 
               // Prefer viewport-aware segments if any hint is present
               if (vpStart != null || vpDir != null || request.hasViewportLimit()) {
+                if ((vpStart == null || vpStart.isEmpty()) && (vpDir != null && !vpDir.isEmpty()) && !request.hasViewportLimit()) {
+                  // Direction without start/limit is ambiguous; record and proceed with default limit
+                  if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+                    org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.viewportAmbiguity.incrementAndGet();
+                  }
+                }
                 try {
                   segs = fh.computeVisibleSegments(waveletName, vpStart, vpDir, vpLimit);
                 } catch (Exception e) {
@@ -265,6 +271,9 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
                 if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
                   org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionCount.incrementAndGet();
                   org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionRanges.addAndGet(emitted);
+                  if (segs.size() <= 2) {
+                    org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionFallbacks.incrementAndGet();
+                  }
                 }
               } catch (org.waveprotocol.box.server.waveserver.WaveServerException wse) {
                 LOG.warning("WaveServerException fetching fragments for " + waveletName + ": " + wse.getMessage(), wse);

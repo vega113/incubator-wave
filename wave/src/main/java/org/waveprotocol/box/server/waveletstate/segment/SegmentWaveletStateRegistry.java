@@ -18,27 +18,40 @@
  */
 package org.waveprotocol.box.server.waveletstate.segment;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.waveprotocol.wave.model.id.WaveletName;
 
 /**
- * Minimal registry for per-wavelet SegmentWaveletState instances.
+ * Minimal, size-bounded registry for per-wavelet SegmentWaveletState instances.
  *
  * This is an in-memory placeholder that can later be backed by a real
- * persistence layer. Handlers may populate it opportunistically from
- * snapshots when a state is not present.
+ * persistence layer. To bound memory under load, the registry evicts the
+ * eldest entries when size exceeds a configurable limit.
  */
 public final class SegmentWaveletStateRegistry {
-  private static final ConcurrentHashMap<WaveletName, SegmentWaveletState> REG = new ConcurrentHashMap<>();
+  private static volatile int MAX_ENTRIES = 1024;
+
+  // Access-order LRU with simple synchronization for registry operations.
+  private static final Map<WaveletName, SegmentWaveletState> LRU = new LinkedHashMap<WaveletName, SegmentWaveletState>(16, 0.75f, true) {
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<WaveletName, SegmentWaveletState> eldest) {
+      return size() > MAX_ENTRIES;
+    }
+  };
 
   private SegmentWaveletStateRegistry() {}
 
-  public static void put(WaveletName name, SegmentWaveletState state) {
-    if (name != null && state != null) REG.put(name, state);
+  /** Optionally adjust maximum entries; values < 1 are ignored. */
+  public static void setMaxEntries(int maxEntries) {
+    if (maxEntries > 0) MAX_ENTRIES = maxEntries;
   }
 
-  public static SegmentWaveletState get(WaveletName name) {
-    return (name == null) ? null : REG.get(name);
+  public static synchronized void put(WaveletName name, SegmentWaveletState state) {
+    if (name != null && state != null) LRU.put(name, state);
+  }
+
+  public static synchronized SegmentWaveletState get(WaveletName name) {
+    return (name == null) ? null : LRU.get(name);
   }
 }
-

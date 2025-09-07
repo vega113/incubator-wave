@@ -158,7 +158,9 @@ public class ServerMain {
               if (config.hasPath("client.flags.defaults.enableFragmentsApplier")) {
                 applierEnabled = config.getBoolean("client.flags.defaults.enableFragmentsApplier");
               }
-            } catch (Exception ignore) {}
+            } catch (Exception ex) {
+              LOG.fine("Failed reading client.flags.defaults.enableFragmentsApplier; defaulting to false", ex);
+            }
             // Wire a default applier instance based on the flag
             try {
               if (applierEnabled) {
@@ -174,7 +176,9 @@ public class ServerMain {
               int warnMs = 50;
               try {
                 if (config.hasPath("wave.fragments.applier.warnMs")) warnMs = config.getInt("wave.fragments.applier.warnMs");
-              } catch (Exception ignore) {}
+              } catch (Exception ex) {
+                LOG.fine("Failed reading wave.fragments.applier.warnMs; using default " + warnMs, ex);
+              }
               LOG.info("Fragments applier: enabled=" + applierEnabled + 
                   ", impl=" + applierCls + ", warnMs=" + warnMs);
             } catch (Throwable t) {

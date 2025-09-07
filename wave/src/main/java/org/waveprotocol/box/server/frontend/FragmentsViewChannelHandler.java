@@ -45,8 +45,12 @@ public final class FragmentsViewChannelHandler {
     this.provider = provider;
     boolean en = false;
     boolean prefer = false;
-    try { if (config.hasPath(FLAG)) en = config.getBoolean(FLAG); } catch (Exception ignore) {}
-    try { if (config.hasPath("server.preferSegmentState")) prefer = config.getBoolean("server.preferSegmentState"); } catch (Exception ignore) {}
+    try { if (config.hasPath(FLAG)) en = config.getBoolean(FLAG); } catch (Exception ex) {
+      LOG.fine("Failed reading " + FLAG + "; defaulting to false", ex);
+    }
+    try { if (config.hasPath("server.preferSegmentState")) prefer = config.getBoolean("server.preferSegmentState"); } catch (Exception ex) {
+      LOG.fine("Failed reading server.preferSegmentState; defaulting to false", ex);
+    }
     this.enabled = en;
     this.preferSegmentState = prefer;
   }
@@ -79,11 +83,10 @@ public final class FragmentsViewChannelHandler {
         org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletState state =
             org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateRegistry.get(wn);
         if (state == null) {
-          // Best-effort: build a compat instance from current snapshot and cache
+          // Best-effort: build a compat instance from current snapshot (no registry insert by default)
           org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot snap = provider.getSnapshot(wn);
           if (snap != null && snap.snapshot != null) {
             state = new org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateCompat(snap.snapshot);
-            org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateRegistry.put(wn, state);
           }
         }
         if (state != null) {
@@ -112,13 +115,13 @@ public final class FragmentsViewChannelHandler {
    * manifest order if available. Falls back to snapshot metadata ordering when
    * manifest order cannot be computed.
    *
-   * Notes for readers:
-   * - This method is a bring‑up utility; it does not modify server state.
-   * - Results are best‑effort and intended for viewport alignment during
-   *   compatibility phases. Production logic should be driven by a real blocks
-   *   backend.
-   *
-   * Thread-safety: delegates to snapshot reads; constructs a new list per call.
+   * Notes on safety & threading:
+   * - This method allocates a fresh List per call and does not mutate shared state.
+   * - It delegates to provider.getSnapshot(wn), which is assumed to provide
+   *   thread-safe snapshot reads (or an immutable snapshot view). The
+   *   FragmentsFetcherCompat utility only inspects data; it does not mutate.
+   * - SegmentWaveletStateRegistry, when consulted elsewhere, is size-bounded and
+   *   synchronized for access; reads here do not depend on external locks.
    */
   public List<SegmentId> computeVisibleSegments(WaveletName wn, int limit) {
     List<SegmentId> out = new java.util.ArrayList<>();
@@ -145,6 +148,9 @@ public final class FragmentsViewChannelHandler {
     }
     } catch (Exception e) {
       LOG.warning("computeVisibleSegments failed; falling back to INDEX/MANIFEST only", e);
+      if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.computeFallbacks.incrementAndGet();
+      }
     }
     return out;
   }
@@ -154,6 +160,7 @@ public final class FragmentsViewChannelHandler {
    * ("forward" or "backward"), and {@code limit} to select the visible window
    * of blips. Always includes INDEX and MANIFEST first.
    *
+   * Threading & data safety: see notes above; the same assumptions apply.
    * When manifest order is unavailable, falls back to time-based ordering from
    * snapshot metadata.
    */
@@ -173,6 +180,9 @@ public final class FragmentsViewChannelHandler {
       }
     } catch (Exception e) {
       LOG.warning("computeVisibleSegments(viewport) failed; using INDEX/MANIFEST only", e);
+      if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.computeFallbacks.incrementAndGet();
+      }
     }
     return out;
   }

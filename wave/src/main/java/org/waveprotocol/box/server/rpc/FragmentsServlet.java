@@ -108,8 +108,8 @@ public final class FragmentsServlet extends HttpServlet {
     } catch (WaveServerException e) {
         LOG.warning("Error fetching fragments", e);
       resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-      try { resp.getWriter().write("{\"status\":\"error\"}"); } catch (Exception ignore) {
-          LOG.warning("Error writing error response", e);
+      try { resp.getWriter().write("{\"status\":\"error\"}"); } catch (Exception ex) {
+          LOG.warning("Error writing error response", ex);
       }
       if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
         org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpErrors.incrementAndGet();
@@ -131,7 +131,9 @@ public final class FragmentsServlet extends HttpServlet {
   private int clampLimit(String lim) {
     int limit = 50;
     if (lim == null) return limit;
-    try { limit = Math.max(1, Math.min(200, Integer.parseInt(lim))); } catch (Exception ignore) {}
+    try { limit = Math.max(1, Math.min(200, Integer.parseInt(lim))); } catch (Exception ex) {
+      LOG.fine("Invalid 'limit' parameter '" + lim + "'; using default " + limit);
+    }
     return limit;
   }
 
