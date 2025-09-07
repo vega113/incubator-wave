@@ -1,23 +1,27 @@
 # Server-First Blocks Adoption Plan
 
 Owner: Migration Engineering
-Last updated: 2025-09-04
+Last updated: 2025-09-07
 
 Statuses: planned | in_progress | completed
 
 -------------------------------------------------------------------------------
 
-## Delta Since Last Edit (2025-09-03)
+## Delta Since Last Edit (2025-09-07)
 
-- Phase 3 (FragmentsFetcher & Request): marked completed (compat).
+Verification and clarifications:
+- Phase 3 (FragmentsFetcher & Request): completed (compat) and present in source tree.
   - Implemented snapshot-based blip listing, manifest-order slicing, FragmentsRequest builder, and ranges computation.
-  - Added ViewChannel handler/bridge to expose ranges.
-  - Tests added: FragmentsRequestTest, FragmentsOrderingTest, FragmentsFetchBridgeImplTest, WaveClientRpcFragmentsTest.
-- Phase 4 (Transport Prep): marked completed (compat).
-  - Added ProtocolFragments/ProtocolFragmentRange to waveclient-rpc.proto.
-  - WaveClientRpcImpl emits fragments (INDEX, MANIFEST, + up to 5 visible blips) on snapshot and delta-only updates.
-  - Hardened logging on failures (WaveServerException vs unexpected).
-- WebSocket config: added jittered, capped backoff with config defaults (connectTimeoutMs, connectWaitMs, maxBackoffMs, jitterFraction).
+  - ViewChannel handler/bridge present to expose ranges.
+  - Tests present: FragmentsRequestTest, FragmentsOrderingTest, FragmentsFetchBridgeImplTest, WaveClientRpcFragmentsTest.
+- Phase 4 (Server Endpoint & Transport Prep): completed (compat).
+  - ProtocolFragments/ProtocolFragmentRange added to waveclient-rpc.proto.
+  - WaveClientRpcImpl can emit fragments on snapshot and delta-only updates when the handler flag is enabled.
+  - Logging hardened for failures (WaveServerException vs unexpected).
+- WebSocket config: jittered, capped backoff options are present with config defaults (connectTimeoutMs, connectWaitMs, maxBackoffMs, jitterFraction).
+- Gating clarification:
+  - The HTTP endpoint `/fragments` is currently registered unconditionally in ServerMain (auth required). It is not gated by a dedicated config flag.
+  - RPC fragments emission is gated by `server.enableFetchFragmentsRpc` via FragmentsViewChannelHandler.
 
 New configuration and client API (viewport hints)
 - Config (Typesafe):
@@ -212,7 +216,8 @@ Goal: Replace `/fragments` stub with real fetcher-backed JSON; spec the future W
 - Implementation:
   - Parse: waveRef (or path), startBlipId, direction, limit.
   - Call FragmentsFetcher; serialize JSON listing segment ids + version ranges + minimal metadata (author, lastModified, blip ids).
-  - Config: keep behind `enableFragmentFetch`.
+  - Config (current): endpoint is registered unconditionally in ServerMain and requires authentication.
+    - Follow-up (recommended): add a server flag to gate HTTP fragments (e.g., `server.enableFragmentsHttp=false|true`) and register conditionally.
 
 - Tests:
   - Contract: 200 OK for valid ref; JSON contains requested fields.
@@ -264,6 +269,10 @@ Status: in_progress
 - DoD (iteration 1):
   - Compiles under a flag, does not mutate live wavelet data yet. Observability hooks (counters/logs) in place to validate flow end-to-end.
 
+Verification (2025-09-07):
+- DTOs (`FragmentsPayload`, `RawFragment`) and a skeleton applier exist with unit tests.
+- ViewChannelImpl has hooks to call an applier when enabled via `client.flags.defaults.enableFragmentsApplier`, but an actual applier instance is not yet set at startup.
+
 -------------------------------------------------------------------------------
 
 ## Phase 5 — Client Applier & Transport Evolution (Future)
@@ -304,9 +313,41 @@ Status: planned
 ### What’s Done vs. Left (quick list)
 - Done:
   - Phase 1, Phase 3, Phase 4 completed (compat); viewport hints over RPC; config‑driven viewport limits; Statusz fragments metrics; HTTP `/fragments` hardened; unit tests for clamping and robustness.
-  - Phase 5 (part): client skeleton applier + metrics + hint‑aware client open overload.
+  - Phase 5 (part): DTOs + skeleton applier + metrics + hint‑aware client open overload; wiring hooks present.
 - Left:
-  - Phase 2 (real SegmentWaveletState), Phase 5 (integrated applier + requester), Phase 6 (JSON metrics endpoint, integration tests, broader test hygiene, tuning).
+  - Phase 2 (real SegmentWaveletState), Phase 5 (wire applier at startup + requester), Phase 6 (metrics, integration tests, tuning, cleanup).
+
+-------------------------------------------------------------------------------
+
+## Remaining Work (Ordered Checklist)
+
+1) Wire client applier at startup (minimal)
+- Set a default `SkeletonRawFragmentsApplier` in `ViewChannelImpl` at server startup when `client.flags.defaults.enableFragmentsApplier=true`.
+- Add an opt-out `NoOpRawFragmentsApplier` when disabled.
+- Tests: integration-lite to assert `onFragments` triggers `applier.apply(...)` when flag is on.
+
+2) Gate HTTP fragments endpoint (optional hardening)
+- Introduce `server.enableFragmentsHttp=false|true`.
+- Register `/fragments/*` only when enabled; default off in `reference.conf`.
+- Tests: verify 404/disabled behavior; existing JSON contract continues when enabled.
+
+3) Real SegmentWaveletState (storage-backed)
+- Design: interval schema and indices; migration strategy from snapshots/deltas.
+- Implement read path with caching; write/migration task to prefill common intervals.
+- Switch `FragmentsFetcher` to prefer real state when available (flag‑gated); keep compat as fallback.
+- Tests: unit + integration for INDEX/MANIFEST/participants/tags and a handful of blips.
+
+4) Client FragmentRequester over ViewChannel
+- Implement requester (queueing, concurrency caps, backoff) and wire to `ViewChannel.fetchFragments`.
+- Tests: request shaping near viewport; error handling.
+
+5) Observability and metrics
+- Add `wave.fragments.metrics.enabled` to `reference.conf`; expand counters/timers (requests, payload sizes, applier durations).
+- Expose `/statusz?show=fragments` details; ensure values update under load.
+
+6) Cleanup and deprecation
+- Remove obsolete client flag paths; consolidate Typesafe defaults.
+- Deprecate or remove compat code paths once the storage-backed state is stable.
 
 ### Task 6.2 — Cleanup deprecated flags/paths
 
