@@ -95,13 +95,15 @@ public class StatuszServlet extends HttpServlet {
   protected void writeFragments(PrintWriter writer) {
     writer.write(Timing.renderTitle("Fragments Metrics", 2));
     try {
-      Class<?> cls = Class.forName("org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics");
+      Class<?> cls = Class.forName(
+          "org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics");
       boolean enabled = (Boolean) cls.getMethod("isEnabled").invoke(null);
       AtomicLong emissionCount = (AtomicLong) cls.getField("emissionCount").get(null);
       AtomicLong emissionErrors = (AtomicLong) cls.getField("emissionErrors").get(null);
       AtomicLong applierEvents = (AtomicLong) cls.getField("applierEvents").get(null);
       AtomicLong applierDurationsMs = (AtomicLong) cls.getField("applierDurationsMs").get(null);
       AtomicLong emissionRanges = (AtomicLong) cls.getField("emissionRanges").get(null);
+      AtomicLong applierRejected = (AtomicLong) cls.getField("applierRejected").get(null);
       AtomicLong httpRequests = (AtomicLong) cls.getField("httpRequests").get(null);
       AtomicLong httpOk = (AtomicLong) cls.getField("httpOk").get(null);
       AtomicLong httpErrors = (AtomicLong) cls.getField("httpErrors").get(null);
@@ -111,6 +113,7 @@ public class StatuszServlet extends HttpServlet {
           "emissionRanges=" + emissionRanges.get() + "\n" +
           "applierEvents=" + applierEvents.get() + "\n" +
           "applierDurationsMs=" + applierDurationsMs.get() + "\n" +
+          "applierRejected=" + applierRejected.get() + "\n" +
           "httpRequests=" + httpRequests.get() + "\n" +
           "httpOk=" + httpOk.get() + "\n" +
           "httpErrors=" + httpErrors.get() +
@@ -129,17 +132,52 @@ public class StatuszServlet extends HttpServlet {
       AtomicLong mx = (AtomicLong) mcls.getField("expirations").get(null);
 
       // Segment state registry counters
-      Class<?> rcls = Class.forName("org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateRegistry");
+      Class<?> rcls = Class.forName(
+          "org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateRegistry");
       AtomicLong rh = (AtomicLong) rcls.getField("hits").get(null);
       AtomicLong rm = (AtomicLong) rcls.getField("misses").get(null);
       AtomicLong re = (AtomicLong) rcls.getField("evictions").get(null);
       AtomicLong rx = (AtomicLong) rcls.getField("expirations").get(null);
 
-      writer.write("<pre>manifestOrderCache: hits=" + mh.get() + ", misses=" + mm.get() + ", evictions=" + me.get() + ", expirations=" + mx.get() + "\n" +
-                   "segmentStateRegistry: hits=" + rh.get() + ", misses=" + rm.get() + ", evictions=" + re.get() + ", expirations=" + rx.get() +
-                   "</pre>");
+      writer.write(
+          "<pre>manifestOrderCache: hits=" + mh.get() +
+          ", misses=" + mm.get() + ", evictions=" + me.get() +
+          ", expirations=" + mx.get() + "\n" +
+          "segmentStateRegistry: hits=" + rh.get() + ", misses=" + rm.get() +
+          ", evictions=" + re.get() + ", expirations=" + rx.get() +
+          "</pre>");
     } catch (Throwable t) {
       writer.write("<pre>Cache metrics unavailable: " + t + "</pre>");
+    }
+
+    writer.write(Timing.renderTitle("Fragments Applier", 2));
+    try {
+      Class<?> vc = Class.forName(
+          "org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl");
+      java.lang.reflect.Field f = vc.getDeclaredField("fragmentsApplier");
+      f.setAccessible(true);
+      Object applier = f.get(null);
+      if (applier == null) {
+        writer.write("<pre>applier: null</pre>");
+      } else {
+        long applied = tryInvokeLong(applier, "getAppliedCount");
+        long rejected = tryInvokeLong(applier, "getRejectedCount");
+        writer.write("<pre>applierClass=" + applier.getClass().getSimpleName() +
+            " applied=" + (applied >= 0 ? applied : -1) +
+            " rejected=" + (rejected >= 0 ? rejected : -1) + "</pre>");
+      }
+    } catch (Throwable t) {
+      writer.write("<pre>Applier metrics unavailable: " + t + "</pre>");
+    }
+  }
+
+  private static long tryInvokeLong(Object target, String method) {
+    try {
+      java.lang.reflect.Method m = target.getClass().getMethod(method);
+      Object v = m.invoke(target);
+      return (v instanceof Number) ? ((Number) v).longValue() : -1L;
+    } catch (Throwable ignore) {
+      return -1L;
     }
   }
 }

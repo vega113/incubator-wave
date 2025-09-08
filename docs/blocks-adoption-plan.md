@@ -21,6 +21,10 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
   - ViewChannel fragments handler (flag-gated): `wave/src/main/java/org/waveprotocol/box/server/frontend/FragmentsViewChannelHandler.java`
   - ViewChannel bridge (server wiring): `wave/src/main/java/org/waveprotocol/box/server/frontend/FragmentsFetchBridgeImpl.java`
   - RPC emission (ProtocolFragments): `wave/src/main/java/org/waveprotocol/box/server/frontend/WaveClientRpcImpl.java`
+  - Client-side appliers (flag-gated):
+    - NoOp: `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/impl/NoOpRawFragmentsApplier.java`
+    - Skeleton: `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/impl/SkeletonRawFragmentsApplier.java`
+    - Real (coverage merge): `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/impl/RealRawFragmentsApplier.java`
   - HTTP endpoint (gated): `wave/src/main/java/org/waveprotocol/box/server/rpc/FragmentsServlet.java`
   - Manifest-order cache (Caffeine: LRU + TTL): `wave/src/main/java/org/waveprotocol/box/server/frontend/ManifestOrderCache.java`
   - Segment state registry (LRU+TTL): `wave/src/main/java/org/waveprotocol/box/server/waveletstate/segment/SegmentWaveletStateRegistry.java`
@@ -46,7 +50,7 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
   - Emission: `emissionCount`, `emissionRanges`, `emissionErrors`, `emissionFallbacks`.
   - Compute/fallbacks: `computeFallbacks`, `viewportAmbiguity`.
   - HTTP (when `/fragments` enabled): `httpRequests`, `httpOk`, `httpErrors`.
-  - Applier: `applierEvents`, `applierDurationsMs`.
+  - Applier: `applierEvents`, `applierDurationsMs`, `applierRejected` (invalid fragment inputs).
   - Definitions: `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/FragmentsMetrics.java`.
   - Visibility: `/statusz?show=fragments` (implementation in `wave/src/main/java/org/waveprotocol/box/server/stat/StatuszServlet.java`).
 
@@ -54,7 +58,7 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
   - Server gates and caches: `wave/config/reference.conf` under `server.*` and `wave.fragments.*` (see also docs/fragments-config.md).
   - Startup validation and wiring: `ServerMain.initializeFrontend` and `ServerMain.initializeServlets` (flags applied, invalid values fail fast).
 
-New configuration and client API (viewport hints)
+New configuration and client API (viewport hints & applier)
 - Config (Typesafe):
   - `wave.fragments.defaultViewportLimit` (int, default 5): default number of blip segments to include when client hint limit is missing/invalid.
   - `wave.fragments.maxViewportLimit` (int, default 50): upper clamp for client-requested viewport limit.
@@ -65,6 +69,10 @@ New configuration and client API (viewport hints)
     - `viewportDirection`: "forward" or "backward"; invalid/blank treated as "forward".
     - `viewportLimit`: desired number of blip segments (excludes index/manifest); server clamps to configured range.
   - Older clients/servers ignore unknown fields; setters are called via reflection to remain compatible with older generated JSOs.
+
+- Client applier
+  - Gate: `client.flags.defaults.enableFragmentsApplier=true`
+  - Implementation selector: `wave.fragments.applier.impl` = `noop` | `skeleton` | `real` (default `skeleton`).
 
 Code references
 - Fragments & ranges: wave/src/main/java/org/waveprotocol/box/server/frontend/FragmentsFetcherCompat.java, FragmentsViewChannelHandler.java, FragmentsFetchBridgeImpl.java

@@ -20,7 +20,11 @@ package org.waveprotocol.wave.concurrencycontrol.channel;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Minimal counters/timers for fragments emission/applier (flag-gated). */
+/**
+ * Minimal counters/timers for fragments emission and client applier. All
+ * metrics are opt‑in (setEnabled(true)). Consumers should prefer these for
+ * coarse health signals and augment with system metrics where needed.
+ */
 public final class FragmentsMetrics {
   private static volatile boolean enabled = false;
   public static void setEnabled(boolean e) { enabled = e; }
@@ -34,6 +38,20 @@ public final class FragmentsMetrics {
   public static final AtomicLong viewportAmbiguity = new AtomicLong();
   public static final AtomicLong applierEvents = new AtomicLong();
   public static final AtomicLong applierDurationsMs = new AtomicLong();
+  /**
+   * Count of invalid fragments rejected by a client applier. A fragment is
+   * considered invalid when its segment id is null, bounds are negative, or
+   * {@code from > to}. This is a coarse indicator of upstream range issues; it
+   * should normally remain at (or near) zero under healthy inputs.
+   *
+   * Usage guidance:
+   * - A steady increase suggests malformed ranges are being emitted; inspect
+   *   server selection and payload construction.
+   * - Spiky increases can occur during canaries while evolving payload shape.
+   * - See also RealRawFragmentsApplier.getRejectedCount() for per‑instance
+   *   counts and consider correlating with logs for sampling details.
+   */
+  public static final AtomicLong applierRejected = new AtomicLong();
   public static final AtomicLong httpRequests = new AtomicLong();
   public static final AtomicLong httpOk = new AtomicLong();
   public static final AtomicLong httpErrors = new AtomicLong();

@@ -73,6 +73,8 @@ Shell/INI (hash comments):
 - Braces/spacing: Follow the formatter; do not hand‑format differently.
 - Organize imports via your IDE (keep them minimal; avoid unused imports).
 - File encoding: UTF‑8; end files with a newline.
+- Don't use FQN inside classes unless absolutely necessary.
+- Always put a new line after "{" and before "}". Example: do not use the style `if (foo) { bar(); }`
 
 Naming (Java):
 - Packages: lower.case.names.

@@ -28,6 +28,7 @@ import com.google.inject.Module;
 import com.google.inject.name.Names;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigException;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.wave.box.server.rpc.InitialsAvatarsServlet;
 import org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolWaveClientRpc;
@@ -83,6 +84,7 @@ import org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics;
 import org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl;
 import org.waveprotocol.wave.concurrencycontrol.channel.impl.NoOpRawFragmentsApplier;
 import org.waveprotocol.wave.concurrencycontrol.channel.impl.SkeletonRawFragmentsApplier;
+import org.waveprotocol.wave.concurrencycontrol.channel.impl.RealRawFragmentsApplier;
 import org.waveprotocol.box.server.frontend.WaveClientRpcImpl;
 
 // (moved imports to block above)
@@ -126,7 +128,9 @@ public class ServerMain {
       Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
         try {
           // Avoid passing the Throwable to logging to prevent Guice/ASM formatting issues
-          LOG.severe("Uncaught exception on thread " + thread.getName() + " (" + throwable.getClass().getName() + ")");
+          LOG.severe(
+              "Uncaught exception on thread " + thread.getName() +
+              " (" + throwable.getClass().getName() + ")");
         } catch (Throwable ignored) {
           // Avoid throwing from the handler itself
         } finally {
@@ -155,14 +159,26 @@ public class ServerMain {
               .toInstance(config.getString("core.wave_server_domain"));
           // Apply WebSocket tunables to system props for internal client usage
           try {
-            if (config.hasPath("wave.websocket.connectTimeoutMs"))
-              System.setProperty("wave.websocket.connectTimeoutMs", Integer.toString(config.getInt("wave.websocket.connectTimeoutMs")));
-            if (config.hasPath("wave.websocket.connectWaitMs"))
-              System.setProperty("wave.websocket.connectWaitMs", Integer.toString(config.getInt("wave.websocket.connectWaitMs")));
-            if (config.hasPath("wave.websocket.maxBackoffMs"))
-              System.setProperty("wave.websocket.maxBackoffMs", Integer.toString(config.getInt("wave.websocket.maxBackoffMs")));
-            if (config.hasPath("wave.websocket.jitterFraction"))
-              System.setProperty("wave.websocket.jitterFraction", Double.toString(config.getDouble("wave.websocket.jitterFraction")));
+            if (config.hasPath("wave.websocket.connectTimeoutMs")) {
+              System.setProperty(
+                  "wave.websocket.connectTimeoutMs",
+                  Integer.toString(config.getInt("wave.websocket.connectTimeoutMs")));
+            }
+            if (config.hasPath("wave.websocket.connectWaitMs")) {
+              System.setProperty(
+                  "wave.websocket.connectWaitMs",
+                  Integer.toString(config.getInt("wave.websocket.connectWaitMs")));
+            }
+            if (config.hasPath("wave.websocket.maxBackoffMs")) {
+              System.setProperty(
+                  "wave.websocket.maxBackoffMs",
+                  Integer.toString(config.getInt("wave.websocket.maxBackoffMs")));
+            }
+            if (config.hasPath("wave.websocket.jitterFraction")) {
+              System.setProperty(
+                  "wave.websocket.jitterFraction",
+                  Double.toString(config.getDouble("wave.websocket.jitterFraction")));
+            }
           } catch (Throwable t) {
             LOG.warning("Failed to apply wave.websocket config to system properties", t);
           }
@@ -171,15 +187,29 @@ public class ServerMain {
             boolean applierEnabled = false;
             try {
               if (config.hasPath("client.flags.defaults.enableFragmentsApplier")) {
-                applierEnabled = config.getBoolean("client.flags.defaults.enableFragmentsApplier");
+                applierEnabled = config.getBoolean(
+                    "client.flags.defaults.enableFragmentsApplier");
               }
-            } catch (Exception ex) {
-              LOG.info("Failed reading client.flags.defaults.enableFragmentsApplier; defaulting to false", ex);
+            } catch (ConfigException e) {
+              LOG.info(
+                  "Failed reading client.flags.defaults.enableFragmentsApplier; " +
+                  "defaulting to false",
+                  e);
             }
             // Wire a default applier instance based on the flag
             try {
               if (applierEnabled) {
-                ViewChannelImpl.setFragmentsApplier(new SkeletonRawFragmentsApplier());
+                String impl = "skeleton";
+                try {
+                  if (config.hasPath("wave.fragments.applier.impl")) {
+                    impl = config.getString("wave.fragments.applier.impl");
+                  }
+                } catch (ConfigException ignore) { }
+                if ("real".equalsIgnoreCase(impl)) {
+                  ViewChannelImpl.setFragmentsApplier(new RealRawFragmentsApplier());
+                } else {
+                  ViewChannelImpl.setFragmentsApplier(new SkeletonRawFragmentsApplier());
+                }
               } else {
                 ViewChannelImpl.setFragmentsApplier(new NoOpRawFragmentsApplier());
               }
@@ -188,24 +218,35 @@ public class ServerMain {
                   ? "SkeletonRawFragmentsApplier" : "NoOpRawFragmentsApplier";
               int warnMs = 50;
               try {
-                if (config.hasPath("wave.fragments.applier.warnMs")) warnMs = config.getInt("wave.fragments.applier.warnMs");
-              } catch (Exception ex) {
-                LOG.info("Failed reading wave.fragments.applier.warnMs; using default " + warnMs, ex);
+                if (config.hasPath("wave.fragments.applier.warnMs")) {
+                  warnMs = config.getInt("wave.fragments.applier.warnMs");
+                }
+              } catch (ConfigException e) {
+                LOG.info(
+                    "Failed reading wave.fragments.applier.warnMs; using default " + warnMs,
+                    e);
               }
               LOG.info("Fragments applier: enabled=" + applierEnabled + 
                   ", impl=" + applierCls + ", warnMs=" + warnMs);
             } catch (Throwable t) {
-              LOG.warning("Failed to wire fragments applier instance; proceeding without applier", t);
+              LOG.warning(
+                  "Failed to wire fragments applier instance; proceeding without applier",
+                  t);
             }
             if (config.hasPath("wave.fragments.applier.warnMs")) {
-              System.setProperty("wave.fragments.applier.warnMs", Integer.toString(config.getInt("wave.fragments.applier.warnMs")));
+              System.setProperty(
+                  "wave.fragments.applier.warnMs",
+                  Integer.toString(config.getInt("wave.fragments.applier.warnMs")));
             }
             // Enable basic fragments metrics if profiling or explicit flag is on
             boolean metrics = false;
             try {
-              if (config.hasPath("wave.fragments.metrics.enabled")) metrics = config.getBoolean("wave.fragments.metrics.enabled");
-              else if (config.hasPath("core.enable_profiling")) metrics = config.getBoolean("core.enable_profiling");
-            } catch (Exception ignore) {}
+              if (config.hasPath("wave.fragments.metrics.enabled")) {
+                metrics = config.getBoolean("wave.fragments.metrics.enabled");
+              } else if (config.hasPath("core.enable_profiling")) {
+                metrics = config.getBoolean("core.enable_profiling");
+              }
+            } catch (ConfigException ignore) { }
             FragmentsMetrics.setEnabled(metrics);
 
             // Configure viewport limits (Typesafe Config)
@@ -485,6 +526,41 @@ public class ServerMain {
         }
         ManifestOrderCache.setTtlMs(ttl);
       } catch (com.typesafe.config.ConfigException e) {
+        LOG.severe("Invalid type for config: " + key + ": " + e.getMessage());
+        throw new ConfigurationInitializationException(
+            "Invalid type for " + key, e);
+      }
+    }
+    // wave.fragments.applier.warnMs
+    if (cfg.hasPath("wave.fragments.applier.warnMs")) {
+      final String key = "wave.fragments.applier.warnMs";
+      try {
+        int warn = cfg.getInt(key);
+        if (warn < 0) {
+          LOG.severe("Invalid config: " + key + "=" + warn + " (must be >= 0)");
+          throw new ConfigurationInitializationException(
+              key + " must be >= 0 (got " + warn + ")");
+        }
+      } catch (ConfigException e) {
+        LOG.severe("Invalid type for config: " + key + ": " + e.getMessage());
+        throw new ConfigurationInitializationException(
+            "Invalid type for " + key, e);
+      }
+    }
+    // wave.fragments.applier.impl
+    if (cfg.hasPath("wave.fragments.applier.impl")) {
+      final String key = "wave.fragments.applier.impl";
+      try {
+        String impl = cfg.getString(key);
+        String v = impl == null ? "" : impl.trim().toLowerCase();
+        if (!("noop".equals(v) || "skeleton".equals(v) || "real".equals(v))) {
+          LOG.severe(
+              "Invalid config: " + key + "='" + impl +
+              "' (must be one of noop|skeleton|real)");
+          throw new ConfigurationInitializationException(
+              key + " must be one of noop|skeleton|real (got '" + impl + "')");
+        }
+      } catch (ConfigException e) {
         LOG.severe("Invalid type for config: " + key + ": " + e.getMessage());
         throw new ConfigurationInitializationException(
             "Invalid type for " + key, e);
