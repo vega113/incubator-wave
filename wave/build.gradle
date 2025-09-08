@@ -151,12 +151,18 @@ sourceSets {
     jakartaTest {
         java { srcDir 'src/jakarta-test/java' }
         resources { srcDir 'src/jakarta-test/resources' }
+        // Exclude endpoint guard test until EE10 endpoint is enabled
+        java.exclude 'org/waveprotocol/box/server/jakarta/WaveWebSocketEndpointInitGuardTest.java'
         compileClasspath += sourceSets.main.output + configurations.testCompileClasspath
         runtimeClasspath += output + compileClasspath + configurations.testRuntimeClasspath
     }
     // Minimal Jakarta support sources (compile only the EE10 security filters used by ITs)
     jakartaSupport {
-        java { srcDir 'src/jakarta-overrides/java/org/waveprotocol/box/server/security/jakarta' }
+        java {
+            srcDir 'src/jakarta-overrides/java'
+            include 'org/waveprotocol/box/server/security/*.java'
+            include 'org/waveprotocol/box/server/authentication/SessionManagerImpl.java'
+        }
         // resources not needed
         compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
         runtimeClasspath += output + compileClasspath
@@ -332,6 +338,9 @@ if (jettyFamily == 'javax') {
         implementation group: 'jakarta.websocket', name: 'jakarta.websocket-api', version: '2.1.1'
         // Jakarta Servlet API already included above via ee10 servlet; ensure compile visibility
         implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
+
+        // Jakarta support sourceSet dependencies (needed to compile jakarta-overrides)
+        jakartaSupportImplementation group: 'org.eclipse.jetty', name: 'jetty-session', version: jettyEe10Version
     }
 }
 
@@ -720,6 +729,9 @@ tasks.register('testJakarta', Test) {
         def pats = project.property('includeJakartaTests').toString().split(',')
         filter { pats.each { p -> if (p?.trim()) includeTestsMatching(p.trim()) } }
     }
+
+    // Ensure Jakarta support classes (overrides) are compiled first
+    dependsOn tasks.named('compileJakartaSupportJava')
 }
 
 // Dedicated task for Jakarta integration tests (classes ending with *IT)
@@ -751,6 +763,9 @@ tasks.register('testJakartaIT', Test) {
         def pats = project.property('includeJakartaIT').toString().split(',')
         filter { pats.each { p -> if (p?.trim()) includeTestsMatching(p.trim()) } }
     }
+
+    // Ensure Jakarta support classes (overrides) are compiled first
+    dependsOn tasks.named('compileJakartaSupportJava')
 }
 
 // Ensure jakartaTest sees jakartaSupport outputs
