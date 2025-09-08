@@ -16,16 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.waveprotocol.box.server.rpc;
 
 import com.google.inject.Inject;
-import com.google.inject.Singleton;
-
-import java.util.logging.Level;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.waveprotocol.box.attachment.AttachmentMetadata;
+import org.waveprotocol.box.attachment.AttachmentProto.AttachmentsResponse;
+import org.waveprotocol.box.attachment.proto.AttachmentMetadataProtoImpl;
+import org.waveprotocol.box.server.attachment.AttachmentService;
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.persistence.AttachmentUtil;
 import org.waveprotocol.box.server.rpc.ProtoSerializer.SerializationException;
+import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
+import org.waveprotocol.wave.media.model.AttachmentId;
 import org.waveprotocol.wave.model.id.InvalidIdException;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.wave.ParticipantId;
@@ -34,31 +40,12 @@ import org.waveprotocol.wave.util.logging.Log;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import org.waveprotocol.box.attachment.AttachmentMetadata;
-import org.waveprotocol.box.attachment.AttachmentProto.AttachmentsResponse;
-import org.waveprotocol.box.attachment.proto.AttachmentMetadataProtoImpl;
-import org.waveprotocol.box.server.attachment.AttachmentService;
-import org.waveprotocol.box.server.persistence.AttachmentUtil;
-import org.waveprotocol.box.server.waveserver.WaveServerException;
-import org.waveprotocol.wave.media.model.AttachmentId;
-
-/*
- * Serves attachments info from a provided store.
- *
- * @author akaplanov@gmail.com (A. Kaplanov)
- */
+import java.util.logging.Level;
 
 @SuppressWarnings("serial")
-@Singleton
 public class AttachmentInfoServlet extends HttpServlet {
   public static final String ATTACHMENTS_INFO_URL = "/attachmentsInfo";
-
   private static final Log LOG = Log.get(AttachmentInfoServlet.class);
-
   private final AttachmentService service;
   private final WaveletProvider waveletProvider;
   private final SessionManager sessionManager;
@@ -76,55 +63,33 @@ public class AttachmentInfoServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
     List<AttachmentId> attachmentIds = getIdsFromRequest(request);
-    if (attachmentIds == null) {
+    if (attachmentIds == null) { // param missing
       response.sendError(HttpServletResponse.SC_NOT_FOUND);
       return;
     }
-    if (attachmentIds.isEmpty()) {
+    if (attachmentIds.isEmpty()) { // param present but invalid or yielded no valid ids
       response.sendError(HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
-
     ParticipantId user = sessionManager.getLoggedInUser(request.getSession(false));
-    if (user == null) {
-      response.sendError(HttpServletResponse.SC_FORBIDDEN);
-      return;
-    }
-
+    if (user == null) { response.sendError(HttpServletResponse.SC_FORBIDDEN); return; }
     AttachmentsResponse.Builder attachmentsResponse = AttachmentsResponse.newBuilder();
     boolean anyAuthorized = processIds(user, attachmentIds, attachmentsResponse);
-
-    if (!anyAuthorized) {
-      response.sendError(HttpServletResponse.SC_FORBIDDEN);
-      return;
-    }
-
+    if (!anyAuthorized) { response.sendError(HttpServletResponse.SC_FORBIDDEN); return; }
     String info;
-    try {
-      info = serializer.toJson(attachmentsResponse.build()).toString();
-    } catch (SerializationException ex) {
-      LOG.log(Level.SEVERE, "Attachments info serialize", ex);
-      response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-      return;
-    }
-
+    try { info = serializer.toJson(attachmentsResponse.build()).toString(); }
+    catch (SerializationException ex) { LOG.log(Level.SEVERE, "Attachments info serialize", ex); response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return; }
     response.setStatus(HttpServletResponse.SC_OK);
     response.setContentType("application/json; charset=utf8");
     response.setHeader("Cache-Control", "no-store");
     response.getWriter().append(info);
-
     LOG.info("Fetched info for " + attachmentIds.size() + " attachments");
   }
 
-  /**
-   * Get the attachment Ids from the URL in the request.
-   *
-   * @param request
-   * @return the list of Ids.
-   */
   private static List<AttachmentId> getIdsFromRequest(HttpServletRequest request) {
     String par = request.getParameter("attachmentIds");
     if (par == null) return null;
+    // Basic input hardening: size and composition limits
     if (par.length() > 4096) {
       LOG.warning("attachmentIds parameter too long; rejecting");
       return new ArrayList<>();
@@ -152,7 +117,7 @@ public class AttachmentInfoServlet extends HttpServlet {
     return ids;
   }
 
-  // Visible for tests in same package
+  // Visible for tests within package
   boolean processIds(ParticipantId user,
                      List<AttachmentId> attachmentIds,
                      AttachmentsResponse.Builder out) {
@@ -160,26 +125,15 @@ public class AttachmentInfoServlet extends HttpServlet {
     for (AttachmentId id : attachmentIds) {
       if (id == null) { LOG.fine("Null attachmentId token after parsing; skipping"); continue; }
       AttachmentMetadata metadata = null;
-      try {
-        metadata = service.getMetadata(id);
-      } catch (Exception ex) {
-        LOG.log(Level.WARNING, "Failed to fetch metadata for attachmentId=" + maskAttachmentId(id), ex);
-      }
+      try { metadata = service.getMetadata(id); }
+      catch (Exception ex) { LOG.log(Level.WARNING, "Failed to fetch metadata for attachmentId=" + maskAttachmentId(id), ex); }
       if (metadata != null) {
         boolean isAuthorized = false;
         WaveletName waveletName = AttachmentUtil.waveRef2WaveletName(metadata.getWaveRef());
-        try {
-          isAuthorized = waveletProvider.checkAccessPermission(waveletName, user);
-        } catch (WaveServerException e) {
-          LOG.warning("Problem while authorizing user: " + maskParticipant(user) + " for resource", e);
-          isAuthorized = false;
-        }
-        if (isAuthorized) {
-          out.addAttachment(new AttachmentMetadataProtoImpl(metadata).getPB());
-          anyAuthorized = true;
-        } else {
-          LOG.fine("Authorization denied for attachmentId=" + maskAttachmentId(id) + ", user=" + maskParticipant(user));
-        }
+        try { isAuthorized = waveletProvider.checkAccessPermission(waveletName, user); }
+        catch (WaveServerException e) { LOG.warning("Problem authorizing user=" + maskParticipant(user) + " for resource", e); isAuthorized = false; }
+        if (isAuthorized) { out.addAttachment(new AttachmentMetadataProtoImpl(metadata).getPB()); anyAuthorized = true; }
+        else { LOG.fine("Authorization denied for attachmentId=" + maskAttachmentId(id) + ", user=" + maskParticipant(user)); }
       } else {
         LOG.fine("No metadata for attachmentId=" + maskAttachmentId(id) + "; skipping");
       }
@@ -203,8 +157,7 @@ public class AttachmentInfoServlet extends HttpServlet {
   private static String mask(String s) {
     if (s == null) return "null";
     int len = s.length();
-    if (len <= 6) return "***";
+    if (len <= 6) return "***"; // short ids fully masked
     return s.substring(0, 3) + "***" + s.substring(len - 2);
   }
-
 }

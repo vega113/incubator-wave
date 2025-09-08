@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+/**
+ * Jakarta override of WaveClientServlet: identical logic, jakarta.servlet imports.
+ */
 package org.waveprotocol.box.server.rpc;
 
 import com.google.common.collect.Maps;
@@ -41,72 +43,47 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
 import javax.inject.Singleton;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 
-/**
- * The HTTP servlet for serving a wave client along with content generated on
- * the server.
- *
- * @author kalman@google.com (Benjamin Kalman)
- */
 @SuppressWarnings("serial")
 @Singleton
 public class WaveClientServlet extends HttpServlet {
-
   private static final Log LOG = Log.get(WaveClientServlet.class);
-
   private static final HashMap<String, String> FLAG_MAP = Maps.newHashMap();
-  static {
-    // __NAME_MAPPING__ is a map of name to obfuscated id
-    for (int i = 0; i < FlagConstants.__NAME_MAPPING__.length; i += 2) {
-      FLAG_MAP.put(FlagConstants.__NAME_MAPPING__[i], FlagConstants.__NAME_MAPPING__[i + 1]);
-    }
-  }
+  static { for (int i = 0; i < FlagConstants.__NAME_MAPPING__.length; i += 2) {
+      FLAG_MAP.put(FlagConstants.__NAME_MAPPING__[i], FlagConstants.__NAME_MAPPING__[i + 1]); } }
 
   private final String domain;
   private final String analyticsAccount;
   private final SessionManager sessionManager;
   private final String websocketPresentedAddress;
 
-  /**
-   * Creates a servlet for the wave client.
-   */
   @Inject
-  public WaveClientServlet(
-      @Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
-      Config config,
-      SessionManager sessionManager) {
+  public WaveClientServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
+                           Config config,
+                           SessionManager sessionManager) {
     List<String> httpAddresses = config.getStringList("core.http_frontend_addresses");
     String websocketAddress = config.getString("core.http_websocket_public_address");
     String websocketPresentedAddress = config.getString("core.http_websocket_presented_address");
     this.domain = domain;
     String websocketAddress1 = StringUtils.isEmpty(websocketAddress) ? httpAddresses.get(0) : websocketAddress;
-    this.websocketPresentedAddress = StringUtils.isEmpty(websocketPresentedAddress) ?
-                                             websocketAddress1 : websocketPresentedAddress;
+    this.websocketPresentedAddress = StringUtils.isEmpty(websocketPresentedAddress) ? websocketAddress1 : websocketPresentedAddress;
     this.analyticsAccount = config.getString("administration.analytics_account");
     this.sessionManager = sessionManager;
   }
 
   @Override
-  protected void doGet(HttpServletRequest request, HttpServletResponse response)
-      throws IOException {
+  protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
     ParticipantId id = sessionManager.getLoggedInUser(request.getSession(false));
-
-    // Eventually, it would be nice to show users who aren't logged in the public waves.
-    // However, public waves aren't implemented yet. For now, we'll just redirect users
-    // who haven't signed in to the sign in page.
-    if (id == null) {
-      response.sendRedirect(sessionManager.getLoginUrl("/"));
-      return;
-    }
+    if (id == null) { response.sendRedirect(sessionManager.getLoginUrl("/")); return; }
 
     AccountData account = sessionManager.getLoggedInAccount(request.getSession(false));
     if (account != null) {
@@ -120,17 +97,11 @@ public class WaveClientServlet extends HttpServlet {
       }
     }
 
-    String[] parts = id.getAddress().split("@");
-    String username = parts[0];
+    String username = id.getAddress().split("@")[0];
     String userDomain = id.getDomain();
-
     try {
-      // Use the request Host header for websocket address to ensure cookies and
-      // origin match (e.g., localhost vs 127.0.0.1).
       String hostHeader = request.getHeader("Host");
-      String wsAddressForPage = (hostHeader != null && !hostHeader.isEmpty())
-          ? hostHeader
-          : websocketPresentedAddress;
+      String wsAddressForPage = (hostHeader != null && !hostHeader.isEmpty()) ? hostHeader : websocketPresentedAddress;
       WaveClientPage.write(response.getWriter(), new GxpContext(request.getLocale()),
           getSessionJson(request.getSession(false)), getClientFlags(request), wsAddressForPage,
           TopBar.getGxpClosure(username, userDomain), analyticsAccount);
@@ -139,7 +110,6 @@ public class WaveClientServlet extends HttpServlet {
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
       return;
     }
-
     response.setContentType("text/html");
     response.setStatus(HttpServletResponse.SC_OK);
   }
@@ -147,35 +117,20 @@ public class WaveClientServlet extends HttpServlet {
   private JSONObject getClientFlags(HttpServletRequest request) {
     try {
       JSONObject ret = new JSONObject();
-
       Enumeration<?> iter = request.getParameterNames();
       while (iter.hasMoreElements()) {
         String name = (String) iter.nextElement();
         String value = request.getParameter(name);
-
         if (FLAG_MAP.containsKey(name)) {
-          // Set using the correct type of data in the json using reflection
           try {
             Method getter = ClientFlagsBase.class.getMethod(name);
             Class<?> retType = getter.getReturnType();
-
-            if (retType.equals(String.class)) {
-              ret.put(FLAG_MAP.get(name), value);
-            } else if (retType.equals(Integer.class)) {
-              ret.put(FLAG_MAP.get(name), Integer.parseInt(value));
-            } else if (retType.equals(Boolean.class)) {
-              ret.put(FLAG_MAP.get(name), Boolean.parseBoolean(value));
-            } else if (retType.equals(Float.class)) {
-              ret.put(FLAG_MAP.get(name), Float.parseFloat(value));
-            } else if (retType.equals(Double.class)) {
-              ret.put(FLAG_MAP.get(name), Double.parseDouble(value));
-            } else {
-              // Flag exists, but its type is unknown, so it can not be
-              // properly encoded in JSON.
-              LOG.warning("Ignoring flag [" + name + "] with unknown return type: " + retType);
-            }
-
-            // Ignore the flag on any exception
+            if (retType.equals(String.class)) ret.put(FLAG_MAP.get(name), value);
+            else if (retType.equals(Integer.class)) ret.put(FLAG_MAP.get(name), Integer.parseInt(value));
+            else if (retType.equals(Boolean.class)) ret.put(FLAG_MAP.get(name), Boolean.parseBoolean(value));
+            else if (retType.equals(Float.class)) ret.put(FLAG_MAP.get(name), Float.parseFloat(value));
+            else if (retType.equals(Double.class)) ret.put(FLAG_MAP.get(name), Double.parseDouble(value));
+            else LOG.warning("Ignoring flag [" + name + "] with unknown return type: " + retType);
           } catch (SecurityException | NumberFormatException ex) {
             LOG.warning("Ignoring flag [" + name + "]: " + ex.getClass().getSimpleName());
           } catch (NoSuchMethodException ex) {
@@ -183,7 +138,6 @@ public class WaveClientServlet extends HttpServlet {
           }
         }
       }
-
       return ret;
     } catch (JSONException ex) {
       LOG.severe("Failed to create flags JSON");
@@ -195,13 +149,8 @@ public class WaveClientServlet extends HttpServlet {
     try {
       ParticipantId user = sessionManager.getLoggedInUser(session);
       String address = (user != null) ? user.getAddress() : null;
-
-      // TODO(zdwang): Figure out a proper session id rather than generating a
-      // random number
       String sessionId = (new RandomBase64Generator()).next(10);
-
-      return new JSONObject()
-          .put(SessionConstants.DOMAIN, domain)
+      return new JSONObject().put(SessionConstants.DOMAIN, domain)
           .putOpt(SessionConstants.ADDRESS, address)
           .putOpt(SessionConstants.ID_SEED, sessionId);
     } catch (JSONException e) {
