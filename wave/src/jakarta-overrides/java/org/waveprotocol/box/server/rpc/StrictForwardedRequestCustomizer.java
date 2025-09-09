@@ -19,9 +19,11 @@
 package org.waveprotocol.box.server.rpc;
 
 import org.eclipse.jetty.http.HttpFields;
+import org.eclipse.jetty.http.HttpHeader;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.HttpConfiguration;
 import org.eclipse.jetty.server.Request;
+import org.waveprotocol.wave.util.logging.Log;
 
 /**
  * Strict variant of Jetty's ForwardedRequestCustomizer that ignores malformed
@@ -29,22 +31,30 @@ import org.eclipse.jetty.server.Request;
  * adjustments, leaving the original connection scheme/remote intact.
  */
 public class StrictForwardedRequestCustomizer implements HttpConfiguration.Customizer {
+  private static final Log LOG = Log.get(StrictForwardedRequestCustomizer.class);
 
   @Override
   public void customize(Connector connector, HttpConfiguration channelConfig, Request request) {
     HttpFields headers = request.getHeaders();
     if (headers == null) return;
 
-    String proto = headers.get("X-Forwarded-Proto");
+    String proto = headers.get(HttpHeader.X_FORWARDED_PROTO);
     if (proto != null && !("http".equalsIgnoreCase(proto) || "https".equalsIgnoreCase(proto))) {
-      headers.remove("X-Forwarded-Proto");
+      // Remove invalid proto and log at FINE for traceability without noise
+      if (LOG.isFineLoggable()) {
+        LOG.fine("Removing invalid X-Forwarded-Proto value: '" + proto + "'");
+      }
+      headers.remove(HttpHeader.X_FORWARDED_PROTO);
     }
 
-    String xff = headers.get("X-Forwarded-For");
+    String xff = headers.get(HttpHeader.X_FORWARDED_FOR);
     if (xff != null) {
       String first = xff.split(",", 2)[0].trim();
       if (!isValidIp(first)) {
-        headers.remove("X-Forwarded-For");
+        if (LOG.isFineLoggable()) {
+          LOG.fine("Removing invalid X-Forwarded-For value: '" + first + "' from '" + xff + "'");
+        }
+        headers.remove(HttpHeader.X_FORWARDED_FOR);
       }
     }
   }

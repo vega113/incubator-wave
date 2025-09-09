@@ -25,7 +25,7 @@ Recent changes (2025-09-08)
   - Refined @Before exception handling: only skip for true EE10 env issues (via TestSupport); fail fast for app misconfigurations.
 - TestSupport added (public, test-only) to centralize EE10 availability checks and consistent skip policy.
 - CI: added non-blocking :wave:testJakartaIT step and artifact publishing. Plan to flip to blocking after a burn-in window.
-- Compatibility note: For Jakarta builds, javax.servlet-api is still present as compileOnly for transitional stubs. This must be removed before we flip Jakarta as the default.
+- Compatibility note: As of 2025‑09‑08, the Jakarta build no longer includes javax.servlet‑api on the classpath. Any remaining javax imports are isolated behind the legacy (javax) profile and are not compiled for Jakarta.
 
 See also
 - Configuration flags and temporary migration toggles: docs/CONFIG_FLAGS.md
@@ -126,12 +126,35 @@ Decision & path
   4) Replace guice-servlet integration (ServletModule, GuiceFilter) with programmatic registration; wire filters/servlets.
   5) Re-run full build, `:wave:testJakarta`, `:wave:testJakartaIT`, and server smoke tests on JDK 17.
 - Acceptance
-  - Server builds and runs fully under Jakarta.
-  - No javax.* dependencies remain on the Jakarta path; CI is green.
+  - Build/runtime
+    - Server builds and starts under Jakarta (Jetty 12) on JDK 17 with default config.
+    - No javax.* dependencies remain on the Jakarta path; CI (PRs) is blocking and green.
+  - Predictable request handling
+    - Forwarded headers: With `network.enable_forwarded_headers=true` and `network.forwarded_headers.strict=true`, malformed X‑Forwarded‑* values are ignored; effective scheme/remote reflect safe fallback. With strict=false, behavior matches Jetty defaults.
+    - Static and webclient resources: `/static/*` returns long‑lived caching headers (immutable, max‑age), `/webclient/*` returns no‑cache headers; ETags enabled for both.
+    - Security headers: CSP, Referrer‑Policy, and X‑Content‑Type‑Options=nosniff are set; HSTS is emitted only on secure requests when configured.
+    - Access logging: NCSA entries are written for handled requests.
+    - Sessions: SessionManager bridge works (login/logout/user lookup); token→session lookup behaves as documented.
+    - WebSockets: `/socket` endpoint upgrades, authenticates, and routes messages correctly under Jakarta.
+  - Test coverage (Jakarta targets)
+    - Unit tests (jakartaTest) cover filters, headers, and helper utilities.
+    - Integration tests (jakarta ITs) cover forwarded headers (including strict mode), access logs, caching filters, security headers, and basic session behaviors; tests are deterministic (no sleep‑polling) and non‑flaky.
+    - Provider/boot IT validates server bootstrap wiring (Servlet/Filter mappings, WebSocket endpoint, DI).
+  - DI & wiring
+    - Guice core continues to provide DI for services; servlet/filter registration is programmatic (no guice‑servlet).
+    - Endpoints/servlets receive required dependencies (validated by ITs).
+  - Operational
+    - Docker image and README instructions verified for Jakarta profile; configuration flags documented; logs/metrics unchanged in format.
 
 Risks and Mitigations
 - Risk: guice-servlet Jakarta compatibility
-  - Mitigation: Evaluate Jakarta-compatible forks or replace with native servlet registration. Prototype in a branch.
+  - Mitigation (prioritized, with timeline):
+    1) Primary path (default): Replace guice-servlet with native, programmatic servlet/filter registration while keeping Guice core for DI. Target: design and initial wiring in the EE10 ServerModule/ServerRpcProvider by Week 1 of the next sprint; end-to-end provider IT green by Week 2.
+    2) Contingency (time-boxed): If a low-risk Jakarta-compatible fork exists, evaluate in a throwaway branch for ≤2 days strictly to compare ergonomics. Acceptance: no javax.* leakage, API stability, and no runtime conflicts. If any criteria fail, abort and stay on primary path.
+    3) Evolution/compatibility: Maintain guice-servlet only on the legacy javax profile during the transition. Once the programmatic Jakarta path is green in CI (1–2 weeks), mark guice-servlet as deprecated in docs and remove it from the default build. Remove the javax fallback one milestone later, after user testing feedback.
+  - Decision points:
+    - D1 (end of Week 1): Proceed with programmatic registration unless the fork clearly outperforms and meets criteria.
+    - D2 (end of Week 2): Lock decision; update docs and remove experimental switches on the Jakarta path.
 - Risk: Large import churn (javax -> jakarta)
   - Mitigation: Scripted refactor with IDE or sed; compile in small batches; strong test coverage.
 - Risk: Transitive dependency conflicts (logging, annotations, etc.)

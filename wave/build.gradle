@@ -250,7 +250,6 @@ dependencies {
             [group: "org.slf4j", name: "jul-to-slf4j", version: "1.7.36"],
             [group: "org.slf4j", name: "log4j-over-slf4j", version: "1.7.36"],
             [group: "javax.inject", name: "javax.inject", version: "1"],
-            [group: "javax.servlet", name: "javax.servlet-api", version: "3.1.0"],
             // Jakarta WebSocket API available to both builds; implementation provided by runtime
             [group: 'jakarta.websocket', name: 'jakarta.websocket-api', version: '2.1.1'],
             [group: "javax.jdo", name: "jdo2-api", version: "2.1"],
@@ -348,8 +347,6 @@ if (jettyFamily == 'javax') {
 if (jettyFamily == 'jakarta') {
     dependencies {
         implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
-        // Keep javax.servlet available at compile time for legacy sources referenced from ServerMain
-        compileOnly group: 'javax.servlet', name: 'javax.servlet-api', version: '3.1.0'
     }
 }
 

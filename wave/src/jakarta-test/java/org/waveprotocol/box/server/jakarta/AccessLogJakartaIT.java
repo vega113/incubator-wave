@@ -65,7 +65,7 @@ public class AccessLogJakartaIT {
 
       server.start();
       port = connector.getLocalPort();
-    } catch (LinkageError e) {
+    } catch (NoClassDefFoundError | IncompatibleClassChangeError e) {
       TestSupport.assumeJettyEe10PresentOrSkip();
     } catch (Exception e) {
       throw new AssertionError("Failed to start embedded Jetty EE10 server", e);

@@ -25,6 +25,7 @@ import com.google.protobuf.Service;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.MethodDescriptor;
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigException;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.server.CustomRequestLog;
@@ -58,6 +59,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ConcurrentHashMap;
 
 import jakarta.websocket.server.ServerEndpointConfig;
+import com.typesafe.config.ConfigFactory;
+
+// Jakarta security/caching filters
+import org.waveprotocol.box.server.security.jakarta.SecurityHeadersFilter;
+import org.waveprotocol.box.server.security.jakarta.StaticCacheFilter;
+import org.waveprotocol.box.server.security.jakarta.NoCacheFilter;
 
 /**
  * Minimal Jakarta-compatible stub of ServerRpcProvider to allow compiling the
@@ -137,20 +144,32 @@ public class ServerRpcProvider {
                 logWriter.setRetainDays(7);
                 CustomRequestLog requestLog = new CustomRequestLog(logWriter, CustomRequestLog.NCSA_FORMAT);
                 httpServer.setRequestLog(requestLog);
-            } catch (Throwable t) {
-                LOG.warning("Failed to initialize access logging", t);
+            } catch (Exception t) {
+                LOG.warning("Access logging initialization failed; continuing without request log", t);
             }
 
             // Forwarded headers toggle mirrors legacy flag: network.enable_forwarded_headers
             boolean enableFwd = false;
             boolean strictFwd = false;
-            try {
-                enableFwd = (config != null && config.hasPath("network.enable_forwarded_headers")
-                        && config.getBoolean("network.enable_forwarded_headers"));
-                strictFwd = (config != null && config.hasPath("network.forwarded_headers.strict")
-                        && config.getBoolean("network.forwarded_headers.strict"));
-            } catch (Throwable t) {
-                LOG.fine("forwarded headers flags read failed; using defaults (disabled)", t);
+            if (config == null) {
+                LOG.info("No Config provided to ServerRpcProvider (Jakarta stub path); forwarded headers disabled by default.");
+            } else {
+                try {
+                    if (config.hasPath("network.enable_forwarded_headers")) {
+                        enableFwd = config.getBoolean("network.enable_forwarded_headers");
+                    }
+                } catch (ConfigException e) {
+                    LOG.warning("Invalid config for network.enable_forwarded_headers; disabling forwarded headers.", e);
+                    enableFwd = false;
+                }
+                try {
+                    if (enableFwd && config.hasPath("network.forwarded_headers.strict")) {
+                        strictFwd = config.getBoolean("network.forwarded_headers.strict");
+                    }
+                } catch (ConfigException e) {
+                    LOG.warning("Invalid config for network.forwarded_headers.strict; using default (false).", e);
+                    strictFwd = false;
+                }
             }
             final HttpConfiguration httpConfig = new HttpConfiguration();
             if (enableFwd) {
@@ -161,7 +180,10 @@ public class ServerRpcProvider {
                     LOG.info("Enabled strict forwarded-header handling (invalid values ignored)");
                 } else {
                     httpConfig.addCustomizer(new ForwardedRequestCustomizer());
+                    LOG.info("Enabled default forwarded-header handling (Jetty behavior)");
                 }
+            } else {
+                LOG.fine("Forwarded headers disabled");
             }
             // Build connectors for all configured addresses (compat with legacy)
             int added = 0;
@@ -252,6 +274,21 @@ public class ServerRpcProvider {
             ServletHolder webclientHolder = new ServletHolder(DefaultServlet.class);
             webclientHolder.setInitParameters(webclientParams);
             context.addServlet(webclientHolder, "/webclient/*");
+
+            // Register security and caching filters programmatically (Jakarta variants)
+            try {
+                Config effectiveCfg = (this.config != null) ? this.config : ConfigFactory.empty();
+                org.eclipse.jetty.ee10.servlet.FilterHolder sec = new org.eclipse.jetty.ee10.servlet.FilterHolder(new SecurityHeadersFilter(effectiveCfg));
+                context.addFilter(sec, "/*", java.util.EnumSet.allOf(DispatcherType.class));
+
+                org.eclipse.jetty.ee10.servlet.FilterHolder cacheStatic = new org.eclipse.jetty.ee10.servlet.FilterHolder(new StaticCacheFilter());
+                context.addFilter(cacheStatic, "/static/*", java.util.EnumSet.allOf(DispatcherType.class));
+
+                org.eclipse.jetty.ee10.servlet.FilterHolder cacheNo = new org.eclipse.jetty.ee10.servlet.FilterHolder(new NoCacheFilter());
+                context.addFilter(cacheNo, "/webclient/*", java.util.EnumSet.allOf(DispatcherType.class));
+            } catch (Exception ex) {
+                LOG.warning("Failed to register Jakarta security/caching filters", ex);
+            }
 
             // Register Jakarta WebSocket endpoint programmatically with DI configurator
             JakartaWebSocketServletContainerInitializer.configure(context, (ctx, container) -> {
@@ -412,12 +449,33 @@ public class ServerRpcProvider {
         }
     }
 
+    /**
+     * Transparent proxying is not implemented on the Jakarta path yet.
+     * Throwing here avoids silent misconfiguration during the migration stage.
+     */
+    @Deprecated
     public void addTransparentProxy(String urlPattern, String proxyTo, String prefix) {
-        LOG.info("[Jakarta stub] addTransparentProxy {} -> {} (prefix {})", urlPattern, proxyTo, prefix);
+        String msg = "Transparent proxying is not supported on the Jakarta path yet: " +
+                urlPattern + " -> " + proxyTo + " (prefix " + prefix + ")";
+        LOG.warning(msg);
+        throw new UnsupportedOperationException(msg);
     }
 
+    /**
+     * Returns the first bound address for the /socket endpoint. Throws if the
+     * server is not started or no connectors are bound to avoid returning null.
+     */
     public SocketAddress getWebSocketAddress() {
-        return null;
+        if (httpServer == null) {
+            throw new IllegalStateException("Jakarta server not started; no WebSocket address available");
+        }
+        for (var conn : httpServer.getConnectors()) {
+            if (conn instanceof ServerConnector) {
+                ServerConnector sc = (ServerConnector) conn;
+                return new InetSocketAddress(sc.getHost(), sc.getLocalPort());
+            }
+        }
+        throw new IllegalStateException("No connectors bound; WebSocket address unavailable");
     }
 
     public void stopServer() throws IOException {

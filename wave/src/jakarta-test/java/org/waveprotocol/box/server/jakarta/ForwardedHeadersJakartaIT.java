@@ -64,7 +64,8 @@ public class ForwardedHeadersJakartaIT {
 
       server.start();
       port = connector.getLocalPort();
-    } catch (LinkageError e) {
+    } catch (NoClassDefFoundError | IncompatibleClassChangeError e) {
+      // Treat missing/incompatible EE10 classes as environment issues: skip deterministically.
       TestSupport.assumeJettyEe10PresentOrSkip();
     } catch (Exception e) {
       throw new AssertionError("Failed to start embedded Jetty EE10 server", e);
