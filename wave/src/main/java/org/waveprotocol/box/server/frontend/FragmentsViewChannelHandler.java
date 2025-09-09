@@ -56,28 +56,19 @@ public final class FragmentsViewChannelHandler {
         boolean en = false;
         boolean prefer = false;
         try {
-            if (config.hasPath(FLAG)) {
-                en = config.getBoolean(FLAG);
-            }
-        }
-        catch (Exception ex) {
+            en = config.getBoolean(FLAG);
+        } catch (Exception ex) {
             LOG.info("Failed reading " + FLAG + "; defaulting to false", ex);
         }
         try {
-            if (config.hasPath("server.preferSegmentState")) {
-                prefer = config.getBoolean("server.preferSegmentState");
-            }
-        }
-        catch (Exception ex) {
+            prefer = config.getBoolean("server.preferSegmentState");
+        } catch (Exception ex) {
             LOG.info("Failed reading server.preferSegmentState; defaulting to false", ex);
         }
         boolean storage = false;
         try {
-            if (config.hasPath("server.enableStorageSegmentState")) {
-                storage = config.getBoolean("server.enableStorageSegmentState");
-            }
-        }
-        catch (Exception ex) {
+            storage = config.getBoolean("server.enableStorageSegmentState");
+        } catch (Exception ex) {
             LOG.info("Failed reading server.enableStorageSegmentState; defaulting to false", ex);
         }
         this.enabled = en;
@@ -111,7 +102,9 @@ public final class FragmentsViewChannelHandler {
         long snapshotVersion = FragmentsFetcherCompat.getCommittedVersion(provider, wn);
         Map<SegmentId, VersionRange> ranges =
                 FragmentsFetcherCompat.computeRangesForSegments(snapshotVersion, req, segments);
+        LOG.info("preferSegmentState=" + preferSegmentState + ", enableStorageSegmentState=" + enableStorageSegmentState);
         if (preferSegmentState) {
+            LOG.info("preferSegmentState=true; attempting state-based filtering");
             try {
                 SegmentWaveletState state = SegmentWaveletStateRegistry.get(wn);
                 if (state == null) {
@@ -130,9 +123,11 @@ public final class FragmentsViewChannelHandler {
                     }
                 }
                 if (state != null) {
+                    LOG.info("Using state implementation: " + state.getClass().getSimpleName());
                     java.util.Map<SegmentId, org.waveprotocol.box.server.persistence.blocks.Interval> m =
                             state.getIntervals(ranges, /*onlyFromCache=*/false);
                     if (m != null && !m.isEmpty()) {
+                        LOG.info("State returned intervals for keys: " + m.keySet());
                         java.util.Map<SegmentId, VersionRange> filtered = new java.util.LinkedHashMap<>();
                         for (Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
                             if (m.containsKey(e.getKey())) {
@@ -140,6 +135,7 @@ public final class FragmentsViewChannelHandler {
                             }
                         }
                         ranges = ImmutableMap.copyOf(filtered);
+                        LOG.info("After filtering, keys: " + ranges.keySet());
                     }
                 }
             }

@@ -5,6 +5,17 @@ Last updated: 2025-09-07
 This is a concise, reference-first guide to fragments-related configuration.
 Defaults are shown; see reference.conf for inline comments.
 
+Context and Source of Truth
+- Server reads these keys via `ServerMain` during startup:
+  - `initializeServlets(...)` (HTTP endpoint gating)
+  - `initializeFrontend(...)` (client applier wiring + metrics)
+  - `applyFragmentsConfig(...)` (cache/registry/applier validation)
+- Client UI flags are merged from Typesafe config (`client.flags.defaults.*`) and may also
+  be provided at runtime via `-PclientFlags` when running the dev app; the Typesafe config is
+  the canonical source for defaults in production.
+- Unless otherwise stated, all flags default to safe (off) and are backward‑compatible. When a
+  feature is off, the system behaves as it did prior to fragments work.
+
 ## Server flags (gates)
 - `server.enableFragmentsHttp` (bool, default `false`)
   - Enables `/fragments/*` (auth required). Dev/proto only.
@@ -178,6 +189,7 @@ Tuning loop
 - `wave.fragments.applier.impl` (string, default `skeleton`)
   - Which client-side applier to wire when `client.flags.defaults.enableFragmentsApplier=true`.
   - Supported: `skeleton` (records windows + history), `real` (merges coverage ranges), `noop` (disabled).
+  - Value is validated at startup; invalid values fail fast with a clear message.
 
 ## Client flags (merged into client.flags.defaults)
 - `client.flags.defaults.enableFragmentsApplier` (bool, default `false`)

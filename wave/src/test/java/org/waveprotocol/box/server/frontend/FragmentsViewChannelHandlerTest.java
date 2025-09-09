@@ -50,10 +50,10 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
  */
 public final class FragmentsViewChannelHandlerTest {
 
-    private static final class ProviderStub implements WaveletProvider {
+  private static class ProviderStub implements WaveletProvider {
         @Override
         public void initialize() throws WaveServerException {
-        }
+  }
 
         @Override
         public void submitRequest(WaveletName waveletName, ProtocolWaveletDelta delta,
@@ -115,8 +115,8 @@ public final class FragmentsViewChannelHandlerTest {
         assertEquals(expected.toString(), ranges.get(SegmentId.MANIFEST_ID).toString());
     }
 
-    @Test
-    public void preferSegmentStateWithNoSnapshotDoesNotFilter() throws Exception {
+  @Test
+  public void preferSegmentStateWithNoSnapshotDoesNotFilter() throws Exception {
         WaveletProvider provider = new ProviderStub();
         Config cfg = ConfigFactory.parseString(
                 "server.enableFetchFragmentsRpc=true, server.preferSegmentState=true, server" +
@@ -130,6 +130,65 @@ public final class FragmentsViewChannelHandlerTest {
         VersionRange expected = VersionRange.of(2L, 4L);
         assertEquals(expected.toString(), ranges.get(SegmentId.INDEX_ID).toString());
         assertEquals(expected.toString(), ranges.get(SegmentId.MANIFEST_ID).toString());
-    }
-}
+  }
 
+  @Test
+  public void preferSegmentStateFiltersUnknownBlipsWhenSnapshotPresent() throws Exception {
+    // Build a tiny snapshot with one blip (b+1)
+    final WaveId waveId = WaveId.of("example.com", "w+snap");
+    final WaveletId waveletId = WaveletId.of("example.com", "conv+root");
+    final long now = System.currentTimeMillis();
+    org.waveprotocol.wave.model.wave.data.ObservableWaveletData data = new org.waveprotocol.wave.model.wave.data.impl.WaveletDataImpl(
+        waveletId,
+        org.waveprotocol.wave.model.wave.ParticipantId.ofUnsafe("user@example.com"),
+        now,
+        0L,
+        org.waveprotocol.wave.model.version.HashedVersion.unsigned(1),
+        now,
+        waveId,
+        org.waveprotocol.wave.model.wave.data.impl.PluggableMutableDocument.createFactory(
+            org.waveprotocol.wave.model.schema.SchemaCollection.empty()));
+    // Create a single blip b+1
+    data.createDocument(
+        "b+1",
+        org.waveprotocol.wave.model.wave.ParticipantId.ofUnsafe("user@example.com"),
+        java.util.Collections.<org.waveprotocol.wave.model.wave.ParticipantId>emptySet(),
+        org.waveprotocol.wave.model.document.util.EmptyDocument.EMPTY_DOCUMENT,
+        now + 1,
+        2L);
+    final org.waveprotocol.wave.model.wave.data.ReadableWaveletData snapshot =
+        org.waveprotocol.wave.model.wave.data.impl.UnmodifiableWaveletData.FACTORY.create(data);
+
+    // Provider that returns this snapshot
+    WaveletProvider provider = new ProviderStub() {
+      @Override
+      public CommittedWaveletSnapshot getSnapshot(WaveletName wn) {
+        return new CommittedWaveletSnapshot(snapshot,
+            org.waveprotocol.wave.model.version.HashedVersion.unsigned(1));
+      }
+    };
+
+    // Ensure registry is clean
+    org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateRegistry.clearForTests();
+
+    Config cfg = ConfigFactory.parseString(
+        "server.enableFetchFragmentsRpc=true, " +
+        "server.preferSegmentState=true, " +
+        "server.enableStorageSegmentState=false");
+
+    FragmentsViewChannelHandler h = new FragmentsViewChannelHandler(provider, cfg);
+    WaveletName wn = WaveletName.of(waveId, waveletId);
+    List<SegmentId> segs = Arrays.asList(
+        SegmentId.INDEX_ID,
+        SegmentId.MANIFEST_ID,
+        SegmentId.ofBlipId("b+1"),
+        SegmentId.ofBlipId("b+999"));
+
+    Map<SegmentId, VersionRange> ranges = h.fetchFragments(wn, segs, 0L, 0L);
+    // Expect b+999 to be filtered out since it doesn't exist in snapshot/state
+    assertTrue(ranges.containsKey(SegmentId.INDEX_ID));
+    assertTrue(ranges.containsKey(SegmentId.MANIFEST_ID));
+    assertTrue(ranges.containsKey(SegmentId.ofBlipId("b+1")));
+    assertTrue(!ranges.containsKey(SegmentId.ofBlipId("b+999")));
+  }
+}

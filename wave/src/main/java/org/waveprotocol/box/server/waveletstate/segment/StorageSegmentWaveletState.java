@@ -95,8 +95,11 @@ public final class StorageSegmentWaveletState implements SegmentWaveletState {
                 m.put(sid, new OpaqueInterval("manifest@" + snapshotVersion));
             } else if (sid.isBlip()) {
                 String bid = sid.asString().substring("blip:".length());
-                ReadableBlipData b = data.getDocument(bid);
-                if (b != null) m.put(sid, new OpaqueInterval(b));
+                // See SegmentWaveletStateCompat for rationale: check membership explicitly.
+                if (data.getDocumentIds().contains(bid)) {
+                    ReadableBlipData b = data.getDocument(bid);
+                    if (b != null) m.put(sid, new OpaqueInterval(b));
+                }
             }
         }
         return m;

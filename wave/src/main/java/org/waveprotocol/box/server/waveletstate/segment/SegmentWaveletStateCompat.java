@@ -106,8 +106,12 @@ public final class SegmentWaveletStateCompat implements SegmentWaveletState {
         m.put(sid, new OpaqueInterval("manifest@" + snapshotVersion));
       } else if (sid.isBlip()) {
         String bid = sid.asString().substring("blip:".length());
-        ReadableBlipData b = data.getDocument(bid);
-        if (b != null) m.put(sid, new OpaqueInterval(b));
+        // UnmodifiableWaveletData#getDocument always returns a non-null wrapper, even if the
+        // underlying document is absent. Check membership explicitly against document ids.
+        if (data.getDocumentIds().contains(bid)) {
+          ReadableBlipData b = data.getDocument(bid);
+          if (b != null) m.put(sid, new OpaqueInterval(b));
+        }
       }
     }
     return m;

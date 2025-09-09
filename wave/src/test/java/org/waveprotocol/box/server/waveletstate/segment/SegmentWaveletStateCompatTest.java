@@ -90,4 +90,33 @@ public final class SegmentWaveletStateCompatTest {
     assertTrue(m.containsKey(SegmentId.INDEX_ID));
     assertTrue(m.containsKey(SegmentId.ofBlipId("b+1")));
   }
+
+
+  @Test
+  public void testGetIntervalsDoesNotMutateInputRanges() {
+    ReadableWaveletData data = newWaveletWithBlips(2);
+    SegmentWaveletStateCompat compat = new SegmentWaveletStateCompat(data);
+    java.util.Map<SegmentId, VersionRange> base = new java.util.HashMap<>();
+    base.put(SegmentId.ofBlipId("b+1"), VersionRange.of(0, 1));
+    base.put(SegmentId.ofBlipId("b+2"), VersionRange.of(0, 2));
+    java.util.Map<SegmentId, VersionRange> ranges = java.util.Collections.unmodifiableMap(base);
+    int sizeBefore = ranges.size();
+    Map<SegmentId, Interval> out = compat.getIntervals(ranges, false);
+    assertTrue(out.containsKey(SegmentId.ofBlipId("b+1")));
+    assertTrue(out.containsKey(SegmentId.ofBlipId("b+2")));
+    // Ensure input map unchanged and unmodifiable
+    assertTrue(sizeBefore == ranges.size());
+  }
+
+  @Test
+  public void testOnlyFromCacheFlagIsNoOpInCompat() {
+    ReadableWaveletData data = newWaveletWithBlips(1);
+    SegmentWaveletStateCompat compat = new SegmentWaveletStateCompat(data);
+    java.util.Map<SegmentId, VersionRange> ranges = new java.util.HashMap<>();
+    ranges.put(SegmentId.INDEX_ID, VersionRange.of(0, 0));
+    ranges.put(SegmentId.ofBlipId("b+1"), VersionRange.of(0, 1));
+    Map<SegmentId, Interval> a = compat.getIntervals(ranges, false);
+    Map<SegmentId, Interval> b = compat.getIntervals(ranges, true);
+    assertTrue("Compat should ignore onlyFromCache flag", a.keySet().equals(b.keySet()));
+  }
 }
