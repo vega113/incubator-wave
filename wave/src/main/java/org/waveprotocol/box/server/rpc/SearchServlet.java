@@ -131,6 +131,10 @@ public class SearchServlet extends AbstractSearchServlet {
       return;
     }
     SearchRequest searchRequest = parseSearchRequest(req, response);
+    if (searchRequest == null) {
+      // parseSearchRequest already logged and sent the 400 error
+      return;
+    }
     SearchResult searchResult = performSearch(searchRequest, user);
 
     int totalGuess = computeTotalResultsNumberGuess(searchRequest, searchResult);
@@ -162,16 +166,20 @@ public class SearchServlet extends AbstractSearchServlet {
       throws IOException {
     if (message == null) {
       resp.sendError(HttpServletResponse.SC_FORBIDDEN);
-    } else {
+      return;
+    }
+    try {
+      String json = serializer.toJson(message).toString();
       resp.setStatus(HttpServletResponse.SC_OK);
       resp.setContentType("application/json; charset=utf8");
       // This is to make sure the fetched data is fresh - since the w3c spec
       // is rarely respected.
       resp.setHeader("Cache-Control", "no-store");
-      try {
-        resp.getWriter().append(serializer.toJson(message).toString());
-      } catch (SerializationException e) {
-        throw new IOException(e);
+      resp.getWriter().append(json);
+    } catch (SerializationException e) {
+      LOG.severe("Failed to serialize SearchResponse", e);
+      if (!resp.isCommitted()) {
+        resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to serialize response");
       }
     }
   }

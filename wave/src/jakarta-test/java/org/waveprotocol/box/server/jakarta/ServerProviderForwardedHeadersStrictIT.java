@@ -75,9 +75,9 @@ public class ServerProviderForwardedHeadersStrictIT {
       provider = provClass.getConstructor(
           com.typesafe.config.Config.class,
           org.waveprotocol.box.server.authentication.SessionManager.class,
-          org.eclipse.jetty.session.SessionHandler.class,
+          org.eclipse.jetty.ee10.servlet.SessionHandler.class,
           java.util.concurrent.Executor.class
-      ).newInstance(cfg, sm, new SessionHandler(), Executors.newSingleThreadExecutor());
+      ).newInstance(cfg, sm, new org.eclipse.jetty.ee10.servlet.SessionHandler(), Executors.newSingleThreadExecutor());
       provClass.getMethod("startWebSocketServer", com.google.inject.Injector.class).invoke(provider, new Object[]{null});
       provClass.getMethod("addServlet", String.class, Class.class).invoke(provider, "/whoami", WhoAmIServlet.class);
       @SuppressWarnings("unchecked")

@@ -53,6 +53,10 @@ public abstract class AbstractSearchServlet extends HttpServlet {
 
   private static String DEFAULT_QUERY = "";
   private static String DEFAULT_NUMRESULTS = "100";
+  private static final int MIN_INDEX = 0;
+  private static final int MAX_INDEX = 1_000_000; // avoid pathological requests
+  private static final int MIN_NUM_RESULTS = 1;
+  private static final int MAX_NUM_RESULTS = 100; // fixed upper limit
 
   protected final ConversationUtil conversationUtil;
   protected final EventDataConverterManager converterManager;
@@ -91,12 +95,44 @@ public abstract class AbstractSearchServlet extends HttpServlet {
       HttpServletResponse response) {
 
     String query = getParameter(req, "query", DEFAULT_QUERY);
-    String index = getParameter(req, "index", "0");
-    String numResults = getParameter(req, "numResults", DEFAULT_NUMRESULTS);
-    SearchRequest searchRequest =
-        SearchRequest.newBuilder().setQuery(query).setIndex(Integer.parseInt(index))
-            .setNumResults(Integer.parseInt(numResults)).build();
-    return searchRequest;
+    String rawIndex = getParameter(req, "index", "0");
+    String rawNum = getParameter(req, "numResults", DEFAULT_NUMRESULTS);
+    Integer index = tryParseInt(rawIndex);
+    Integer num = tryParseInt(rawNum);
+    if (index == null) {
+      LOG.warning("Invalid search parameter 'index': '" + rawIndex + "'");
+      try { response.sendError(HttpServletResponse.SC_BAD_REQUEST, "index must be an integer"); } catch (Exception ignore) {}
+      return null;
+    }
+    if (num == null) {
+      LOG.warning("Invalid search parameter 'numResults': '" + rawNum + "'");
+      try { response.sendError(HttpServletResponse.SC_BAD_REQUEST, "numResults must be an integer"); } catch (Exception ignore) {}
+      return null;
+    }
+    // Clamp numeric-but-out-of-range with a trace log
+    if (index < MIN_INDEX || index > MAX_INDEX) {
+      int clamped = Math.max(MIN_INDEX, Math.min(index, MAX_INDEX));
+      if (index != clamped && LOG.isFineLoggable()) {
+        LOG.fine("Clamping index from " + index + " to " + clamped);
+      }
+      index = clamped;
+    }
+    if (num < MIN_NUM_RESULTS || num > MAX_NUM_RESULTS) {
+      int clamped = Math.max(MIN_NUM_RESULTS, Math.min(num, MAX_NUM_RESULTS));
+      if (num != clamped && LOG.isFineLoggable()) {
+        LOG.fine("Clamping numResults from " + num + " to " + clamped);
+      }
+      num = clamped;
+    }
+    return SearchRequest.newBuilder().setQuery(query).setIndex(index).setNumResults(num).build();
+  }
+
+  private static Integer tryParseInt(String raw) {
+    try {
+      return Integer.parseInt(raw.trim());
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   /**

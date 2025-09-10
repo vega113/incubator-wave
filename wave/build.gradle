@@ -170,30 +170,37 @@ sourceSets {
     }
 }
 
-// When building against Jetty 12 (jakarta), use jakarta overrides for selected classes
+// When building against Jetty 12 (jakarta), configure sources declaratively instead of
+// mutating the compileJava task. This avoids brittle multi-invocation issues and keeps
+// Gradle configuration cache-friendly.
 if (jettyFamily == 'jakarta') {
-    // For testJakarta runs, compile the normal sources, but swap only the AttachmentInfoServlet
-    // to its Jakarta override to validate input/authorization logic without pulling in
-    // the full EE10 server stack yet.
-    tasks.named('compileJava', JavaCompile) { t ->
-        t.setSource(files(
-            fileTree(dir: 'src/main/java', exclude: [
-                // Exclude Jetty 9 server code on Jakarta profile
-                'org/waveprotocol/box/server/rpc/ServerRpcProvider.java',
-                'org/waveprotocol/box/server/ServerModule.java',
-                'org/waveprotocol/box/server/ServerMain.java',
-                'org/waveprotocol/box/server/rpc/WebSocket*.java',
-                'org/waveprotocol/box/server/rpc/AuthenticationServlet.java',
-                'org/waveprotocol/box/server/rpc/UserRegistrationServlet.java',
-                'org/waveprotocol/box/server/authentication/HttpRequestBasedCallbackHandler.java',
-                'org/waveprotocol/box/server/robots/agent/passwd/PasswordRobot.java',
-                'org/waveprotocol/box/server/authentication/SessionManagerImpl.java',
-                // Keep RPC servlets compiled for now; Jakarta overrides will replace wiring at runtime
-                'org/apache/wave/box/server/rpc/*.java'
-            ]),
-            'generated/main/java',
-            'generated/proto/java'
-        ))
+    sourceSets.main.java {
+        // Bring in Jakarta override sources
+        srcDir 'src/jakarta-overrides/java'
+
+        // Exclude Jetty 9-only server wiring and javax servlet implementations
+        exclude 'org/waveprotocol/box/server/rpc/ServerRpcProvider.java'
+        exclude 'org/waveprotocol/box/server/ServerModule.java'
+        exclude 'org/waveprotocol/box/server/ServerMain.java'
+        exclude 'org/waveprotocol/box/server/rpc/WebSocket*.java'
+        exclude 'org/waveprotocol/box/server/rpc/AuthenticationServlet.java'
+        exclude 'org/waveprotocol/box/server/rpc/UserRegistrationServlet.java'
+        exclude 'org/waveprotocol/box/server/authentication/HttpRequestBasedCallbackHandler.java'
+        exclude 'org/waveprotocol/box/server/robots/agent/passwd/PasswordRobot.java'
+        // Prevent javax variant when a Jakarta override exists
+        exclude 'org/waveprotocol/box/server/rpc/AttachmentServlet.java'
+        exclude 'org/waveprotocol/box/server/rpc/SearchServlet.java'
+        exclude 'org/waveprotocol/box/server/rpc/AttachmentInfoServlet.java'
+        exclude 'org/waveprotocol/box/server/rpc/FetchServlet.java'
+        exclude 'org/waveprotocol/box/server/rpc/FetchProfilesServlet.java'
+        exclude 'org/waveprotocol/box/server/rpc/NotificationServlet.java'
+        exclude 'org/waveprotocol/box/server/rpc/WaveClientServlet.java'
+        // Keep other RPC servlets compiled for now; Jakarta overrides will replace wiring at runtime
+        exclude 'org/apache/wave/box/server/rpc/*.java'
+
+        // Do not compile Jakarta-only helpers here; they are provided to tests via sourceSets.jakartaSupport
+        exclude 'org/waveprotocol/box/server/security/**'
+        exclude 'org/waveprotocol/box/server/authentication/SessionManagerImpl.java'
     }
 }
 
@@ -624,7 +631,8 @@ task compileGwtDev {
 
 
 run.dependsOn compileGwt
-compileJava.dependsOn = [generateMessages, generateGXP]
+// Make generateMessages and generateGXP prerequisites without clobbering other dependencies
+compileJava.dependsOn generateMessages, generateGXP
 
 /* Gwt Dev Tasks */
 
@@ -746,9 +754,12 @@ tasks.register('testJakartaIT', Test) {
     // By default, run only the four core integration tests we support under EE10 at this stage
     filter {
         includeTestsMatching 'org.waveprotocol.box.server.jakarta.ForwardedHeadersJakartaIT'
+        includeTestsMatching 'org.waveprotocol.box.server.jakarta.ForwardedHeadersStrictFuzzJakartaIT'
         includeTestsMatching 'org.waveprotocol.box.server.jakarta.AccessLogJakartaIT'
         includeTestsMatching 'org.waveprotocol.box.server.jakarta.SecurityHeadersJakartaIT'
         includeTestsMatching 'org.waveprotocol.box.server.jakarta.CachingFiltersJakartaIT'
+        includeTestsMatching 'org.waveprotocol.box.server.jakarta.AttachmentServletJakartaIT'
+        includeTestsMatching 'org.waveprotocol.box.server.jakarta.SearchServletJakartaIT'
     }
     // Open modules for Mockito on JDK 17
     jvmArgs += [

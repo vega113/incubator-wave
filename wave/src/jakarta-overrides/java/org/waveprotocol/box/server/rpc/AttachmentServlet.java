@@ -16,17 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.waveprotocol.box.server.rpc;
 
-import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.typesafe.config.Config;
-import org.apache.commons.fileupload.FileItem;
-import org.apache.commons.fileupload.FileItemFactory;
-import org.apache.commons.fileupload.disk.DiskFileItemFactory;
-import org.apache.commons.fileupload.servlet.ServletFileUpload;
-import org.apache.commons.io.FilenameUtils;
 import org.waveprotocol.box.attachment.AttachmentMetadata;
 import org.waveprotocol.box.server.attachment.AttachmentService;
 import org.waveprotocol.box.server.authentication.SessionManager;
@@ -40,26 +33,17 @@ import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URLDecoder;
 import java.util.Calendar;
+import java.util.logging.Level;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
-import java.util.List;
-import java.util.logging.Level;
-
-/**
- * Serves attachments from a provided store.
- *
- * @author akaplanov@gmail.com (A. Kaplanov)
- *
- */
 
 @SuppressWarnings("serial")
 @Singleton
@@ -78,9 +62,9 @@ public class AttachmentServlet extends HttpServlet {
   private final String thumbnailPattternsDirectory;
   private final File thumbnailPatternsDir;
 
-  @Inject
-  private AttachmentServlet(AttachmentService service, WaveletProvider waveletProvider,
-      SessionManager sessionManager, Config config) {
+  // Public for test/container construction on Jakarta path
+  public AttachmentServlet(AttachmentService service, WaveletProvider waveletProvider,
+                           SessionManager sessionManager, Config config) {
     this.service = service;
     this.waveletProvider = waveletProvider;
     this.sessionManager = sessionManager;
@@ -106,7 +90,6 @@ public class AttachmentServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
     AttachmentId attachmentId = getAttachmentIdFromRequest(request);
-
     if (attachmentId == null) {
       response.sendError(HttpServletResponse.SC_NOT_FOUND);
       return;
@@ -114,13 +97,13 @@ public class AttachmentServlet extends HttpServlet {
 
     String fileName = getFileNameFromRequest(request);
     // Note: waveRef is intentionally ignored for authorization. Authorization must
-    // rely on stored metadata to prevent spoofing by passing a waveRef for a
-    // different wave.
+    // be derived from stored metadata to prevent spoofing access by supplying an
+    // arbitrary waveRef for a foreign attachment.
 
     AttachmentMetadata metadata = service.getMetadata(attachmentId);
     if (metadata == null) {
-      // Do not synthesize metadata from request parameters; without existing
-      // metadata we cannot safely tie the attachment to a wave.
+      // Do not trust user-supplied waveRef for legacy attachments. Without
+      // metadata we cannot safely determine ownership — return 404.
       response.sendError(HttpServletResponse.SC_NOT_FOUND);
       return;
     }
@@ -138,27 +121,21 @@ public class AttachmentServlet extends HttpServlet {
       return;
     }
 
-    // Never build metadata from request context in GET path.
+    // Metadata must exist for authorization; never create it from request parameters.
 
     String contentType;
     AttachmentData data;
-    // Enforce strict endpoint match using servlet mapping instead of URI prefix.
+    // Enforce strict endpoint match based on the servlet mapping, not URI prefix.
     String servletPath = request.getServletPath();
     if (ATTACHMENT_URL.equals(servletPath)) {
       contentType = metadata.getMimeType();
       data = service.getAttachment(attachmentId);
-      if (data == null) {
-        response.sendError(HttpServletResponse.SC_NOT_FOUND);
-        return;
-      }
+      if (data == null) { response.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
     } else if (THUMBNAIL_URL.equals(servletPath)) {
       if (metadata.hasImageMetadata()) {
         contentType = AttachmentService.THUMBNAIL_MIME_TYPE;
         data = service.getThumbnail(attachmentId);
-        if (data == null) {
-          response.sendError(HttpServletResponse.SC_NOT_FOUND);
-          return;
-        }
+        if (data == null) { response.sendError(HttpServletResponse.SC_NOT_FOUND); return; }
       } else {
         contentType = THUMBNAIL_PATTERN_FORMAT_NAME;
         data = getThumbnailByContentType(metadata.getMimeType());
@@ -167,97 +144,18 @@ public class AttachmentServlet extends HttpServlet {
       response.sendError(HttpServletResponse.SC_NOT_FOUND);
       return;
     }
-    if (data == null) {
-      response.sendError(HttpServletResponse.SC_NOT_FOUND);
-      return;
-    }
 
     response.setContentType(contentType);
-    response.setContentLength((int)data.getSize());
+    response.setContentLength((int) data.getSize());
     response.setHeader("Content-Disposition", "attachment; filename=\"" + metadata.getFileName() + "\"");
     response.setStatus(HttpServletResponse.SC_OK);
     response.setDateHeader("Last-Modified", Calendar.getInstance().getTimeInMillis());
     AttachmentUtil.writeTo(data.getInputStream(), response.getOutputStream());
-
-    LOG.info("Fetched attachment with id '" + attachmentId + "'");
-  }
-
-  @Override
-  protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException,
-      IOException {
-    // Process only multipart requests.
-    if (ServletFileUpload.isMultipartContent(request)) {
-      // Create a factory for disk-based file items.
-      FileItemFactory factory = new DiskFileItemFactory();
-
-      // Create a new file upload handler.
-      ServletFileUpload upload = new ServletFileUpload(factory);
-
-      // Parse the request.
-      try {
-        @SuppressWarnings("unchecked")
-        List<FileItem> items = upload.parseRequest(request);
-        AttachmentId id = null;
-        String waveRefStr = null;
-        FileItem fileItem = null;
-        for (FileItem item : items) {
-          // Process only file upload - discard other form item types.
-          if (item.isFormField()) {
-            if (item.getFieldName().equals("attachmentId")) {
-              id = AttachmentId.deserialise(item.getString());
-            }
-            if (item.getFieldName().equals("waveRef")) {
-              waveRefStr = item.getString();
-            }
-          } else {
-            fileItem = item;
-          }
-        }
-
-        if (id == null) {
-          response.sendError(HttpServletResponse.SC_BAD_REQUEST, "No attachment Id in the request.");
-          return;
-        }
-        if (waveRefStr == null) {
-          response.sendError(HttpServletResponse.SC_BAD_REQUEST, "No wave reference in request.");
-          return;
-        }
-
-        WaveletName waveletName = AttachmentUtil.waveRef2WaveletName(waveRefStr);
-        ParticipantId user = sessionManager.getLoggedInUser(request.getSession(false));
-        boolean isAuthorized = waveletProvider.checkAccessPermission(waveletName, user);
-        if (!isAuthorized) {
-          response.sendError(HttpServletResponse.SC_FORBIDDEN);
-          return;
-        }
-
-        // Get only the file name not whole path.
-        if (fileItem != null && fileItem.getName()  != null) {
-          String fileName = FilenameUtils.getName(fileItem.getName());
-          service.storeAttachment(id, fileItem.getInputStream(), waveletName, fileName, user);
-          response.setStatus(HttpServletResponse.SC_CREATED);
-          String msg =
-              String.format("The file with name: %s and id: %s was created successfully.",
-                  fileName, id);
-          LOG.fine(msg);
-          response.getWriter().print("OK");
-          response.flushBuffer();
-        }
-      } catch (Exception e) {
-        LOG.severe("Upload error", e);
-        response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-            "An error occurred while upload the file : " + e.getMessage());
-      }
-    } else {
-      LOG.severe("Request contents type is not supported by the servlet.");
-      response.sendError(HttpServletResponse.SC_UNSUPPORTED_MEDIA_TYPE,
-          "Request contents type is not supported by the servlet.");
-    }
   }
 
   private static AttachmentId getAttachmentIdFromRequest(HttpServletRequest request) {
     String id = getAttachmentIdStringFromRequest(request);
-    if (id == null) { return null; }
+    if (id == null) return null;
     try {
       return AttachmentId.deserialise(id);
     } catch (InvalidIdException ex) {
@@ -269,13 +167,17 @@ public class AttachmentServlet extends HttpServlet {
   private static String getAttachmentIdStringFromRequest(HttpServletRequest request) {
     String pathInfo = request.getPathInfo();
     if (pathInfo == null || pathInfo.isEmpty()) return null;
+    // Expect '/<id>' where <id> is either 'id' or 'domain/id'. Reject anything else.
     if (pathInfo.charAt(0) != '/') return null;
     String raw = pathInfo.substring(1);
+    // Hard upper bound to avoid pathological inputs
     if (raw.length() == 0 || raw.length() > 512) return null;
+    // Disallow dangerous characters
     if (raw.indexOf('\\') >= 0 || raw.indexOf('\0') >= 0 || raw.indexOf('\n') >= 0 || raw.indexOf('\r') >= 0) return null;
+    // Allow at most one '/': supports domain/id; reject more segments
     int firstSlash = raw.indexOf('/');
     if (firstSlash >= 0) {
-      if (raw.indexOf('/', firstSlash + 1) >= 0) return null;
+      if (raw.indexOf('/', firstSlash + 1) >= 0) return null; // more than one segment separator
       String domain = raw.substring(0, firstSlash);
       String rid = raw.substring(firstSlash + 1);
       if (".".equals(domain) || "..".equals(domain) || ".".equals(rid) || "..".equals(rid)) return null;
@@ -335,11 +237,8 @@ public class AttachmentServlet extends HttpServlet {
     String waveRefStrEncoded = request.getParameter("waveRef");
     String waveRefStr = null;
     if (waveRefStrEncoded != null) {
-      try {
-        waveRefStr = URLDecoder.decode(waveRefStrEncoded, "UTF-8");
-      } catch (UnsupportedEncodingException e) {
-        LOG.warning("Problem decoding: " + waveRefStrEncoded, e);
-      }
+      try { waveRefStr = URLDecoder.decode(waveRefStrEncoded, "UTF-8"); }
+      catch (UnsupportedEncodingException e) { LOG.warning("Problem decoding: " + waveRefStrEncoded, e); }
     }
     return waveRefStr;
   }
