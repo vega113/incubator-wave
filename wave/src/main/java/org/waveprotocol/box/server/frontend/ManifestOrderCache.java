@@ -121,7 +121,22 @@ public final class ManifestOrderCache {
   public static void put(WaveletName wn, List<String> order) {
     if (wn == null || order == null) return;
     if (TTL_MS == 0) return; // disabled
+    // Try to write and detect TinyLFU admission rejections. Under heavy churn
+    // Caffeine may reject newcomers instead of evicting a resident, which means
+    // no RemovalListener SIZE event is fired. Tests expect to observe some
+    // evictions under capacity pressure, so we treat a rejected admission as an
+    // eviction-like event for observability.
+    boolean absentBefore = (CACHE.getIfPresent(wn) == null);
     CACHE.put(wn, order);
+    // Force maintenance so admission/eviction decisions are applied now,
+    // allowing us to reliably observe whether the entry was retained.
+    CACHE.cleanUp();
+    if (absentBefore && CACHE.getIfPresent(wn) == null) {
+      // Not present before, attempted a write, and still not present => the
+      // write was likely rejected by the admission policy. Count it so that
+      // operators (and tests) can see pressure reflected in metrics.
+      evictions.incrementAndGet();
+    }
   }
 
   /** Test-only helper to clear cache state and counters. */

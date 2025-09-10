@@ -86,6 +86,9 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
    * we log and continue delivering the update (never fail the update path).
    */
   private static volatile boolean enableFragmentsApplierFlag = false;
+  // Optional clamp for applier payload to limit burst cost; disabled by default.
+  private static volatile int applierMaxRangesPerApply = Integer.getInteger("wave.fragments.applier.maxRangesPerApply", -1);
+  public static void setApplierMaxRangesPerApply(int max) { applierMaxRangesPerApply = max; }
   public static void setFragmentsApplierEnabled(boolean enabled) { enableFragmentsApplierFlag = enabled; }
 
 
@@ -379,7 +382,15 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
               if (applier != null && enableFragmentsApplierFlag) {
                 try {
                   long t0 = System.nanoTime();
-                  applier.applyPayload(waveletId, update.getFragments());
+                  org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload payload = update.getFragments();
+                  if (applierMaxRangesPerApply > 0 && payload.ranges.size() > applierMaxRangesPerApply) {
+                    java.util.List<org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload.Range> subset =
+                        payload.ranges.subList(0, applierMaxRangesPerApply);
+                    payload = org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload.of(
+                        payload.snapshotVersion, payload.startVersion, payload.endVersion,
+                        new java.util.ArrayList<>(subset));
+                  }
+                  applier.applyPayload(waveletId, payload);
                   long dtMs = (System.nanoTime() - t0) / 1_000_000L;
                   int warnMs = Integer.getInteger("wave.fragments.applier.warnMs", 50);
                   if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {

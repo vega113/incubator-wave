@@ -113,11 +113,10 @@ public final class FragmentsViewChannelHandler {
                     CommittedWaveletSnapshot snap = provider.getSnapshot(wn);
                     if (snap != null && snap.snapshot != null) {
                         if (enableStorageSegmentState) {
-                            state = new StorageSegmentWaveletState(snap.snapshot);
-                            // Cache in registry to amortize future lookups
-                            SegmentWaveletStateRegistry.put(wn, state);
-                        }
-                        else {
+                            // Build outside lock; publish via putIfAbsent to avoid races.
+                            state = SegmentWaveletStateRegistry.putIfAbsent(
+                                wn, new StorageSegmentWaveletState(snap.snapshot));
+                        } else {
                             state = new SegmentWaveletStateCompat(snap.snapshot);
                         }
                     }
@@ -126,7 +125,23 @@ public final class FragmentsViewChannelHandler {
                     LOG.info("Using state implementation: " + state.getClass().getSimpleName());
                     java.util.Map<SegmentId, org.waveprotocol.box.server.persistence.blocks.Interval> m =
                             state.getIntervals(ranges, /*onlyFromCache=*/false);
-                    if (m != null && !m.isEmpty()) {
+                    // Storage-state observability
+                    if (FragmentsMetrics.isEnabled()) {
+                        int total = (ranges != null) ? ranges.size() : 0;
+                        int returned = (m != null) ? m.size() : 0;
+                        try {
+                            if (total > 0) {
+                                if (returned == 0) {
+                                    FragmentsMetrics.stateMisses.incrementAndGet();
+                                } else if (returned < total) {
+                                    FragmentsMetrics.statePartial.incrementAndGet();
+                                } else { // returned == total
+                                    FragmentsMetrics.stateHits.incrementAndGet();
+                                }
+                            }
+                        } catch (Throwable ignore) { /* counters are best-effort */ }
+                    }
+                    if (m != null) {
                         LOG.info("State returned intervals for keys: " + m.keySet());
                         java.util.Map<SegmentId, VersionRange> filtered = new java.util.LinkedHashMap<>();
                         for (Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
@@ -141,6 +156,9 @@ public final class FragmentsViewChannelHandler {
             }
             catch (Throwable t) {
                 LOG.warning("preferSegmentState path failed; falling back to computed ranges", t);
+                if (FragmentsMetrics.isEnabled()) {
+                    FragmentsMetrics.stateErrors.incrementAndGet();
+                }
             }
         }
         LOG.info("FetchFragments stub: wn=" + wn + " start=" + startVersion + " end=" + endVersion + " segments=" + segments + " ranges=" + ranges);

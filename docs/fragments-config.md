@@ -1,6 +1,6 @@
 # Fragments Configuration Reference
 
-Last updated: 2025-09-07
+Last updated: 2025-09-10
 
 This is a concise, reference-first guide to fragments-related configuration.
 Defaults are shown; see reference.conf for inline comments.
@@ -15,6 +15,16 @@ Context and Source of Truth
   the canonical source for defaults in production.
 - Unless otherwise stated, all flags default to safe (off) and are backward‑compatible. When a
   feature is off, the system behaves as it did prior to fragments work.
+
+Gating & Test Execution Policy
+- Stubs and experimental code paths are always guarded by explicit gates (below). Do not depend on
+  them being active in default builds/CI.
+- Tests that require these gates must either:
+  - be integration‑lite (pure JVM, no server endpoints) and avoid depending on gates, or
+  - be excluded from default `:wave:test` (e.g., stress or endpoint‑dependent tests) and documented
+    with how to enable the gate(s) to run them locally.
+- Wire descriptors (ProtocolOpenRequest viewport hints; ProtocolFragments) exist for compatibility,
+  but emission/consumption remains gated at runtime via the flags below.
 
 ## Server flags (gates)
 - `server.enableFragmentsHttp` (bool, default `false`)
@@ -204,6 +214,35 @@ Tuning loop
     (null segment id, negative bounds, or `from > to`). Healthy systems should
     keep this near zero; spikes suggest malformed payloads or an ongoing
     migration/canary.
+- Requester: `requesterSends`, `requesterCoalesced`
+- Storage state: `stateHits`, `stateMisses`, `statePartial`, `stateErrors`
+
+Storage metrics — expected interpretations and operator actions
+- `stateHits`
+  - Meaning: Storage returned intervals for all requested segments on the prefer‑state path; no compat fallback was needed.
+  - Expectation: Increase as storage coverage improves. High values indicate effective caching/storage availability.
+  - Action: None; this is the desired outcome.
+- `stateMisses`
+  - Meaning: Storage returned no intervals for the requested set; compat path handled the request entirely.
+  - Expectation: Common early in migration or when TTLs evict entries. Should trend downward as storage warms up.
+  - Action: If sustained at high levels together with high registry `misses`, consider increasing TTL/size, or investigate storage readiness/backfill.
+- `statePartial`
+  - Meaning: Storage returned a subset of requested segments; compat filled the rest.
+  - Expectation: Normal during canaries/backfill. Should decline as coverage improves.
+  - Action: Monitor trend. If persistent for specific waves, validate backfill or request shapes (overly large / sparse segment sets).
+- `stateErrors`
+  - Meaning: Exceptions/timeouts while querying storage state; compat continued the stream.
+  - Expectation: Near zero. Spikes indicate transient outages or regressions.
+  - Action: Treat as an operational alarm. Check storage health, timeouts, and error logs. Because the stream falls back, users should not see hard failures, but efficiency degrades.
+
+Runtime impact notes
+- The prefer‑state path never blocks update delivery: on miss/partial/error, compat results are used and metrics record the condition for visibility.
+- Elevated `stateErrors` or `stateMisses` increase CPU/IO because compat recomputes intervals; watch GC and cache hit ratios in parallel (registry/manifest stats).
+Run policy
+- Default CI runs only fast, integration‑lite tests that do not require server gates.
+- Stress tests: `:wave:testStress` (documented in docs/fragments-stress-tests.md).
+- Endpoint‑dependent tests require enabling `server.enableFragmentsHttp=true` and/or
+  `server.enableFetchFragmentsRpc=true` locally; keep them out of default CI.
 
 ## Startup Validation
 - On startup, the server validates key cache/registry settings and aborts with a clear error if invalid values are provided:

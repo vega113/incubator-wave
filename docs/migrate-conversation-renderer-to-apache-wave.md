@@ -1,11 +1,11 @@
 # Migration Plan: Conversation Renderer (wiab.pro ➜ Apache Wave)
 
 Owner: Migration Engineering
-Last updated: 2025-09-08
+Last updated: 2025-09-10
 
 -------------------------------------------------------------------------------
 
-## Delta Since Last Edit (2025-09-08)
+## Delta Since Last Edit (2025-09-10)
 
 - Flags (Task A): Added `enableDynamicRendering`, `enableQuasiDeletionUi`, `enableFragmentFetch`; server/gradle plumbing to pass flags via `-PclientFlags` and merge defaults.
 - Quasi (Phase 2 / Task B): Implemented `QuasiConversationViewAdapter` and `QuasiDeletable`; StageTwo wiring behind `enableQuasiDeletionUi`.
@@ -13,10 +13,10 @@ Last updated: 2025-09-08
 - Viewport plumbing (Phase 4 / Task D): Implemented `ScreenController` + `ScreenControllerImpl`; added `DomScrollerImpl` with clamped, throttled scroll writes sharing `dynamicScrollThrottleMs` with renderer.
 - Dynamic renderer (Phase 5 / Task E): Implemented MVP windowing with page-in/out, placeholders, robust DOM reads, and resource cleanup on page-out via `BlipResourceCleaner` + `BlipAsyncRegistry`.
 - Resources: Added `Render.css` and loader; optimized placeholder toggling to avoid redundant DOM churn.
-- Fragment fetch (Phase 6 / Task F): Added `ClientFragmentRequester` and minimal `/fragments` servlet; gated by `enableFragmentFetch` and callback with error logging. Server emits `ProtocolFragments` under `server.enableFetchFragmentsRpc`; client may opt-in to a fragments applier.
-- Client fragments applier: Introduced `RawFragmentsApplier` with `SkeletonRawFragmentsApplier` and `RealRawFragmentsApplier` (coverage merge). Select via `wave.fragments.applier.impl` when `client.flags.defaults.enableFragmentsApplier=true`.
-- Observability: `/statusz?show=fragments` shows emission and applier counters (including `applierRejected` for invalid fragment inputs).
-- Hardening & logging: Narrowed exception scopes, gated debug logs behind `enableViewportStats` or non-prod, added safe fallbacks.
+- Fragment fetch (Phase 6 / Task F): `ClientFragmentRequester` now includes basic coalescing/backoff with metrics (`requesterSends`, `requesterCoalesced`). `/fragments` servlet continues to serve compat JSON; RPC path emits `ProtocolFragments` under `server.enableFetchFragmentsRpc`.
+- Client fragments applier: `RealRawFragmentsApplier` (coverage merge) wired behind `wave.fragments.applier.impl` when `client.flags.defaults.enableFragmentsApplier=true`.
+- Observability: `/statusz?show=fragments` now includes requester metrics along with emission and applier counters.
+- Security hardening: server-side redirect validation (SignOutServlet, DataApiOAuthServlet) and safe Content‑Disposition for downloads (AttachmentServlet) via new HttpSanitizers helpers. Unit tests cover sanitization and header construction.
 
 
 This document outlines how to port wiab.pro’s Conversation Renderer improvements into Apache Wave (incubator-wave), with a focus on:

@@ -58,6 +58,28 @@ public final class FragmentsMetrics {
   // Client-side requester counters
   public static final AtomicLong requesterSends = new AtomicLong();
   public static final AtomicLong requesterCoalesced = new AtomicLong();
+  /**
+   * Storage-backed SegmentWaveletState counters (compat or real).
+   *
+   * stateHits:    For a prefer‑state lookup, the number of times storage returned
+   *               intervals for all requested segments (no compat fallback needed).
+   * stateMisses:  Storage returned no intervals for requested segments. Callers
+   *               should expect a full compat fallback.
+   * statePartial: Storage returned only a subset of requested segments. Caller
+   *               merges storage results with compat for missing segments.
+   * stateErrors:  Errors during storage lookup (exceptions, timeouts). These
+   *               should be rare; callers should fall back to compat and proceed.
+   *
+   * Interpretation notes:
+   * - Only incremented on the prefer‑state path; compat‑only modes won’t move them.
+   * - Partial may be common during migration canaries; should decline over time.
+   * - A rising error rate (stateErrors) is an operational alarm; fallback keeps
+   *   the stream healthy but indicates storage isn’t meeting SLO.
+   */
+  public static final AtomicLong stateHits = new AtomicLong();
+  public static final AtomicLong stateMisses = new AtomicLong();
+  public static final AtomicLong statePartial = new AtomicLong();
+  public static final AtomicLong stateErrors = new AtomicLong();
 
   private FragmentsMetrics() {}
 }

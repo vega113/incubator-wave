@@ -173,6 +173,28 @@ public final class SegmentWaveletStateRegistry {
     return null;
   }
 
+  /**
+   * Put the state only if absent or expired. Returns the canonical state in the
+   * registry after the operation (either existing or the new one if inserted).
+   * Does not perform expensive work under the lock; callers should construct the
+   * state outside and pass it in.
+   */
+  public static SegmentWaveletState putIfAbsent(WaveletName name, SegmentWaveletState state) {
+    if (name == null || state == null) return state;
+    long now = System.currentTimeMillis();
+    RW.writeLock().lock();
+    try {
+      Entry e = LRU.get(name);
+      if (e == null || e.expired(now)) {
+        LRU.put(name, new Entry(state, now));
+        return state;
+      }
+      return e.state;
+    } finally {
+      RW.writeLock().unlock();
+    }
+  }
+
   /** Test-only helper to clear all entries. */
   public static void clearForTests() {
     RW.writeLock().lock();

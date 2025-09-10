@@ -1,22 +1,28 @@
 # Server-First Blocks Adoption Plan
 
 Owner: Migration Engineering
-Last updated: 2025-09-08
+Last updated: 2025-09-10
 
 Statuses: planned | in_progress | completed
 
 -------------------------------------------------------------------------------
 
-## Delta Since Last Edit (2025-09-08)
+## Delta Since Last Edit (2025-09-10)
 
 Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/fragments-config.md):
-- Phase 3 (FragmentsFetcher & Request) and Phase 4 (Server Endpoint & Transport Prep) completed (compat); associated code and tests in place.
-- Client applier path advanced: added RealRawFragmentsApplier (coverage merge), integration‑lite test wiring through ViewChannelImpl, and applier implementation selector via `wave.fragments.applier.impl` (noop|skeleton|real). Startup validates values and warn threshold with fail‑fast on invalid config.
-- Manifest order cache migrated to Caffeine (LRU + TTL) with counters and tests; stress tests gated under :wave:testStress.
-- Statusz now exposes fragments metrics and cache counters; added applierRejected.
-- Viewport behavior docs expanded with worked examples and ambiguity rules.
+- Phase 3 (FragmentsFetcher & Request) and Phase 4 (Server Endpoint & Transport Prep) remain completed (compat).
+- Client applier path: RealRawFragmentsApplier (coverage merge) in place with integration‑lite wiring via ViewChannelImpl; selector via `wave.fragments.applier.impl` remains.
+- Manifest‑order cache finalized on Caffeine (LRU + TTL); counters preserved; stress tests gated (:wave:testStress).
+- Requester plumbing: FragmentRequesterImpl now exposes lightweight metrics (`requesterSends`, `requesterCoalesced`), surfaced in `/statusz?show=fragments`.
+- Security hardening:
+  - Added HttpSanitizers with `stripHeaderBreakingChars`, `isSafeRelativeRedirect`, RFC5987 `rfc5987Encode`, and `buildContentDispositionAttachment` helpers.
+  - SignOutServlet validates relative redirect param `r` before `sendRedirect`.
+  - DataApiOAuthServlet allow‑lists and sanitizes OAuth params before constructing login redirect (no raw query pass‑through).
+  - AttachmentServlet now sets a safe Content‑Disposition with ASCII fallback and RFC 5987 `filename*`.
+- Tests added: HttpSanitizersTest (sanitization + content‑disposition), FragmentRequesterMetricsTest (metrics), extended DataApiOAuthServletTest (redirect sanitization).
+ - Storage metrics: `stateHits`, `stateMisses`, `statePartial`, `stateErrors` now instrument the prefer‑state path. See docs/fragments-config.md for detailed interpretations and operator guidance.
 
-### Verification Details (2025-09-07)
+### Verification Details (2025-09-10)
 
 - Implemented features (server):
   - Fragments fetcher and helpers: `wave/src/main/java/org/waveprotocol/box/server/frontend/FragmentsFetcherCompat.java`
@@ -27,9 +33,13 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
     - NoOp: `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/impl/NoOpRawFragmentsApplier.java`
     - Skeleton: `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/impl/SkeletonRawFragmentsApplier.java`
     - Real (coverage merge): `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/impl/RealRawFragmentsApplier.java`
-  - HTTP endpoint (gated): `wave/src/main/java/org/waveprotocol/box/server/rpc/FragmentsServlet.java`
-  - Manifest-order cache (Caffeine: LRU + TTL): `wave/src/main/java/org/waveprotocol/box/server/frontend/ManifestOrderCache.java`
-  - Segment state registry (LRU+TTL): `wave/src/main/java/org/waveprotocol/box/server/waveletstate/segment/SegmentWaveletStateRegistry.java`
+- HTTP endpoint (gated): `wave/src/main/java/org/waveprotocol/box/server/rpc/FragmentsServlet.java`
+- Manifest-order cache (Caffeine: LRU + TTL): `wave/src/main/java/org/waveprotocol/box/server/frontend/ManifestOrderCache.java`
+- Segment state registry (LRU+TTL): `wave/src/main/java/org/waveprotocol/box/server/waveletstate/segment/SegmentWaveletStateRegistry.java`
+ - Security helpers: `wave/src/main/java/org/waveprotocol/box/server/util/HttpSanitizers.java`
+ - Redirect hardening: `SignOutServlet`, `DataApiOAuthServlet`
+- Attachment header hardening: `AttachmentServlet` (safe Content‑Disposition)
+ - Tests reference (delta): `HttpSanitizersTest`, `HttpSanitizersHashedTest`, and `DataApiOAuthServletTest` validate sanitization and redirects referenced in this plan.
 
 - Unit/integration tests present (selected):
   - Request + ordering: `FragmentsRequestTest`, `FragmentsOrderingTest`
@@ -53,6 +63,7 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
   - Compute/fallbacks: `computeFallbacks`, `viewportAmbiguity`.
   - HTTP (when `/fragments` enabled): `httpRequests`, `httpOk`, `httpErrors`.
   - Applier: `applierEvents`, `applierDurationsMs`, `applierRejected` (invalid fragment inputs).
+  - Requester: `requesterSends`, `requesterCoalesced`.
   - Definitions: `wave/src/main/java/org/waveprotocol/wave/concurrencycontrol/channel/FragmentsMetrics.java`.
   - Visibility: `/statusz?show=fragments` (implementation in `wave/src/main/java/org/waveprotocol/box/server/stat/StatuszServlet.java`).
 
@@ -169,7 +180,7 @@ Goal: Introduce core types and interfaces needed by a segment-based fetch path, 
 
 ## Phase 2 — Compatibility SegmentWaveletState (no storage migration)
 
-Status: in_progress
+Status: completed (compat)
 
 Goal: Provide a basic implementation that can return intervals reconstructed from the current store, sufficient for building fragment ranges and returning metadata.
 
@@ -202,7 +213,7 @@ Goal: Provide a basic implementation that can return intervals reconstructed fro
 
 ## Phase 3 — FragmentsFetcher & Request (server logic)
 
-Status: in_progress
+Status: completed (compat)
 
 Goal: Port a compatible `FragmentsRequest` and `FragmentsFetcher` that compute VersionRanges using `SegmentWaveletState`.
 
@@ -239,6 +250,10 @@ Goal: Port a compatible `FragmentsRequest` and `FragmentsFetcher` that compute V
   - Unit: FragmentsRequestTest (builder validation), FragmentsOrderingTest (ordered slicing semantics).
   - Integration-lite: FragmentsFetchBridgeImplTest validates snapshotVersion propagation and range mapping.
   - RPC integration: WaveClientRpcFragmentsTest asserts fragments attach for both snapshot and delta-only updates when the handler is enabled.
+  - Gating/Test policy: Endpoint‑dependent tests must only run when the corresponding gates are on
+    (`server.enableFetchFragmentsRpc=true` or `server.enableFragmentsHttp=true`). Keep such tests
+    out of default CI unless the wire descriptors and feature compatibility level have progressed
+    to “ready” for broader coverage.
 
 - DoD:
   - Compat fetcher returns reasonable ranges for INDEX/MANIFEST and visible blips based on snapshot; safe under missing data. Emission over RPC is gated and logs failures.
@@ -266,6 +281,10 @@ Goal: Replace `/fragments` stub with real fetcher-backed JSON; spec the future W
 
 - DoD:
   - Endpoint returns structured results; safe to run in dev.
+
+Appendix — HTTP Header Size Considerations
+- Typical effective header size budgets per request are ~8–16KiB depending on proxy/load balancer.
+- Content‑Disposition built by the server is bounded (ASCII fallback ≤ 80 chars, RFC 5987 filename* ≤ 120 chars) to avoid approaching proxy header limits (see HttpSanitizers tests).
 
 - Status: completed (compat) — commit d1aedf2b
   - Summary: Implemented FragmentsFetcherCompat (snapshot-based blip listing) and wired `/fragments` to return blip ids with author/mtime; accepts `ref`, `startBlipId`, `direction`, `limit`.
@@ -307,6 +326,9 @@ Status: in_progress
 - Tests:
   - Unit tests for the applier: accepts well-formed ranges, rejects invalid (from>to), and maintains per-segment window state.
   - Basic integration test in the client layer to ensure onFragments triggers applier calls when the flag is enabled.
+  - Gating/Test policy: Integration‑lite tests do not depend on server gates. Any tests requiring
+    server emission must be kept behind a Gradle task exclusion (not run by default) until the
+    corresponding wire descriptors and compat gates signal progression to “ready”.
 - DoD (iteration 1):
   - Compiles under a flag, does not mutate live wavelet data yet. Observability hooks (counters/logs) in place to validate flow end-to-end.
 

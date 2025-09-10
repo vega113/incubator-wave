@@ -500,8 +500,20 @@ task compileGwtDev {
 }
 
 
-run.dependsOn compileGwt
+// Do not force GWT compilation for a normal `run`.
+// The legacy webclient currently uses reflection that fails under modern GWT.
+// If you need the compiled client assets, run `runWithGwt` or pass -PwithGwt.
+if (project.hasProperty('withGwt')) {
+    run.dependsOn compileGwt
+}
 compileJava.dependsOn = [generateMessages, generateGXP]
+
+// Convenience task: compile the GWT client and then run the server
+tasks.register('runWithGwt') {
+    group = 'application'
+    description = 'Compiles the GWT webclient and then runs the server.'
+    dependsOn 'compileGwt', 'run'
+}
 
 /* Gwt Dev Tasks */
 

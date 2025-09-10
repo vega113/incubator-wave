@@ -72,6 +72,7 @@ public class AttachmentServlet extends HttpServlet {
   private final WaveletProvider waveletProvider;
   private final SessionManager sessionManager;
   private final String thumbnailPattternsDirectory;
+  private final String contentDispositionMode; // sanitized | hashed (default: sanitized)
 
   @Inject
   private AttachmentServlet(AttachmentService service, WaveletProvider waveletProvider,
@@ -80,88 +81,180 @@ public class AttachmentServlet extends HttpServlet {
     this.waveletProvider = waveletProvider;
     this.sessionManager = sessionManager;
     this.thumbnailPattternsDirectory = config.getString("core.thumbnail_patterns_directory");
+    String mode = "sanitized";
+    try {
+      if (config.hasPath("server.attachments.contentDispositionMode")) {
+        mode = config.getString("server.attachments.contentDispositionMode");
+      }
+    } catch (Exception ignore) {
+      // default stays sanitized
+    }
+    this.contentDispositionMode = mode;
   }
 
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-    AttachmentId attachmentId = getAttachmentIdFromRequest(request);
+    // One-orchestrator / single-exit flow: delegate steps to helpers,
+    // then finalize the response once.
+    int status = HttpServletResponse.SC_OK;
+    String errorLog = null;
 
+    AttachmentId attachmentId = resolveAttachmentId(request);
     if (attachmentId == null) {
-      response.sendError(HttpServletResponse.SC_NOT_FOUND);
-      return;
+      status = HttpServletResponse.SC_NOT_FOUND;
+      errorLog = "Missing attachmentId";
     }
 
-    String fileName = getFileNameFromRequest(request);
-    String waveRefStr = getWaveRefFromRequest(request);
-
-    AttachmentMetadata metadata = service.getMetadata(attachmentId);
-    WaveletName waveletName;
-
-    if (metadata == null) {
-      // Old attachments does not have metainfo.
-      if (waveRefStr != null) {
-        waveletName = AttachmentUtil.waveRef2WaveletName(waveRefStr);
+    AttachmentMetadata metadata = null;
+    WaveletName waveletName = null;
+    if (status == HttpServletResponse.SC_OK) {
+      String waveRefStr = getWaveRefFromRequest(request);
+      metadata = service.getMetadata(attachmentId);
+      WaveletName resolved = resolveWaveletName(metadata, waveRefStr);
+      if (resolved == null) {
+        status = HttpServletResponse.SC_NOT_FOUND;
+        errorLog = "No metadata and missing waveRef";
       } else {
-        response.sendError(HttpServletResponse.SC_NOT_FOUND);
-        return;
+        waveletName = resolved;
       }
-    } else {
-      waveletName = AttachmentUtil.waveRef2WaveletName(metadata.getWaveRef());
     }
 
-    ParticipantId user = sessionManager.getLoggedInUser(request.getSession(false));
-    boolean isAuthorized = false;
+    if (status == HttpServletResponse.SC_OK) {
+      if (!isAuthorized(waveletName, sessionManager.getLoggedInUser(request.getSession(false)))) {
+        status = HttpServletResponse.SC_FORBIDDEN;
+        errorLog = "User not authorized";
+      }
+    }
+
+    if (status == HttpServletResponse.SC_OK) {
+      // Backfill metadata if needed (old attachments)
+      metadata = ensureMetadata(metadata, attachmentId, waveletName, getFileNameFromRequest(request));
+    }
+
+    AttachmentData data = null;
+    String contentType = null;
+    if (status == HttpServletResponse.SC_OK) {
+      Content content = resolveContentAndType(request.getRequestURI(), metadata, attachmentId);
+      if (content.status != HttpServletResponse.SC_OK) {
+        status = content.status;
+        errorLog = content.errorMessage;
+      } else {
+        data = content.data;
+        contentType = content.contentType;
+      }
+    }
+
+    finalizeResponse(response, status, errorLog, metadata, data, contentType, attachmentId);
+  }
+
+  // ---- Helpers ----
+
+  private AttachmentId resolveAttachmentId(HttpServletRequest request) {
+    return getAttachmentIdFromRequest(request);
+  }
+
+  private WaveletName resolveWaveletName(AttachmentMetadata metadata, String waveRefStr) {
+    if (metadata != null) {
+      return AttachmentUtil.waveRef2WaveletName(metadata.getWaveRef());
+    }
+    if (waveRefStr != null) {
+      return AttachmentUtil.waveRef2WaveletName(waveRefStr);
+    }
+    return null;
+  }
+
+  private boolean isAuthorized(WaveletName waveletName, ParticipantId user) {
     try {
-      isAuthorized = waveletProvider.checkAccessPermission(waveletName, user);
+      return waveletProvider.checkAccessPermission(waveletName, user);
     } catch (WaveServerException e) {
       LOG.warning("Problem while authorizing user: " + user + " for wavelet: " + waveletName, e);
+      return false;
     }
-    if (!isAuthorized) {
-      response.sendError(HttpServletResponse.SC_FORBIDDEN);
-      return;
-    }
+  }
 
-    if (metadata == null) {
-      metadata = service.buildAndStoreMetadataWithThumbnail(attachmentId, waveletName, fileName, null);
+  private AttachmentMetadata ensureMetadata(AttachmentMetadata metadata, AttachmentId id,
+                                            WaveletName waveletName, String fileName) {
+    if (metadata != null) return metadata;
+    try {
+      return service.buildAndStoreMetadataWithThumbnail(id, waveletName, fileName, null);
+    } catch (IOException e) {
+      LOG.warning("Failed to backfill attachment metadata for id=" + id, e);
+      return null;
     }
+  }
 
-    String contentType;
-    AttachmentData data;
-    if (request.getRequestURI().startsWith(ATTACHMENT_URL)) {
-      contentType = metadata.getMimeType();
-      data = service.getAttachment(attachmentId);
-      if (data == null) {
-        response.sendError(HttpServletResponse.SC_NOT_FOUND);
-        return;
+  private static final class Content {
+    final int status; final String errorMessage; final AttachmentData data; final String contentType;
+    Content(int s, String msg, AttachmentData d, String ct) { status=s; errorMessage=msg; data=d; contentType=ct; }
+    static Content ok(AttachmentData d, String ct) { return new Content(HttpServletResponse.SC_OK, null, d, ct); }
+  }
+
+  private Content resolveContentAndType(String uri, AttachmentMetadata metadata, AttachmentId id) {
+    if (uri.startsWith(ATTACHMENT_URL)) {
+      AttachmentData data;
+      try {
+        data = service.getAttachment(id);
+      } catch (IOException e) {
+        LOG.warning("Failed to load attachment data id=" + id, e);
+        return new Content(HttpServletResponse.SC_NOT_FOUND, "Attachment data not found", null, null);
       }
-    } else if (request.getRequestURI().startsWith(THUMBNAIL_URL)) {
+      return (data != null) ? Content.ok(data, metadata.getMimeType())
+          : new Content(HttpServletResponse.SC_NOT_FOUND, "Attachment data not found", null, null);
+    } else if (uri.startsWith(THUMBNAIL_URL)) {
       if (metadata.hasImageMetadata()) {
-        contentType = AttachmentService.THUMBNAIL_MIME_TYPE;
-        data = service.getThumbnail(attachmentId);
-        if (data == null) {
-          response.sendError(HttpServletResponse.SC_NOT_FOUND);
-          return;
+        AttachmentData thumb;
+        try {
+          thumb = service.getThumbnail(id);
+        } catch (IOException e) {
+          LOG.warning("Failed to load thumbnail id=" + id, e);
+          return new Content(HttpServletResponse.SC_NOT_FOUND, "Thumbnail not found", null, null);
         }
+        return (thumb != null) ? Content.ok(thumb, AttachmentService.THUMBNAIL_MIME_TYPE)
+            : new Content(HttpServletResponse.SC_NOT_FOUND, "Thumbnail not found", null, null);
       } else {
-        contentType = THUMBNAIL_PATTERN_FORMAT_NAME;
-        data = getThumbnailByContentType(metadata.getMimeType());
+        AttachmentData patt;
+        try {
+          patt = getThumbnailByContentType(metadata.getMimeType());
+        } catch (IOException e) {
+          LOG.warning("Failed to load default thumbnail for mime=" + metadata.getMimeType(), e);
+          patt = null;
+        }
+        return (patt != null) ? Content.ok(patt, THUMBNAIL_PATTERN_FORMAT_NAME)
+            : new Content(HttpServletResponse.SC_NOT_FOUND, "No thumbnail pattern", null, null);
       }
     } else {
-      response.sendError(HttpServletResponse.SC_NOT_FOUND);
-      return;
+      return new Content(HttpServletResponse.SC_NOT_FOUND, "Unknown path", null, null);
     }
-    if (data == null) {
-      response.sendError(HttpServletResponse.SC_NOT_FOUND);
-      return;
-    }
+  }
 
+  private void finalizeResponse(HttpServletResponse response,
+                                int status,
+                                String errorLog,
+                                AttachmentMetadata metadata,
+                                AttachmentData data,
+                                String contentType,
+                                AttachmentId attachmentId) throws IOException {
+    if (status != HttpServletResponse.SC_OK) {
+      if (errorLog != null) {
+        LOG.fine("AttachmentServlet.doGet: " + errorLog + (attachmentId != null ? (" id=" + attachmentId) : ""));
+      }
+      response.sendError(status);
+      return;
+    }
     response.setContentType(contentType);
-    response.setContentLength((int)data.getSize());
-    response.setHeader("Content-Disposition", "attachment; filename=\"" + metadata.getFileName() + "\"");
+    response.setContentLength((int) data.getSize());
+    String cd;
+    if ("hashed".equalsIgnoreCase(contentDispositionMode)) {
+      cd = org.waveprotocol.box.server.util.HttpSanitizers
+          .buildHashedContentDispositionAttachment(metadata.getFileName());
+    } else {
+      cd = org.waveprotocol.box.server.util.HttpSanitizers
+          .buildContentDispositionAttachment(metadata.getFileName());
+    }
+    response.setHeader("Content-Disposition", cd);
     response.setStatus(HttpServletResponse.SC_OK);
     response.setDateHeader("Last-Modified", Calendar.getInstance().getTimeInMillis());
     AttachmentUtil.writeTo(data.getInputStream(), response.getOutputStream());
-
     LOG.info("Fetched attachment with id '" + attachmentId + "'");
   }
 

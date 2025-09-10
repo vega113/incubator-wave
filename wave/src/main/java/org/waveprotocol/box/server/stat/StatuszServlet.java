@@ -109,6 +109,10 @@ public class StatuszServlet extends HttpServlet {
       AtomicLong httpErrors = (AtomicLong) cls.getField("httpErrors").get(null);
       AtomicLong requesterSends = (AtomicLong) cls.getField("requesterSends").get(null);
       AtomicLong requesterCoalesced = (AtomicLong) cls.getField("requesterCoalesced").get(null);
+      AtomicLong stateHits = (AtomicLong) cls.getField("stateHits").get(null);
+      AtomicLong stateMisses = (AtomicLong) cls.getField("stateMisses").get(null);
+      AtomicLong statePartial = (AtomicLong) cls.getField("statePartial").get(null);
+      AtomicLong stateErrors = (AtomicLong) cls.getField("stateErrors").get(null);
       writer.write("<pre>enabled=" + enabled + "\n" +
           "emissionCount=" + emissionCount.get() + "\n" +
           "emissionErrors=" + emissionErrors.get() + "\n" +
@@ -120,7 +124,11 @@ public class StatuszServlet extends HttpServlet {
           "httpOk=" + httpOk.get() + "\n" +
           "httpErrors=" + httpErrors.get() + "\n" +
           "requesterSends=" + requesterSends.get() + "\n" +
-          "requesterCoalesced=" + requesterCoalesced.get() +
+          "requesterCoalesced=" + requesterCoalesced.get() + "\n" +
+          "stateHits=" + stateHits.get() + "\n" +
+          "stateMisses=" + stateMisses.get() + "\n" +
+          "statePartial=" + statePartial.get() + "\n" +
+          "stateErrors=" + stateErrors.get() +
           "</pre>");
     } catch (Throwable t) {
       writer.write("<pre>Fragments metrics unavailable: " + t + "</pre>");
