@@ -155,10 +155,35 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
     }
 
     @Override
-    public boolean hasFragments() { return false; }
+    public boolean hasFragments() { return update.hasFragments(); }
 
     @Override
-    public org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload getFragments() { return null; }
+    public org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload getFragments() {
+      if (!update.hasFragments()) {
+        return null;
+      }
+      org.waveprotocol.box.common.comms.ProtocolFragments f = update.getFragments();
+      // Translate to client DTO used by ViewChannelImpl/appliers
+      java.util.List<org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload.Range> ranges =
+          new java.util.ArrayList<>();
+      for (org.waveprotocol.box.common.comms.ProtocolFragmentRange r : f.getRange()) {
+        String seg = r.getSegment();
+        org.waveprotocol.wave.model.id.SegmentId sid = null;
+        if ("index".equals(seg)) {
+          sid = org.waveprotocol.wave.model.id.SegmentId.INDEX_ID;
+        } else if ("manifest".equals(seg)) {
+          sid = org.waveprotocol.wave.model.id.SegmentId.MANIFEST_ID;
+        } else if (seg != null && seg.startsWith("blip:")) {
+          sid = org.waveprotocol.wave.model.id.SegmentId.ofBlipId(seg.substring("blip:".length()));
+        }
+        if (sid != null) {
+          ranges.add(new org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload.Range(
+              sid, r.getFrom(), r.getTo()));
+        }
+      }
+      return org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload.of(
+          f.getSnapshotVersion(), f.getStartVersion(), f.getEndVersion(), ranges);
+    }
   }
 
   /**
