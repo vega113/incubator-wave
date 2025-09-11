@@ -184,6 +184,7 @@ if (jettyFamily == 'jakarta') {
             def patterns = [
                 'org/waveprotocol/box/server/rpc/ServerRpcProvider.java',
                 'org/waveprotocol/box/server/ServerModule.java',
+                'org/waveprotocol/box/server/StatModule.java',
                 // Keep ServerMain.java from main on Jakarta path; Jakarta provider skips incompatible registrations at runtime
                 'org/waveprotocol/box/server/rpc/AuthenticationServlet.java',
                 'org/waveprotocol/box/server/rpc/SignOutServlet.java',

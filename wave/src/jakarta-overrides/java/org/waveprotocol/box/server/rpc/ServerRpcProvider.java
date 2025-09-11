@@ -258,6 +258,14 @@ public class ServerRpcProvider {
             webclientHolder.setInitParameters(webclientParams);
             context.addServlet(webclientHolder, "/webclient/*");
 
+            // Minimal Jakarta replacements for server-side GWT services
+            try {
+                context.addServlet(new ServletHolder(new org.waveprotocol.box.server.rpc.RemoteLoggingJakartaServlet()), "/webclient/remote_logging");
+                context.addServlet(new ServletHolder(new org.waveprotocol.box.server.stat.StatuszJakartaServlet()), org.waveprotocol.box.stat.StatService.STAT_URL);
+            } catch (Throwable t) {
+                LOG.warning("Failed to register Jakarta replacements for remote logging / statusz", t);
+            }
+
             // Register security and caching filters programmatically (Jakarta variants)
             try {
                 Config effectiveCfg = (this.config != null) ? this.config : ConfigFactory.empty();
