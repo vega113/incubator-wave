@@ -489,6 +489,7 @@ public class ClientFlagsBase {
   private final Boolean enableQuasiDeletionUi;
   private final Boolean enableDynamicRendering;
   private final Boolean enableFragmentFetch;
+  private final Boolean enableFragmentFetchViewChannel;
   private final Integer dynamicPrerenderUpperPx;
   private final Integer dynamicPrerenderLowerPx;
   private final Integer dynamicPageOutSlackPx;
@@ -741,6 +742,7 @@ public class ClientFlagsBase {
         "enableQuasiDeletionUi", enableQuasiDeletionUi,
         "enableDynamicRendering", enableDynamicRendering,
         "enableFragmentFetch", enableFragmentFetch,
+        "enableFragmentFetchViewChannel", enableFragmentFetchViewChannel,
         "dynamicPrerenderUpperPx", dynamicPrerenderUpperPx,
         "dynamicPrerenderLowerPx", dynamicPrerenderLowerPx,
         "dynamicPageOutSlackPx", dynamicPageOutSlackPx,
@@ -988,6 +990,7 @@ public class ClientFlagsBase {
     enableQuasiDeletionUi = helper.getBoolean(FlagConstants.ENABLE_QUASI_DELETION_UI, false);
     enableDynamicRendering = helper.getBoolean(FlagConstants.ENABLE_DYNAMIC_RENDERING, false);
     enableFragmentFetch = helper.getBoolean(FlagConstants.ENABLE_FRAGMENT_FETCH, false);
+    enableFragmentFetchViewChannel = helper.getBoolean(FlagConstants.ENABLE_FRAGMENT_FETCH_VIEW_CHANNEL, false);
     dynamicPrerenderUpperPx = helper.getInteger(FlagConstants.DYNAMIC_PRERENDER_UPPER_PX, 600);
     dynamicPrerenderLowerPx = helper.getInteger(FlagConstants.DYNAMIC_PRERENDER_LOWER_PX, 800);
     dynamicPageOutSlackPx = helper.getInteger(FlagConstants.DYNAMIC_PAGE_OUT_SLACK_PX, 1200);
@@ -1001,6 +1004,7 @@ public class ClientFlagsBase {
   public Boolean enableQuasiDeletionUi() { return enableQuasiDeletionUi; }
   public Boolean enableDynamicRendering() { return enableDynamicRendering; }
   public Boolean enableFragmentFetch() { return enableFragmentFetch; }
+  public Boolean enableFragmentFetchViewChannel() { return enableFragmentFetchViewChannel; }
   public Integer dynamicPrerenderUpperPx() { return dynamicPrerenderUpperPx; }
   public Integer dynamicPrerenderLowerPx() { return dynamicPrerenderLowerPx; }
   public Integer dynamicPageOutSlackPx() { return dynamicPageOutSlackPx; }

@@ -264,6 +264,7 @@ public class FlagConstants {
   public static final String DYNAMIC_SCROLL_THROTTLE_MS = "234";
   public static final String DYNAMIC_SPEED_BOOST_THRESHOLD_PX = "235";
   public static final String DYNAMIC_SPEED_BOOST_FACTOR = "236";
+  public static final String ENABLE_FRAGMENT_FETCH_VIEW_CHANNEL = "237";
 
 
   public static final String[] __NAME_MAPPING__ = new String[] {
@@ -506,6 +507,8 @@ public class FlagConstants {
     "dynamicScrollThrottleMs", "234",
     "dynamicSpeedBoostThresholdPx", "235",
     "dynamicSpeedBoostFactor", "236",
+    // Prefer ViewChannel-based fragment flow instead of HTTP requester
+    "enableFragmentFetchViewChannel", "237",
 
   };
 }

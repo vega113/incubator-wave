@@ -25,7 +25,7 @@ import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.http.client.Response;
 import com.google.gwt.http.client.URL;
 
-/** Simple client requester that calls /fragments?top=..&bottom=.. */
+/** Simple client requester that calls /fragments?top=..&bottom=.. (HTTP path). */
 public final class ClientFragmentRequester implements FragmentRequester {
   private final String endpoint;
 
@@ -55,4 +55,3 @@ public final class ClientFragmentRequester implements FragmentRequester {
     }
   }
 }
-

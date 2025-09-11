@@ -276,7 +276,11 @@ Goal: If desired, integrate wiab.pro’s fragment-fetch flow to reduce payload/C
   - With `enableFragmentFetch=true`, bandwidth/latency improves on large waves; with flag off, dynamic renderer still functions client-only
 
 - Status
-  - Implemented (minimal stub) — 2025-09-01. Client requester and `/fragments` endpoint added as placeholders; calls are gated by `enableFragmentFetch`. Production integration requires real server-side fragment computation and merging logic.
+  - Implemented (stream + client surface) — 2025-09-11.
+    - Server: `WaveClientRpcImpl` attaches `ProtocolFragments` when `server.enableFetchFragmentsRpc=true`.
+    - Client: `RemoteWaveViewService` now surfaces `ProtocolFragments` as a `FragmentsPayload` to `ViewChannelImpl`, which forwards it to listeners and, when enabled, to a global applier.
+    - New flag: `enableFragmentFetchViewChannel` (client). When true (with `enableFragmentFetch`), StageTwo installs `ViewChannelFragmentRequester` (GWT-safe, no HTTP) instead of the HTTP `/fragments` requester. In this mode, the client relies on the stream and the applier; the requester participates in shaping but performs no network I/O.
+    - HTTP path (legacy/proto): With `enableFragmentFetch=true` and `enableFragmentFetchViewChannel=false`, the client uses the HTTP requester (`/fragments`) as before.
 
 -------------------------------------------------------------------------------
 
