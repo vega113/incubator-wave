@@ -564,6 +564,25 @@ tasks.register('gwtCodeServer') {
 }
 
 //=============================================================================
+// Run helpers
+//=============================================================================
+
+// Run the Wave server without (re)compiling the GWT client.
+tasks.register('runServerOnly', JavaExec) {
+    group = 'application'
+    description = 'Runs the server without compiling the GWT client.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    jvmArgs application.applicationDefaultJvmArgs
+    dependsOn 'classes'
+}
+
+// Compile the Dev GWT bundle and then start the server using it.
+tasks.register('runDev') {
+    group = 'application'
+    description = 'Compiles the GWT Dev bundle and runs the server.'
+    dependsOn 'compileGwtDev', 'runServerOnly'
+}
 // Tests
 //=============================================================================
 
