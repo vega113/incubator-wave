@@ -40,6 +40,13 @@ Below are practical, action-focused rules for each MCP server defined in `~/.cod
 - When you notice something that should be fixed but is unrelated to your current task, document it in your journal rather than fixing it immediately.
 - Useful actions: `search_journal` (find precedents), `list_recent_entries` (quick review), `read_journal_entry` (deep-dive), `process_thoughts` (write new notes).
 
+### Memento
+- You have access to the Memento MCP knowledge graph memory system, which provides you with persistent memory capabilities.
+  Your memory tools are provided by Memento MCP, a sophisticated knowledge graph implementation.
+  When asked about past conversations or user information, always check the Memento MCP knowledge graph first.
+  You should use semantic_search to find relevant information in your memory when answering questions.
+
+
 
 
 ## Planning and documentation
