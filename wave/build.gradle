@@ -426,6 +426,8 @@ javaexec {
 task compileGwt {
     description = 'Compiles the GWT sources for production'
     FileTree inputFiles = fileTree(dir: 'generated/src/main/java', include: '**/*.java')
+    // Ensure generated sources (PST + GXP + proto) exist before compiling GWT
+    dependsOn 'generateMessages', 'generateGXP'
     doLast {
         def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
         javaexec {
@@ -464,6 +466,8 @@ compileGwt.mustRunAfter compileJava
 
 task compileGwtDemo {
     description = 'Compiles the GWT sources for Demo'
+    // Ensure generated sources exist before compiling GWT
+    dependsOn 'generateMessages', 'generateGXP'
     doLast {
         def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
         javaexec {
@@ -481,6 +485,8 @@ task compileGwtDemo {
 
 task compileGwtDev {
     description = 'Compiles the GWT sources for Development'
+    // Ensure generated sources exist before compiling GWT
+    dependsOn 'generateMessages', 'generateGXP'
     doLast {
         def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
         javaexec {
