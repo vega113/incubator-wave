@@ -378,6 +378,31 @@ public class ServerMain {
     server.addServlet("/waveref/*", WaveRefServlet.class);
     // Optional fragment fetch endpoint for dynamic rendering (gated)
     try {
+      // Unified transport knob: server.fragments.transport = off|http|stream
+      String transport = null;
+      try {
+        if (config.hasPath("server.fragments.transport")) {
+          transport = config.getString("server.fragments.transport").trim().toLowerCase();
+        }
+      } catch (Exception ignore) {}
+
+      // If transport is set, reflect it into legacy booleans via system properties so that
+      // consumers using Config can continue to read the expected keys without code changes.
+      if (transport != null && !transport.isEmpty()) {
+        boolean tHttp = "http".equals(transport) || "both".equals(transport);
+        boolean tStream = "stream".equals(transport) || "both".equals(transport);
+        System.setProperty("server.enableFragmentsHttp", Boolean.toString(tHttp));
+        System.setProperty("server.enableFetchFragmentsRpc", Boolean.toString(tStream));
+        // Also set a client default for fragmentFetchMode unless an explicit override exists
+        String cf = System.getProperty("wave.clientFlags");
+        if (cf == null || !cf.contains("fragmentFetchMode")) {
+          String mode = tStream ? "stream" : (tHttp ? "http" : "off");
+          System.setProperty("wave.clientFlags",
+              (cf == null || cf.isEmpty()) ? ("fragmentFetchMode=" + mode)
+                  : (cf + ",fragmentFetchMode=" + mode));
+        }
+      }
+
       boolean enableFragmentsHttp = false;
       if (config.hasPath("server.enableFragmentsHttp")) {
         enableFragmentsHttp = config.getBoolean("server.enableFragmentsHttp");

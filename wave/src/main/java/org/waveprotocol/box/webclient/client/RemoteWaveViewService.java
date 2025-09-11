@@ -277,7 +277,19 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
     this.callback = callback;
 
     openContext = AsyncCallContext.start("ProtocolOpenRequest");
-    mux.open(waveId, filter, this);
+    // Optional initial viewport hints from flags
+    String start = null, dir = null; int limit = 0;
+    try {
+      start = org.waveprotocol.wave.client.util.ClientFlags.get().initialViewportStartBlipId();
+      dir = org.waveprotocol.wave.client.util.ClientFlags.get().initialViewportDirection();
+      Integer lim = org.waveprotocol.wave.client.util.ClientFlags.get().initialViewportLimit();
+      limit = (lim != null && lim > 0) ? lim : 0;
+    } catch (Throwable ignored) {}
+    if ((start != null && !start.isEmpty()) || (dir != null && !dir.isEmpty()) || limit > 0) {
+      mux.open(waveId, filter, this, start, dir, limit);
+    } else {
+      mux.open(waveId, filter, this);
+    }
   }
 
   @Override

@@ -55,12 +55,21 @@ public final class FragmentsViewChannelHandler {
         this.provider = provider;
         boolean en = false;
         boolean prefer = false;
-        if (config.hasPath(FLAG)) {
-            try {
-                en = config.getBoolean(FLAG);
-            } catch (Exception ignored) { /* default false */ }
-        } else {
-            LOG.fine("Config flag not set: " + FLAG + "; defaulting to false");
+        // Unified transport takes precedence
+        try {
+            String transport = config.hasPath("server.fragments.transport")
+                ? config.getString("server.fragments.transport").trim().toLowerCase() : null;
+            if (transport != null) {
+                en = "stream".equals(transport) || "both".equals(transport);
+            }
+        } catch (Exception ignore) {}
+        if (!en) {
+            // Backwards compatibility: fall back to legacy flag if present
+            if (config.hasPath(FLAG)) {
+                try { en = config.getBoolean(FLAG); } catch (Exception ignored) {}
+            } else {
+                LOG.fine("Config flag not set: " + FLAG + "; defaulting to false");
+            }
         }
         if (config.hasPath("server.preferSegmentState")) {
             try {

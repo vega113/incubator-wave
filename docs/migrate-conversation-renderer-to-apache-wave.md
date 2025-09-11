@@ -7,7 +7,7 @@ Last updated: 2025-09-10
 
 ## Delta Since Last Edit (2025-09-10)
 
-- Flags (Task A): Added `enableDynamicRendering`, `enableQuasiDeletionUi`, `enableFragmentFetch`; server/gradle plumbing to pass flags via `-PclientFlags` and merge defaults.
+- Flags (Task A): Added `enableDynamicRendering`, `enableQuasiDeletionUi`, and transport enum `fragmentFetchMode` (off|http|stream); server/gradle plumbing to pass flags via `-PclientFlags` and merge defaults.
 - Quasi (Phase 2 / Task B): Implemented `QuasiConversationViewAdapter` and `QuasiDeletable`; StageTwo wiring behind `enableQuasiDeletionUi`.
 - Deleted UI (Phase 3 / Task C): Added `BlipViewDomImpl#setQuasiDeleted(boolean)` and `.blip.deleted` styles; renderer marks quasi state before final removal.
 - Viewport plumbing (Phase 4 / Task D): Implemented `ScreenController` + `ScreenControllerImpl`; added `DomScrollerImpl` with clamped, throttled scroll writes sharing `dynamicScrollThrottleMs` with renderer.
@@ -121,7 +121,7 @@ Goal: Confirm current Apache Wave build, add feature flags and module placeholde
     - `ClientFlags` (or similar) booleans
       - `enableQuasiDeletionUi` (default false)
       - `enableDynamicRendering` (default false)
-      - `enableFragmentFetch` (default false)
+      - `fragmentFetchMode` (default "off")
   - Add empty shells/modules:
     - Create `org.waveprotocol.wave.client.render.undercurrent` package (interfaces only)
     - Create empty `Render.gwt.xml` with no side-effects; include in GWT module if necessary
@@ -264,23 +264,26 @@ Goal: If desired, integrate wiab.pro’s fragment-fetch flow to reduce payload/C
   - Client: `FragmentRequester` used by dynamic renderer to fetch missing content lazily
 
 - Steps (optional; coordinated server+client change)
-  1) Add client `FragmentRequester` with no-op stub when `enableFragmentFetch=false`
+  1) Add client `FragmentRequester` with selection based on `fragmentFetchMode` (off|http|stream); no-op when `off`
   2) If server changes are approved, implement `FragmentsRequest`/fetcher on Apache Wave server compatible with existing APIs; expose endpoint to client
-  3) Gate usage behind `enableFragmentFetch`, ensure fallback to fully loaded waves
+  3) Gate usage via `fragmentFetchMode`; when `off`, renderer remains client-only
 
 - Tests
   - Contract test: fetch returns fragments for a requested range; merging is idempotent
   - End-to-end: scroll triggers fetch, DOM updates, and view remains responsive
 
 - DoD
-  - With `enableFragmentFetch=true`, bandwidth/latency improves on large waves; with flag off, dynamic renderer still functions client-only
+  - With `fragmentFetchMode=stream|http`, bandwidth/latency improves on large waves; with `off`, dynamic renderer still functions client-only
 
 - Status
   - Implemented (stream + client surface) — 2025-09-11.
     - Server: `WaveClientRpcImpl` attaches `ProtocolFragments` when `server.enableFetchFragmentsRpc=true`.
     - Client: `RemoteWaveViewService` now surfaces `ProtocolFragments` as a `FragmentsPayload` to `ViewChannelImpl`, which forwards it to listeners and, when enabled, to a global applier.
-    - New flag: `enableFragmentFetchViewChannel` (client). When true (with `enableFragmentFetch`), StageTwo installs `ViewChannelFragmentRequester` (GWT-safe, no HTTP) instead of the HTTP `/fragments` requester. In this mode, the client relies on the stream and the applier; the requester participates in shaping but performs no network I/O.
-    - HTTP path (legacy/proto): With `enableFragmentFetch=true` and `enableFragmentFetchViewChannel=false`, the client uses the HTTP requester (`/fragments`) as before.
+    - New enum: `fragmentFetchMode` = `off|http|stream` (client). StageTwo picks:
+      - `stream` → `ViewChannelFragmentRequester` (GWT-safe, no HTTP; relies on RPC fragments)
+      - `http` → `ClientFragmentRequester` (`/fragments` endpoint)
+      - `off` → no requester
+    - Server-side default: set `server.fragments.transport = "stream"`. The server mirrors this to the client’s default `fragmentFetchMode` automatically at startup for all runs (dev/prod). You can still override on the command line: `-PclientFlags="fragmentFetchMode=http"`.
 
 -------------------------------------------------------------------------------
 
@@ -289,7 +292,7 @@ Goal: If desired, integrate wiab.pro’s fragment-fetch flow to reduce payload/C
 - Gradual rollout switches:
   - Stage 1: `enableQuasiDeletionUi=true` in canary
   - Stage 2: `enableDynamicRendering=true` for small cohorts
-  - Stage 3: `enableFragmentFetch=true` (if implemented)
+  - Stage 3: `fragmentFetchMode=stream` (if implemented)
 
 - Metrics (optional):
   - First paint time for a large wave
@@ -309,17 +312,18 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - GWT module xml if needed
 
 - Steps
-  - Add booleans: `enableQuasiDeletionUi`, `enableDynamicRendering`, `enableFragmentFetch` (all false by default)
+  - Add booleans: `enableQuasiDeletionUi`, `enableDynamicRendering` (false by default)
+  - Add enum: `fragmentFetchMode` ("off" by default)
   - Expose getters and integrate into stage providers (no behavior change yet)
 
 - Tests
   - Build + runtime smoke: flags accessible; defaults false
 
 - DoD
-  - Code compiles; nothing changes visually/functionally
+  - Code compiles; nothing changes visually/functionally until flags/enum are set
 
 - Status
-  - Completed — 2025-09-01. Added `enableQuasiDeletionUi`, `enableDynamicRendering`, `enableFragmentFetch` to `FlagConstants` and `ClientFlagsBase` (default false). Updated `__NAME_MAPPING__` so `WaveClientServlet` reflects flags to the client. Verified compilation via `:wave:compileJava`.
+  - Completed — 2025-09-01. Added `enableQuasiDeletionUi`, `enableDynamicRendering` and later `fragmentFetchMode` (off|http|stream) to `FlagConstants` and `ClientFlagsBase`. Updated `__NAME_MAPPING__` so `WaveClientServlet` reflects defaults to the client. Verified compilation via `:wave:compileJava`.
 
 ---
 
@@ -446,7 +450,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - When enabled, reduces initial load and keeps dynamic rendering responsive on very large waves
 
 - Status
-  - Implemented (minimal stub) — 2025-09-01. Client: added `ClientFragmentRequester` (GWT RequestBuilder) used when `enableFragmentFetch=true`. Server: added `/fragments` servlet that echoes requested range. This is a placeholder for real fragment logic; feature remains optional and off by default.
+  - Implemented (legacy path) — 2025-09-01. Client: added `ClientFragmentRequester` (GWT RequestBuilder) used when `fragmentFetchMode=http`. Server: added `/fragments` servlet that echoes requested range. This is a placeholder for real fragment logic; feature remains optional and off by default.
   - Addendum — 2025-09-01. `FragmentRequester` now includes `Callback` with `onSuccess/onError` for failures.
 
 -------------------------------------------------------------------------------
@@ -472,7 +476,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
 
 - Environments
   - Dev (local): run via `./gradlew :wave:run -PclientFlags="enableDynamicRendering=true,enableQuasiDeletionUi=true"`
-  - Dev (with fragments): add `enableFragmentFetch=true` (requires `/fragments` servlet; currently a stub)
+- Dev (with fragments over HTTP): set `fragmentFetchMode=http` (requires `/fragments`)
 
 - Smoke Tests
   - Open a wave with many blips (≥ 500). Verify initial render completes without freezing.
@@ -489,7 +493,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - Memory: compare heap snapshots idle vs. scrolled; ensure no growth trend after multiple scroll passes.
 
 - Fragment Fetch (stub) Tests
-  - With `enableFragmentFetch=true`, verify network calls to `/fragments?top=..&bottom=..` occur during scroll and return 200 OK.
+- With `fragmentFetchMode=http`, verify network calls to `/fragments?top=..&bottom=..` occur during scroll and return 200 OK.
   - Confirm UI remains responsive even if `/fragments` returns non-200 (we log errors, no user-facing breakage).
 
 - Regression Tests (flag-off)
@@ -541,7 +545,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
 - Client flags (new)
   - `enableDynamicRendering` (bool, default false): enable viewport windowing renderer
   - `enableQuasiDeletionUi` (bool, default false): enable quasi-deletion visual state
-  - `enableFragmentFetch` (bool, default false): enable optional fragment fetch path
+  - `fragmentFetchMode` (enum: off|http|stream; default off): pick transport for fragments
   - `dynamicPrerenderUpperPx` (int, default 600): prerender margin above viewport
   - `dynamicPrerenderLowerPx` (int, default 800): prerender margin below viewport
   - `dynamicPageOutSlackPx` (int, default 1200): offscreen slack before page-out
@@ -557,7 +561,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
 
 - Example reference.conf
   ```
-  client.flags.defaults = "enableDynamicRendering=false,enableQuasiDeletionUi=false,enableFragmentFetch=false"
+  client.flags.defaults = "enableDynamicRendering=false,enableQuasiDeletionUi=false,fragmentFetchMode=off"
   ```
 
 - Example application.conf (dev)

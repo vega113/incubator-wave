@@ -818,13 +818,22 @@ public interface StageTwo {
           if (screen != null && getConversations() != null && getModelAsViewProvider() != null
               && getBlipQueue() != null && getPagingHandler() != null) {
             org.waveprotocol.wave.client.wavepanel.render.FragmentRequester requester;
-            if (Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetch())) {
-              if (Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchViewChannel())) {
-                requester = new org.waveprotocol.wave.client.wavepanel.render.ViewChannelFragmentRequester();
-              } else {
-                requester = new org.waveprotocol.wave.client.wavepanel.render.ClientFragmentRequester();
+            String ffm = null;
+            try { ffm = ClientFlags.get().fragmentFetchMode(); } catch (Throwable ignored) {}
+            if (ffm != null) {
+              switch (ffm) {
+                case "stream":
+                  requester = new org.waveprotocol.wave.client.wavepanel.render.ViewChannelFragmentRequester();
+                  break;
+                case "http":
+                  requester = new org.waveprotocol.wave.client.wavepanel.render.ClientFragmentRequester();
+                  break;
+                case "off":
+                default:
+                  requester = org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.NO_OP;
               }
             } else {
+              // No mode set → treat as off for clarity.
               requester = org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.NO_OP;
             }
             org.waveprotocol.wave.client.wavepanel.render.DynamicRendererImpl dyn =

@@ -364,13 +364,17 @@ Goal: Port `RawFragment` types and client applier; switch client to RPC once ser
 - DoD:
   - Apply path compiles + unit tests pass (no wiring yet).
 
-### Task 5.2 — Client FragmentRequester over ViewChannel
+### Task 5.2 — Client FragmentRequester (transport selection)
 
 - Implementation:
-  - Port FragmentRequesterImpl (queueing, concurrency caps, listeners) and wire to ViewChannel RPC.
+  - Choose transport via `fragmentFetchMode` enum (`off|http|stream`).
+    - `stream`: use ViewChannel (RPC) fragments; requester is GWT‑safe no‑op that relies on the stream.
+    - `http`: use `/fragments` endpoint with viewport hints.
+    - `off`: disable requester entirely (client-only rendering).
+  - Prefer `stream` for production; keep `http` for legacy/proto.
 
 - DoD:
-  - Works behind `enableFragmentFetch`; dynamic renderer requests segments near viewport.
+  - Dynamic renderer requests/receives fragments when `fragmentFetchMode != off`.
 
 -------------------------------------------------------------------------------
 
@@ -399,6 +403,10 @@ Status: planned
   - When true, enables `/fragments/*` (auth required). Intended for dev/proto; data derived from snapshots.
 - `server.enableFetchFragmentsRpc` (bool, default false):
   - When true, wires the RPC handler; `WaveClientRpcImpl` may emit `ProtocolFragments`.
+- Transport knobs (unified):
+  - Server: `server.fragments.transport` = `off|http|stream|both` (enables endpoints).
+  - Client: `fragmentFetchMode` = `off|http|stream` (client behavior). The server mirrors `server.fragments.transport` to the client default at startup for all runs. CLI overrides remain possible via `-PclientFlags`.
+  - Recommended: `stream`/`stream` for production; `both` on server only during migration/canaries.
 - `server.preferSegmentState` (bool, default false):
   - When true, if a `SegmentWaveletState` exists, emitted ranges are filtered to known segments; falls back to compat otherwise.
 - `server.segmentStateRegistry.maxEntries` (int, default 1024):

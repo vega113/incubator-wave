@@ -490,6 +490,10 @@ public class ClientFlagsBase {
   private final Boolean enableDynamicRendering;
   private final Boolean enableFragmentFetch;
   private final Boolean enableFragmentFetchViewChannel;
+  private final String fragmentFetchMode;
+  private final String initialViewportStartBlipId;
+  private final String initialViewportDirection;
+  private final Integer initialViewportLimit;
   private final Integer dynamicPrerenderUpperPx;
   private final Integer dynamicPrerenderLowerPx;
   private final Integer dynamicPageOutSlackPx;
@@ -743,6 +747,10 @@ public class ClientFlagsBase {
         "enableDynamicRendering", enableDynamicRendering,
         "enableFragmentFetch", enableFragmentFetch,
         "enableFragmentFetchViewChannel", enableFragmentFetchViewChannel,
+        "fragmentFetchMode", fragmentFetchMode,
+        "initialViewportStartBlipId", initialViewportStartBlipId,
+        "initialViewportDirection", initialViewportDirection,
+        "initialViewportLimit", initialViewportLimit,
         "dynamicPrerenderUpperPx", dynamicPrerenderUpperPx,
         "dynamicPrerenderLowerPx", dynamicPrerenderLowerPx,
         "dynamicPageOutSlackPx", dynamicPageOutSlackPx,
@@ -991,6 +999,11 @@ public class ClientFlagsBase {
     enableDynamicRendering = helper.getBoolean(FlagConstants.ENABLE_DYNAMIC_RENDERING, false);
     enableFragmentFetch = helper.getBoolean(FlagConstants.ENABLE_FRAGMENT_FETCH, false);
     enableFragmentFetchViewChannel = helper.getBoolean(FlagConstants.ENABLE_FRAGMENT_FETCH_VIEW_CHANNEL, false);
+    String ffm = helper.getString(FlagConstants.FRAGMENT_FETCH_MODE, null);
+    fragmentFetchMode = (ffm == null || ffm.trim().isEmpty()) ? null : ffm.trim().toLowerCase();
+    initialViewportStartBlipId = helper.getString(FlagConstants.INITIAL_VIEWPORT_START_BLIP_ID, null);
+    initialViewportDirection = helper.getString(FlagConstants.INITIAL_VIEWPORT_DIRECTION, null);
+    initialViewportLimit = helper.getInteger(FlagConstants.INITIAL_VIEWPORT_LIMIT, null);
     dynamicPrerenderUpperPx = helper.getInteger(FlagConstants.DYNAMIC_PRERENDER_UPPER_PX, 600);
     dynamicPrerenderLowerPx = helper.getInteger(FlagConstants.DYNAMIC_PRERENDER_LOWER_PX, 800);
     dynamicPageOutSlackPx = helper.getInteger(FlagConstants.DYNAMIC_PAGE_OUT_SLACK_PX, 1200);
@@ -1005,6 +1018,13 @@ public class ClientFlagsBase {
   public Boolean enableDynamicRendering() { return enableDynamicRendering; }
   public Boolean enableFragmentFetch() { return enableFragmentFetch; }
   public Boolean enableFragmentFetchViewChannel() { return enableFragmentFetchViewChannel; }
+  /**
+   * Fragment fetch mode: "stream", "http", or "off". May be null when unset.
+   */
+  public String fragmentFetchMode() { return fragmentFetchMode; }
+  public String initialViewportStartBlipId() { return initialViewportStartBlipId; }
+  public String initialViewportDirection() { return initialViewportDirection; }
+  public Integer initialViewportLimit() { return initialViewportLimit; }
   public Integer dynamicPrerenderUpperPx() { return dynamicPrerenderUpperPx; }
   public Integer dynamicPrerenderLowerPx() { return dynamicPrerenderLowerPx; }
   public Integer dynamicPageOutSlackPx() { return dynamicPageOutSlackPx; }

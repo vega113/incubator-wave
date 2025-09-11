@@ -94,6 +94,21 @@ public class StatuszServlet extends HttpServlet {
 
   protected void writeFragments(PrintWriter writer) {
     writer.write(Timing.renderTitle("Fragments Metrics", 2));
+    // Effective transport line
+    try {
+      com.typesafe.config.Config cfg = com.typesafe.config.ConfigFactory.load();
+      String transport = null;
+      if (cfg.hasPath("server.fragments.transport")) {
+        transport = cfg.getString("server.fragments.transport").trim().toLowerCase();
+      } else {
+        boolean http = cfg.hasPath("server.enableFragmentsHttp") && cfg.getBoolean("server.enableFragmentsHttp");
+        boolean stream = cfg.hasPath("server.enableFetchFragmentsRpc") && cfg.getBoolean("server.enableFetchFragmentsRpc");
+        transport = stream && http ? "both" : (stream ? "stream" : (http ? "http" : "off"));
+      }
+      writer.write("<pre>transport=" + transport + "</pre>");
+    } catch (Throwable t) {
+      writer.write("<pre>transport=unknown (" + t.getClass().getSimpleName() + ")</pre>");
+    }
     try {
       Class<?> cls = Class.forName(
           "org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics");
