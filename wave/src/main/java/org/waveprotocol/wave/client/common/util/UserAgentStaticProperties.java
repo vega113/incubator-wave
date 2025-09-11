@@ -56,9 +56,7 @@ public class UserAgentStaticProperties {
    */
   private static UserAgentStaticProperties createInstance() {
     try {
-      Class<?> gwt = Class.forName("com.google.gwt.core.client.GWT");
-      Object created = gwt.getMethod("create", Class.class).invoke(null, UserAgentStaticProperties.class);
-      return (UserAgentStaticProperties) created;
+      return com.google.gwt.core.client.GWT.create(UserAgentStaticProperties.class);
     } catch (Throwable t) {
       // Default to Firefox-like behavior in non-GWT runtimes/tests.
       return new FirefoxImpl();

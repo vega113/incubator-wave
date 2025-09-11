@@ -94,7 +94,7 @@ public class DomLogger extends AbstractLogger implements NonNotifyingLogger {
    private static String latestFatalError = "";
 
    static {
-     // Avoid hard dependency on GWT during JVM tests.
+     // Avoid hard dependency on GWT during JVM tests. In GWT client, wire webdriver hook.
      if (gwtIsClientSafe()) {
        DomLogger.nativeSetupWebDriverTestPins(WEBDRIVER_GET_FATAL_ERROR_HOOK_NAME);
      }
@@ -150,9 +150,7 @@ public class DomLogger extends AbstractLogger implements NonNotifyingLogger {
   static {
     if (gwtIsClientSafe()) {
       try {
-        // Use reflection to avoid static GWT initialization failures in JVM tests
-        Class<?> gwt = Class.forName("com.google.gwt.core.client.GWT");
-        RESOURCES = (Resources) gwt.getMethod("create", Class.class).invoke(null, Resources.class);
+        RESOURCES = com.google.gwt.core.client.GWT.create(Resources.class);
         StyleInjector.inject(RESOURCES.css().getText());
         String cookie = Cookies.getCookie(COOKIE_DEBUGLOG_MODULES);
         if (cookie != null) {
@@ -297,9 +295,7 @@ public class DomLogger extends AbstractLogger implements NonNotifyingLogger {
 
   private static boolean gwtIsClientSafe() {
     try {
-      Class<?> gwt = Class.forName("com.google.gwt.core.client.GWT");
-      Object isClient = gwt.getMethod("isClient").invoke(null);
-      return Boolean.TRUE.equals(isClient);
+      return com.google.gwt.core.client.GWT.isClient();
     } catch (Throwable t) {
       return false;
     }

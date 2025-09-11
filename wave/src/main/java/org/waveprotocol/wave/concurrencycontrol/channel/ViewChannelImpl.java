@@ -87,9 +87,13 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
    */
   private static volatile boolean enableFragmentsApplierFlag = false;
   // Optional clamp for applier payload to limit burst cost; disabled by default.
-  private static volatile int applierMaxRangesPerApply = Integer.getInteger("wave.fragments.applier.maxRangesPerApply", -1);
+  // Do not use Integer.getInteger here; GWT's emulated JRE may not provide it.
+  private static volatile int applierMaxRangesPerApply = -1;
   public static void setApplierMaxRangesPerApply(int max) { applierMaxRangesPerApply = max; }
   public static void setFragmentsApplierEnabled(boolean enabled) { enableFragmentsApplierFlag = enabled; }
+  // Optional warn threshold for applier duration (milliseconds), defaults to 50ms
+  private static volatile int applierWarnMs = 50;
+  public static void setApplierWarnMs(int warnMs) { applierWarnMs = warnMs; }
 
 
   /**
@@ -392,7 +396,7 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
                   }
                   applier.applyPayload(waveletId, payload);
                   long dtMs = (System.nanoTime() - t0) / 1_000_000L;
-                  int warnMs = Integer.getInteger("wave.fragments.applier.warnMs", 50);
+                  int warnMs = applierWarnMs;
                   if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
                     org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.applierEvents.incrementAndGet();
                     org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.applierDurationsMs.addAndGet(dtMs);

@@ -18,6 +18,9 @@
  */
 package org.waveprotocol.wave.concurrencycontrol.channel.impl;
 
+import org.waveprotocol.box.server.persistence.blocks.VersionRange;
+import org.waveprotocol.wave.util.logging.Log;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

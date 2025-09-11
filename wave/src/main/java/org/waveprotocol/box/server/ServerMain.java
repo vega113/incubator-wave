@@ -226,7 +226,11 @@ public class ServerMain {
                     "Failed reading wave.fragments.applier.warnMs; using default " + warnMs,
                     e);
               }
-              LOG.info("Fragments applier: enabled=" + applierEnabled + 
+              // Propagate warn threshold to client-side ViewChannelImpl for GWT builds
+              try {
+                org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setApplierWarnMs(warnMs);
+              } catch (Throwable ignore) { /* not fatal in server-only contexts */ }
+              LOG.info("Fragments applier: enabled=" + applierEnabled +
                   ", impl=" + applierCls + ", warnMs=" + warnMs);
             } catch (Throwable t) {
               LOG.warning(

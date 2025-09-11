@@ -45,9 +45,7 @@ public interface StringCodec {
 
     private static StringCodec compute() {
       try {
-        Class<?> gwtClass = Class.forName("com.google.gwt.core.client.GWT");
-        Object isScript = gwtClass.getMethod("isScript").invoke(null);
-        if (Boolean.TRUE.equals(isScript)) {
+        if (com.google.gwt.core.client.GWT.isScript()) {
           return new JsCodec();
         }
       } catch (Throwable ignored) {

@@ -55,21 +55,27 @@ public final class FragmentsViewChannelHandler {
         this.provider = provider;
         boolean en = false;
         boolean prefer = false;
-        try {
-            en = config.getBoolean(FLAG);
-        } catch (Exception ex) {
-            LOG.info("Failed reading " + FLAG + "; defaulting to false", ex);
+        if (config.hasPath(FLAG)) {
+            try {
+                en = config.getBoolean(FLAG);
+            } catch (Exception ignored) { /* default false */ }
+        } else {
+            LOG.fine("Config flag not set: " + FLAG + "; defaulting to false");
         }
-        try {
-            prefer = config.getBoolean("server.preferSegmentState");
-        } catch (Exception ex) {
-            LOG.info("Failed reading server.preferSegmentState; defaulting to false", ex);
+        if (config.hasPath("server.preferSegmentState")) {
+            try {
+                prefer = config.getBoolean("server.preferSegmentState");
+            } catch (Exception ignored) { /* default false */ }
+        } else {
+            LOG.fine("Config flag not set: server.preferSegmentState; defaulting to false");
         }
         boolean storage = false;
-        try {
-            storage = config.getBoolean("server.enableStorageSegmentState");
-        } catch (Exception ex) {
-            LOG.info("Failed reading server.enableStorageSegmentState; defaulting to false", ex);
+        if (config.hasPath("server.enableStorageSegmentState")) {
+            try {
+                storage = config.getBoolean("server.enableStorageSegmentState");
+            } catch (Exception ignored) { /* default false */ }
+        } else {
+            LOG.fine("Config flag not set: server.enableStorageSegmentState; defaulting to false");
         }
         this.enabled = en;
         this.preferSegmentState = prefer;

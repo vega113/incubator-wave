@@ -166,22 +166,14 @@ public final class RemoteViewServiceMultiplexer implements WaveWebSocketCallback
     for (WaveletId wid : filter.getIds()) {
       request.addWaveletIdPrefix(wid.getId());
     }
-    // Best-effort: these setters exist in generated JSO for updated proto; no-op on older builds.
-    try {
-      if (viewportStartBlipId != null) {
-        request.getClass().getMethod("setViewportStartBlipId", String.class)
-            .invoke(request, viewportStartBlipId);
-      }
-      if (viewportDirection != null) {
-        request.getClass().getMethod("setViewportDirection", String.class)
-            .invoke(request, viewportDirection);
-      }
-      if (viewportLimit > 0) {
-        request.getClass().getMethod("setViewportLimit", int.class)
-            .invoke(request, viewportLimit);
-      }
-    } catch (Throwable ignored) {
-      // Older client builds may not have these generated setters yet.
+    if (viewportStartBlipId != null) {
+      request.setViewportStartBlipId(viewportStartBlipId);
+    }
+    if (viewportDirection != null) {
+      request.setViewportDirection(viewportDirection);
+    }
+    if (viewportLimit > 0) {
+      request.setViewportLimit(viewportLimit);
     }
     socket.open(request);
   }

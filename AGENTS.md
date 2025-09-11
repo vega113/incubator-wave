@@ -85,8 +85,51 @@ Suggested phrasing to the tools in this environment:
 - If you have made changes that you do not want to keep, you MUST revert those changes
 
 ## Code Guidelines
+- Do not use FQN in your code, instead import from the appropriate module.
+- Do not write one line code blocks inside brackets.
 - Make sure to follow the [Codex Code Guidelines](CODE_GUIDELINES.md)
 
+### Java code style (WaveStyle)
+These rules summarize the Eclipse formatter profile in `eclipse-formatter-style.xml` (profile name: "WaveStyle"). Apply them when writing or editing Java code:
+
+- Indentation
+  - Use spaces only; no tabs. Tab width = 2, indent size = 2.
+  - Continuation indent = +2 indents (i.e., +4 spaces on wrapped lines).
+- Line length
+  - Code lines: 100 chars max. Prefer wrapping before binary operators.
+  - Javadoc/comments: wrap at 80 chars.
+- Braces and layout
+  - K&R style: opening brace on the same line for types, methods, blocks, constructors, enums, switch, etc.
+  - Always put one space before an opening brace: `if (x) {`.
+  - Do not keep then/else on the same line; prefer `} else if (...) {}` for chained conditions.
+- Keyword and parentheses spacing
+  - Control flow keywords followed by a space before `(`: `if (..)`, `for (..)`, `while (..)`, `switch (..)`, `try (..)`, `catch (..)`, `synchronized (..)`. 
+  - Methods: no space before `(` in declarations or invocations: `void foo(int x)` and `foo(x)`.
+  - No extra spaces just inside parentheses: `method(a, b)`, not `method( a, b )`.
+- Operators and punctuation
+  - Put spaces around binary and assignment operators: `a + b`, `x = y`.
+  - No spaces for unary prefix/postfix operators: `i++`, `--i`, `!flag`.
+  - Commas: space after, none before: `f(a, b)`.
+  - Ternary: spaces around `?` and `:`: `cond ? a : b`.
+- Generics, arrays, casts
+  - No spaces inside `<...>` and around wildcards: `List<? extends T>`.
+  - Array brackets have no inner spaces: `int[] a`, `a[0]`.
+  - Array initializers use a space after `{` and before `}` when on one line: `{ 1, 2 }`.
+  - Casts have no inner space: `(Type) value`.
+- Blank lines and structure
+  - 1 blank line after `package`.
+  - 1 blank line before imports; 1 after imports; keep 1 between import groups.
+  - 0 blank lines before fields; 1 blank line before methods; 1 before member types; 1 between top-level types.
+- Switch formatting
+  - `case` labels align with `switch`. Statements under a `case` are indented. `break` aligns with those statements.
+- Comments and Javadoc
+  - Format Javadoc, insert new lines at boundaries, and indent parameter descriptions. Use `@param`/`@return` each on its own line.
+- Misc
+  - Prefer wrapping long expressions before operators. Avoid manual alignment; let the formatter handle wrapping.
+
+How to apply
+- Eclipse: Import `eclipse-formatter-style.xml` and select profile "WaveStyle".
+- IntelliJ IDEA: Use the Eclipse Code Formatter plugin with the provided XML, or mirror the settings above manually.
 
 
 ## When you need to call tools from the shell, use this rubric:

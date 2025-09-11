@@ -32,6 +32,7 @@ import org.waveprotocol.box.server.attachment.AttachmentService;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.persistence.AttachmentStore.AttachmentData;
 import org.waveprotocol.box.server.persistence.AttachmentUtil;
+import org.waveprotocol.box.server.util.HttpSanitizers;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.wave.media.model.AttachmentId;
@@ -245,10 +246,9 @@ public class AttachmentServlet extends HttpServlet {
     response.setContentLength((int) data.getSize());
     String cd;
     if ("hashed".equalsIgnoreCase(contentDispositionMode)) {
-      cd = org.waveprotocol.box.server.util.HttpSanitizers
-          .buildHashedContentDispositionAttachment(metadata.getFileName());
+      cd = HttpSanitizers.buildHashedContentDispositionAttachment(metadata.getFileName());
     } else {
-      cd = org.waveprotocol.box.server.util.HttpSanitizers
+      cd = HttpSanitizers
           .buildContentDispositionAttachment(metadata.getFileName());
     }
     response.setHeader("Content-Disposition", cd);

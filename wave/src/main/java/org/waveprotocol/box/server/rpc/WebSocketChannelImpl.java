@@ -69,7 +69,9 @@ public class WebSocketChannelImpl extends WebSocketChannel {
   protected void sendMessageString(String data) throws IOException {
     synchronized (this) {
       if (session == null) {
-        LOG.warning("Websocket is not connected");
+        // Not an error: caller attempted to send after client disconnected or before connect.
+        // Reduce noise to FINE while keeping visibility when needed.
+        LOG.fine("Websocket is not connected");
       } else {
         session.getRemote().sendStringByFuture(data);
       }
