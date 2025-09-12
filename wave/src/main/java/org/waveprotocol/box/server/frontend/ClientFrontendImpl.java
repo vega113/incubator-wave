@@ -153,7 +153,7 @@ public class ClientFrontendImpl implements ClientFrontend, WaveBus.Subscriber {
         return;
       }
 
-      LOG.info("snapshot in response is: " + (snapshotToSend != null));
+      LOG.fine("snapshot in response is: " + (snapshotToSend != null));
       if (snapshotToSend == null) {
         // Send deltas.
         openListener.onUpdate(waveletName, snapshotToSend, DeltaSequence.empty(), null, null,
