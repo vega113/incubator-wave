@@ -25,6 +25,7 @@ import org.eclipse.jetty.websocket.api.Session;
 import org.eclipse.jetty.websocket.api.annotations.OnWebSocketClose;
 import org.eclipse.jetty.websocket.api.annotations.OnWebSocketConnect;
 import org.eclipse.jetty.websocket.api.annotations.OnWebSocketMessage;
+import org.eclipse.jetty.websocket.api.annotations.OnWebSocketError;
 import org.eclipse.jetty.websocket.api.annotations.WebSocket;
 
 
@@ -62,6 +63,19 @@ public class WebSocketChannelImpl extends WebSocketChannel {
     LOG.fine("websocket disconnected (" + closeCode + " - " + closeReason + "): " + this);
     synchronized (this) {
       session = null;
+    }
+  }
+
+  @OnWebSocketError
+  public void onError(Throwable cause) {
+    // Provide a concise, clear message without a stack trace. This avoids Jetty's
+    // generic "no @OnWebSocketError handler" warning while making the reason obvious.
+    String type = (cause == null) ? "unknown" : cause.getClass().getSimpleName();
+    String msg = (cause == null || cause.getMessage() == null) ? "" : ": " + cause.getMessage();
+    if (cause instanceof IllegalArgumentException && msg.contains("Auth token invalid")) {
+      LOG.warning("WebSocket rejected unauthenticated message: auth token invalid (client will retry after login)");
+    } else {
+      LOG.warning("WebSocket error (" + type + ")" + msg);
     }
   }
 

@@ -106,84 +106,82 @@ public final class FragmentsViewChannelHandler {
     public Map<SegmentId, VersionRange> fetchFragments(
             WaveletName wn, List<SegmentId> segments,
             long startVersion, long endVersion) throws WaveServerException {
+        Map<SegmentId, VersionRange> result;
         if (!enabled) {
             LOG.fine("FetchFragments RPC stub disabled");
-            return java.util.Collections.emptyMap();
-        }
-        if (isDummyWavelet(wn)) {
+            result = java.util.Collections.emptyMap();
+        } else if (isDummyWavelet(wn)) {
             java.util.LinkedHashMap<SegmentId, VersionRange> m = new java.util.LinkedHashMap<>();
-            for (SegmentId id : segments) m.put(id, VersionRange.of(0, 0));
+            for (SegmentId id : segments) {
+                m.put(id, VersionRange.of(0, 0));
+            }
             LOG.fine("FetchFragments: bypass for dummy wavelet " + wn);
-            return m;
-        }
-        FragmentsRequest req = new FragmentsRequest.Builder()
-                .setStartVersion(startVersion)
-                .setEndVersion(endVersion)
-                .build();
-        long snapshotVersion = effectiveSnapshotVersion(startVersion, wn, provider);
-        Map<SegmentId, VersionRange> ranges =
-                FragmentsFetcherCompat.computeRangesForSegments(snapshotVersion, req, segments);
-        LOG.fine("preferSegmentState=" + preferSegmentState + ", enableStorageSegmentState=" + enableStorageSegmentState);
-        if (preferSegmentState) {
-            LOG.info("preferSegmentState=true; attempting state-based filtering");
-            try {
-                SegmentWaveletState state = SegmentWaveletStateRegistry.get(wn);
-                if (state == null) {
-                    // Best-effort: build a compat instance from current snapshot (no registry
-                    // insert by default)
-                    CommittedWaveletSnapshot snap = provider.getSnapshot(wn);
-                    if (snap != null && snap.snapshot != null) {
-                        if (enableStorageSegmentState) {
-                            // Build outside lock; publish via putIfAbsent to avoid races.
-                            state = SegmentWaveletStateRegistry.putIfAbsent(
-                                wn, new StorageSegmentWaveletState(snap.snapshot));
-                        } else {
-                            state = new SegmentWaveletStateCompat(snap.snapshot);
+            result = m;
+        } else {
+            FragmentsRequest req = new FragmentsRequest.Builder()
+                    .setStartVersion(startVersion)
+                    .setEndVersion(endVersion)
+                    .build();
+            long snapshotVersion = effectiveSnapshotVersion(startVersion, wn, provider);
+            Map<SegmentId, VersionRange> ranges =
+                    FragmentsFetcherCompat.computeRangesForSegments(snapshotVersion, req, segments);
+            LOG.fine("preferSegmentState=" + preferSegmentState + ", enableStorageSegmentState=" + enableStorageSegmentState);
+            if (preferSegmentState) {
+                try {
+                    SegmentWaveletState state = SegmentWaveletStateRegistry.get(wn);
+                    if (state == null) {
+                        CommittedWaveletSnapshot snap = provider.getSnapshot(wn);
+                        if (snap != null && snap.snapshot != null) {
+                            if (enableStorageSegmentState) {
+                                state = SegmentWaveletStateRegistry.putIfAbsent(
+                                    wn, new StorageSegmentWaveletState(snap.snapshot));
+                            } else {
+                                state = new SegmentWaveletStateCompat(snap.snapshot);
+                            }
                         }
                     }
-                }
-                if (state != null) {
-                    LOG.fine("Using state implementation: " + state.getClass().getSimpleName());
-                    java.util.Map<SegmentId, org.waveprotocol.box.server.persistence.blocks.Interval> m =
-                            state.getIntervals(ranges, /*onlyFromCache=*/false);
-                    // Storage-state observability
-                    if (FragmentsMetrics.isEnabled()) {
-                        int total = (ranges != null) ? ranges.size() : 0;
-                        int returned = (m != null) ? m.size() : 0;
-                        try {
-                            if (total > 0) {
-                                if (returned == 0) {
-                                    FragmentsMetrics.stateMisses.incrementAndGet();
-                                } else if (returned < total) {
-                                    FragmentsMetrics.statePartial.incrementAndGet();
-                                } else { // returned == total
-                                    FragmentsMetrics.stateHits.incrementAndGet();
+                    if (state != null) {
+                        LOG.fine("Using state implementation: " + state.getClass().getSimpleName());
+                        java.util.Map<SegmentId, org.waveprotocol.box.server.persistence.blocks.Interval> m =
+                                state.getIntervals(ranges, /*onlyFromCache=*/false);
+                        if (FragmentsMetrics.isEnabled()) {
+                            int total = (ranges != null) ? ranges.size() : 0;
+                            int returned = (m != null) ? m.size() : 0;
+                            try {
+                                if (total > 0) {
+                                    if (returned == 0) {
+                                        FragmentsMetrics.stateMisses.incrementAndGet();
+                                    } else if (returned < total) {
+                                        FragmentsMetrics.statePartial.incrementAndGet();
+                                    } else {
+                                        FragmentsMetrics.stateHits.incrementAndGet();
+                                    }
+                                }
+                            } catch (Throwable ignore) { }
+                        }
+                        if (m != null) {
+                            LOG.fine("State returned intervals for keys: " + m.keySet());
+                            java.util.Map<SegmentId, VersionRange> filtered = new java.util.LinkedHashMap<>();
+                            for (Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
+                                if (m.containsKey(e.getKey())) {
+                                    filtered.put(e.getKey(), e.getValue());
                                 }
                             }
-                        } catch (Throwable ignore) { /* counters are best-effort */ }
-                    }
-                    if (m != null) {
-                        LOG.fine("State returned intervals for keys: " + m.keySet());
-                        java.util.Map<SegmentId, VersionRange> filtered = new java.util.LinkedHashMap<>();
-                        for (Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
-                            if (m.containsKey(e.getKey())) {
-                                filtered.put(e.getKey(), e.getValue());
-                            }
+                            ranges = ImmutableMap.copyOf(filtered);
+                            LOG.fine("After filtering, keys: " + ranges.keySet());
                         }
-                        ranges = ImmutableMap.copyOf(filtered);
-                        LOG.fine("After filtering, keys: " + ranges.keySet());
+                    }
+                } catch (Throwable t) {
+                    LOG.warning("preferSegmentState path failed; falling back to computed ranges", t);
+                    if (FragmentsMetrics.isEnabled()) {
+                        FragmentsMetrics.stateErrors.incrementAndGet();
                     }
                 }
             }
-            catch (Throwable t) {
-                LOG.warning("preferSegmentState path failed; falling back to computed ranges", t);
-                if (FragmentsMetrics.isEnabled()) {
-                    FragmentsMetrics.stateErrors.incrementAndGet();
-                }
-            }
+            result = ranges;
         }
-        LOG.fine("FetchFragments stub: wn=" + wn + " start=" + startVersion + " end=" + endVersion + " segments=" + segments + " ranges=" + ranges);
-        return ranges;
+        LOG.fine("FetchFragments stub: wn=" + wn + " start=" + startVersion + " end=" + endVersion + " segments=" + segments + " ranges=" + result);
+        return result;
     }
 
     /** Returns true if the wavelet id represents a synthetic open/marker wavelet. */

@@ -860,6 +860,9 @@ public interface StageTwo {
     private PagingHandlerProxy pagingHandlerProxy;
 
     protected QuasiConversationViewAdapter getQuasiAdapter() {
+      if (quasiAdapter == null && Boolean.TRUE.equals(ClientFlags.get().enableQuasiDeletionUi())) {
+        try { quasiAdapter = new QuasiConversationViewAdapter(getConversations()); } catch (Throwable ignore) {}
+      }
       return quasiAdapter;
     }
 

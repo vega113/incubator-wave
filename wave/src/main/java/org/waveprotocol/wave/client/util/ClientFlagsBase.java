@@ -500,6 +500,7 @@ public class ClientFlagsBase {
   private final Integer dynamicScrollThrottleMs;
   private final Integer dynamicSpeedBoostThresholdPx;
   private final Double dynamicSpeedBoostFactor;
+  private final Integer quasiDeletionDwellMs;
 
 
   /**
@@ -1010,6 +1011,7 @@ public class ClientFlagsBase {
     dynamicScrollThrottleMs = helper.getInteger(FlagConstants.DYNAMIC_SCROLL_THROTTLE_MS, 50);
     dynamicSpeedBoostThresholdPx = helper.getInteger(FlagConstants.DYNAMIC_SPEED_BOOST_THRESHOLD_PX, 800);
     dynamicSpeedBoostFactor = helper.getDouble(FlagConstants.DYNAMIC_SPEED_BOOST_FACTOR, 1.8);
+    quasiDeletionDwellMs = helper.getInteger(FlagConstants.QUASI_DELETION_DWELL_MS, 400);
 
   }
 
@@ -1029,6 +1031,7 @@ public class ClientFlagsBase {
   public Integer dynamicPrerenderLowerPx() { return dynamicPrerenderLowerPx; }
   public Integer dynamicPageOutSlackPx() { return dynamicPageOutSlackPx; }
   public Integer dynamicScrollThrottleMs() { return dynamicScrollThrottleMs; }
+  public Integer quasiDeletionDwellMs() { return quasiDeletionDwellMs; }
   public Integer dynamicSpeedBoostThresholdPx() { return dynamicSpeedBoostThresholdPx; }
   public Double dynamicSpeedBoostFactor() { return dynamicSpeedBoostFactor; }
 

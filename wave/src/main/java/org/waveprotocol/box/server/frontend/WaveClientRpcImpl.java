@@ -232,10 +232,13 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
   /** Computes the starting version for the fragments ranges attachment. */
   private static long computeStartVersion(@Nullable CommittedWaveletSnapshot snapshot,
                                           @Nullable HashedVersion committedVersion) {
+    long v = 0L;
     if (snapshot != null) {
-      return snapshot.snapshot.getHashedVersion().getVersion();
+      v = snapshot.snapshot.getHashedVersion().getVersion();
+    } else if (committedVersion != null) {
+      v = committedVersion.getVersion();
     }
-    return committedVersion != null ? committedVersion.getVersion() : 0L;
+    return v;
   }
 
   /** Returns true if any viewport hint is present on the request. */

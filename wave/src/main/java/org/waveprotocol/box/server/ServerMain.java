@@ -452,6 +452,20 @@ public class ServerMain {
           (cf == null || cf.isEmpty()) ? ("fragmentFetchMode=" + mode)
               : (cf + ",fragmentFetchMode=" + mode));
     }
+    // Also propagate selected client flag defaults when present in config
+    try {
+      String existing = System.getProperty("wave.clientFlags");
+      StringBuilder sb = new StringBuilder(existing == null ? "" : existing);
+      com.typesafe.config.Config cfg = com.typesafe.config.ConfigFactory.load();
+      if (cfg.hasPath("client.flags.defaults.quasiDeletionDwellMs")) {
+        int dwell = cfg.getInt("client.flags.defaults.quasiDeletionDwellMs");
+        if (sb.length() > 0) sb.append(',');
+        sb.append("quasiDeletionDwellMs=").append(dwell);
+      }
+      if (sb.length() > 0) {
+        System.setProperty("wave.clientFlags", sb.toString());
+      }
+    } catch (Throwable ignore) {}
   }
 
   private static void initializeRobots(Injector injector, WaveBus waveBus) {

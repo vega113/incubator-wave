@@ -510,14 +510,14 @@ Each task below is self-contained for an AI agent, includes context, concrete st
 
 - Quasi
   - [ ] Deleted blips show proper styling before removal
-  - [ ] No interaction allowed with quasi blips
+  - [x] No interaction allowed with quasi blips
 
 - Stability
   - [ ] No console errors during long scrolls
   - [ ] No runaway timers or retained widgets after page-out
 
 - Flags
-  - [ ] All features are off-by-default
+  - [x] All features are off-by-default
   - [ ] Each flag works independently (quasi only; dynamic only; fragments only)
 
 -------------------------------------------------------------------------------
