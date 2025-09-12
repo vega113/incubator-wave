@@ -19,6 +19,7 @@
 
 package org.waveprotocol.wave.client.wavepanel.render;
 
+import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Document;
 
@@ -35,6 +36,7 @@ import org.waveprotocol.wave.client.wavepanel.view.dom.BlipViewDomImpl;
 import org.waveprotocol.wave.model.conversation.BlipMappers;
 import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
+import org.waveprotocol.wave.model.util.Predicate;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -54,6 +56,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
   private int pageOutSlackPx = 1200;
   private int throttleMs = 50;
   private boolean logStats = false;
+  private int bootstrapMax = 12;
 
   private boolean updateQueued = false;
   private double lastUpdateMs = 0;
@@ -61,6 +64,13 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
   private double lastTopSeenTs = 0;
   private int speedBoostThresholdPx = 800;
   private double speedBoostFactor = 1.8;
+  // Fragment fetch retry state (dev-friendly, lightweight)
+  private int consecutiveFetchFailures = 0;
+  private boolean fetchRetryScheduled = false;
+  private int retryBackoffMs = 500; // start backoff at 0.5s
+  private static final int MAX_RETRY_BACKOFF_MS = 5000;
+  private int lastFetchTop = 0;
+  private int lastFetchBottom = 0;
 
   public static DynamicRendererImpl create(ObservableConversationView view,
       ModelAsViewProvider modelAsView, BlipQueueRenderer queue, PagingHandler pager,
@@ -90,11 +100,24 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       if (ClientFlags.get().dynamicSpeedBoostThresholdPx() != null) speedBoostThresholdPx = ClientFlags.get().dynamicSpeedBoostThresholdPx();
       if (ClientFlags.get().dynamicSpeedBoostFactor() != null) speedBoostFactor = ClientFlags.get().dynamicSpeedBoostFactor();
       logStats = Boolean.TRUE.equals(ClientFlags.get().enableViewportStats());
+      // Allow optional bootstrap window size via prerender lower bound heuristic
+      if (ClientFlags.get().dynamicPrerenderLowerPx() != null) {
+        int vh = screen.getViewportHeight();
+        if (vh > 0) {
+          // Roughly estimate an initial count from viewport/prerender. Clamp 6..24
+          int est = Math.max(6, Math.min(24, (vh + prerenderPxBottom) / 200));
+          bootstrapMax = est;
+        }
+      }
     } catch (Throwable t) {
       // ignore in non-client contexts
     }
     screen.addListener(this);
-    updateWindow();
+    // Defer initial update to allow DOM to settle.
+    Scheduler.get().scheduleDeferred(
+        new com.google.gwt.core.client.Scheduler.ScheduledCommand() {
+          @Override public void execute() { updateWindow(); }
+        });
   }
 
   @Override
@@ -150,6 +173,35 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
 
     final int[] counts = new int[] {0, 0}; // [in, out]
 
+    // Bootstrap: if nothing is paged in yet, enqueue a small initial window to avoid
+    // zero-height elements starving initial rendering.
+    if (pagedIn.isEmpty()) {
+      final int[] boot = new int[] {0};
+      BlipMappers.depthFirst(new Predicate<ConversationBlip>() {
+        @Override
+        public boolean apply(ConversationBlip blip) {
+          if (boot[0] >= bootstrapMax) {
+            return false; // stop
+          }
+          queue.add(blip);
+          pagedIn.add(blip);
+          boot[0]++;
+          return true;
+        }
+      }, view);
+      // Defer flush so we don't block the current UI turn.
+      Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
+        @Override public void execute() {
+          try {
+            queue.flush();
+          } catch (Throwable t) {
+            // Log to aid debugging; do not rethrow to keep UI responsive.
+            GWT.log("DynamicRenderer: bootstrap flush failed", t);
+          }
+        }
+      });
+    }
+
     BlipMappers.depthFirst(new org.waveprotocol.wave.model.util.Predicate<ConversationBlip>() {
       @Override
       public boolean apply(ConversationBlip blip) {
@@ -173,7 +225,10 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
           }
           return true;
         }
-        if (h <= 0) return true;
+        if (h <= 0) {
+          // If we still have zero height (e.g., just attached), give it a chance to render on next tick.
+          return true;
+        }
         boolean isVisible = intersects(absTop, absTop + h, top, bottom);
         if (isVisible) {
           if (!pagedIn.contains(blip)) {
@@ -193,12 +248,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
 
     try {
       if (Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetch())) {
-        fragmentRequester.fetchRange(top, bottom, new FragmentRequester.Callback() {
-          @Override public void onSuccess() {}
-          @Override public void onError(Throwable error) {
-            GWT.log("Fragment fetch failed", error);
-          }
-        });
+        doFragmentFetch(top, bottom);
       }
     } catch (Exception ex) {
       GWT.log("DynamicRenderer: fragment fetch threw", ex);
@@ -222,5 +272,43 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       cur = cur.getOffsetParent();
     }
     return top;
+  }
+
+  private void doFragmentFetch(int top, int bottom) {
+    // Record last requested range for potential retry
+    lastFetchTop = top;
+    lastFetchBottom = bottom;
+    fragmentRequester.fetchRange(top, bottom, new FragmentRequester.Callback() {
+      @Override public void onSuccess() {
+        consecutiveFetchFailures = 0;
+        retryBackoffMs = 500;
+        fetchRetryScheduled = false;
+      }
+      @Override public void onError(Throwable error) {
+        consecutiveFetchFailures = consecutiveFetchFailures + 1;
+        // Provide simple developer feedback after a few consecutive failures
+        if (consecutiveFetchFailures >= 3 && (consecutiveFetchFailures % 3) == 0) {
+          GWT.log("DynamicRenderer: fragment fetch failing repeatedly (" + consecutiveFetchFailures + ")");
+        }
+        scheduleFetchRetry();
+      }
+    });
+  }
+
+  private void scheduleFetchRetry() {
+    boolean shouldSchedule = !fetchRetryScheduled;
+    if (shouldSchedule) {
+      fetchRetryScheduled = true;
+      final int delay = retryBackoffMs;
+      // Exponential backoff with a cap
+      retryBackoffMs = Math.min(MAX_RETRY_BACKOFF_MS, Math.max(retryBackoffMs, 250) * 2);
+      com.google.gwt.user.client.Timer t = new com.google.gwt.user.client.Timer() {
+        @Override public void run() {
+          fetchRetryScheduled = false;
+          doFragmentFetch(lastFetchTop, lastFetchBottom);
+        }
+      };
+      t.schedule(delay);
+    }
   }
 }

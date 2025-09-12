@@ -372,6 +372,8 @@ public class ServerMain {
     server.addServlet("/robot/rpc", ActiveApiServlet.class);
     server.addServlet("/webclient/remote_logging", RemoteLoggingServiceImpl.class);
     server.addServlet("/profile/*", FetchProfilesServlet.class);
+    // Dev endpoint: client-side fragments applier stats (session-based)
+    server.addServlet("/dev/client-applier-stats", org.waveprotocol.box.server.dev.ClientApplierStatsServlet.class);
     server.addServlet("/iniavatars/*", InitialsAvatarsServlet.class);
     server.addServlet("/waveref/*", WaveRefServlet.class);
     try {
@@ -522,6 +524,7 @@ public class ServerMain {
    * when values are invalid so startup can fail fast with actionable logs.
    */
   public static void applyFragmentsConfig(Config cfg) {
+ 
     applySegmentRegistryMaxEntries(cfg);
     applySegmentRegistryTtlMs(cfg);
     applyManifestOrderCacheMaxEntries(cfg);

@@ -711,10 +711,9 @@ public interface StageTwo {
         @Override
         public UiBuilder render(
             ConversationBlip blip, IdentityMap<ConversationThread, UiBuilder> replies) {
-          if (!dynamic) {
-            // Baseline behavior: enqueue for paging.
-            pager.add(blip);
-          }
+          // Ensure initial content is visible regardless of dynamic mode by enqueueing
+          // for paging during static render. Dynamic renderer will page-out as needed.
+          pager.add(blip);
           // Documents are rendered blank, and filled in later when they get paged in.
           return DocRefRenderer.EMPTY.render(blip, replies);
         }
@@ -800,6 +799,18 @@ public interface StageTwo {
       stageOne.getDomAsViewProvider().setRenderer(getRenderer());
       ensureRendered();
 
+      // Client-side fragments applier wiring (dev/observability): if the flag is enabled,
+      // install a lightweight, GWT-safe applier that records and occasionally posts stats.
+      try {
+        Boolean ena = org.waveprotocol.wave.client.util.ClientFlags.get().enableFragmentsApplier();
+        boolean enableApplier = ena != null && ena.booleanValue();
+        if (enableApplier) {
+          org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplier(
+              new org.waveprotocol.wave.concurrencycontrol.channel.impl.ClientStatsRawFragmentsApplier());
+          org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplierEnabled(true);
+        }
+      } catch (Throwable ignore) { }
+
       // Initialize quasi-deletion adapter (no-op unless flag enabled).
       if (Boolean.TRUE.equals(ClientFlags.get().enableQuasiDeletionUi())) {
         initQuasiAdapter();
@@ -842,6 +853,10 @@ public interface StageTwo {
                     requester,
                     screen);
             dyn.init();
+            // Developer probe: single-shot DOM stats when enabled.
+            if (Boolean.TRUE.equals(ClientFlags.get().enableViewportStats())) {
+              org.waveprotocol.wave.client.wavepanel.render.ViewportProbe.runOnce("init");
+            }
           }
         } catch (Exception ex) {
           GWT.log("StageTwo: dynamic rendering init failed", ex);

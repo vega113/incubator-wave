@@ -514,6 +514,8 @@ public class FlagConstants {
     "dynamicSpeedBoostFactor", "236",
     // Quasi-deletion dwell time before removal (ms)
     "quasiDeletionDwellMs", "242",
+    // Enable client-side fragments applier (dev observability)
+    "enableFragmentsApplier", "243",
     // Prefer ViewChannel-based fragment flow instead of HTTP requester
     "enableFragmentFetchViewChannel", "237",
     // Fragment fetch mode (enum): off|http|stream

@@ -282,16 +282,8 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
           org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.viewportAmbiguity.incrementAndGet();
         }
       }
-      if (snapshot != null) {
-        try {
-          segs = fh.computeVisibleSegments(waveletName, vpStart, vpDir, vpLimit);
-        } catch (Exception e) {
-          LOG.warning("viewport-aware computeVisibleSegments failed; will try snapshot/heuristic for " + waveletName, e);
-          segs = baseSegments();
-        }
-      } else {
-        LOG.fine("Skipping viewport compute without snapshot on commit-only update for " + waveletName);
-      }
+      // Intentionally avoid server-side computeVisibleSegments here to prevent snapshot reads
+      // under commit. Snapshot-based selection below provides a safe initial window.
     }
 
     if (segs.size() <= 2 && snapshot != null) {
@@ -304,14 +296,7 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
       }
     }
 
-    if (segs.size() <= 2 && snapshot != null) {
-      try {
-        segs = fh.computeVisibleSegments(waveletName, vpLimit);
-      } catch (Exception e) {
-        LOG.warning("computeVisibleSegments failed during fragments emission; using INDEX/MANIFEST only for " + waveletName, e);
-        segs = baseSegments();
-      }
-    }
+    // Avoid computeVisibleSegments fallback to prevent snapshot reads from commit thread.
     return segs;
   }
 

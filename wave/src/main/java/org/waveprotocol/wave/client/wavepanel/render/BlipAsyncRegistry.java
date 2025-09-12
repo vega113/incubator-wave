@@ -51,5 +51,14 @@ public final class BlipAsyncRegistry {
       list.clear();
     }
   }
-}
 
+  /** Returns the number of timers currently registered across all blips. */
+  public static int totalTimers() {
+    int total = 0;
+    for (Map.Entry<String, List<Timer>> e : TIMERS.entrySet()) {
+      List<Timer> list = e.getValue();
+      total += (list == null) ? 0 : list.size();
+    }
+    return total;
+  }
+}
