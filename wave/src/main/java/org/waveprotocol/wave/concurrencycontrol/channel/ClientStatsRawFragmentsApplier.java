@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.waveprotocol.wave.concurrencycontrol.channel.impl;
+package org.waveprotocol.wave.concurrencycontrol.channel;
 
 import com.google.gwt.http.client.Request;
 import com.google.gwt.http.client.RequestBuilder;

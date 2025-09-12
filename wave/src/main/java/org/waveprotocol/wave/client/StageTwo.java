@@ -806,7 +806,7 @@ public interface StageTwo {
         boolean enableApplier = ena != null && ena.booleanValue();
         if (enableApplier) {
           org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplier(
-              new org.waveprotocol.wave.concurrencycontrol.channel.impl.ClientStatsRawFragmentsApplier());
+              new org.waveprotocol.wave.concurrencycontrol.channel.ClientStatsRawFragmentsApplier());
           org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl.setFragmentsApplierEnabled(true);
         }
       } catch (Throwable ignore) { }
