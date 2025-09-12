@@ -265,6 +265,7 @@ public class FlagConstants {
   public static final String DYNAMIC_SPEED_BOOST_THRESHOLD_PX = "235";
   public static final String DYNAMIC_SPEED_BOOST_FACTOR = "236";
   public static final String QUASI_DELETION_DWELL_MS = "242";
+  public static final String ENABLE_FRAGMENTS_APPLIER = "243";
   public static final String ENABLE_FRAGMENT_FETCH_VIEW_CHANNEL = "237"; // deprecated (use FRAGMENT_FETCH_MODE)
   public static final String FRAGMENT_FETCH_MODE = "241"; // values: off|http|stream
   public static final String INITIAL_VIEWPORT_START_BLIP_ID = "238";
