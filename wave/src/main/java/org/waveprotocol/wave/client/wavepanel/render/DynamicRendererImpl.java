@@ -66,6 +66,8 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
   private final Set<ConversationBlip> pagedIn = new HashSet<ConversationBlip>();
   private final Map<ObservableConversation, ObservableConversation.Listener> conversationListeners =
       new HashMap<ObservableConversation, ObservableConversation.Listener>();
+  private final Map<ObservableConversation, Integer> conversationBlipCounts =
+      new HashMap<ObservableConversation, Integer>();
   private int prerenderPxTop = 600;
   private int prerenderPxBottom = 800;
   private int pageOutSlackPx = 1200;
@@ -73,7 +75,6 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
   private boolean logStats = false;
   private int bootstrapMax = 12;
   private int totalBlips = 0;
-  private boolean totalBlipsDirty = true;
   private int startMs = 0;
 
   private boolean updateQueued = false;
@@ -132,7 +133,6 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     }
     screen.addListener(this);
     attachConversationListeners();
-    totalBlipsDirty = true;
     try { startMs = (int) com.google.gwt.core.client.Duration.currentTimeMillis(); } catch (Throwable ignore) { startMs = 0; }
     // Defer initial update to allow DOM to settle.
     Scheduler.get().scheduleDeferred(
@@ -147,7 +147,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     detachConversationListeners();
     pagedIn.clear();
     totalBlips = 0;
-    totalBlipsDirty = true;
+    conversationBlipCounts.clear();
   }
 
   @Override
@@ -256,9 +256,9 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
 
     // Dev badge: report blip load stats (paged-in vs total) and elapsed time since init
     try {
-      recomputeTotalBlipsIfDirty();
       FragmentsDebugIndicator.setBlipStats(
-          pagedIn.size(), totalBlips, startMs > 0 ? (int)(now - startMs) : 0);
+          pagedIn.size(), Math.max(totalBlips, pagedIn.size()),
+          startMs > 0 ? (int)(now - startMs) : 0);
     } catch (Throwable ignore) {}
 
     if (logStats && (counts[0] > 0 || counts[1] > 0)) {
@@ -290,17 +290,20 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       }
     }
     conversationListeners.clear();
+    conversationBlipCounts.clear();
   }
 
   private void observeConversation(ObservableConversation conversation) {
     if (conversation == null || conversationListeners.containsKey(conversation)) {
       return;
     }
-    ObservableConversation.Listener listener = new BlipCountListener();
+    ObservableConversation.Listener listener = new BlipCountListener(conversation);
     try {
       conversation.addListener(listener);
       conversationListeners.put(conversation, listener);
-      totalBlipsDirty = true;
+      int existing = countBlips(conversation);
+      conversationBlipCounts.put(conversation, existing);
+      totalBlips += existing;
     } catch (Throwable ignore) {
     }
   }
@@ -316,6 +319,10 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       } catch (Throwable ignore) {
       }
     }
+    Integer count = conversationBlipCounts.remove(conversation);
+    if (count != null) {
+      totalBlips = Math.max(0, totalBlips - count.intValue());
+    }
     Iterator<ConversationBlip> it = pagedIn.iterator();
     while (it.hasNext()) {
       ConversationBlip blip = it.next();
@@ -323,27 +330,6 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
         it.remove();
       }
     }
-    totalBlipsDirty = true;
-  }
-
-  private void recomputeTotalBlipsIfDirty() {
-    if (!totalBlipsDirty) {
-      return;
-    }
-    final int[] cnt = new int[] {0};
-    try {
-      BlipMappers.depthFirst(new Predicate<ConversationBlip>() {
-        @Override
-        public boolean apply(ConversationBlip blip) {
-          cnt[0]++;
-          return true;
-        }
-      }, view);
-      totalBlips = cnt[0];
-    } catch (Throwable ignore) {
-      totalBlips = 0;
-    }
-    totalBlipsDirty = false;
   }
 
   @Override
@@ -358,10 +344,37 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     throttleUpdate();
   }
 
+  private int countBlips(ObservableConversation conversation) {
+    final int[] cnt = new int[] {0};
+    try {
+      BlipMappers.depthFirst(new Predicate<ConversationBlip>() {
+        @Override
+        public boolean apply(ConversationBlip blip) {
+          cnt[0]++;
+          return true;
+        }
+      }, conversation);
+    } catch (Throwable ignore) {
+      return 0;
+    }
+    return cnt[0];
+  }
+
   private final class BlipCountListener extends ConversationListenerImpl {
+    private final ObservableConversation conversation;
+
+    BlipCountListener(ObservableConversation conversation) {
+      this.conversation = conversation;
+    }
+
     @Override
     public void onBlipAdded(ObservableConversationBlip blip) {
-      totalBlipsDirty = true;
+      Integer count = conversationBlipCounts.get(conversation);
+      if (count != null) {
+        int updated = count + 1;
+        conversationBlipCounts.put(conversation, updated);
+        totalBlips++;
+      }
       throttleUpdate();
     }
 
@@ -370,25 +383,27 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       if (blip != null) {
         pagedIn.remove(blip);
       }
-      totalBlipsDirty = true;
+      Integer count = conversationBlipCounts.get(conversation);
+      if (count != null && count > 0) {
+        int updated = count - 1;
+        conversationBlipCounts.put(conversation, updated);
+        if (totalBlips > 0) totalBlips--;
+      }
       throttleUpdate();
     }
 
     @Override
     public void onThreadAdded(ObservableConversationThread thread) {
-      totalBlipsDirty = true;
       throttleUpdate();
     }
 
     @Override
     public void onThreadDeleted(ObservableConversationThread thread) {
-      totalBlipsDirty = true;
       throttleUpdate();
     }
 
     @Override
     public void onInlineThreadAdded(ObservableConversationThread thread, int location) {
-      totalBlipsDirty = true;
       throttleUpdate();
     }
   }
