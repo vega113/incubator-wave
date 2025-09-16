@@ -130,7 +130,13 @@ public final class FragmentsViewChannelHandler {
                 try {
                     SegmentWaveletState state = SegmentWaveletStateRegistry.get(wn);
                     if (state == null) {
-                        CommittedWaveletSnapshot snap = provider.getSnapshot(wn);
+                        CommittedWaveletSnapshot snap = null;
+                        try {
+                            snap = provider.getSnapshot(wn);
+                        } catch (IllegalStateException busy) {
+                            LOG.fine("getSnapshot skipped while write lock held for " + wn +
+                                "; deferring to compat ranges");
+                        }
                         if (snap != null && snap.snapshot != null) {
                             if (enableStorageSegmentState) {
                                 state = SegmentWaveletStateRegistry.putIfAbsent(
@@ -198,7 +204,13 @@ public final class FragmentsViewChannelHandler {
         throws WaveServerException {
         if (startVersion > 0) return startVersion;
         if (isDummyWavelet(wn)) return 0L;
-        return FragmentsFetcherCompat.getCommittedVersion(provider, wn);
+        try {
+            return FragmentsFetcherCompat.getCommittedVersion(provider, wn);
+        } catch (IllegalStateException ex) {
+            LOG.fine("Committed version lookup skipped due to concurrent mutation for " + wn +
+                "; returning startVersion=" + startVersion);
+            return (startVersion > 0) ? startVersion : 0L;
+        }
     }
 
     /**
