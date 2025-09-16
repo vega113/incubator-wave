@@ -23,20 +23,22 @@ import com.typesafe.config.ConfigFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 
 import com.google.common.collect.ImmutableMap;
+import org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot;
+import org.waveprotocol.box.server.persistence.blocks.VersionRange;
+import org.waveprotocol.box.server.waveserver.WaveServerException;
+import org.waveprotocol.box.server.waveserver.WaveServerImpl;
+import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletState;
 import org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateCompat;
 import org.waveprotocol.box.server.waveletstate.segment.SegmentWaveletStateRegistry;
 import org.waveprotocol.box.server.waveletstate.segment.StorageSegmentWaveletState;
 import org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics;
-import org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot;
-import org.waveprotocol.box.server.waveserver.WaveServerException;
-import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.wave.model.id.SegmentId;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.util.logging.Log;
-import org.waveprotocol.box.server.persistence.blocks.VersionRange;
 
 /**
  * Placeholder handler for a future ViewChannel FetchFragments RPC.
@@ -131,11 +133,20 @@ public final class FragmentsViewChannelHandler {
                     SegmentWaveletState state = SegmentWaveletStateRegistry.get(wn);
                     if (state == null) {
                         CommittedWaveletSnapshot snap = null;
-                        try {
+                        boolean safeToSnapshot = true;
+                        if (provider instanceof WaveServerImpl) {
+                            try {
+                                safeToSnapshot = !((WaveServerImpl) provider)
+                                    .isWriteLockHeldByCurrentThread(wn);
+                            } catch (WaveServerException e) {
+                                LOG.log(Level.FINE, "Could not inspect write lock state for " + wn, e);
+                                safeToSnapshot = false;
+                            }
+                        }
+                        if (safeToSnapshot) {
                             snap = provider.getSnapshot(wn);
-                        } catch (IllegalStateException busy) {
-                            LOG.fine("getSnapshot skipped while write lock held for " + wn +
-                                "; deferring to compat ranges");
+                        } else {
+                            LOG.fine("Skipping state build while write lock held for " + wn);
                         }
                         if (snap != null && snap.snapshot != null) {
                             if (enableStorageSegmentState) {
@@ -204,13 +215,19 @@ public final class FragmentsViewChannelHandler {
         throws WaveServerException {
         if (startVersion > 0) return startVersion;
         if (isDummyWavelet(wn)) return 0L;
-        try {
-            return FragmentsFetcherCompat.getCommittedVersion(provider, wn);
-        } catch (IllegalStateException ex) {
-            LOG.fine("Committed version lookup skipped due to concurrent mutation for " + wn +
-                "; returning startVersion=" + startVersion);
-            return (startVersion > 0) ? startVersion : 0L;
+        if (provider instanceof WaveServerImpl) {
+            try {
+                if (((WaveServerImpl) provider).isWriteLockHeldByCurrentThread(wn)) {
+                    LOG.fine("Committed version lookup skipped due to concurrent mutation for " + wn +
+                        "; returning startVersion=" + startVersion);
+                    return (startVersion > 0) ? startVersion : 0L;
+                }
+            } catch (WaveServerException e) {
+                LOG.log(Level.FINE, "Committed version check failed for " + wn + ", falling back", e);
+                return (startVersion > 0) ? startVersion : 0L;
+            }
         }
+        return FragmentsFetcherCompat.getCommittedVersion(provider, wn);
     }
 
     /**
