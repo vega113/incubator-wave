@@ -57,8 +57,8 @@ public class SessionLookupFlagTest {
         com.typesafe.config.Config.class
     ).newInstance(store, handler, cfg);
 
-    HttpSession s = (HttpSession) smClass.getMethod("getSessionFromToken", String.class)
+    WebSession session = (WebSession) smClass.getMethod("getSessionFromToken", String.class)
         .invoke(sm, "abc.node1");
-    assertNull(s);
+    assertNull(session);
   }
 }

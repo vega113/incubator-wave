@@ -25,6 +25,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSession;
 
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -59,12 +60,12 @@ public class ServerProviderForwardedHeadersStrictIT {
           "core.resource_bases=[\".\"]\n";
       Config cfg = ConfigFactory.parseString(cfgStr);
       SessionManager sm = new SessionManager() {
-        @Override public org.waveprotocol.wave.model.wave.ParticipantId getLoggedInUser(javax.servlet.http.HttpSession s) { return null; }
-        @Override public org.waveprotocol.box.server.account.AccountData getLoggedInAccount(javax.servlet.http.HttpSession s) { return null; }
-        @Override public void setLoggedInUser(javax.servlet.http.HttpSession s, org.waveprotocol.wave.model.wave.ParticipantId id) {}
-        @Override public void logout(javax.servlet.http.HttpSession s) {}
+        @Override public org.waveprotocol.wave.model.wave.ParticipantId getLoggedInUser(WebSession s) { return null; }
+        @Override public org.waveprotocol.box.server.account.AccountData getLoggedInAccount(WebSession s) { return null; }
+        @Override public void setLoggedInUser(WebSession s, org.waveprotocol.wave.model.wave.ParticipantId id) {}
+        @Override public void logout(WebSession s) {}
         @Override public String getLoginUrl(String redirect) { return "/auth/signin"; }
-        @Override public javax.servlet.http.HttpSession getSessionFromToken(String token) { return null; }
+        @Override public WebSession getSessionFromToken(String token) { return null; }
       };
       Class<?> provClass;
       try {

@@ -19,6 +19,9 @@ Status Summary
   - Tests: jakartaTest (unit-like) and jakarta ITs for forwarded headers, access logs, caching filters, security headers, DI guard, and session lookup.
 
 Recent changes (2025-09-10)
+- 2025-09-15: Ported UserRegistrationServlet, LocaleServlet, WaveRefServlet, and InitialsAvatarsServlet to the Jakarta source set. Added RegistrationSupport helper to decouple account creation from WelcomeRobot, wired new servlet overrides in ServerMain, and excluded the javax variants from Jakarta builds. Locale, waveref, and initial-avatar flows now bridge sessions via WebSessions with Jakarta-focused IT coverage.
+- 2025-09-15: Updated Jakarta tests to use WebSessions/RegistrationSupport (no WelcomeRobot or javax HttpSession dependencies). `:wave:testJakarta` and `:wave:testJakartaIT` run green under Jetty 12; default Gradle profile now targets `-PjettyFamily=jakarta`.
+- 2025-09-15: Ported robot Data API/Active API/registration servlets to Jakarta with a lightweight OAuth HttpRequestMessage adapter. Removed the `compileOnly javax.servlet-api` dependency from the Jakarta profile.
 - Tests hardened for EE10 stability and diagnostics:
   - AccessLogJakartaIT uses a CountDownLatch-based RequestLog (no sleep/polling) for deterministic verification.
   - CachingFiltersJakartaIT factors helpers (assertOk/header/dumpHeaders), uses EE10 FilterHolder, and public nested servlets; failures include headers+body.
@@ -54,11 +57,10 @@ See also
 - Next up: Complete servlet/filter import sweep to jakarta.*, replace guice-servlet usages with programmatic registration, then flip the default build to Jetty 12.
 
 Open Work Items (Jakarta)
-- Servlet/filter import sweep to `jakarta.*` for remaining RPC servlets (Authentication, SignOut, GadgetProvider, InitialsAvatars) with focused ITs.
-- Remove `compileOnly javax.servlet-api` once adapters/tests no longer reference javax interfaces.
+- Finish servlet/filter import sweep for remaining robot-backed modules (e.g., Gadget provider operations) and add focused ITs as coverage grows.
 - Replace `guice-servlet` on Jakarta path with programmatic registration; keep Guice core for DI.
 - Promote `:wave:testJakartaIT` to blocking in CI after a 1–2 week burn‑in.
-- Flip default profile to `-PjettyFamily=jakarta` and mark the javax profile as deprecated.
+- Ensure javax fallback profile documentation stays current (now opt-in via `-PjettyFamily=javax`).
 
 Objective
 - Upgrade Wave’s embedded/used Jetty from 9.2.x to a supported release to improve security, compatibility with modern JDKs, and long-term maintainability.

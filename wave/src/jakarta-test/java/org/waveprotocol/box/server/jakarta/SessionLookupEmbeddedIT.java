@@ -30,13 +30,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.persistence.AccountStore;
 
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import javax.servlet.http.HttpSession;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
@@ -126,8 +126,8 @@ public class SessionLookupEmbeddedIT {
         .newInstance(store, sessionHandler, cfg);
 
     // 3) Lookup by token
-    HttpSession httpSession = sm.getSessionFromToken(sid);
-    // Should resolve to a non-null HttpSession wrapper
-    assertNotNull(httpSession);
+    WebSession session = sm.getSessionFromToken(sid);
+    // Should resolve to a non-null WebSession wrapper
+    assertNotNull(session);
   }
 }

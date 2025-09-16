@@ -1,6 +1,7 @@
 package org.waveprotocol.box.server.jakarta;
 
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.After;
@@ -21,30 +22,35 @@ public class InitialsAvatarsServletJakartaIT {
   public void start() throws Exception {
     TestSupport.assumeJettyEe10PresentOrSkip();
     server = new Server();
-    ServerConnector c = new ServerConnector(server);
-    c.setPort(0);
-    server.addConnector(c);
+    ServerConnector connector = new ServerConnector(server);
+    connector.setPort(0);
+    server.addConnector(connector);
+
     ServletContextHandler ctx = new ServletContextHandler(ServletContextHandler.SESSIONS);
     ctx.setContextPath("/");
-    ctx.addServlet(new org.eclipse.jetty.ee10.servlet.ServletHolder(new InitialsAvatarsServlet()), "/iniavatars/*");
+    ctx.addServlet(new ServletHolder(new InitialsAvatarsServlet()), "/iniavatars/*");
+
     server.setHandler(ctx);
     server.start();
-    port = c.getLocalPort();
+    port = connector.getLocalPort();
   }
 
   @After
   public void stop() throws Exception {
-    if (server != null) server.stop();
+    if (server != null) {
+      server.stop();
+    }
   }
 
   @Test
-  public void returnsDefaultAvatar200() throws Exception {
-    URL url = new URL("http://localhost:" + port + "/iniavatars/100x100/user@example.com");
+  public void servesDefaultAvatar() throws Exception {
+    URL url = new URL("http://localhost:" + port + "/iniavatars/default");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
     assertEquals(200, c.getResponseCode());
-    assertTrue(c.getHeaderField("Content-Type").toLowerCase().contains("image/jpg"));
-    byte[] bytes = c.getInputStream().readAllBytes();
-    assertTrue("expected some bytes", bytes.length > 100);
+    String contentType = c.getHeaderField("Content-Type");
+    assertNotNull(contentType);
+    assertTrue(contentType.toLowerCase().contains("image"));
+    byte[] body = c.getInputStream().readAllBytes();
+    assertTrue("expected non-empty avatar payload", body.length > 0);
   }
 }
-

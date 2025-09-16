@@ -22,7 +22,7 @@ import org.junit.Assume;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpSession;
 
 import static org.junit.Assert.*;
 

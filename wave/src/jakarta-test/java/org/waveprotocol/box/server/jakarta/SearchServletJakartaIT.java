@@ -93,8 +93,9 @@ public class SearchServletJakartaIT {
 
   @Test
   public void searchReturnsJsonOnSuccess() throws Exception {
-    Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
-    Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
+    var user = new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com");
+    Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(user);
+    Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(user);
     // Stub the Operation pipeline result by short-circuiting performSearch via registry mocks:
     // We rely on serializer mock to return a simple JSON string, so just ensure 200/JSON here.
     URL url = new URL("http://localhost:" + port + "/search/?query=in:inbox&index=0&numResults=1");
@@ -122,6 +123,7 @@ public class SearchServletJakartaIT {
     int p = cc.getLocalPort();
     try {
       Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
+      Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
       URL url = new URL("http://localhost:" + p + "/search/?query=in:inbox&index=0&numResults=1");
       HttpURLConnection c = (HttpURLConnection) url.openConnection();
       assertEquals(500, c.getResponseCode());
@@ -130,8 +132,9 @@ public class SearchServletJakartaIT {
 
   @Test
   public void nonNumericParamsReturn400() throws Exception {
-    Mockito.when(sm.getLoggedInUser(Mockito.any(org.waveprotocol.box.server.authentication.WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
-    Mockito.when(sm.getLoggedInUser(Mockito.isNull(org.waveprotocol.box.server.authentication.WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
+    var user = new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com");
+    Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(user);
+    Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(user);
     URL url = new URL("http://localhost:" + port + "/search/?query=in:all&index=abc&numResults=xyz");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
     assertEquals(400, c.getResponseCode());
@@ -139,8 +142,9 @@ public class SearchServletJakartaIT {
 
   @Test
   public void outOfRangeParamsAreClampedAnd200() throws Exception {
-    Mockito.when(sm.getLoggedInUser(Mockito.any(org.waveprotocol.box.server.authentication.WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
-    Mockito.when(sm.getLoggedInUser(Mockito.isNull(javax.servlet.http.HttpSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
+    var user = new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com");
+    Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(user);
+    Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(user);
     URL url = new URL("http://localhost:" + port + "/search/?query=in:all&index=-5&numResults=100000");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
     assertEquals(200, c.getResponseCode());

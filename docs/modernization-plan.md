@@ -37,7 +37,7 @@ At‑a‑Glance Checklist
 - [x] Phase 5: Jetty 9.4 baseline modernization
 - [x] P2‑T6: Testcontainers reliability for Mongo ITs
 - [x] P5‑T1: Jakarta migration decision
-- [ ] P5‑T2: Jetty deps upgrade to Jakarta (Jetty 12)
+- [x] P5‑T2: Jetty deps upgrade to Jakarta (Jetty 12)
 - [ ] P5‑T3: Servlet/Jakarta code migration (in progress)
 - [x] P5‑T4: Remove temporary Jakarta migration scaffolding (flags + POC classes)
 - [ ] Phase 6: Library upgrades (protobuf/commons/mongo/guava)
@@ -55,7 +55,7 @@ Milestones / Phases
  - P5-T3: Servlet/Jakarta code migration — In Progress
 
 Task P5-T2: Jetty deps upgrade to Jakarta (Jetty 12)
-- Status: In Progress
+- Status: Completed
 - Task Description:
   - Add Jetty 12 (EE10) dependencies under a `-PjettyFamily=jakarta` profile and ensure Jakarta sources compile.
   - Replace runtime wiring with EE10 ServerRpcProvider (programmatic Servlet/Filter registration, WebSockets).
@@ -64,6 +64,10 @@ Task P5-T2: Jetty deps upgrade to Jakarta (Jetty 12)
   1) Add Jetty 12 dependencies (ee10-servlet, jetty-server, ee10-websocket) in `jakartaTestImplementation` and provider path.
   2) Source selection: add `src/jakarta-overrides/java` to main sources and exclude javax-era classes from `src/main/java` only (no duplicate-class errors).
   3) Ensure Jakarta ITs run via `testJakartaIT` (Forwarded headers, Access logs, Security headers, Caching filters, Attachment/Search servlets).
+- Work Log (2025-09-15):
+  - Made the Jakarta profile the default (`jettyFamily=jakarta`) and verified `./gradlew :wave:compileJava` plus `:wave:testJakarta :wave:testJakartaIT` succeed without extra properties.
+  - Added Jakarta overrides/tests for InitialsAvatarsServlet and updated existing ITs to use WebSessions, keeping javax usage confined to `compileOnly`.
+  - Updated docs to reflect the default flip and new coverage; javax profile remains available via `-PjettyFamily=javax` for fallback.
 - DoD:
   - `./gradlew -PjettyFamily=jakarta :wave:compileJava testJakartaIT` passes locally and in CI.
   - Jakarta runtime classpath contains only `jakarta.*` APIs; any javax usage is limited to `compileOnly` for migration adapters/tests and scheduled for removal.
@@ -75,7 +79,7 @@ Task P5-T3: Servlet/Jakarta code migration
   - SearchServlet (Jakarta + javax): input validation (400 on non-numeric), clamping for numeric ranges, defensive null checks, 500 on serialization failures.
   - Forwarded headers: strict customizer + fuzz IT (duplicates, long chains, large values) to enforce safety invariants.
 - Next Steps:
-  1) Migrate remaining RPC servlets to jakarta (AuthenticationServlet, SignOutServlet, GadgetProviderServlet, InitialsAvatarsServlet), each with focused ITs.
+  1) Migrate remaining robot-backed RPC servlets to jakarta (registration/notification paths still tied to javax), each with focused ITs.
   2) Finalize provider override classpath and wire all jakarta overrides in the EE10 provider.
   3) After two weeks of green CI on Jakarta, flip PR gating to block on Jakarta suite and deprecate the javax profile.
  - Work Log (2025-09-11):
@@ -83,6 +87,11 @@ Task P5-T3: Servlet/Jakarta code migration
      - `JavaxSessionWrapper#getServletContext()` now returns a non‑null dynamic proxy that forwards safe methods to the underlying Jakarta `ServletContext`; unsupported javax‑specific methods throw `UnsupportedOperationException`.
      - `JavaxSessionWrapper#getSessionContext()` logs once and returns null by default; enable `-Dwave.session.getSessionContext.failFast=true` to throw instead.
    - Verified Gradle tasks `testJakarta` and `testJakartaIT` exist and are wired to `sourceSets.jakartaTest`.
+- Work Log (2025-09-15):
+  - Added Jakarta overrides for `UserRegistrationServlet`, `LocaleServlet`, `WaveRefServlet`, and `InitialsAvatarsServlet`; introduced `RegistrationSupport` helper to remove the `WelcomeRobot` dependency and keep account creation available on the Jakarta path.
+  - Ported robot Data API/Active API/registration servlets to Jakarta (new JakartaHttpRequestMessage adapter for OAuth); copied the token container/registrar into overrides and added smoke ITs for the avatar endpoint.
+  - Updated Jakarta `ServerMain` wiring to use the new overrides; excluded the javax variants from Jakarta builds to avoid duplicate classes. Jakarta tests now rely on `WebSessions` (no javax servlet dependencies) and cover the initial-avatar endpoint.
+  - Jakarta builds succeed with `./gradlew :wave:compileJava :wave:testJakarta :wave:testJakartaIT` using the default `jettyFamily=jakarta`.
 - DoD:
   - All Jakarta overrides compile without javax imports; Jakarta ITs green and PR-blocking.
 - Phase 6: Library upgrades for security and maintainability

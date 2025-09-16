@@ -25,81 +25,40 @@ import com.google.inject.Singleton;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.waveprotocol.wave.util.logging.Log;
+
 import javax.imageio.ImageIO;
-import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URL;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
- * Jakarta variant of InitialsAvatarsServlet.
- * Falls back to a generated placeholder if default avatar resource is missing.
+ * Jakarta-compatible variant of {@link InitialsAvatarsServlet}. Serves the
+ * default avatar image using the Jakarta servlet APIs.
  */
 @Singleton
 public final class InitialsAvatarsServlet extends HttpServlet {
-  private static final Logger LOG = Logger.getLogger(InitialsAvatarsServlet.class.getName());
-  private BufferedImage DEFAULT;
+  private static final Log LOG = Log.get(InitialsAvatarsServlet.class);
+  private final BufferedImage defaultAvatar;
 
   @Inject
   public InitialsAvatarsServlet() throws IOException {
-    // Try classpath resources used by historic builds
-    BufferedImage img = null;
-    img = tryLoad("static/images/avatar/unknown.jpg");
-    if (img == null) img = tryLoad("org/apache/wave/box/server/rpc/avatar/unknown.jpg");
-    if (img == null) {
-      LOG.warning("Default Avatar image not found on classpath; generating placeholder.");
-      img = generatePlaceholder();
-    }
-    DEFAULT = img;
+    this.defaultAvatar = loadDefault();
   }
 
-  private static BufferedImage tryLoad(String path) {
+  private static BufferedImage loadDefault() throws IOException {
     try {
-      URL u = Resources.getResource(path);
-      return ImageIO.read(u);
-    } catch (Throwable t) {
-      return null;
+      return ImageIO.read(Resources.getResource("static/images/avatar/unknown.jpg"));
+    } catch (Exception primary) {
+      LOG.warning("Default avatar image missing from static path; falling back", primary);
+      return ImageIO.read(Resources.getResource(
+          "org/apache/wave/box/server/rpc/avatar/unknown.jpg"));
     }
-  }
-
-  private static BufferedImage generatePlaceholder() {
-    int w = 100, h = 100;
-    BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-    Graphics2D g = img.createGraphics();
-    try {
-      g.setColor(new Color(230,230,230));
-      g.fillRect(0,0,w,h);
-      g.setColor(new Color(200,200,200));
-      for (int y = 0; y < h; y += 10) g.fillRect(0, y, w, 5);
-      g.setColor(new Color(150,150,150));
-      g.drawString("?", w/2 - 3, h/2 + 4);
-    } finally {
-      g.dispose();
-    }
-    return img;
   }
 
   @Override
   @VisibleForTesting
-  protected void doGet(HttpServletRequest req, HttpServletResponse response) throws IOException {
-    response.setContentType("image/jpg");
-    // Encode as JPEG
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    try {
-      ImageIO.write(DEFAULT, "JPG", baos);
-      baos.flush();
-      byte[] bytes = baos.toByteArray();
-      response.setStatus(HttpServletResponse.SC_OK);
-      response.setContentLength(bytes.length);
-      try (var os = response.getOutputStream()) { os.write(bytes); os.flush(); }
-    } catch (IOException e) {
-      LOG.log(Level.WARNING, "Failed to write avatar image", e);
-      response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-    } finally {
-      try { baos.close(); } catch (IOException ignore) {}
-    }
+  protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    resp.setContentType("image/jpg");
+    ImageIO.write(defaultAvatar, "JPG", resp.getOutputStream());
   }
 }

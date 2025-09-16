@@ -35,7 +35,7 @@ import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
 import org.waveprotocol.box.server.gxp.AuthenticationPage;
 import org.waveprotocol.box.server.persistence.AccountStore;
-// WelcomeRobot/RegistrationUtil are legacy; omit on Jakarta override to remove robot coupling
+import org.waveprotocol.box.server.util.RegistrationSupport;
 import org.waveprotocol.wave.model.id.WaveIdentifiers;
 import org.waveprotocol.wave.model.wave.InvalidParticipantAddress;
 import org.waveprotocol.wave.model.wave.ParticipantId;
@@ -98,7 +98,6 @@ public class AuthenticationServlet extends HttpServlet {
   private final boolean isRegistrationDisabled;
   private final boolean isLoginPageDisabled;
   private boolean failedClientAuth = false;
-  private final Object welcomeBot; // unused placeholder on Jakarta path
   private final String analyticsAccount;
 
   @Inject
@@ -119,7 +118,6 @@ public class AuthenticationServlet extends HttpServlet {
     this.clientAuthCertDomain = config.getString("security.clientauth_cert_domain").toLowerCase();
     this.isRegistrationDisabled = config.getBoolean("administration.disable_registration");
     this.isLoginPageDisabled = config.getBoolean("administration.disable_loginpage");
-    this.welcomeBot = null;
     this.analyticsAccount = config.hasPath("core.analytics_account") ?
         config.getString("core.analytics_account") : "";
   }
@@ -261,9 +259,9 @@ public class AuthenticationServlet extends HttpServlet {
             Preconditions.checkState(WaveIdentifiers.isValidIdentifier(email),
                 "The decoded email is not a valid wave identifier");
             ParticipantId id = ParticipantId.of(email);
-            if (!RegistrationUtil.doesAccountExist(accountStore, id)) {
+            if (!RegistrationSupport.doesAccountExist(accountStore, id)) {
               if (!isRegistrationDisabled) {
-                if (!RegistrationUtil.createAccountIfMissing(accountStore, id, null, welcomeBot)) {
+                if (!RegistrationSupport.createAccount(accountStore, id, null)) {
                   return null;
                 }
               } else {

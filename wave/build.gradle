@@ -49,8 +49,8 @@ ext {
     jettyVersion = findProperty('jettyVersion') ?: '9.4.54.v20240208'
     // Jetty 12 (EE10) version for Jakarta POC
     jettyEe10Version = findProperty('jettyEe10Version') ?: '12.0.23'
-    // Jetty family selector for main server deps: 'javax' (Jetty 9.4) or 'jakarta' (Jetty 12)
-    jettyFamily = findProperty('jettyFamily') ?: 'javax'
+    // Jetty family selector for main server deps: 'jakarta' (Jetty 12) by default; override with -PjettyFamily=javax if needed
+    jettyFamily = findProperty('jettyFamily') ?: 'jakarta'
     // Server-side Guava version (aligned with Guice 5; client guava-gwt stays compileOnly)
     waveGuavaVersion = findProperty('waveGuavaVersion') ?: '32.1.3-jre'
 }
@@ -245,8 +245,10 @@ if (jettyFamily == 'jakarta') {
                 'org/waveprotocol/box/server/rpc/AttachmentInfoServlet.java',
                 'org/waveprotocol/box/server/rpc/FetchServlet.java',
                 'org/waveprotocol/box/server/rpc/FetchProfilesServlet.java',
+                'org/waveprotocol/box/server/rpc/LocaleServlet.java',
                 'org/waveprotocol/box/server/rpc/NotificationServlet.java',
                 'org/waveprotocol/box/server/rpc/WaveClientServlet.java',
+                'org/waveprotocol/box/server/rpc/WaveRefServlet.java',
                 // WebSocket wiring under javax
                 'org/waveprotocol/box/server/rpc/WebSocketChannelImpl.java',
                 'org/waveprotocol/box/server/rpc/WebSocketClientRpcChannel.java'
@@ -423,9 +425,6 @@ if (jettyFamily == 'javax') {
             // APIs for compile only; Jetty provides runtime
             implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
             implementation group: 'jakarta.websocket', name: 'jakarta.websocket-api', version: '2.1.1'
-        // Keep javax.servlet on compileOnly to satisfy legacy signatures during migration.
-        // Runtime guard below prevents it from leaking into runtime classpath.
-        compileOnly group: 'javax.servlet', name: 'javax.servlet-api', version: '3.1.0'
         // Provide GWT user API at compile time only to satisfy client/server cross references; keep off runtime
         compileOnly group: 'org.gwtproject', name: 'gwt-user', version: gwtVersion
 
@@ -478,30 +477,6 @@ dependencies {
 configurations.runtimeClasspath { exclude group: 'com.google.guava', module: 'guava-gwt' }
 configurations.testRuntimeClasspath { exclude group: 'com.google.guava', module: 'guava-gwt' }
 
-// On Jakarta builds, ensure javax.servlet-api never leaks into main runtime classpaths.
-if (jettyFamily == 'jakarta') {
-    // Allow temporarily including javax.servlet-api at runtime while migrating,
-    // controlled by -PallowLegacyJavax (default: true for POC).
-    def allowLegacyJavax = (findProperty('allowLegacyJavax') ?: 'true').toString().toBoolean()
-    if (allowLegacyJavax) {
-        dependencies {
-            runtimeOnly group: 'javax.servlet', name: 'javax.servlet-api', version: '3.1.0'
-        }
-    } else {
-        ['implementation', 'runtimeClasspath'].each { cfgName ->
-            configurations.matching { it.name == cfgName }.configureEach {
-                resolutionStrategy.eachDependency { dep ->
-                    if (dep.requested.group == 'javax.servlet') {
-                        throw new GradleException("Detected javax.servlet artifact ('${dep.requested.name}') on ${cfgName} for Jakarta build with -PallowLegacyJavax=false")
-                    }
-                }
-            }
-        }
-    }
-    tasks.register('remindRemoveJavaxOnJakarta') { doLast {
-        println "[Jakarta] Set -PallowLegacyJavax=false once javax API usages are fully removed."
-    } }
-}
 //=============================================================================
 // CheckStyle Config
 //=============================================================================

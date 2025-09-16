@@ -3,6 +3,7 @@ package org.waveprotocol.box.server.jakarta;
 import com.typesafe.config.ConfigFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.After;
@@ -12,7 +13,6 @@ import org.mockito.Mockito;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.persistence.AccountStore;
-import org.waveprotocol.box.server.robots.agent.welcome.WelcomeRobot;
 import org.waveprotocol.box.server.rpc.AuthenticationServlet;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
@@ -28,14 +28,12 @@ public class AuthenticationServletJakartaIT {
 
   private SessionManager sessionManager;
   private AccountStore accountStore;
-  private WelcomeRobot welcomeRobot;
 
   @Before
   public void start() throws Exception {
     TestSupport.assumeJettyEe10PresentOrSkip();
     sessionManager = Mockito.mock(SessionManager.class);
     accountStore = Mockito.mock(AccountStore.class);
-    welcomeRobot = Mockito.mock(WelcomeRobot.class);
 
     server = new Server();
     ServerConnector c = new ServerConnector(server);
@@ -59,10 +57,12 @@ public class AuthenticationServletJakartaIT {
         cfg
     );
 
-    ctx.addServlet(new org.eclipse.jetty.ee10.servlet.ServletHolder(org.waveprotocol.box.server.rpc.AuthenticationServlet.class), "/auth/signin");
+    ctx.addServlet(new ServletHolder(servlet), "/auth/signin");
     server.setHandler(ctx);
     server.start();
     port = c.getLocalPort();
+
+    stubLoggedOut();
   }
 
   @After
@@ -72,7 +72,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void get_withoutLogin_showsLoginPage200() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(null);
+    stubLoggedOut();
     URL url = new URL("http://localhost:" + port + "/auth/signin");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
     assertEquals(200, c.getResponseCode());
@@ -81,8 +81,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void get_whenLoggedIn_redirectsToR() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(WebSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=%2Fhome");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
     // Jetty follows redirects by default if using HttpURLConnection? It does not automatically follow for 302 unless setInstanceFollowRedirects.
@@ -93,8 +92,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void redirectsToSafePathWithQuery() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(WebSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
     // r=/home?x=1&y=2 -> urlencoded as %2Fhome%3Fx%3D1%26y%3D2
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=%2Fhome%3Fx%3D1%26y%3D2");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
@@ -105,8 +103,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void redirectsToSafePathWithFragment() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(WebSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
     // r=/app#section -> urlencoded as %2Fapp%23section
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=%2Fapp%23section");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
@@ -117,8 +114,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void rejectsAbsoluteUrlInR() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(WebSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
     // r=http://evil.example
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=http%3A%2F%2Fevil.example");
     HttpURLConnection c = (HttpURLConnection) url.openConnection();
@@ -129,8 +125,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void rejectsSchemeRelativeAndTraversal() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(javax.servlet.http.HttpSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
     // r=//evil.example -> fallback
     URL u1 = new URL("http://localhost:" + port + "/auth/signin?r=%2F%2Fevil.example");
     HttpURLConnection c1 = (HttpURLConnection) u1.openConnection();
@@ -148,8 +143,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void rejectsCRLFInR() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(javax.servlet.http.HttpSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
     URL u = new URL("http://localhost:" + port + "/auth/signin?r=%2Fok%0D%0AX-Evil%3Ayes");
     HttpURLConnection c = (HttpURLConnection) u.openConnection();
     c.setInstanceFollowRedirects(false);
@@ -159,8 +153,7 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void rejectsEncodedTraversalAndBackslashes() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(javax.servlet.http.HttpSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
 
     // Encoded traversal in path
     URL u1 = new URL("http://localhost:" + port + "/auth/signin?r=%2Fa%2F%252e%252e%2Fb");
@@ -186,12 +179,21 @@ public class AuthenticationServletJakartaIT {
 
   @Test
   public void rejectsLeadingWhitespace() throws Exception {
-    Mockito.when(sessionManager.getLoggedInUser(Mockito.isNull(javax.servlet.http.HttpSession.class)))
-        .thenReturn(new ParticipantId("user@example.com"));
+    stubLoggedIn(new ParticipantId("user@example.com"));
     URL u = new URL("http://localhost:" + port + "/auth/signin?r=%20/home");
     HttpURLConnection c = (HttpURLConnection) u.openConnection();
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
     assertEquals("/", c.getHeaderField("Location"));
+  }
+
+  private void stubLoggedOut() {
+    Mockito.reset(sessionManager);
+    Mockito.doReturn(null).when(sessionManager).getLoggedInUser(Mockito.any());
+  }
+
+  private void stubLoggedIn(ParticipantId id) {
+    Mockito.reset(sessionManager);
+    Mockito.doReturn(id).when(sessionManager).getLoggedInUser(Mockito.any());
   }
 }

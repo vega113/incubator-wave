@@ -35,6 +35,8 @@ import org.waveprotocol.box.server.authentication.SessionManagerImpl;
 import org.waveprotocol.box.server.jakarta.ServerRpcProviderJakartaProvider;
 import org.waveprotocol.box.server.rpc.ProtoSerializer;
 import org.waveprotocol.box.server.rpc.ServerRpcProvider;
+import org.waveprotocol.box.server.robots.register.RobotRegistrar;
+import org.waveprotocol.box.server.robots.register.RobotRegistrarImpl;
 import org.waveprotocol.box.server.waveserver.WaveServerImpl;
 import org.waveprotocol.box.server.waveserver.WaveServerModule;
 import org.waveprotocol.wave.federation.FederationHostBridge;
@@ -73,6 +75,7 @@ public class ServerModule extends AbstractModule {
     // Bind via Provider to avoid Guice eagerly reflecting over ServerRpcProvider's methods
     // (which reference EE10 types) during injector creation.
     bind(ServerRpcProvider.class).toProvider(ServerRpcProviderJakartaProvider.class).in(Singleton.class);
+    bind(RobotRegistrar.class).to(RobotRegistrarImpl.class).in(Singleton.class);
   }
 
   @Provides @Singleton
