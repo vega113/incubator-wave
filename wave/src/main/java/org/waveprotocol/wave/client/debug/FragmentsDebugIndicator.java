@@ -18,6 +18,7 @@
  */
 package org.waveprotocol.wave.client.debug;
 
+import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Window;
@@ -120,12 +121,15 @@ public final class FragmentsDebugIndicator {
     if (!enabled) return;
     try {
       updateBadge();
-      com.google.gwt.core.client.GWT.log("Fragments badge: blips=" + blipsLoaded +
+      GWT.log("Fragments badge: blips=" + blipsLoaded +
           "/" + blipsTotal + " elapsedMs=" + elapsedMs);
-    } catch (Throwable ignore) { }
+    } catch (Throwable t) {
+      GWT.log("Failed to update fragments badge", t);
+    }
   }
- 
+
   public static void setClientFlags(String mode, boolean fetch, boolean dynamic) {
+
     fragmentMode = (mode == null) ? "" : mode;
     fragmentFetchEnabled = fetch;
     dynamicEnabled = dynamic;
@@ -142,6 +146,7 @@ public final class FragmentsDebugIndicator {
     if (!enabled || badge == null) {
       return;
     }
+    ensureClientFlagsCached();
     StringBuilder text = new StringBuilder();
     text.append("Fragments: ").append(totalRanges)
         .append(" | Applier: ").append(applierOn ? "on" : "off")
@@ -154,5 +159,32 @@ public final class FragmentsDebugIndicator {
           .append(" | Dyn: ").append(dynamicEnabled ? "on" : "off");
     }
     badge.setInnerText(text.toString());
+  }
+
+  private static void ensureClientFlagsCached() {
+    if (hasClientMeta) {
+      return;
+    }
+    try {
+      String mode = null;
+      try {
+        mode = org.waveprotocol.wave.client.util.ClientFlags.get().fragmentFetchMode();
+      } catch (Throwable ignore) {
+      }
+      fragmentMode = (mode == null) ? "" : mode;
+      try {
+        Boolean fetch = org.waveprotocol.wave.client.util.ClientFlags.get().enableFragmentFetch();
+        fragmentFetchEnabled = fetch != null && fetch.booleanValue();
+      } catch (Throwable ignore) {
+      }
+      try {
+        Boolean dyn = org.waveprotocol.wave.client.util.ClientFlags.get().enableDynamicRendering();
+        dynamicEnabled = dyn != null && dyn.booleanValue();
+      } catch (Throwable ignore) {
+      }
+      hasClientMeta = true;
+      com.google.gwt.core.client.GWT.log("Fragments badge: populated client flags via fallback");
+    } catch (Throwable ignore) {
+    }
   }
 }
