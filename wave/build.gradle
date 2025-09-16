@@ -80,6 +80,21 @@ compileJava {
     options.incremental = true
 }
 
+def DEFAULT_CLIENT_FLAGS = 'enableDebugMenu=true,enableEditorDebugging=true,enableRenderStats=true'
+
+def applyClientDebugFlags(Task task, String flags) {
+    task.jvmArgs = (task.jvmArgs ?: []).findAll { arg ->
+        !(arg.startsWith('-Dwave.clientFlags=')) &&
+        arg != '-Dwave.forceDebugPanel=true' &&
+        arg != '-Dwave.logViewBatches=true'
+    }
+    task.jvmArgs += [
+        "-Dwave.clientFlags=${flags}",
+        '-Dwave.forceDebugPanel=true',
+        '-Dwave.logViewBatches=true'
+    ]
+}
+
 //=============================================================================
 // Extra Configurations (used for separation of dependencies)
 //=============================================================================
@@ -87,7 +102,13 @@ configurations {
     generateMessages
     generateGXP
     protoCompile
-    gwt
+    gwt {
+        resolutionStrategy.eachDependency { details ->
+            if (['org.eclipse.jetty', 'org.eclipse.jetty.websocket', 'org.eclipse.jetty.http2'].contains(details.requested.group)) {
+                details.useVersion(jettyVersion)
+            }
+        }
+    }
 }
 
 //=============================================================================
@@ -569,6 +590,43 @@ tasks.register('gwtCodeServer') {
     }
 }
 
+task gwtDev2 {
+    description = 'Runs the hosted mode server, for debugging the Gwt client ' +
+            'in a JVM.'
+    dependsOn 'generateMessages', 'generateGXP'
+    doFirst {
+        println ''
+        println '----------------------------------------------'
+        println '           Running Gwt Dev mode.              '
+        println 'Note: This currently has a classpath conflict.'
+        println '----------------------------------------------'
+        println ''
+    }
+    doLast {
+        def launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+        javaexec {
+            executable = launcher.get().executablePath.asFile.absolutePath
+            mainClass = "com.google.gwt.dev.DevMode"
+            classpath = files(sourceSets.main.java.srcDirs) + configurations.gwt + sourceSets.main.compileClasspath + files(sourceSets.main.resources.srcDirs)
+            if (project.hasProperty('clientFlags')) {
+                def cf = project.property('clientFlags')
+                jvmArgs += ["-Dwave.clientFlags=${cf}"]
+                println "[gwtDev] Using client flags: ${cf}"
+            }
+            def bind = (project.findProperty('gwtBindAddress') ?: '127.0.0.1')
+            def port = (project.findProperty('gwtPort') ?: '9876')
+            args = [
+                    "-noserver",
+                    "-bindAddress", bind,
+                    "-port", port,
+                    "-startupUrl", "http://localhost:9898",
+                    "-logLevel", "DEBUG",
+                    "org.waveprotocol.box.webclient.WebClientDev",
+            ]
+        }
+    }
+}
+
 //=============================================================================
 // Run helpers
 //=============================================================================
@@ -581,6 +639,10 @@ tasks.register('runServerOnly', JavaExec) {
     mainClass = application.mainClass
     jvmArgs application.applicationDefaultJvmArgs
     dependsOn 'classes'
+    doFirst {
+        def flags = project.findProperty('clientFlags') ?: DEFAULT_CLIENT_FLAGS
+        applyClientDebugFlags(delegate, flags)
+    }
 }
 
 // Compile the Dev GWT bundle and then start the server using it.
@@ -591,13 +653,9 @@ tasks.register('runDev') {
     doFirst {
         // Ensure the server enables the client debug panel by forcing ll=debug redirect
         // and turn on useful client flags by default in Dev.
-        def flags = project.findProperty('clientFlags') ?: 'enableDebugMenu=true,enableEditorDebugging=true'
-        // Append JVM args onto runServerOnly just before execution
+        def flags = project.findProperty('clientFlags') ?: DEFAULT_CLIENT_FLAGS
         tasks.named('runServerOnly').configure {
-            jvmArgs += [
-                "-Dwave.clientFlags=${flags}",
-                "-Dwave.forceDebugPanel=true"
-            ]
+            applyClientDebugFlags(delegate, flags)
         }
         println "[runDev] Using clientFlags='${flags}' and forcing debug panel"
     }
