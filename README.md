@@ -57,6 +57,7 @@ Requirements: Java 17+, Gradle Wrapper (included)
 
    - Default dev URL: http://localhost:9898/
    - If you enabled SSL: https://localhost:9898/
+   - The Jakarta (Jetty 12) profile is the default. Use `./gradlew -PjettyFamily=javax :wave:run` if you need the legacy Jetty 9.4 build for bisects.
 
 Notes:
 - WebSocket auth: In dev, `network.session_cookie_http_only = false` so the legacy web client can read `JSESSIONID` for a WebSocket fallback authenticate.
@@ -185,19 +186,24 @@ To build an installable distribution:
     ./gradlew :wave:installDist
 Use `scripts/wave-smoke.sh start|status|stop` against the installed dist.
 
-### Jetty 12 (Jakarta) profile
+### Jetty profiles (Jakarta by default)
 
-- Build and run with Jetty 12 / Jakarta EE10 APIs without affecting the default build:
-  - Compile Jakarta sources and tests:
-    `./gradlew -PjettyFamily=jakarta :wave:classes :wave:jakartaTestClasses`
-  - Run the Jakarta test suite:
-    `./gradlew -PjettyFamily=jakarta :wave:testJakarta`
-  - Build an installable distribution (Jakarta path):
-    `./gradlew -PjettyFamily=jakarta :wave:installDist`
+**Jakarta EE 10 (default):**
+- Standard builds and `./gradlew :wave:run` already target Jetty 12 with Jakarta APIs.
+- The dedicated Jakarta test suites remain available when you want to be explicit:
+  - Compile Jakarta sources and tests: `./gradlew -PjettyFamily=jakarta :wave:classes :wave:jakartaTestClasses`
+  - Run Jakarta unit tests: `./gradlew -PjettyFamily=jakarta :wave:testJakarta`
+  - Run Jakarta integration tests: `./gradlew -PjettyFamily=jakarta :wave:testJakartaIT`
+  - Build an installable distribution: `./gradlew -PjettyFamily=jakarta :wave:installDist`
 
-- Docker image with Jakarta profile:
-  - `docker build --build-arg JETTY_FAMILY=jakarta -t wave:jakarta .`
-  - `docker run --rm -p 9898:9898 wave:jakarta`
+**Legacy Jetty 9.4 (javax) fallback:**
+- Only needed for bisects or compatibility testing: `./gradlew -PjettyFamily=javax :wave:run`
+- Matching build/test commands work with the same flag, e.g. `./gradlew -PjettyFamily=javax :wave:test`
+
+**Docker builds:**
+- Jakarta is now the default: `docker build -t wave:jakarta .`
+- Use `--build-arg JETTY_FAMILY=javax` if you need the legacy servlet profile: `docker build --build-arg JETTY_FAMILY=javax -t wave:javax .`
+- Run the container: `docker run --rm -p 9898:9898 wave:jakarta`
 
 Note: Until the Jakarta path becomes the default, you can continue to use the existing (javax/Jetty 9.4) build and switch to Jakarta explicitly via `-PjettyFamily=jakarta`.
 

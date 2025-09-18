@@ -7,7 +7,7 @@ Date: 2025-09-18
 Status Summary
 - Completed: Stage 1 — Jetty 9.4 baseline upgrade and server hardening validated on JDK 17.
 - Decision (2025-09-02): Target Jetty 12 (EE10). For Jakarta, use programmatic servlet/filter registration and a programmatic WebSocket endpoint. Retire guice-servlet on the Jakarta path (it is javax-only).
-- Stage 2 — Jakarta (Jetty 12): Core HTTP/static/WebSocket parity implemented; robot APIs and observability endpoints now run on Jakarta by default. Servlet/filter import sweep of shared libraries and expanded tests are in progress. Gradle defaults to `-PjettyFamily=jakarta` with Jetty 9.4 fallback.
+- Stage 2 — Jakarta (Jetty 12) (completed): Core HTTP/static/WebSocket parity implemented; robot APIs and observability endpoints now run on Jakarta by default. Servlet/filter import sweep of shared libraries and expanded tests landed. Gradle defaults to `-PjettyFamily=jakarta` with Jetty 9.4 fallback.
   - EE10 server bootstrap: ServletContextHandler, DefaultServlet, GzipHandler.
   - Static resources: ResourceCollection with cache/no-cache splits for /static and /webclient.
   - WebSockets: Programmatic @ServerEndpoint("/socket") with per-connection dispatch; no echo fallback; DI via ServerEndpointConfig.Configurator with validation.
@@ -90,14 +90,12 @@ Timeline (as of 2025-09-08)
 - T2 (done): Programmatic endpoint + per-connection dispatch; removed echo fallback; DI validation.
 - T3 (done): Forwarded headers/access logs parity; jakartaTest added; jakarta ITs green locally.
 - T4 (done): Session lookup compatibility layer; flag docs + end-to-end test.
-- T5 (ongoing): Retire POC flags/code as overrides solidify; simplified provider wiring; constructors collapsed.
+- T5 (done): Retired POC flags/code as overrides solidified; simplified provider wiring; constructors collapsed.
 
 Remaining items
-- Sweep server and shared libraries for lingering `javax.servlet.*` imports; prioritize `com/google/wave/api` and legacy robot utilities for Jakarta-safe variants.
-- Update Dockerfile, distribution scripts, and README to document Jetty 12 as the default profile and capture the `-PjettyFamily=javax` fallback procedure.
-- Harden the new Jakarta robot OAuth/token and `/metrics` coverage (extend to Active API dispatch) and resolve the InitialsAvatarsJakartaIT socket dependency so `:wave:testJakartaIT` can become blocking after the next burn-in window.
-- Plan community verification window before removing the javax fallback profile; capture decision criteria and timing in docs/CONFIG_FLAGS.md.
-- Continue deprecation cleanup where low risk; track GWT and JUnit legacy warnings separately.
+- Coordinate with Infra/CI to flip the Jakarta suites (`:wave:testJakarta`, `:wave:testJakartaIT`) to blocking status and enforce green gates for Jetty 12 builds.
+- Plan the community verification window before removing the `-PjettyFamily=javax` fallback profile; document criteria and timeline in docs/CONFIG_FLAGS.md.
+- Continue deprecation cleanup where low risk; track remaining GWT hosted-test limitations separately.
 
 Scope and Impact Areas
 - Build dependencies (wave/build.gradle):

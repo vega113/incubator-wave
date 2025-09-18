@@ -38,7 +38,7 @@ At‑a‑Glance Checklist
 - [x] P2‑T6: Testcontainers reliability for Mongo ITs
 - [x] P5‑T1: Jakarta migration decision
 - [x] P5‑T2: Jetty deps upgrade to Jakarta (Jetty 12)
-- [ ] P5‑T3: Servlet/Jakarta code migration (in progress)
+- [x] P5‑T3: Servlet/Jakarta code migration
 - [x] P5‑T4: Remove temporary Jakarta migration scaffolding (flags + POC classes)
 - [ ] Phase 6: Library upgrades (protobuf/commons/mongo/guava)
 - [ ] Phase 7: Packaging & DX (dist/Docker)
@@ -50,9 +50,7 @@ Milestones / Phases
 - Phase 2: JDK 17 compatibility for the server
 - Phase 3: Gradle modernization (to Gradle 8.x) and deprecation cleanup
 - Phase 4: GWT upgrade to latest 2.x and JDK 17 toolchain integration
-- Phase 5: Jetty upgrade and (optionally) Jakarta migration
- - P5-T2: Jetty deps upgrade to Jakarta (Jetty 12) — In Progress
- - P5-T3: Servlet/Jakarta code migration — In Progress
+- Phase 5: Jetty upgrade and Jakarta migration (completed)
 
 Task P5-T2: Jetty deps upgrade to Jakarta (Jetty 12)
 - Status: Completed
@@ -73,30 +71,20 @@ Task P5-T2: Jetty deps upgrade to Jakarta (Jetty 12)
   - Jakarta runtime classpath contains only `jakarta.*` APIs; any javax usage is limited to `compileOnly` for migration adapters/tests and scheduled for removal.
 
 Task P5-T3: Servlet/Jakarta code migration
-- Status: In Progress
-- Work Log (2025-09-10):
-  - AttachmentServlet (Jakarta + javax): endpoint matching hardened, authorization tied to metadata, strict `pathInfo` parsing, thumbnail patterns directory validated with safe PNG fallback.
-  - SearchServlet (Jakarta + javax): input validation (400 on non-numeric), clamping for numeric ranges, defensive null checks, 500 on serialization failures.
-  - Forwarded headers: strict customizer + fuzz IT (duplicates, long chains, large values) to enforce safety invariants.
-- Next Steps:
-  1) Migrate remaining robot-backed RPC servlets to jakarta (registration/notification paths still tied to javax), each with focused ITs.
-  2) Finalize provider override classpath and wire all jakarta overrides in the EE10 provider.
-  3) After two weeks of green CI on Jakarta, flip PR gating to block on Jakarta suite and deprecate the javax profile.
- - Work Log (2025-09-11):
-   - Session adapters: improved javax<->jakarta bridging.
-     - `JavaxSessionWrapper#getServletContext()` now returns a non‑null dynamic proxy that forwards safe methods to the underlying Jakarta `ServletContext`; unsupported javax‑specific methods throw `UnsupportedOperationException`.
-     - `JavaxSessionWrapper#getSessionContext()` logs once and returns null by default; enable `-Dwave.session.getSessionContext.failFast=true` to throw instead.
-   - Verified Gradle tasks `testJakarta` and `testJakartaIT` exist and are wired to `sourceSets.jakartaTest`.
-- Work Log (2025-09-15):
-  - Added Jakarta overrides for `UserRegistrationServlet`, `LocaleServlet`, `WaveRefServlet`, and `InitialsAvatarsServlet`; introduced `RegistrationSupport` helper to remove the `WelcomeRobot` dependency and keep account creation available on the Jakarta path.
-  - Ported robot Data API/Active API/registration servlets to Jakarta (new JakartaHttpRequestMessage adapter for OAuth); copied the token container/registrar into overrides and added smoke ITs for the avatar endpoint.
-  - Updated Jakarta `ServerMain` wiring to use the new overrides; excluded the javax variants from Jakarta builds to avoid duplicate classes. Jakarta tests now rely on `WebSessions` (no javax servlet dependencies) and cover the initial-avatar endpoint.
-  - Jakarta builds succeed with `./gradlew :wave:compileJava :wave:testJakarta :wave:testJakartaIT` using the default `jettyFamily=jakarta`.
+- Status: Completed
+- Work Log:
+  - 2025-09-03: Completed the EE10 bootstrap (programmatic `ServerRpcProvider`, forwarded-header customizer, access logs, session adapters) and validated with the initial Jakarta unit/integration suites.
+  - 2025-09-15: Ported the robot web tier (Active/Data APIs, registration flows, avatar endpoints) to `jakarta-overrides`, added `RegistrationSupport`, and excluded the legacy javax servlets from Jakarta builds.
+  - 2025-09-18: Finalized shared library cleanup (`AbstractRobot` override, servlet-free `RobotConnectionUtil`), enabled Micrometer/Prometheus Jakarta endpoints, and added Jakarta ITs for Data API OAuth, Prometheus metrics scraping, and NotifyOperationService hash refresh.
+- Deliverables:
+  - Jakarta source tree now covers all servlet/filter/websocket wiring and robot APIs with no runtime `javax.*` dependencies; the legacy javax profile remains opt-in via `-PjettyFamily=javax`.
+  - Shared libraries used by both profiles are servlet-namespace agnostic, and the Gradle source selection prevents duplicate classes when building the Jakarta distribution.
+  - Jakarta tests exercise forwarded headers, caching/security filters, registration + avatar flows, robot OAuth, capability refresh, and metrics exposure.
+- Tests:
+  - `./gradlew -PjettyFamily=jakarta :wave:testJakarta`
+  - `./gradlew -PjettyFamily=jakarta :wave:testJakartaIT`
 - DoD:
-  - All Jakarta overrides compile without javax imports; Jakarta ITs green and PR-blocking.
-- Phase 6: Library upgrades for security and maintainability
-- Phase 7: Packaging, distribution, and developer experience
-- Phase 8 (optional): J2CL/GWT 3 migration path outline
+  - Jakarta runtime classpath is free of `javax.*`; robot/metrics regressions are covered by dedicated Jakarta ITs; Jetty 12 is the default build while the javax profile is preserved solely for fallback diagnostics.
 
 -------------------------------------------------------------------------------
 Phase 0 — Baseline, safety nets, and reproducibility

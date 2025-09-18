@@ -13,8 +13,8 @@ COPY scripts /workspace/scripts
 # Minimal copy for build to reduce layers; docs/keys are not needed for build
 
 # Build only the server distribution (installDist)
-# Allow switching Jetty family at build time: --build-arg JETTY_FAMILY=jakarta
-ARG JETTY_FAMILY=javax
+# Allow switching Jetty family at build time (default: jakarta)
+ARG JETTY_FAMILY=jakarta
 RUN ./gradlew --no-daemon -PjettyFamily=${JETTY_FAMILY} :wave:installDist
 
 # Runtime stage: slim JRE image
