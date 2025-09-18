@@ -19,6 +19,7 @@
 
 package org.waveprotocol.wave.concurrencycontrol.channel;
 
+import com.google.gwt.core.client.GWT;
 import org.waveprotocol.wave.common.logging.LoggerBundle;
 import org.waveprotocol.wave.concurrencycontrol.channel.WaveViewService.WaveViewServiceUpdate;
 import org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload;
@@ -98,6 +99,12 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
   // Optional warn threshold for applier duration (milliseconds), defaults to 50ms
   private static volatile int applierWarnMs = 50;
   public static void setApplierWarnMs(int warnMs) { applierWarnMs = warnMs; }
+
+  private static void debugLog(String msg) {
+    try {
+      com.google.gwt.core.client.GWT.log(msg);
+    } catch (Throwable ignore) { }
+  }
 
 
   /**
@@ -397,6 +404,17 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
               // Optional: also forward to a global applier when enabled via property
               // Best-effort applier hook (flag-gated). Errors are logged and update continues.
               RawFragmentsApplier applier = fragmentsApplier;
+              if (payload != null) {
+                try {
+                  debugLog("ViewChannel fragments received: wavelet=" + waveletId
+                      + " ranges=" + payload.ranges.size()
+                      + " applierSet=" + (applier != null)
+                      + " flag=" + enableFragmentsApplierFlag
+                      + " maxRanges=" + applierMaxRangesPerApply);
+                } catch (Throwable ignore) {}
+              } else {
+                try { debugLog("ViewChannel fragments received null payload"); } catch (Throwable ignore) {}
+              }
               if (applier != null && enableFragmentsApplierFlag && payload != null) {
                 try {
                   long t0 = System.nanoTime();
@@ -419,6 +437,11 @@ public class ViewChannelImpl implements ViewChannel, WaveViewService.OpenCallbac
                 } catch (Throwable t) {
                   logger.error().log("Fragments applier failed for wavelet " + waveletId + ": " + t);
                 }
+              } else {
+                try {
+                  debugLog("ViewChannel fragments not applied: applier=" + (applier != null)
+                      + " flag=" + enableFragmentsApplierFlag + " payloadNull=" + (payload == null));
+                } catch (Throwable ignore) {}
               }
               // Dev-only debug badge: increase on-screen counter when a fragments batch arrives
               try {

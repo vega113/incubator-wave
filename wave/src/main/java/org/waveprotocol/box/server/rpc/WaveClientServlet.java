@@ -71,6 +71,8 @@ public class WaveClientServlet extends HttpServlet {
     }
   }
 
+  private static volatile boolean loggedClientFlagsOnce = false;
+
   private final String domain;
   private final String analyticsAccount;
   private final SessionManager sessionManager;
@@ -298,6 +300,13 @@ public class WaveClientServlet extends HttpServlet {
           }
         }
       } catch (Exception ignored) {}
+
+      if (!loggedClientFlagsOnce) {
+        loggedClientFlagsOnce = true;
+        try {
+          LOG.info("WaveClient flags: " + ret.toString());
+        } catch (Throwable ignore) {}
+      }
 
       return ret;
     } catch (JSONException ex) {

@@ -75,7 +75,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
   private boolean logStats = false;
   private int bootstrapMax = 12;
   private int totalBlips = 0;
-  private int startMs = 0;
+  private double startMs = -1;
 
   private boolean updateQueued = false;
   private double lastUpdateMs = 0;
@@ -133,7 +133,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     }
     screen.addListener(this);
     attachConversationListeners();
-    try { startMs = (int) com.google.gwt.core.client.Duration.currentTimeMillis(); } catch (Throwable ignore) { startMs = 0; }
+    try { startMs = com.google.gwt.core.client.Duration.currentTimeMillis(); } catch (Throwable ignore) { startMs = -1; }
     // Defer initial update to allow DOM to settle.
     Scheduler.get().scheduleDeferred(
         new com.google.gwt.core.client.Scheduler.ScheduledCommand() {
@@ -258,7 +258,19 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     try {
       int visible = pagedIn.size();
       int total = Math.max(totalBlips, visible);
-      int elapsed = startMs > 0 ? (int) (now - startMs) : 0;
+      int elapsed;
+      if (startMs >= 0) {
+        double diff = now - startMs;
+        if (diff < 0) {
+          diff = 0;
+        }
+        if (diff > Integer.MAX_VALUE - 1) {
+          diff = Integer.MAX_VALUE - 1;
+        }
+        elapsed = (int) Math.round(diff);
+      } else {
+        elapsed = Integer.MAX_VALUE;
+      }
       FragmentsDebugIndicator.setBlipStats(visible, total, elapsed);
       if (logStats) {
         GWT.log("DynamicRenderer: badgeUpdate visible=" + visible +

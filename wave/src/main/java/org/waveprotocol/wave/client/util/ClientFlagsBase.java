@@ -502,6 +502,8 @@ public class ClientFlagsBase {
   private final Double dynamicSpeedBoostFactor;
   private final Integer quasiDeletionDwellMs;
   private final Boolean enableFragmentsApplier;
+  private final Boolean forceClientFragments;
+  private final Integer fragmentsApplierMaxRanges;
 
 
   /**
@@ -1014,6 +1016,8 @@ public class ClientFlagsBase {
     dynamicSpeedBoostFactor = helper.getDouble(FlagConstants.DYNAMIC_SPEED_BOOST_FACTOR, 1.8);
     quasiDeletionDwellMs = helper.getInteger(FlagConstants.QUASI_DELETION_DWELL_MS, 400);
     enableFragmentsApplier = helper.getBoolean(FlagConstants.ENABLE_FRAGMENTS_APPLIER, false);
+    forceClientFragments = helper.getBoolean(FlagConstants.FORCE_CLIENT_FRAGMENTS, false);
+    fragmentsApplierMaxRanges = helper.getInteger(FlagConstants.FRAGMENTS_APPLIER_MAX_RANGES, null);
 
   }
 
@@ -1026,6 +1030,7 @@ public class ClientFlagsBase {
    * Fragment fetch mode: "stream", "http", or "off". May be null when unset.
    */
   public String fragmentFetchMode() { return fragmentFetchMode; }
+  public Integer fragmentsApplierMaxRanges() { return fragmentsApplierMaxRanges; }
   public String initialViewportStartBlipId() { return initialViewportStartBlipId; }
   public String initialViewportDirection() { return initialViewportDirection; }
   public Integer initialViewportLimit() { return initialViewportLimit; }
@@ -1035,6 +1040,7 @@ public class ClientFlagsBase {
   public Integer dynamicScrollThrottleMs() { return dynamicScrollThrottleMs; }
   public Integer quasiDeletionDwellMs() { return quasiDeletionDwellMs; }
   public Boolean enableFragmentsApplier() { return enableFragmentsApplier; }
+  public Boolean forceClientFragments() { return forceClientFragments; }
   public Integer dynamicSpeedBoostThresholdPx() { return dynamicSpeedBoostThresholdPx; }
   public Double dynamicSpeedBoostFactor() { return dynamicSpeedBoostFactor; }
 

@@ -1,13 +1,13 @@
 # Server-First Blocks Adoption Plan
 
 Owner: Migration Engineering
-Last updated: 2025-09-10
+Last updated: 2025-09-18
 
 Statuses: planned | in_progress | completed
 
 -------------------------------------------------------------------------------
 
-## Delta Since Last Edit (2025-09-10)
+## Delta Since Last Edit (2025-09-18)
 
 Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/fragments-config.md):
 - Phase 3 (FragmentsFetcher & Request) and Phase 4 (Server Endpoint & Transport Prep) remain completed (compat).
@@ -21,6 +21,7 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
   - AttachmentServlet now sets a safe Content‑Disposition with ASCII fallback and RFC 5987 `filename*`.
 - Tests added: HttpSanitizersTest (sanitization + content‑disposition), FragmentRequesterMetricsTest (metrics), extended DataApiOAuthServletTest (redirect sanitization).
  - Storage metrics: `stateHits`, `stateMisses`, `statePartial`, `stateErrors` now instrument the prefer‑state path. See docs/fragments-config.md for detailed interpretations and operator guidance.
+- 2025-09-18 investigation: with `forceClientFragments=true` the server still emits full `WaveletSnapshot`s on open; fragments payloads arrive alongside the snapshot, so the client renders all blips immediately. Clamp (`fragmentsApplierMaxRanges`) only limits per-batch apply work and does not reduce payload size. Dynamic renderer metrics show fewer blips paged-in but do not indicate deferred data load.
 
 ### Verification Details (2025-09-10)
 
@@ -478,6 +479,12 @@ Success criteria
 5) Cleanup and deprecation
 - Remove obsolete client flag paths; consolidate Typesafe defaults.
 - Deprecate or remove compat code paths once the storage-backed state is stable.
+
+6) Snapshot gating for fragment-first opens
+- Skip initial `WaveletSnapshot` when `forceClientFragments` or equivalent fragment-only mode is active so the client can rely on ranges.
+- Ensure `ViewChannelImpl` and renderer tolerate snapshot-absent opens; guard downstream callers.
+- Measurement plan: capture WebSocket frame sizes, client scripting time, and `/statusz?show=fragments` metrics before/after the change (see docs/migrate-conversation-renderer-to-apache-wave.md for dynamic renderer context).
+- Follow-on: wire `ViewChannelFragmentRequester` to call `ViewChannel.fetchFragments` so scroll-triggered fetches request new ranges instead of no-op logging.
 
 ### Task 6.2 — Cleanup deprecated flags/paths
 

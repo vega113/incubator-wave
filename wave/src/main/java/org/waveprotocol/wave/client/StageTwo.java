@@ -837,83 +837,82 @@ public interface StageTwo {
             stageOne.getDomAsViewProvider().setRenderer(getRenderer());
             ensureRendered();
 
+            configureFragmentsAndDynamicRendering();
+
+            // Install eager UI features
+            installFeatures();
+
+            // Activate liveness.
+            getConnector().connect(null);
+        }
+
+        protected void configureFragmentsAndDynamicRendering() {
             boolean dynamicEnabled = Boolean.TRUE.equals(ClientFlags.get().enableDynamicRendering());
-            boolean fragmentFetchEnabled =
-                    Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetch());
+            boolean fragmentFetchEnabled = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetch());
             String fragmentMode = null;
             try {
                 fragmentMode = ClientFlags.get().fragmentFetchMode();
-            }
-            catch (Throwable t) {
+            } catch (Throwable t) {
                 GWT.log("Failed to get fragment fetch mode", t);
             }
             try {
-                FragmentsDebugIndicator.setClientFlags(fragmentMode, fragmentFetchEnabled,
-                        dynamicEnabled);
-            }
-            catch (Throwable t) {
+                FragmentsDebugIndicator.setClientFlags(fragmentMode, fragmentFetchEnabled, dynamicEnabled);
+            } catch (Throwable t) {
                 GWT.log("Failed to set fragment fetch mode", t);
             }
             try {
-                GWT.log("StageTwo: dynamic=" + dynamicEnabled + ", fragmentMode=" + fragmentMode +
-                        ", fetch=" + fragmentFetchEnabled);
-            }
-            catch (Throwable t) {
+                GWT.log("StageTwo: dynamic=" + dynamicEnabled + ", fragmentMode=" + fragmentMode + ", fetch=" + fragmentFetchEnabled);
+            } catch (Throwable t) {
                 GWT.log("Failed to set debug mode", t);
             }
-
-            // Client-side fragments applier wiring (dev/observability): if the flag is enabled,
-            // install a lightweight, GWT-safe applier that records and occasionally posts stats.
             try {
+                ViewChannelImpl.setFragmentsApplier(new ClientStatsRawFragmentsApplier());
                 Boolean ena = ClientFlags.get().enableFragmentsApplier();
-                boolean enableApplier = ena != null && ena;
+                Boolean force = ClientFlags.get().forceClientFragments();
+                Integer clamp = ClientFlags.get().fragmentsApplierMaxRanges();
+                boolean enableApplier = true;
+                if (ena != null) {
+                    enableApplier = ena.booleanValue();
+                }
+                if (force != null && force.booleanValue()) {
+                    enableApplier = true;
+                }
+                if (clamp != null) {
+                    int capped = clamp.intValue();
+                    if (capped <= 0) {
+                        capped = -1;
+                    }
+                    ViewChannelImpl.setApplierMaxRangesPerApply(capped);
+                } else {
+                    ViewChannelImpl.setApplierMaxRangesPerApply(-1);
+                }
+                ViewChannelImpl.setFragmentsApplierEnabled(enableApplier);
                 try {
                     GWT.log("enableFragmentsApplier=" + enableApplier + ", fragmentFetchMode=" + ClientFlags.get().fragmentFetchMode());
-                }
-                catch (Throwable ignore) {
+                } catch (Throwable ignore) {
                 }
                 if (enableApplier) {
-                    ViewChannelImpl.setFragmentsApplier(new ClientStatsRawFragmentsApplier());
-                    ViewChannelImpl.setFragmentsApplierEnabled(true);
-                    // Dev: send a test POST so Network panel shows the endpoint/noise immediately
                     try {
                         ClientStatsRawFragmentsApplier.ping();
-                    }
-                    catch (Throwable ignore) {
+                    } catch (Throwable ignore) {
                     }
                     try {
                         GWT.log("Client fragments applier wired (dev)");
-                    }
-                    catch (Throwable ignore) {
-                    }
-                    try {
-                        FragmentsDebugIndicator.setApplierEnabled(true);
-                    }
-                    catch (Throwable ignore) {
+                    } catch (Throwable ignore) {
                     }
                 }
-                else {
-                    try {
-                        FragmentsDebugIndicator.setApplierEnabled(false);
-                    }
-                    catch (Throwable ignore) {
-                    }
+                try {
+                    FragmentsDebugIndicator.setApplierEnabled(enableApplier);
+                } catch (Throwable ignore) {
                 }
+            } catch (Throwable ignore) {
             }
-            catch (Throwable ignore) {
-            }
-
-            // Initialize quasi-deletion adapter (no-op unless flag enabled).
             if (Boolean.TRUE.equals(ClientFlags.get().enableQuasiDeletionUi())) {
                 initQuasiAdapter();
             }
-
-            // Load supplemental render CSS when dynamic rendering is enabled.
             if (dynamicEnabled) {
                 RenderCssLoader.ensureInjected();
             }
-
-            // Dynamic rendering: only page in visible blips initially.
             if (dynamicEnabled) {
                 try {
                     ScreenController screen = ScreenControllerImpl.createDefault();
@@ -932,9 +931,7 @@ public interface StageTwo {
                                 default:
                                     requester = FragmentRequester.NO_OP;
                             }
-                        }
-                        else {
-                            // No mode set → treat as off for clarity.
+                        } else {
                             requester = FragmentRequester.NO_OP;
                         }
                         DynamicRendererImpl dyn = DynamicRendererImpl.create(
@@ -943,22 +940,14 @@ public interface StageTwo {
                                 requester,
                                 screen);
                         dyn.init();
-                        // Developer probe: single-shot DOM stats when enabled.
                         if (Boolean.TRUE.equals(ClientFlags.get().enableViewportStats())) {
                             ViewportProbe.runOnce("init");
                         }
                     }
-                }
-                catch (Exception ex) {
+                } catch (Exception ex) {
                     GWT.log("StageTwo: dynamic rendering init failed", ex);
                 }
             }
-
-            // Install eager UI features
-            installFeatures();
-
-            // Activate liveness.
-            getConnector().connect(null);
         }
 
         // Quasi-deletion adapter for renderers interested in pre-delete callbacks.

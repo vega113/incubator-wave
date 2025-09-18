@@ -1,11 +1,11 @@
 # Migration Plan: Conversation Renderer (wiab.pro ➜ Apache Wave)
 
 Owner: Migration Engineering
-Last updated: 2025-09-15
+Last updated: 2025-09-18
 
 -------------------------------------------------------------------------------
 
-## Delta Since Last Edit (2025-09-15)
+## Delta Since Last Edit (2025-09-18)
 
 - Dev defaults now use typed object-form overrides in `application.conf`. Local runs
   ship with `fragmentFetchMode="stream"`, `enableDynamicRendering=true`,
@@ -22,6 +22,8 @@ Last updated: 2025-09-15
 - Client fragments applier: `RealRawFragmentsApplier` (coverage merge) wired behind `wave.fragments.applier.impl` when `client.flags.defaults.enableFragmentsApplier=true`.
 - Observability: `/statusz?show=fragments` now includes requester metrics along with emission and applier counters.
 - Security hardening: server-side redirect validation (SignOutServlet, DataApiOAuthServlet) and safe Content‑Disposition for downloads (AttachmentServlet) via new HttpSanitizers helpers. Unit tests cover sanitization and header construction.
+
+- 2025-09-18 investigation: even with `fragmentFetchMode="stream"` and `forceClientFragments=true`, the server still emits full snapshots on initial open. The fragments payload is additive, so dynamic rendering sees all blips immediately; fetcher callbacks never trigger additional ranges. Clamp-only changes reduce client apply work but not payload size. Measurement plan captured in docs/blocks-adoption-plan.md (snapshot gating follow-up).
 
 
 This document outlines how to port wiab.pro’s Conversation Renderer improvements into Apache Wave (incubator-wave), with a focus on:
@@ -457,6 +459,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
 - Status
   - Implemented (legacy path) — 2025-09-01. Client: added `ClientFragmentRequester` (GWT RequestBuilder) used when `fragmentFetchMode=http`. Server: added `/fragments` servlet that echoes requested range. This is a placeholder for real fragment logic; feature remains optional and off by default.
   - Addendum — 2025-09-01. `FragmentRequester` now includes `Callback` with `onSuccess/onError` for failures.
+  - Follow-up — 2025-09-18. Stream mode currently delivers full `WaveletSnapshot`s alongside fragments when `forceClientFragments` is true; no incremental load observed. Next steps: skip the snapshot in this mode and wire `ViewChannelFragmentRequester` to non-noop fetches.
 
 -------------------------------------------------------------------------------
 

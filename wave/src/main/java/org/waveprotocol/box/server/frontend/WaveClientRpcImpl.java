@@ -87,8 +87,15 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
 
   // Optional: fragments handler to emit ProtocolFragments in updates
   private static volatile FragmentsViewChannelHandler fragmentsHandler;
+  // Dev/testing flag: force emitting a fragments payload even when a snapshot is sent.
+  private static volatile boolean forceFragmentsWithoutSnapshot = false;
+
   public static void setFragmentsHandler(FragmentsViewChannelHandler handler) {
     fragmentsHandler = handler;
+  }
+
+  public static void setForceClientFragments(boolean force) {
+    forceFragmentsWithoutSnapshot = force;
   }
 
   /**
@@ -152,7 +159,8 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
               builder.setResultingVersion(CoreWaveletOperationSerializer.serialize(
                   deltas.get((deltas.size() - 1)).getResultingVersion()));
             }
-            if (snapshot != null) {
+            boolean includeSnapshot = snapshot != null;
+            if (includeSnapshot) {
               Preconditions.checkState(committedVersion.equals(snapshot.committedVersion),
                   "Mismatched commit versions, snapshot: " + snapshot.committedVersion
                       + " expected: " + committedVersion);
@@ -198,7 +206,20 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
                   fb.addRange(r);
                   emitted++;
                 }
+                if (emitted == 0 && forceFragmentsWithoutSnapshot) {
+                  long syntheticFrom = startV;
+                  long syntheticTo = (endV <= syntheticFrom) ? (syntheticFrom + 1) : endV;
+                  fb.setEndVersion(syntheticTo);
+                  fb.addRange(org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange.newBuilder()
+                      .setSegment(SegmentId.INDEX_ID.asString())
+                      .setFrom(syntheticFrom)
+                      .setTo(syntheticTo)
+                      .build());
+                  emitted = 1;
+                }
                 builder.setFragments(fb.build());
+                LOG.info("Emitting fragments for " + waveletName + ": ranges=" + fb.getRangeCount()
+                    + " snapshotVersion=" + fb.getSnapshotVersion() + " endVersion=" + fb.getEndVersion());
                 if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
                   org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionCount.incrementAndGet();
                   org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionRanges.addAndGet(emitted);

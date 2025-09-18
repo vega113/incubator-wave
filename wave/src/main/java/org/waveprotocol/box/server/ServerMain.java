@@ -255,6 +255,7 @@ public class ServerMain {
   private static void configureFragmentsApplier(Config config) {
     try {
       boolean applierEnabled = false;
+      boolean forceClientFragments = false;
       try {
         if (config.hasPath("client.flags.defaults.enableFragmentsApplier")) {
           applierEnabled = config.getBoolean("client.flags.defaults.enableFragmentsApplier");
@@ -270,13 +271,18 @@ public class ServerMain {
               String val = (eq > 0) ? t.substring(eq + 1).trim() : "true";
               if ("enableFragmentsApplier".equals(name)) {
                 applierEnabled = Boolean.parseBoolean(val);
-                break;
+              }
+              if ("forceClientFragments".equals(name)) {
+                forceClientFragments = Boolean.parseBoolean(val);
               }
             }
           }
         }
+        if (config.hasPath("wave.fragments.forceClientApplier")) {
+          forceClientFragments = config.getBoolean("wave.fragments.forceClientApplier");
+        }
       } catch (ConfigException e) {
-        LOG.info("Failed reading client.flags.defaults.enableFragmentsApplier; defaulting to false", e);
+        LOG.info("Failed reading fragments applier defaults; falling back to false", e);
       }
       try {
         if (applierEnabled) {
@@ -295,6 +301,7 @@ public class ServerMain {
           ViewChannelImpl.setFragmentsApplier(new NoOpRawFragmentsApplier());
         }
         ViewChannelImpl.setFragmentsApplierEnabled(applierEnabled);
+        WaveClientRpcImpl.setForceClientFragments(forceClientFragments);
         String applierCls = applierEnabled ? "SkeletonRawFragmentsApplier" : "NoOpRawFragmentsApplier";
         int warnMs = 50;
         try {
@@ -306,7 +313,8 @@ public class ServerMain {
         }
         try { ViewChannelImpl.setApplierWarnMs(warnMs); }
         catch (Throwable ignore) { }
-        LOG.info("Fragments applier: enabled=" + applierEnabled + ", impl=" + applierCls + ", warnMs=" + warnMs);
+        LOG.info("Fragments applier: enabled=" + applierEnabled + ", impl=" + applierCls + ", warnMs=" + warnMs
+            + ", forceClientFragments=" + forceClientFragments);
         // If enabled on the server, mirror the flag to the client's wave.clientFlags so the
         // GWT client also wires its client-side applier (ClientStatsRawFragmentsApplier) and we
         // can observe activity via /dev/client-applier-stats.
@@ -317,6 +325,16 @@ public class ServerMain {
               System.setProperty("wave.clientFlags",
                   (cf == null || cf.isEmpty()) ? "enableFragmentsApplier=true"
                       : (cf + ",enableFragmentsApplier=true"));
+            }
+          } catch (Throwable ignore) { }
+        }
+        if (forceClientFragments) {
+          try {
+            String cf = System.getProperty("wave.clientFlags");
+            if (cf == null || !cf.contains("forceClientFragments")) {
+              System.setProperty("wave.clientFlags",
+                  (cf == null || cf.isEmpty()) ? "forceClientFragments=true"
+                      : (cf + ",forceClientFragments=true"));
             }
           } catch (Throwable ignore) { }
         }

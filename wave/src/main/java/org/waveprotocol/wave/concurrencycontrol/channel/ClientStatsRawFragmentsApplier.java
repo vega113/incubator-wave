@@ -27,29 +27,46 @@ import com.google.gwt.core.client.Duration;
 
 import java.util.List;
 
-import org.waveprotocol.wave.concurrencycontrol.channel.RawFragmentsApplier;
 import org.waveprotocol.wave.concurrencycontrol.channel.dto.RawFragment;
 import org.waveprotocol.wave.model.id.WaveletId;
 
 /** GWT-safe client applier that records counts and occasionally POSTs them to the server. */
 public final class ClientStatsRawFragmentsApplier implements RawFragmentsApplier {
+    private static final int MAX_COUNTER = Integer.MAX_VALUE;
     private static int applied = 0;
     private static int rejected = 0;
     private static double lastPostMs = 0;
+
+    private static void consoleLog(String msg) {
+        try {
+            com.google.gwt.core.client.GWT.log(msg);
+        } catch (Throwable ignore) {}
+    }
 
     @Override
     public void apply(WaveletId waveletId, List<RawFragment> fragments) {
         if (fragments == null || fragments.isEmpty()) {
             return;
         }
+        try {
+            consoleLog("Client fragments apply: wavelet=" + (waveletId != null ? waveletId.toString() : "<null>")
+                + " count=" + fragments.size());
+        } catch (Throwable ignore) {}
         for (RawFragment f : fragments) {
             if (f == null || f.from > f.to || f.from < 0 || f.to < 0) {
-                rejected++;
+                if (rejected < MAX_COUNTER) {
+                    rejected = Math.min(MAX_COUNTER, rejected + 1);
+                }
             }
             else {
-                applied++;
+                if (applied < MAX_COUNTER) {
+                    applied = Math.min(MAX_COUNTER, applied + 1);
+                }
             }
         }
+        try {
+            org.waveprotocol.wave.client.debug.FragmentsDebugIndicator.setApplierCounters(applied, rejected);
+        } catch (Throwable ignore) {}
         maybePost();
     }
 
@@ -67,16 +84,17 @@ public final class ClientStatsRawFragmentsApplier implements RawFragmentsApplier
         if (!(lastPostMs == 0 || (now - lastPostMs) >= 3000)) {
             return; // throttle
         }
-        lastPostMs = now;
         String url = "/dev/client-applier-stats";
         String payload = "applied=" + applied + "&rejected=" + rejected;
         RequestBuilder rb = new RequestBuilder(RequestBuilder.POST, URL.encode(url));
         rb.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
         try {
+            lastPostMs = now;
             rb.sendRequest(payload, new RequestCallback() {
                 @Override
                 public void onResponseReceived(Request request, Response response) {
                     try {
+                        lastPostMs = Duration.currentTimeMillis();
                         com.google.gwt.core.client.GWT.log("client-applier-stats: POST ok " + response.getStatusCode());
                         // Dev toast once on the first success
                         org.waveprotocol.wave.client.debug.DevToast.showOnce("client-applier-stats", "Dev stats POST sent");
@@ -85,11 +103,13 @@ public final class ClientStatsRawFragmentsApplier implements RawFragmentsApplier
 
                 @Override
                 public void onError(Request request, Throwable exception) {
+                    lastPostMs = 0;
                     try { com.google.gwt.core.client.GWT.log("client-applier-stats: POST failed " + exception); } catch (Throwable ignore) {}
                 }
             });
         }
         catch (Exception ignore) {
+            lastPostMs = 0;
             try { com.google.gwt.core.client.GWT.log("client-applier-stats: POST threw exception"); } catch (Throwable ignored) {}
         }
     }

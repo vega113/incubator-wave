@@ -128,3 +128,10 @@ MANIFEST are included first.
 ## Failure Transparency
 - Fallbacks log at WARN with the wavelet name to ease debugging.
 - Config read failures log at INFO with defaults applied.
+
+## Current Limitations (2025-09-18)
+- When `forceClientFragments=true` the server still sends a full `WaveletSnapshot` on the initial `ViewChannel` update. The fragments window is additive, so the browser renders all blips immediately despite the clamp.
+- `fragmentsApplierMaxRanges` only trims how many ranges the client applier processes per batch; it does not reduce the payload size the server sends.
+- The current `ViewChannelFragmentRequester` in stream mode is a no-op, so scrolling does not trigger additional fragment fetches. Wiring it to `ViewChannel.fetchFragments` remains pending.
+- Observability via the fragments badge (`FragmentsDebugIndicator`) shows paged-in counts (e.g., `Blips 3/5`) even when all blips have been fetched; treat it as a UI virtualization indicator rather than evidence of deferred data load.
+

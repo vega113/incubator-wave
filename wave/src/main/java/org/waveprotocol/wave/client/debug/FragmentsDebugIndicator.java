@@ -36,7 +36,10 @@ public final class FragmentsDebugIndicator {
   private static boolean applierOn = false;
   private static int blipsLoaded = 0;
   private static int blipsTotal = 0;
-  private static int elapsedMs = 0;
+  private static final int ELAPSED_NOT_SET = -1;
+  private static int elapsedMs = ELAPSED_NOT_SET;
+  private static int applierApplied = 0;
+  private static int applierRejected = 0;
   private static String fragmentMode = "";
   private static boolean fragmentFetchEnabled = false;
   private static boolean dynamicEnabled = false;
@@ -63,7 +66,11 @@ public final class FragmentsDebugIndicator {
       boolean applierFlag = false;
       try {
         Boolean ena = org.waveprotocol.wave.client.util.ClientFlags.get().enableFragmentsApplier();
-        applierFlag = (ena != null && ena.booleanValue());
+        applierFlag = (ena != null && ena);
+        if (!applierFlag) {
+          Boolean force = org.waveprotocol.wave.client.util.ClientFlags.get().forceClientFragments();
+          applierFlag = force != null && force;
+        }
       } catch (Throwable ignore) { }
 
       // Enable when ll=debug OR (enableFragmentsApplier=true and running on localhost/127.0.0.1)
@@ -112,11 +119,26 @@ public final class FragmentsDebugIndicator {
     } catch (Throwable ignore) { }
   }
 
+  /** Update applied/rejected counters from the client fragments applier. */
+  public static void setApplierCounters(int applied, int rejected) {
+    applierApplied = Math.max(0, applied);
+    applierRejected = Math.max(0, rejected);
+    ensureInit();
+    if (!enabled) return;
+    try {
+      updateBadge();
+    } catch (Throwable ignore) { }
+  }
+
   /** Update blip load stats (dev-only). */
   public static void setBlipStats(int loaded, int total, int elapsed) {
     blipsLoaded = Math.max(0, loaded);
     blipsTotal = Math.max(0, total);
-    elapsedMs = Math.max(0, elapsed);
+    if (elapsed == Integer.MAX_VALUE) {
+      elapsedMs = ELAPSED_NOT_SET;
+    } else {
+      elapsedMs = Math.max(0, elapsed);
+    }
     ensureInit();
     if (!enabled) return;
     try {
@@ -151,7 +173,12 @@ public final class FragmentsDebugIndicator {
     text.append("Fragments: ").append(totalRanges)
         .append(" | Applier: ").append(applierOn ? "on" : "off")
         .append(" | Blips: ").append(blipsLoaded).append('/').append(blipsTotal)
-        .append(" | T=").append(elapsedMs).append("ms");
+        .append(" | Applied: ").append(applierApplied).append('/').append(applierRejected);
+    if (elapsedMs == ELAPSED_NOT_SET) {
+      text.append(" | T=--");
+    } else {
+      text.append(" | T=").append(elapsedMs).append("ms");
+    }
     if (hasClientMeta) {
       String mode = fragmentMode == null || fragmentMode.isEmpty() ? "-" : fragmentMode;
       text.append(" | Mode: ").append(mode)
