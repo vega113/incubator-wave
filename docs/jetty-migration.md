@@ -2,26 +2,28 @@
 
 Status: In Progress (staged migration)
 Owner: Project Maintainers
-Date: 2025-09-10
+Date: 2025-09-18
 
 Status Summary
 - Completed: Stage 1 — Jetty 9.4 baseline upgrade and server hardening validated on JDK 17.
 - Decision (2025-09-02): Target Jetty 12 (EE10). For Jakarta, use programmatic servlet/filter registration and a programmatic WebSocket endpoint. Retire guice-servlet on the Jakarta path (it is javax-only).
-- Stage 2 — Jakarta (Jetty 12): Core HTTP/static/WebSocket parity implemented; servlet/filter import sweep and DI integration are in progress. Jakarta unit and integration tests are green locally.
+- Stage 2 — Jakarta (Jetty 12): Core HTTP/static/WebSocket parity implemented; robot APIs and observability endpoints now run on Jakarta by default. Servlet/filter import sweep of shared libraries and expanded tests are in progress. Gradle defaults to `-PjettyFamily=jakarta` with Jetty 9.4 fallback.
   - EE10 server bootstrap: ServletContextHandler, DefaultServlet, GzipHandler.
   - Static resources: ResourceCollection with cache/no-cache splits for /static and /webclient.
   - WebSockets: Programmatic @ServerEndpoint("/socket") with per-connection dispatch; no echo fallback; DI via ServerEndpointConfig.Configurator with validation.
   - Forwarded headers: ForwardedRequestCustomizer behind network.enable_forwarded_headers.
   - Access logs: NCSA request log with append + 7-day retention.
-  - Sessions: flag-gated reflective lookup; embedded test coverage. As of 2025‑09‑11, `HttpSession` adaptation includes:
-    - `JavaxSessionWrapper#getServletContext()` now returns a lightweight adapter (non‑null) that forwards safe methods to the underlying Jakarta context; unsupported javax‑specific methods throw `UnsupportedOperationException`.
-    - `JavaxSessionWrapper#getSessionContext()` logs once and returns null by default; opt‑in fail‑fast with `-Dwave.session.getSessionContext.failFast=true` throws `UnsupportedOperationException`.
-  - Tests: jakartaTest (unit-like) and jakarta ITs for forwarded headers, access logs, caching filters, security headers, DI guard, and session lookup.
+  - Sessions: flag-gated reflective lookup; embedded test coverage. As of 2025‑09‑18, HttpSession adapters maintain servlet context access and registration flows without javax dependencies.
+  - Metrics/observability: Micrometer HTTP timing filter, Prometheus `/metrics`, statusz, and remote logging Jakarta variants.
+  - Robot APIs: Active/Data/registration servlets, RobotApiModule wiring, passive connector, and operation/service registries live under `src/jakarta-overrides`.
+  - Tests: jakartaTest and jakarta ITs cover forwarded headers, access logs, caching filters, security headers, DI guard, session lookup, and robot servlet flows.
 
-Recent changes (2025-09-10)
+Recent changes (2025-09-18)
+- 2025-09-18: Completed Jakarta robot service registries, RobotApiModule wiring, passive connector overrides, and NotifyOperationService; added a Jakarta override for `com.google.wave.api.AbstractRobot`; introduced Micrometer HTTP metrics filter, Prometheus `/metrics`, and Jakarta variants of remote logging/statusz. Verified `./gradlew -PjettyFamily=jakarta :wave:compileJava :wave:testJakarta :wave:testJakartaIT` with the Jakarta profile as default and documented the Jetty 9.4 fallback path.
+- 2025-09-18: Added dedicated Jakarta tests for the Data API OAuth token flow, Prometheus `/metrics` endpoint, and NotifyOperationService hash refresh to keep regression coverage on robot authentication and observability paths.
 - 2025-09-15: Ported UserRegistrationServlet, LocaleServlet, WaveRefServlet, and InitialsAvatarsServlet to the Jakarta source set. Added RegistrationSupport helper to decouple account creation from WelcomeRobot, wired new servlet overrides in ServerMain, and excluded the javax variants from Jakarta builds. Locale, waveref, and initial-avatar flows now bridge sessions via WebSessions with Jakarta-focused IT coverage.
 - 2025-09-15: Updated Jakarta tests to use WebSessions/RegistrationSupport (no WelcomeRobot or javax HttpSession dependencies). `:wave:testJakarta` and `:wave:testJakartaIT` run green under Jetty 12; default Gradle profile now targets `-PjettyFamily=jakarta`.
-- 2025-09-15: Ported robot Data API/Active API/registration servlets to Jakarta with a lightweight OAuth HttpRequestMessage adapter. Removed the `compileOnly javax.servlet-api` dependency from the Jakarta profile.
+- 2025-09-15: Ported robot Data API/Active API/registration servlets to Jakarta with a lightweight OAuth HttpRequestMessage adapter.
 - Tests hardened for EE10 stability and diagnostics:
   - AccessLogJakartaIT uses a CountDownLatch-based RequestLog (no sleep/polling) for deterministic verification.
   - CachingFiltersJakartaIT factors helpers (assertOk/header/dumpHeaders), uses EE10 FilterHolder, and public nested servlets; failures include headers+body.
@@ -34,7 +36,7 @@ Recent changes (2025-09-10)
   - SearchServletJakartaIT: invalid parameter 400s, out-of-range clamping, injection-safe serialization, and serializer failure → 500.
 - TestSupport added (public, test-only) to centralize EE10 availability checks and consistent skip policy.
 - CI: added non-blocking :wave:testJakartaIT step and artifact publishing. Plan to flip to blocking after a burn-in window.
-- Compatibility note (updated 2025‑09‑11): The Jakarta build’s runtime classpath contains only Jakarta APIs. For compilation, we temporarily expose `javax.servlet-api` as `compileOnly` to build adapter types used solely by migration wrappers/tests. No javax types are present at runtime on the Jakarta path. This `compileOnly` will be removed when all adapters/tests stop referencing javax.
+- Compatibility note (updated 2025‑09‑18): The Jakarta build’s compile and runtime classpaths now contain only Jakarta APIs. The transitional `javax.servlet-api` dependency has been removed; use `-PjettyFamily=javax` when you need the legacy Jetty 9.4 stack during bisects.
 
 Security & correctness hardening
 - AttachmentServlet (both javax and Jakarta):
@@ -91,15 +93,10 @@ Timeline (as of 2025-09-08)
 - T5 (ongoing): Retire POC flags/code as overrides solidify; simplified provider wiring; constructors collapsed.
 
 Remaining items
-- Replace guice-servlet usages with programmatic registration; remove GuiceFilter from the Jakarta path.
-  - Approach: Use native Jetty EE10 APIs (`ServletContextHandler`, `ServletHolder`, `FilterHolder`) and `jakarta.servlet.*` to register servlets/filters programmatically.
-  - WebSockets: Use `JakartaWebSocketServletContainerInitializer` + `ServerEndpointConfig` with DI configurator.
-  - No third-party Jakarta servlet glue is required; keep Guice core for DI but not `guice-servlet`.
-- Sweep server sources and change javax.servlet.* imports to jakarta.servlet.*; update filters/servlets and any web.xml descriptors.
-- Remove compileOnly javax.servlet-api from Jakarta builds; ensure jakarta.servlet-api is the only servlet API on classpath.
-- Flip `jettyFamily` default to `jakarta` once CI burn-in is green; keep a fallback profile for javax while deprecating it.
-- CI: Jakarta compile + tests run in a dedicated job. As of 2025‑09‑08, PRs are blocking on Jakarta compile/tests, while direct pushes remain non‑blocking during burn‑in. After a 1–2 week green window, flip all events to blocking and prepare the default flip.
-- Update Dockerfile and README to document running under Jetty 12 by default, including any changed ports/flags.
+- Sweep server and shared libraries for lingering `javax.servlet.*` imports; prioritize `com/google/wave/api` and legacy robot utilities for Jakarta-safe variants.
+- Update Dockerfile, distribution scripts, and README to document Jetty 12 as the default profile and capture the `-PjettyFamily=javax` fallback procedure.
+- Harden the new Jakarta robot OAuth/token and `/metrics` coverage (extend to Active API dispatch) and resolve the InitialsAvatarsJakartaIT socket dependency so `:wave:testJakartaIT` can become blocking after the next burn-in window.
+- Plan community verification window before removing the javax fallback profile; capture decision criteria and timing in docs/CONFIG_FLAGS.md.
 - Continue deprecation cleanup where low risk; track GWT and JUnit legacy warnings separately.
 
 Scope and Impact Areas
@@ -150,12 +147,11 @@ Decision & path
 - Decision: Target Jetty 12 (Jakarta) for long-term support. Guice-servlet is javax-based; we will replace servlet/filter registration with a programmatic approach while keeping Guice core for DI.
 - Pre-requisites
   - Inventory all javax.servlet.* usages and any javax.* dependencies (filters, listeners, web.xml).
-- Tasks
-  1) Keep `jakarta.servlet-api` (6.x) as the only servlet API on the Jakarta path; remove `javax.servlet-api` from compileOnly.
-  2) Update imports javax.* -> jakarta.* across server sources.
-  3) Update web.xml schema to Jakarta variant if present; validate descriptors.
-  4) Replace guice-servlet integration (ServletModule, GuiceFilter) with programmatic registration; wire filters/servlets.
-  5) Re-run full build, `:wave:testJakarta`, `:wave:testJakartaIT`, and server smoke tests on JDK 17.
+- Tasks (remaining)
+  1) Audit shared libraries (`com/google/wave/api/**`, legacy robot utilities) that still import `javax.servlet` and either provide Jakarta-safe variants or confine them to the javax profile.
+  2) Update any web.xml descriptors to the Jakarta schema (if present) and validate via server smoke.
+  3) Expand Jakarta integration coverage for robot OAuth/token flows, Prometheus `/metrics`, and production login paths; promote :wave:testJakartaIT to blocking once stable.
+  4) Continue running `./gradlew -PjettyFamily=jakarta :wave:compileJava :wave:testJakarta :wave:testJakartaIT` and full server smoke on JDK 17 for every milestone increment.
 - Acceptance
   - Build/runtime
     - Server builds and starts under Jakarta (Jetty 12) on JDK 17 with default config.

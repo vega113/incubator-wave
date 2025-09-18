@@ -548,22 +548,24 @@ Task P5-T1: Jakarta migration decision
   - Decision documented; downstream tasks unblocked with clear prerequisites.
 
 Task P5-T2: Upgrade Jetty dependencies
-- Status: In Progress
+- Status: Completed
 - Work Log:
   - 2025-09-02: Added a Jakarta (Jetty 12) source set and initial smoke. (Note: POC tasks removed in T5; validation now covered by jakartaTest.)
   - 2025-09-03: Jakarta (-PjettyFamily=jakarta) server bootstrap and endpoint dispatch are working; continue under P5‑T3 for servlet import migration and parity features.
-  - 2025-09-07: Kept default `jettyFamily=javax` (Jetty 9.4) while Jakarta work stabilizes. `javax.servlet-api` remains compileOnly on Jakarta builds for transitional stubs; to be removed before default flip.
+  - 2025-09-07: Kept default `jettyFamily=javax` (Jetty 9.4) while Jakarta work stabilizes. `javax.servlet-api` remained compileOnly on Jakarta builds for transitional stubs.
+  - 2025-09-15: Flipped the Gradle default to `jettyFamily=jakarta`, aligned Jetty 12 modules, removed the transitional `javax.servlet-api` compileOnly dependency, and introduced Micrometer HTTP metrics plus a `/metrics` servlet on the Jakarta path to preserve production observability.
+  - 2025-09-18: Verified `./gradlew -PjettyFamily=jakarta :wave:compileJava :wave:testJakarta :wave:testJakartaIT` succeeds with the Jakarta profile as default; documented `-PjettyFamily=javax` fallback for Jetty 9.4 smoke/bisect scenarios.
 - Goal: Replace 9.4.x (current) with chosen target (Jetty 12 / Jakarta) in a controlled, non-breaking way.
 - Steps:
-  1) Update org.eclipse.jetty:* dependencies in wave/build.gradle and wire EE10 modules.
-  2) On Jakarta path: use jakarta.servlet-api; avoid javax.servlet-api except temporarily as compileOnly for stubs.
-  3) Flip default to Jakarta once P5‑T3 is complete and CI burn-in passes.
+  1) Update org.eclipse.jetty:* dependencies in wave/build.gradle and wire EE10 modules. (Done)
+  2) Ensure the Jakarta path uses `jakarta.servlet-api` exclusively and keep `javax.servlet-api` off the classpath. (Done)
+  3) Flip the default Gradle profile to Jakarta while preserving an opt-in `-PjettyFamily=javax` fallback for troubleshooting. (Done)
 - Tests:
-  - ./gradlew :wave:testJakarta
+  - 2025-09-18: `./gradlew -PjettyFamily=jakarta :wave:compileJava :wave:testJakarta :wave:testJakartaIT`
 - AI Agent Guidance:
   - Watch for servlet filter/servlet registration changes.
 - DoD:
-  - Server starts cleanly under Jetty 12; Jakarta becomes the default in Gradle without regressions.
+  - Server starts cleanly under Jetty 12; Gradle defaults to Jakarta, and Jetty 9.4 fallback remains available on demand.
 
 Task P5-T3: Migrate servlet code and configuration (Jakarta)
 - Status: In Progress
@@ -571,19 +573,22 @@ Task P5-T3: Migrate servlet code and configuration (Jakarta)
   - 2025-09-03: EE10 bootstrap in Jakarta ServerRpcProvider: multi-address binding, ResourceCollection static handling, GzipHandler, and programmatic @ServerEndpoint("/socket"). Endpoint uses per-connection dispatch (no static globals), DI via ServerEndpointConfig.Configurator with validation, and secure error handling (no echo fallback). Added soft-fail framing: first parse error logged, second closes the session.
   - 2025-09-03: Parity for forwarded headers (ForwardedRequestCustomizer) and access logs (NCSA) implemented and covered by jakartaTest.
   - 2025-09-03: Session lookup compatibility (flag-gated) validated via SessionLookupEmbeddedIT; expanded flag docs.
-  - 2025-09-07: javax.servlet types still appear on the Jakarta path (compileOnly) for transitional stubs; remaining import sweep and DI replacement tracked below.
+  - 2025-09-15: Ported robot servlet stack (Active API, Data API, registration) plus RobotApiModule wiring and passive connector to `jakarta-overrides`. Added a Jakarta OAuth request adapter and excluded the javax variants from the Jakarta source selection.
+  - 2025-09-18: Added Micrometer HTTP metrics filter and Prometheus servlet, remote logging/statusz Jakarta variants, and completed robot operation/service registry overrides so Jakarta builds no longer rely on javax robot classes at runtime. Default builds now use the Jakarta overrides end-to-end.
+  - 2025-09-18 (later): Introduced a Jakarta override for `com.google.wave.api.AbstractRobot`, excluded the javax servlet facade from Jakarta builds, and dropped the `HttpServletResponse` dependency from RobotConnectionUtil to keep shared libraries servlet-API agnostic.
+  - 2025-09-18 (evening): Added Jakarta tests for Data API OAuth token flow, Prometheus `/metrics`, and NotifyOperationService hash refresh; `./gradlew -PjettyFamily=jakarta :wave:testJakarta` now exercises robot OAuth and observability endpoints.
 - Goal: Refactor imports and programmatic registrations to jakarta.* and remove javax.* from the Jakarta path.
 - Steps (remaining):
-  1) Replace javax.servlet.* with jakarta.servlet.* across server sources (filters, servlets, listeners).
-  2) Replace Guice servlet integration (ServletModule/GuiceFilter) with programmatic registration on Jakarta path.
-  3) Update any web.xml to Jakarta schema (if present) and validate descriptors.
-  4) Remove compileOnly javax.servlet-api from Jakarta builds and ensure jakarta.servlet-api is the only servlet API.
+  1) Audit shared libraries (e.g., `com/google/wave/api/**`) still importing `javax.servlet` and either isolate them for the javax profile or provide Jakarta equivalents for runtime usage.
+  2) Remove legacy javax adapters/tests that became dead code after the robot migration and consolidate shared utilities in `src/jakarta-overrides`.
+  3) Harden the new Jakarta robot OAuth/metrics coverage (extend to Active API message dispatch) and prep promotion of `:wave:testJakartaIT` to blocking once the InitialsAvatars servlet test is stabilized without external network dependencies.
 - Tests:
-  - `:wave:testJakarta` and server smoke must pass.
+  - `./gradlew -PjettyFamily=jakarta :wave:testJakarta`
+  - `./gradlew -PjettyFamily=jakarta :wave:testJakartaIT`
 - AI Agent Guidance:
-  - Use IDE refactoring or scripted replacement; confirm all imports updated; search for javax.servlet across wave/.
+  - Use IDE refactoring or scripted replacement; confirm all imports updated; search for javax.servlet across wave/. Focus on shared robot libraries.
 - DoD:
-  - No javax.servlet references remain on Jakarta path; server works under Jetty 12; compileOnly javax removed.
+  - No javax.servlet references remain on the Jakarta runtime path; server works under Jetty 12; robot APIs and metrics endpoints are fully covered by Jakarta-specific tests.
 
 Task P5-T4: Remove temporary Jakarta migration scaffolding (flags + POC)
 - Status: Completed

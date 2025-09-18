@@ -201,21 +201,20 @@ if (jettyFamily == 'jakarta') {
             def rel = p.substring(p.indexOf('/src/main/java/') + '/src/main/java/'.length())
             // Explicit guard: never exclude robots sources on Jakarta builds; other code depends on types
             if (rel.startsWith('org/waveprotocol/box/server/robots/')) {
-                // Selectively exclude servlet/agent stacks that depend on javax-era signatures.
-                def excludePrefixes = [
-                    'org/waveprotocol/box/server/robots/dataapi/',
-                    'org/waveprotocol/box/server/robots/active/',
-                    'org/waveprotocol/box/server/robots/passive/',
-                    'org/waveprotocol/box/server/robots/agent/',
-                    'org/waveprotocol/box/server/robots/register/'
-                ]
-                if (excludePrefixes.any { rel.startsWith(it) }) return true
-                // Exclude specific top-level servlet/module files under robots
                 def excludeFiles = [
                     'org/waveprotocol/box/server/robots/RobotApiModule.java',
                     'org/waveprotocol/box/server/robots/RobotRegistrationServlet.java',
+                    'org/waveprotocol/box/server/robots/dataapi/BaseApiServlet.java',
+                    'org/waveprotocol/box/server/robots/dataapi/DataApiServlet.java',
+                    'org/waveprotocol/box/server/robots/dataapi/DataApiOAuthServlet.java',
+                    'org/waveprotocol/box/server/robots/dataapi/DataApiOperationServiceRegistry.java',
+                    'org/waveprotocol/box/server/robots/dataapi/DataApiTokenContainer.java',
+                    'org/waveprotocol/box/server/robots/active/ActiveApiServlet.java',
+                    'org/waveprotocol/box/server/robots/active/ActiveApiOperationServiceRegistry.java',
+                    'org/waveprotocol/box/server/robots/passive/RobotConnector.java',
                     'org/waveprotocol/box/server/robots/operations/NotifyOperationService.java',
-                    'org/waveprotocol/box/server/robots/ProfileFetcherModule.java'
+                    'org/waveprotocol/box/server/robots/register/RobotRegistrar.java',
+                    'org/waveprotocol/box/server/robots/register/RobotRegistrarImpl.java'
                 ]
                 if (excludeFiles.any { rel == it }) return true
                 // Keep value types and utils (e.g., robots/util, RobotCapabilities)
@@ -251,7 +250,9 @@ if (jettyFamily == 'jakarta') {
                 'org/waveprotocol/box/server/rpc/WaveRefServlet.java',
                 // WebSocket wiring under javax
                 'org/waveprotocol/box/server/rpc/WebSocketChannelImpl.java',
-                'org/waveprotocol/box/server/rpc/WebSocketClientRpcChannel.java'
+                'org/waveprotocol/box/server/rpc/WebSocketClientRpcChannel.java',
+                // Shared robot API servlet facade (jakarta override lives under src/jakarta-overrides)
+                'com/google/wave/api/AbstractRobot.java'
             ]
             if (patterns.any { rel == it }) return true
             // Exclude any org/apache/wave/box/server/rpc/* under src/main/java only
