@@ -75,3 +75,4 @@ journal/
 /run.ui.out
 /gradle.ui.pid
 /.private-journal/
+/wave/bin/
