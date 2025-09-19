@@ -76,3 +76,4 @@ journal/
 /gradle.ui.pid
 /.private-journal/
 /wave/bin/
+/pst/bin/
