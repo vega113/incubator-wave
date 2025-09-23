@@ -18,10 +18,14 @@ Last updated: 2025-09-18
 - Viewport plumbing (Phase 4 / Task D): Implemented `ScreenController` + `ScreenControllerImpl`; added `DomScrollerImpl` with clamped, throttled scroll writes sharing `dynamicScrollThrottleMs` with renderer.
 - Dynamic renderer (Phase 5 / Task E): Implemented MVP windowing with page-in/out, placeholders, robust DOM reads, and resource cleanup on page-out via `BlipResourceCleaner` + `BlipAsyncRegistry`.
 - Resources: Added `Render.css` and loader; optimized placeholder toggling to avoid redundant DOM churn.
-- Fragment fetch (Phase 6 / Task F): `ClientFragmentRequester` now includes basic coalescing/backoff with metrics (`requesterSends`, `requesterCoalesced`). `/fragments` servlet continues to serve compat JSON; RPC path emits `ProtocolFragments` under `server.enableFetchFragmentsRpc`.
+- Fragment fetch (Phase 6 / Task F): the client now sends wave/wavelet/anchor hints to `/fragments`, sharing the same requester for `stream` and `http` modes while retaining metrics (`requesterSends`, `requesterCoalesced`).
+- Dynamic viewport fetch now builds a `FragmentRequester.RequestContext` (wave/wavelet, anchor, limit, `SegmentId` list). When `enableFragmentFetchViewChannel=true` the client can fetch fragments (starting with HTTP fallback and upgrading to `ViewChannel.fetchFragments` once the mux is ready).
+- Setting `enableFragmentFetchForceLayer` forces the stream requester even when the cache is cold,
+  logging `Dynamic fragments: force-layer override active…` to highlight the override.
 - Client fragments applier: `RealRawFragmentsApplier` (coverage merge) wired behind `wave.fragments.applier.impl` when `client.flags.defaults.enableFragmentsApplier=true`.
 - Observability: `/statusz?show=fragments` now includes requester metrics along with emission and applier counters.
 - Security hardening: server-side redirect validation (SignOutServlet, DataApiOAuthServlet) and safe Content‑Disposition for downloads (AttachmentServlet) via new HttpSanitizers helpers. Unit tests cover sanitization and header construction.
+- Stream/HTTP fragment fetch: dynamic renderer now surfaces visible blip ids, and the GWT requester issues `/fragments` calls using `waveId`, `waveletId`, `startBlipId`, and `limit`.
 
 - 2025-09-18 investigation: even with `fragmentFetchMode="stream"` and `forceClientFragments=true`, the server still emits full snapshots on initial open. The fragments payload is additive, so dynamic rendering sees all blips immediately; fetcher callbacks never trigger additional ranges. Clamp-only changes reduce client apply work but not payload size. Measurement plan captured in docs/blocks-adoption-plan.md (snapshot gating follow-up).
 
@@ -287,9 +291,10 @@ Goal: If desired, integrate wiab.pro’s fragment-fetch flow to reduce payload/C
     - Server: `WaveClientRpcImpl` attaches `ProtocolFragments` when `server.enableFetchFragmentsRpc=true`.
     - Client: `RemoteWaveViewService` now surfaces `ProtocolFragments` as a `FragmentsPayload` to `ViewChannelImpl`, which forwards it to listeners and, when enabled, to a global applier.
     - New enum: `fragmentFetchMode` = `off|http|stream` (client). StageTwo picks:
-      - `stream` → `ViewChannelFragmentRequester` (GWT-safe, no HTTP; relies on RPC fragments)
-      - `http` → `ClientFragmentRequester` (`/fragments` endpoint)
+      - `stream` → `ViewChannelFragmentRequester` (falls back to HTTP until mux ready) when `enableFragmentFetchViewChannel=true` or `enableFragmentFetchForceLayer=true`; otherwise no fetches are issued.
+      - `http` → `ClientFragmentRequester` (`/fragments` endpoint) when `enableFragmentFetchViewChannel=true` (or force-layer); otherwise no fetches are issued.
       - `off` → no requester
+    - Runtime logs highlight transitions: `Dynamic fragments: client fetch disabled; using NO_OP requester`, `Dynamic fragments: ViewChannel not ready, using HTTP fallback`, `Dynamic fragments: switching to ViewChannel fetch`, and `Dynamic fragments: force-layer override active…` when the override is in play.
     - Server-side default: set `server.fragments.transport = "stream"`. The server mirrors this to the client’s default `fragmentFetchMode` automatically at startup for all runs (dev/prod). You can still override on the command line: `-PclientFlags="fragmentFetchMode=http"`.
 
 -------------------------------------------------------------------------------
@@ -457,9 +462,8 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - When enabled, reduces initial load and keeps dynamic rendering responsive on very large waves
 
 - Status
-  - Implemented (legacy path) — 2025-09-01. Client: added `ClientFragmentRequester` (GWT RequestBuilder) used when `fragmentFetchMode=http`. Server: added `/fragments` servlet that echoes requested range. This is a placeholder for real fragment logic; feature remains optional and off by default.
-  - Addendum — 2025-09-01. `FragmentRequester` now includes `Callback` with `onSuccess/onError` for failures.
-  - Follow-up — 2025-09-18. Stream mode still emits full `WaveletSnapshot`s alongside fragments when `forceClientFragments` is true; incremental loading is deferred. Snapshot gating and a non-noop `ViewChannelFragmentRequester` remain tracked in docs/blocks-adoption-plan.md.
+  - Completed — 2025-09-18. Client stream/http modes now share the same anchor-based requester, issuing `/fragments` queries with wave id, wavelet id, and start blip hints; the servlet resolves anchors and returns ranges.
+  - Follow-up — 2025-09-18. Stream mode still emits full `WaveletSnapshot`s alongside fragments when `forceClientFragments` is true; snapshot gating remains deferred in docs/blocks-adoption-plan.md.
 
 -------------------------------------------------------------------------------
 
@@ -501,7 +505,7 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - Memory: compare heap snapshots idle vs. scrolled; ensure no growth trend after multiple scroll passes.
 
 - Fragment Fetch (stub) Tests
-- With `fragmentFetchMode=http`, verify network calls to `/fragments?top=..&bottom=..` occur during scroll and return 200 OK.
+- With `fragmentFetchMode=http` or `stream`, verify network calls to `/fragments` include `waveId`, `waveletId`, and `startBlipId` parameters and return 200 OK during scroll.
   - Confirm UI remains responsive even if `/fragments` returns non-200 (we log errors, no user-facing breakage).
 
 - Regression Tests (flag-off)
@@ -554,8 +558,9 @@ Each task below is self-contained for an AI agent, includes context, concrete st
   - `enableFragmentsApplier` (bool, default false; dev override true): enable lightweight fragment-window stats and optional client applier wiring.
   - `enableDynamicRendering` (bool, default false; dev override true): enable viewport windowing renderer.
   - `enableQuasiDeletionUi` (bool, default false; dev override true): enable quasi-deletion visual state.
-  - `enableFragmentFetch` (bool, default false; dev override true): allow the renderer to invoke fragment fetchers when configured.
   - `fragmentFetchMode` (enum: off|http|stream; default off; dev override stream): pick transport for fragments.
+  - `enableFragmentFetchViewChannel` (bool, default false; dev override true): allow the renderer to invoke fragment fetchers (HTTP fallback first, then stream when ready).
+  - `enableFragmentFetchForceLayer` (bool, default false; dev override false): force stream fetches without waiting for cache warm-up (testing only).
   - `dynamicPrerenderUpperPx` (int, default 600): prerender margin above viewport
   - `dynamicPrerenderLowerPx` (int, default 800): prerender margin below viewport
   - `dynamicPageOutSlackPx` (int, default 1200): offscreen slack before page-out
@@ -576,7 +581,8 @@ Each task below is self-contained for an AI agent, includes context, concrete st
     fragmentFetchMode = "off"
     enableDynamicRendering = false
     enableQuasiDeletionUi = false
-    enableFragmentFetch = false
+    enableFragmentFetchViewChannel = false
+    enableFragmentFetchForceLayer = false
     quasiDeletionDwellMs = 400
   }
   ```
@@ -587,7 +593,8 @@ Each task below is self-contained for an AI agent, includes context, concrete st
     fragmentFetchMode = "stream"
     enableDynamicRendering = true
     enableFragmentsApplier = true
-    enableFragmentFetch = true
+    enableFragmentFetchViewChannel = true
+    enableFragmentFetchForceLayer = false
     enableViewportStats = true
     enableQuasiDeletionUi = true
     quasiDeletionDwellMs = 1000

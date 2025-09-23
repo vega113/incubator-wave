@@ -488,8 +488,8 @@ public class ClientFlagsBase {
   // Conversation Renderer migration flags
   private final Boolean enableQuasiDeletionUi;
   private final Boolean enableDynamicRendering;
-  private final Boolean enableFragmentFetch;
   private final Boolean enableFragmentFetchViewChannel;
+  private final Boolean enableFragmentFetchForceLayer;
   private final String fragmentFetchMode;
   private final String initialViewportStartBlipId;
   private final String initialViewportDirection;
@@ -749,8 +749,8 @@ public class ClientFlagsBase {
         // Conversation Renderer migration flags
         "enableQuasiDeletionUi", enableQuasiDeletionUi,
         "enableDynamicRendering", enableDynamicRendering,
-        "enableFragmentFetch", enableFragmentFetch,
         "enableFragmentFetchViewChannel", enableFragmentFetchViewChannel,
+        "enableFragmentFetchForceLayer", enableFragmentFetchForceLayer,
         "fragmentFetchMode", fragmentFetchMode,
         "initialViewportStartBlipId", initialViewportStartBlipId,
         "initialViewportDirection", initialViewportDirection,
@@ -1001,8 +1001,8 @@ public class ClientFlagsBase {
     // Conversation Renderer migration flags (default: off)
     enableQuasiDeletionUi = helper.getBoolean(FlagConstants.ENABLE_QUASI_DELETION_UI, false);
     enableDynamicRendering = helper.getBoolean(FlagConstants.ENABLE_DYNAMIC_RENDERING, false);
-    enableFragmentFetch = helper.getBoolean(FlagConstants.ENABLE_FRAGMENT_FETCH, false);
     enableFragmentFetchViewChannel = helper.getBoolean(FlagConstants.ENABLE_FRAGMENT_FETCH_VIEW_CHANNEL, false);
+    enableFragmentFetchForceLayer = helper.getBoolean(FlagConstants.ENABLE_FRAGMENT_FETCH_FORCE_LAYER, false);
     String ffm = helper.getString(FlagConstants.FRAGMENT_FETCH_MODE, null);
     fragmentFetchMode = (ffm == null || ffm.trim().isEmpty()) ? null : ffm.trim().toLowerCase();
     initialViewportStartBlipId = helper.getString(FlagConstants.INITIAL_VIEWPORT_START_BLIP_ID, null);
@@ -1024,8 +1024,8 @@ public class ClientFlagsBase {
   /** Conversation Renderer migration flags */
   public Boolean enableQuasiDeletionUi() { return enableQuasiDeletionUi; }
   public Boolean enableDynamicRendering() { return enableDynamicRendering; }
-  public Boolean enableFragmentFetch() { return enableFragmentFetch; }
   public Boolean enableFragmentFetchViewChannel() { return enableFragmentFetchViewChannel; }
+  public Boolean enableFragmentFetchForceLayer() { return enableFragmentFetchForceLayer; }
   /**
    * Fragment fetch mode: "stream", "http", or "off". May be null when unset.
    */

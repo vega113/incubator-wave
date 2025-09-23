@@ -21,35 +21,51 @@ package org.waveprotocol.wave.client.wavepanel.render;
 
 import com.google.gwt.core.client.GWT;
 
+import org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.FailureKind;
+import org.waveprotocol.wave.concurrencycontrol.channel.ViewChannel;
+
 /**
  * GWT-safe requester that relies on the ViewChannel stream to deliver
  * fragments (ProtocolFragments) rather than issuing HTTP calls.
- *
- * Rationale
- * - When the server is configured to emit fragments on the RPC stream
- *   (server.enableFetchFragmentsRpc=true), the client receives
- *   ProtocolFragments as part of updates. Those are surfaced to
- *   {@code ViewChannelImpl} and optionally to a global applier.
- * - In that mode, the renderer does not need to actively fetch via HTTP; it
- *   only needs a "requester" that participates in the shaping cycle without
- *   doing network I/O. This class fulfills that contract.
- *
- * Behavior
- * - {@link #fetchRange(int, int, Callback)} succeeds immediately and logs at
- *   trace-level when GWT logging is enabled.
  */
 public final class ViewChannelFragmentRequester implements FragmentRequester {
 
+  /** Functional interface to obtain the current view channel lazily. */
+  public interface ChannelSupplier {
+    ViewChannel get();
+  }
+
+  private final ChannelSupplier channelSupplier;
+
+  public ViewChannelFragmentRequester(ChannelSupplier channelSupplier) {
+    this.channelSupplier = channelSupplier;
+  }
+
   @Override
-  public void fetchRange(int viewportTop, int viewportBottom, Callback cb) {
-    // In ViewChannel-driven mode, server-side emission occurs independently of
-    // this call (on update boundaries). We do not perform any network I/O.
-    try {
-      GWT.log("ViewChannelFragmentRequester: noop fetch top=" + viewportTop + ", bottom=" + viewportBottom);
-    } catch (Throwable ignored) {
-      // GWT log may not be available in some contexts
+  public void fetch(RequestContext request, Callback cb) {
+    ViewChannel channel = channelSupplier != null ? channelSupplier.get() : null;
+    if (channel == null || request == null || !request.isValid()) {
+      if (cb != null) {
+        cb.onSuccess();
+      }
+      return;
     }
-    if (cb != null) cb.onSuccess();
+    try {
+      channel.fetchFragments(request.waveletId, request.segments,
+          request.startVersion, request.endVersion);
+    } catch (Throwable ex) {
+      try {
+        GWT.log("ViewChannelFragmentRequester: fetchFragments failed", ex);
+      } catch (Throwable ignored) {
+        // ignore logging errors
+      }
+      if (cb != null) {
+        cb.onError(new RequestException("fetchFragments failed", FailureKind.RETRIABLE, ex));
+      }
+      return;
+    }
+    if (cb != null) {
+      cb.onSuccess();
+    }
   }
 }
-

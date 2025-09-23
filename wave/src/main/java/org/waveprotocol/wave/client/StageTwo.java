@@ -81,6 +81,7 @@ import org.waveprotocol.wave.client.wavepanel.render.InlineAnchorLiveRenderer;
 import org.waveprotocol.wave.client.wavepanel.render.LiveConversationViewRenderer;
 import org.waveprotocol.wave.client.wavepanel.render.PagingHandlerProxy;
 import org.waveprotocol.wave.client.wavepanel.render.ReplyManager;
+import org.waveprotocol.wave.client.wavepanel.render.ViewChannelFragmentRequester;
 import org.waveprotocol.wave.client.wavepanel.render.ShallowBlipRenderer;
 import org.waveprotocol.wave.client.wavepanel.render.UndercurrentShallowBlipRenderer;
 import org.waveprotocol.wave.client.wavepanel.view.ModelIdMapper;
@@ -102,7 +103,8 @@ import org.waveprotocol.wave.client.render.undercurrent.ScreenControllerImpl;
 import org.waveprotocol.wave.client.wavepanel.render.RenderCssLoader;
 import org.waveprotocol.wave.client.wavepanel.render.DynamicRendererImpl;
 import org.waveprotocol.wave.client.wavepanel.render.FragmentRequester;
-import org.waveprotocol.wave.client.wavepanel.render.ViewChannelFragmentRequester;
+import org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.RequestContext;
+import org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.Callback;
 import org.waveprotocol.wave.client.wavepanel.render.ClientFragmentRequester;
 import org.waveprotocol.wave.client.wavepanel.render.ViewportProbe;
 import org.waveprotocol.wave.model.conversation.quasi.QuasiConversationViewAdapter;
@@ -110,6 +112,7 @@ import org.waveprotocol.wave.common.logging.LoggerBundle;
 import org.waveprotocol.wave.concurrencycontrol.channel.OperationChannelMultiplexer;
 import org.waveprotocol.wave.concurrencycontrol.channel.OperationChannelMultiplexerImpl;
 import org.waveprotocol.wave.concurrencycontrol.channel.OperationChannelMultiplexerImpl.LoggerContext;
+import org.waveprotocol.wave.concurrencycontrol.channel.ViewChannel;
 import org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelFactory;
 import org.waveprotocol.wave.concurrencycontrol.channel.ViewChannelImpl;
 import org.waveprotocol.wave.concurrencycontrol.channel.ClientStatsRawFragmentsApplier;
@@ -589,6 +592,7 @@ public interface StageTwo {
                             unsyncedListeners,
                             scheduler,
                             hashFactory);
+            operationChannelMultiplexer = mux;
 
             final WaveViewImpl<OpBasedWavelet> wave = getWave();
 
@@ -606,6 +610,9 @@ public interface StageTwo {
                 @Override
                 public void close() {
                     mux.close();
+                    if (operationChannelMultiplexer == mux) {
+                        operationChannelMultiplexer = null;
+                    }
                 }
             };
         }
@@ -848,7 +855,8 @@ public interface StageTwo {
 
         protected void configureFragmentsAndDynamicRendering() {
             boolean dynamicEnabled = Boolean.TRUE.equals(ClientFlags.get().enableDynamicRendering());
-            boolean fragmentFetchEnabled = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetch());
+            boolean fragmentFetchEnabled = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchViewChannel())
+                    || Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchForceLayer());
             String fragmentMode = null;
             try {
                 fragmentMode = ClientFlags.get().fragmentFetchMode();
@@ -861,7 +869,7 @@ public interface StageTwo {
                 GWT.log("Failed to set fragment fetch mode", t);
             }
             try {
-                GWT.log("StageTwo: dynamic=" + dynamicEnabled + ", fragmentMode=" + fragmentMode + ", fetch=" + fragmentFetchEnabled);
+                GWT.log("StageTwo: dynamic=" + dynamicEnabled + ", fragmentMode=" + fragmentMode + ", fetchFlag=" + fragmentFetchEnabled);
             } catch (Throwable t) {
                 GWT.log("Failed to set debug mode", t);
             }
@@ -919,13 +927,66 @@ public interface StageTwo {
                     if (screen != null && getConversations() != null && getModelAsViewProvider() != null
                             && getBlipQueue() != null && getPagingHandler() != null) {
                         FragmentRequester requester;
-                        if (fragmentMode != null) {
+                        boolean viewFetch = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchViewChannel());
+                        boolean forceLayer = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchForceLayer());
+                        boolean fetchEnabled = viewFetch || forceLayer;
+                        boolean allowStream = viewFetch || forceLayer;
+                        if (!fetchEnabled) {
+                            try { GWT.log("Dynamic fragments: client fetch disabled; using NO_OP requester"); }
+                            catch (Throwable ignore) {}
+                        }
+                        if (fetchEnabled && fragmentMode != null) {
                             switch (fragmentMode) {
                                 case "stream":
-                                    requester = new ViewChannelFragmentRequester();
+                                    if (!allowStream) {
+                                        requester = FragmentRequester.NO_OP;
+                                    } else {
+                                        final ClientFragmentRequester httpRequester = new ClientFragmentRequester();
+                                        final ViewChannelFragmentRequester streamRequester = new ViewChannelFragmentRequester(new ViewChannelFragmentRequester.ChannelSupplier() {
+                                            @Override public ViewChannel get() {
+                                                return operationChannelMultiplexer != null
+                                                        ? operationChannelMultiplexer.getViewChannel()
+                                                        : null;
+                                            }
+                                        });
+                                        final boolean force = forceLayer;
+                                        requester = new FragmentRequester() {
+                                            private boolean loggedHttpFallback = false;
+                                            private boolean loggedStreamUpgrade = false;
+                                            private boolean loggedForcedLayer = false;
+
+                                            @Override public void fetch(RequestContext request, Callback cb) {
+                                                ViewChannel channel = operationChannelMultiplexer != null
+                                                        ? operationChannelMultiplexer.getViewChannel()
+                                                        : null;
+                                                if (channel != null || force) {
+                                                    if (force && channel == null && !loggedForcedLayer) {
+                                                        try { GWT.log("Dynamic fragments: force-layer override active; attempting ViewChannel fetch without cache warmup"); }
+                                                        catch (Throwable ignore) {}
+                                                        loggedForcedLayer = true;
+                                                    }
+                                                    if (!loggedStreamUpgrade) {
+                                                        try { GWT.log("Dynamic fragments: switching to ViewChannel fetch"); }
+                                                        catch (Throwable ignore) {}
+                                                        loggedStreamUpgrade = true;
+                                                    }
+                                                    streamRequester.fetch(request, cb);
+                                                } else {
+                                                    if (!loggedHttpFallback) {
+                                                        try { GWT.log("Dynamic fragments: ViewChannel not ready, using HTTP fallback"); }
+                                                        catch (Throwable ignore) {}
+                                                        loggedHttpFallback = true;
+                                                    }
+                                                    httpRequester.fetch(request, cb);
+                                                }
+                                            }
+                                        };
+                                    }
                                     break;
                                 case "http":
                                     requester = new ClientFragmentRequester();
+                                    try { GWT.log("Dynamic fragments: using HTTP fragment requester"); }
+                                    catch (Throwable ignore) {}
                                     break;
                                 case "off":
                                 default:
@@ -953,6 +1014,7 @@ public interface StageTwo {
         // Quasi-deletion adapter for renderers interested in pre-delete callbacks.
         private QuasiConversationViewAdapter quasiAdapter;
         private PagingHandlerProxy pagingHandlerProxy;
+        private OperationChannelMultiplexer operationChannelMultiplexer;
 
         protected QuasiConversationViewAdapter getQuasiAdapter() {
             if (quasiAdapter == null && Boolean.TRUE.equals(ClientFlags.get().enableQuasiDeletionUi())) {

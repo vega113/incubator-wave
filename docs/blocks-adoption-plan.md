@@ -14,6 +14,7 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
 - Client applier path: RealRawFragmentsApplier (coverage merge) in place with integration‑lite wiring via ViewChannelImpl; selector via `wave.fragments.applier.impl` remains.
 - Manifest‑order cache finalized on Caffeine (LRU + TTL); counters preserved; stress tests gated (:wave:testStress).
 - Requester plumbing: FragmentRequesterImpl now exposes lightweight metrics (`requesterSends`, `requesterCoalesced`), surfaced in `/statusz?show=fragments`.
+- Dynamic renderer now provides a structured `FragmentRequester.RequestContext` (wave/wavelet, anchor, limit, segment list). `enableFragmentFetchViewChannel=true` enables fragment fetching (HTTP fallback first, then view-channel once ready). `enableFragmentFetchForceLayer` remains a test-only override.
 - Security hardening:
   - Added HttpSanitizers with `stripHeaderBreakingChars`, `isSafeRelativeRedirect`, RFC5987 `rfc5987Encode`, and `buildContentDispositionAttachment` helpers.
   - SignOutServlet validates relative redirect param `r` before `sendRedirect`.
@@ -21,7 +22,7 @@ Reference-centric summary (see docs/fragments-viewport-behavior.md and docs/frag
   - AttachmentServlet now sets a safe Content‑Disposition with ASCII fallback and RFC 5987 `filename*`.
 - Tests added: HttpSanitizersTest (sanitization + content‑disposition), FragmentRequesterMetricsTest (metrics), extended DataApiOAuthServletTest (redirect sanitization).
  - Storage metrics: `stateHits`, `stateMisses`, `statePartial`, `stateErrors` now instrument the prefer‑state path. See docs/fragments-config.md for detailed interpretations and operator guidance.
-- 2025-09-18 investigation: with `forceClientFragments=true` the server still emits full `WaveletSnapshot`s on open; fragments payloads arrive alongside the snapshot, so the client renders all blips immediately. Clamp (`fragmentsApplierMaxRanges`) only limits per-batch apply work and does not reduce payload size. Dynamic renderer metrics show fewer blips paged-in but do not indicate deferred data load.
+- 2025-09-18 investigation: with `forceClientFragments=true` the server still emits full `WaveletSnapshot`s on open; fragments payloads arrive alongside the snapshot, so the client renders all blips immediately. Clamp (`fragmentsApplierMaxRanges`) only limits per-batch apply work and does not reduce payload size. Dynamic renderer metrics show fewer blips paged-in but do not indicate deferred data load. Anchor-based `/fragments` requests are now wired from the client, but snapshot gating remains a follow-up.
 
 ### Verification Details (2025-09-10)
 
@@ -484,7 +485,7 @@ Success criteria
 - Skip initial `WaveletSnapshot` when `forceClientFragments` or equivalent fragment-only mode is active so the client can rely on ranges.
 - Ensure `ViewChannelImpl` and renderer tolerate snapshot-absent opens; guard downstream callers.
 - Measurement plan: capture WebSocket frame sizes, client scripting time, and `/statusz?show=fragments` metrics before/after the change (see docs/migrate-conversation-renderer-to-apache-wave.md for dynamic renderer context).
-- Follow-on: wire `ViewChannelFragmentRequester` to call `ViewChannel.fetchFragments` so scroll-triggered fetches request new ranges instead of no-op logging.
+- Follow-on: once snapshot gating lands, consider replacing the HTTP fallback with a native RPC requester.
 
 ### Task 6.2 — Cleanup deprecated flags/paths
 

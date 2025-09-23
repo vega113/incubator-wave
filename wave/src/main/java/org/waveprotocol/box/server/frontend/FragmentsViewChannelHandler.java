@@ -21,8 +21,10 @@ package org.waveprotocol.box.server.frontend;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 
 import com.google.common.collect.ImmutableMap;
@@ -52,14 +54,16 @@ public final class FragmentsViewChannelHandler {
     private final boolean enabled;
     private final boolean preferSegmentState;
     private final boolean enableStorageSegmentState;
+    private final String transportMode;
 
     public FragmentsViewChannelHandler(WaveletProvider provider, Config config) {
         this.provider = provider;
         boolean en = false;
         boolean prefer = false;
+        String transport = null;
         // Unified transport takes precedence
         try {
-            String transport = config.hasPath("server.fragments.transport")
+            transport = config.hasPath("server.fragments.transport")
                 ? config.getString("server.fragments.transport").trim().toLowerCase() : null;
             if (transport != null) {
                 en = "stream".equals(transport) || "both".equals(transport);
@@ -87,10 +91,11 @@ public final class FragmentsViewChannelHandler {
             } catch (Exception ignored) { /* default false */ }
         } else {
             LOG.fine("Config flag not set: server.enableStorageSegmentState; defaulting to false");
-        }
-        this.enabled = en;
-        this.preferSegmentState = prefer;
-        this.enableStorageSegmentState = storage;
+       }
+       this.enabled = en;
+       this.preferSegmentState = prefer;
+       this.enableStorageSegmentState = storage;
+        this.transportMode = transport;
     }
 
     public static FragmentsViewChannelHandler create(WaveletProvider provider) {
@@ -276,7 +281,7 @@ public final class FragmentsViewChannelHandler {
             }
         }
         catch (Exception e) {
-            LOG.warning("computeVisibleSegments failed; falling back to INDEX/MANIFEST only", e);
+            logFallback("manifest", e);
             if (FragmentsMetrics.isEnabled()) {
                 FragmentsMetrics.computeFallbacks.incrementAndGet();
             }
@@ -319,11 +324,29 @@ public final class FragmentsViewChannelHandler {
             }
         }
         catch (Exception e) {
-            LOG.warning("computeVisibleSegments(viewport) failed; using INDEX/MANIFEST only", e);
+            logFallback("viewport", e);
             if (FragmentsMetrics.isEnabled()) {
                 FragmentsMetrics.computeFallbacks.incrementAndGet();
             }
         }
         return out;
+    }
+
+    private void logFallback(String phase, Exception e) {
+        boolean transientIssue = isTransient(e);
+        Level level = transientIssue ? Level.INFO : Level.WARNING;
+        String severity = transientIssue ? "transient" : "permanent";
+        LOG.log(level, "computeVisibleSegments(" + phase + ") fallback (" + severity
+            + ", transport=" + (transportMode == null ? "unset" : transportMode) + ")", e);
+    }
+
+    private boolean isTransient(Throwable t) {
+        while (t != null) {
+            if (t instanceof WaveServerException || t instanceof IOException || t instanceof TimeoutException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 }

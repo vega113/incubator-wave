@@ -26,6 +26,9 @@ import org.waveprotocol.box.server.frontend.FragmentsFetcherCompat;
 import org.waveprotocol.box.server.frontend.FragmentsRequest;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.id.SegmentId;
+import org.waveprotocol.wave.model.id.WaveId;
+import org.waveprotocol.wave.model.id.WaveletId;
+import org.waveprotocol.wave.model.id.ModernIdSerialiser;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.wave.model.waveref.WaveRef;
@@ -67,8 +70,23 @@ public final class FragmentsServlet extends HttpServlet {
     if (user == null) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return; }
 
     String ref = req.getParameter("ref");
-    if (ref == null || ref.isEmpty()) { resp.setStatus(HttpServletResponse.SC_BAD_REQUEST); return; }
-    WaveletName wn = decodeWaveletName(ref);
+    WaveletName wn = null;
+    if (ref != null && !ref.isEmpty()) {
+      wn = decodeWaveletName(ref);
+    }
+    if (wn == null) {
+      String waveIdParam = req.getParameter("waveId");
+      String waveletIdParam = req.getParameter("waveletId");
+      if (waveIdParam != null && waveletIdParam != null) {
+        try {
+          WaveId waveId = ModernIdSerialiser.INSTANCE.deserialiseWaveId(waveIdParam);
+          WaveletId waveletId = ModernIdSerialiser.INSTANCE.deserialiseWaveletId(waveletIdParam);
+          wn = WaveletName.of(waveId, waveletId);
+        } catch (Exception ex) {
+          wn = null;
+        }
+      }
+    }
     if (wn == null) { resp.setStatus(HttpServletResponse.SC_BAD_REQUEST); return; }
 
     String start = req.getParameter("startBlipId");

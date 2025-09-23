@@ -73,7 +73,8 @@ public final class ClientApplierStatsServlet extends HttpServlet {
     return out;
   }
 
-  private static final class Stats {
+  private static final class Stats implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     final int applied; final int rejected;
     Stats(int a, int r) { applied = a; rejected = r; }
   }

@@ -200,8 +200,10 @@ public final class FragmentsDebugIndicator {
       }
       fragmentMode = (mode == null) ? "" : mode;
       try {
-        Boolean fetch = org.waveprotocol.wave.client.util.ClientFlags.get().enableFragmentFetch();
-        fragmentFetchEnabled = fetch != null && fetch.booleanValue();
+        Boolean fetchStream = org.waveprotocol.wave.client.util.ClientFlags.get().enableFragmentFetchViewChannel();
+        Boolean forceLayer = org.waveprotocol.wave.client.util.ClientFlags.get().enableFragmentFetchForceLayer();
+        fragmentFetchEnabled = (fetchStream != null && fetchStream.booleanValue())
+            || (forceLayer != null && forceLayer.booleanValue());
       } catch (Throwable ignore) {
       }
       try {

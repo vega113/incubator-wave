@@ -24,6 +24,9 @@ import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Timer;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.waveprotocol.wave.client.debug.FragmentsDebugIndicator;
 import org.waveprotocol.wave.client.render.undercurrent.ScreenController;
 import org.waveprotocol.wave.client.util.ClientFlags;
@@ -36,10 +39,17 @@ import org.waveprotocol.wave.client.wavepanel.view.impl.BlipViewImpl;
 import org.waveprotocol.wave.model.conversation.BlipMappers;
 import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ConversationListenerImpl;
+import org.waveprotocol.wave.model.conversation.Conversation;
 import org.waveprotocol.wave.model.conversation.ObservableConversation;
 import org.waveprotocol.wave.model.conversation.ObservableConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationThread;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
+import org.waveprotocol.wave.model.conversation.WaveletBasedConversation;
+import org.waveprotocol.wave.model.wave.ObservableWavelet;
+import org.waveprotocol.wave.model.id.SegmentId;
+import org.waveprotocol.wave.model.id.WaveId;
+import org.waveprotocol.wave.model.id.WaveletId;
+import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView.Listener;
 import org.waveprotocol.wave.model.util.Predicate;
 
@@ -74,6 +84,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
   private int throttleMs = 50;
   private boolean logStats = false;
   private int bootstrapMax = 12;
+  private boolean fragmentFetchEnabledFlag = false;
   private int totalBlips = 0;
   private double startMs = -1;
 
@@ -88,8 +99,10 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
   private boolean fetchRetryScheduled = false;
   private int retryBackoffMs = 500; // start backoff at 0.5s
   private static final int MAX_RETRY_BACKOFF_MS = 5000;
-  private int lastFetchTop = 0;
-  private int lastFetchBottom = 0;
+  private static final int MAX_FETCH_RETRIES = 6;
+  private boolean loggedFetchDisabled = false;
+  private FragmentRequester.RequestContext lastFetchRequest = null;
+  private double lastFetchMs = 0;
 
   public static DynamicRendererImpl create(ObservableConversationView view,
       ModelAsViewProvider modelAsView, BlipQueueRenderer queue, PagingHandler pager,
@@ -118,6 +131,14 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       if (ClientFlags.get().dynamicScrollThrottleMs() != null) throttleMs = ClientFlags.get().dynamicScrollThrottleMs();
       if (ClientFlags.get().dynamicSpeedBoostThresholdPx() != null) speedBoostThresholdPx = ClientFlags.get().dynamicSpeedBoostThresholdPx();
       if (ClientFlags.get().dynamicSpeedBoostFactor() != null) speedBoostFactor = ClientFlags.get().dynamicSpeedBoostFactor();
+      boolean viewFetch = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchViewChannel());
+      boolean forceLayer = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchForceLayer());
+      fragmentFetchEnabledFlag = viewFetch || forceLayer;
+      if (!fragmentFetchEnabledFlag && !loggedFetchDisabled) {
+        try { GWT.log("DynamicRenderer: fragment fetch disabled"); }
+        catch (Throwable ignore) {}
+        loggedFetchDisabled = true;
+      }
       logStats = Boolean.TRUE.equals(ClientFlags.get().enableViewportStats());
       // Allow optional bootstrap window size via prerender lower bound heuristic
       if (ClientFlags.get().dynamicPrerenderLowerPx() != null) {
@@ -202,6 +223,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       enqueueBootstrapWindow();
     }
 
+    final List<ConversationBlip> visibleNow = new ArrayList<ConversationBlip>();
     BlipMappers.depthFirst(new Predicate<ConversationBlip>() {
       @Override
       public boolean apply(ConversationBlip blip) {
@@ -231,6 +253,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
         }
         boolean isVisible = intersects(absTop, absTop + h, top, bottom);
         if (isVisible) {
+          visibleNow.add(blip);
           if (!pagedIn.contains(blip)) {
             queue.add(blip);
             pagedIn.add(blip);
@@ -247,15 +270,7 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     }, view);
 
     try {
-      if (Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetch())) {
-        doFragmentFetch(top, bottom);
-      }
-    } catch (Exception ex) {
-      GWT.log("DynamicRenderer: fragment fetch threw", ex);
-    }
-
-    // Dev badge: report blip load stats (paged-in vs total) and elapsed time since init
-    try {
+      maybeRequestFragments(visibleNow);
       int visible = pagedIn.size();
       int total = Math.max(totalBlips, visible);
       int elapsed;
@@ -493,30 +508,48 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     });
   }
 
-  private void doFragmentFetch(int top, int bottom) {
-    // Record last requested range for potential retry
-    lastFetchTop = top;
-    lastFetchBottom = bottom;
-    fragmentRequester.fetchRange(top, bottom, new FragmentRequester.Callback() {
+  private void doFragmentFetch(final FragmentRequester.RequestContext request) {
+    lastFetchRequest = request;
+    fragmentRequester.fetch(request, new FragmentRequester.Callback() {
       @Override public void onSuccess() {
         consecutiveFetchFailures = 0;
         retryBackoffMs = 500;
         fetchRetryScheduled = false;
+        lastFetchMs = Duration.currentTimeMillis();
       }
       @Override public void onError(Throwable error) {
-        consecutiveFetchFailures = consecutiveFetchFailures + 1;
-        // Provide simple developer feedback after a few consecutive failures
-        if (consecutiveFetchFailures >= 3 && (consecutiveFetchFailures % 3) == 0) {
-          GWT.log("DynamicRenderer: fragment fetch failing repeatedly (" + consecutiveFetchFailures + ")");
+        boolean retriable = true;
+        if (error instanceof FragmentRequester.RequestException) {
+          retriable = ((FragmentRequester.RequestException) error).isRetriable();
         }
-        scheduleFetchRetry();
+        if (!retriable) {
+          fetchRetryScheduled = false;
+          lastFetchRequest = null;
+          consecutiveFetchFailures = 0;
+          try { GWT.log("DynamicRenderer: fragment fetch returned non-retriable error " + error.getMessage()); }
+          catch (Throwable ignore) {}
+          return;
+        }
+        consecutiveFetchFailures = consecutiveFetchFailures + 1;
+        if (consecutiveFetchFailures >= 3 && (consecutiveFetchFailures % 3) == 0) {
+          try { GWT.log("DynamicRenderer: fragment fetch failing repeatedly (" + consecutiveFetchFailures + ")"); }
+          catch (Throwable ignore) {}
+        }
+        if (consecutiveFetchFailures >= MAX_FETCH_RETRIES) {
+          fetchRetryScheduled = false;
+          lastFetchRequest = null;
+          try { GWT.log("DynamicRenderer: fragment fetch retries exhausted (" + consecutiveFetchFailures + ")"); }
+          catch (Throwable ignore) {}
+        } else {
+          scheduleFetchRetry();
+        }
       }
     });
   }
 
   private void scheduleFetchRetry() {
     boolean shouldSchedule = !fetchRetryScheduled;
-    if (shouldSchedule) {
+    if (shouldSchedule && consecutiveFetchFailures < MAX_FETCH_RETRIES) {
       fetchRetryScheduled = true;
       final int delay = retryBackoffMs;
       // Exponential backoff with a cap
@@ -525,10 +558,72 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       Timer t = new Timer() {
         @Override public void run() {
           fetchRetryScheduled = false;
-          doFragmentFetch(lastFetchTop, lastFetchBottom);
+          if (lastFetchRequest != null && lastFetchRequest.isValid()) {
+            doFragmentFetch(lastFetchRequest);
+          }
         }
       };
       t.schedule(delay);
     }
+  }
+
+  private void maybeRequestFragments(List<ConversationBlip> visibleBlips) {
+    if (!fragmentFetchEnabledFlag || fragmentRequester == FragmentRequester.NO_OP) {
+      return;
+    }
+    if (visibleBlips == null || visibleBlips.isEmpty()) {
+      return;
+    }
+    Conversation conversation = visibleBlips.get(0).getConversation();
+    if (!(conversation instanceof WaveletBasedConversation)) {
+      return;
+    }
+    WaveletBasedConversation waveletConversation = (WaveletBasedConversation) conversation;
+    ObservableWavelet wavelet = waveletConversation.getWavelet();
+      WaveletId waveletId = wavelet.getId();
+    WaveId waveId = wavelet.getWaveId();
+    if (waveletId == null || waveId == null) {
+      return;
+    }
+    String anchor = visibleBlips.get(0).getId();
+    if (anchor == null || anchor.isEmpty()) {
+      return;
+    }
+    int limit = Math.max(visibleBlips.size() + 4, 8);
+    java.util.List<SegmentId> segments = new ArrayList<SegmentId>(visibleBlips.size() + 2);
+    segments.add(SegmentId.INDEX_ID);
+    segments.add(SegmentId.MANIFEST_ID);
+    for (ConversationBlip blip : visibleBlips) {
+      String id = blip != null ? blip.getId() : null;
+      if (id != null && !id.isEmpty()) {
+        segments.add(SegmentId.ofBlipId(id));
+      }
+    }
+    long startVersion = Math.max(0L, wavelet.getVersion());
+    long endVersion = startVersion;
+    try {
+      HashedVersion hashed = wavelet.getHashedVersion();
+      if (hashed != null && hashed.getVersion() > endVersion) {
+        endVersion = hashed.getVersion();
+      }
+    } catch (Throwable ignore) {
+      // fall back to startVersion when hashed version is unavailable
+    }
+    FragmentRequester.RequestContext request = new FragmentRequester.RequestContext(
+        waveId, waveletId, anchor, limit, segments, startVersion, endVersion);
+    if (!request.isValid()) {
+      return;
+    }
+    double now = Duration.currentTimeMillis();
+    if (lastFetchRequest != null
+        && waveletId.equals(lastFetchRequest.waveletId)
+        && anchor.equals(lastFetchRequest.anchorBlipId)
+        && lastFetchRequest.startVersion == request.startVersion
+        && lastFetchRequest.endVersion == request.endVersion
+        && (now - lastFetchMs) < 500) {
+      return;
+    }
+    lastFetchMs = now;
+    doFragmentFetch(request);
   }
 }

@@ -23,12 +23,93 @@ emission and selection, and which fallbacks/metrics apply.
 4. Final fallback: `INDEX` and `MANIFEST` only when selection fails.
 
 ## Fallbacks and Metrics
-- `computeFallbacks`: manifest/time-based computation failed; selection fell back to safe defaults.
-- `emissionFallbacks`: only `INDEX`/`MANIFEST` emitted in the update.
-- `viewportAmbiguity`: ambiguous hints seen; defaults applied.
-- HTTP counters (if `/fragments` is enabled): `httpRequests`, `httpOk`, `httpErrors`.
 
-View under `/statusz?show=fragments`.
+### Deterministic Fallback Order
+The server always evaluates viewport hints in the following order, recording
+metrics at the first point where a deterministic outcome is no longer possible:
+
+1. **Manifest order window** – attempt to build a window centred on the anchor
+   using cached manifest order. Failure increments `computeFallbacks` **only** if
+   we cannot assemble a contiguous manifest slice.
+2. **Time-based (mtime/id) ordering** – if manifest order is unavailable or
+   incomplete, fall back to metadata ordering. When this path succeeds the
+   range is still considered deterministic; `computeFallbacks` remains untouched.
+3. **Safety window** – when both manifest and time-based selections fail, the
+   handler emits INDEX/MANIFEST segments only and increments `computeFallbacks`
+   and `emissionFallbacks`.
+
+### Ambiguity vs. Fallback Metrics
+- `viewportAmbiguity`: increments when user-provided hints are insufficient or
+  invalid (missing anchor, non-existent anchor, direction without limit). This
+  happens **before** any selection attempt and is independent from
+  `computeFallbacks`.
+- `computeFallbacks`: indicates the selection logic exhausted deterministic
+  orderings (manifest/time). This does not imply ambiguity—well-formed hints can
+  still trigger a fallback when caches are cold or the wavelet lacks ordering
+  metadata.
+- `emissionFallbacks`: emitted payload contained only INDEX/MANIFEST segments.
+- HTTP counters (when `/fragments` is enabled): `httpRequests`, `httpOk`,
+  `httpErrors`.
+
+You can inspect all counters via `/statusz?show=fragments`.
+
+## Client Flag & Transport Logging
+- Fragment fetching is gated by `enableFragmentFetchViewChannel=true`. The
+  override `enableFragmentFetchForceLayer=true` forces stream requests even
+  before cache warm-up and should be used only for focused testing.
+- When both flags are false the renderer remains virtualised and does not issue
+  fragment requests; this is logged as
+  `Dynamic fragments: client fetch disabled; using NO_OP requester`.
+- Runtime logs use the following phrases for clarity during warm-up:
+  - `Dynamic fragments: client fetch disabled; using NO_OP requester`
+  - `Dynamic fragments: ViewChannel not ready, using HTTP fallback`
+  - `Dynamic fragments: switching to ViewChannel fetch`
+  These logs make the active transport explicit whenever the client changes
+  behaviour.
+
+
+### Pseudo Handling API
+The simplified server flow looks like this:
+
+```pseudo
+function selectSegments(hints, snapshot):
+  order = manifestCache.lookup(snapshot.wavelet)
+  if order.present:
+    window = order.takeWindow(hints.anchor, hints.direction, hints.limit)
+    if window.exists:
+      return Result(window, metrics())
+
+  // Manifest miss triggers manifestation of computeFallbacks if we entered here
+  metrics.computeFallbacks++
+  window = metadataOrder(snapshot).takeWindow(hints.anchor, hints.direction, hints.limit)
+  if window.exists:
+    return Result(window, metrics())
+
+  metrics.computeFallbacks++
+  metrics.emissionFallbacks++
+  return Result([INDEX, MANIFEST], metrics())
+```
+
+Ambiguity detection happens before this routine and increments
+`metrics.viewportAmbiguity` when hints cannot be normalised.
+
+### Debug/Test Checklist
+1. **Ambiguous input** – omit `startBlipId` and assert `viewportAmbiguity` rises
+   while `computeFallbacks` stays zero, verifying defaults were applied.
+2. **Manifest miss** – prime the cache with `ManifestOrderCache.reset()` (test
+   only) and request a window; expect `computeFallbacks` to increment once while
+   the fallback window still returns blips in metadata order.
+3. **Safety window** – craft a wavelet with no blips (or filter all out) and
+   ensure both `computeFallbacks` and `emissionFallbacks` increment; payload
+   should contain only INDEX/MANIFEST.
+4. **HTTP fallback** – when running with `/fragments` enabled, validate that 404
+   responses bump `httpErrors` and do not interfere with ambiguity metrics.
+5. **Mixed scenarios** – combine ambiguous hints with manifest cache misses; the
+   expected metrics are `viewportAmbiguity` **and** `computeFallbacks` to capture
+   both phases independently.
+
+Documenting these explicit combinations in integration tests prevents ambiguity
+regressions and makes dashboards easier to interpret.
 
 ## Text Diagrams
 
@@ -132,6 +213,5 @@ MANIFEST are included first.
 ## Current Limitations (2025-09-18)
 - When `forceClientFragments=true` the server still sends a full `WaveletSnapshot` on the initial `ViewChannel` update. The fragments window is additive, so the browser renders all blips immediately despite the clamp.
 - `fragmentsApplierMaxRanges` only trims how many ranges the client applier processes per batch; it does not reduce the payload size the server sends.
-- The current `ViewChannelFragmentRequester` in stream mode is a no-op, so scrolling does not trigger additional fragment fetches. Wiring it to `ViewChannel.fetchFragments` remains pending.
+- Stream mode now issues `ViewChannel.fetchFragments` with the current viewport segment list when `enableFragmentFetchViewChannel=true`; if the flag is off it falls back to the HTTP `/fragments` anchor request. Snapshot gating remains the limiting factor for incremental load.
 - Observability via the fragments badge (`FragmentsDebugIndicator`) shows paged-in counts (e.g., `Blips 3/5`) even when all blips have been fetched; treat it as a UI virtualization indicator rather than evidence of deferred data load.
-
