@@ -443,6 +443,7 @@ public class ServerMain {
       setEffectiveTransportSystemProperties(config, transport);
 
       if (isFragmentsHttpEnabled(transport)) {
+        server.addServlet("/fragments", FragmentsServlet.class);
         server.addServlet("/fragments/*", FragmentsServlet.class);
       } else {
         LOG.info("Fragments HTTP endpoint is disabled (effective transport='" + transport + "')");
