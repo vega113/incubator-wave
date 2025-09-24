@@ -855,14 +855,17 @@ public interface StageTwo {
 
         protected void configureFragmentsAndDynamicRendering() {
             boolean dynamicEnabled = Boolean.TRUE.equals(ClientFlags.get().enableDynamicRendering());
-            boolean fragmentFetchEnabled = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchViewChannel())
-                    || Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchForceLayer());
+            boolean viewFetchEnabled = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchViewChannel());
+            boolean forceLayerEnabled = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchForceLayer());
             String fragmentMode = null;
+            boolean httpModeRequested = false;
             try {
                 fragmentMode = ClientFlags.get().fragmentFetchMode();
+                httpModeRequested = "http".equals(fragmentMode);
             } catch (Throwable t) {
                 GWT.log("Failed to get fragment fetch mode", t);
             }
+            boolean fragmentFetchEnabled = viewFetchEnabled || forceLayerEnabled || httpModeRequested;
             try {
                 FragmentsDebugIndicator.setClientFlags(fragmentMode, fragmentFetchEnabled, dynamicEnabled);
             } catch (Throwable t) {
@@ -927,10 +930,8 @@ public interface StageTwo {
                     if (screen != null && getConversations() != null && getModelAsViewProvider() != null
                             && getBlipQueue() != null && getPagingHandler() != null) {
                         FragmentRequester requester;
-                        boolean viewFetch = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchViewChannel());
-                        boolean forceLayer = Boolean.TRUE.equals(ClientFlags.get().enableFragmentFetchForceLayer());
-                        boolean fetchEnabled = viewFetch || forceLayer;
-                        boolean allowStream = viewFetch || forceLayer;
+                        boolean fetchEnabled = fragmentFetchEnabled;
+                        boolean allowStream = viewFetchEnabled || forceLayerEnabled;
                         if (!fetchEnabled) {
                             try { GWT.log("Dynamic fragments: client fetch disabled; using NO_OP requester"); }
                             catch (Throwable ignore) {}
@@ -949,7 +950,7 @@ public interface StageTwo {
                                                         : null;
                                             }
                                         });
-                                        final boolean force = forceLayer;
+                                        final boolean force = forceLayerEnabled;
                                         requester = new FragmentRequester() {
                                             private boolean loggedHttpFallback = false;
                                             private boolean loggedStreamUpgrade = false;

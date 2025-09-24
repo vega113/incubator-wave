@@ -440,9 +440,9 @@ public class ServerMain {
 
       // Mirror effective transport + booleans into system properties so ConfigFactory.load()
       // (used by StatuszServlet) sees consistent values regardless of source.
-      setEffectiveTransportSystemProperties(transport);
+      setEffectiveTransportSystemProperties(config, transport);
 
-      if ("http".equals(transport) || "both".equals(transport)) {
+      if (isFragmentsHttpEnabled(transport)) {
         server.addServlet("/fragments/*", FragmentsServlet.class);
       } else {
         LOG.info("Fragments HTTP endpoint is disabled (effective transport='" + transport + "')");
@@ -499,18 +499,38 @@ public class ServerMain {
    * Mirrors the configured transport into system properties so consumers using ConfigFactory.load()
    * can observe the effective values. Also injects a default client fragmentFetchMode when absent.
    */
-  private static void setEffectiveTransportSystemProperties(String transport) {
+  private static void setEffectiveTransportSystemProperties(Config config, String transport) {
     try { System.setProperty("server.fragments.transport", transport); } catch (Throwable ignore) {}
-    boolean tHttp = "http".equals(transport) || "both".equals(transport);
-    boolean tStream = "stream".equals(transport) || "both".equals(transport);
-    System.setProperty("server.enableFragmentsHttp", Boolean.toString(tHttp));
-    System.setProperty("server.enableFetchFragmentsRpc", Boolean.toString(tStream));
+    boolean httpEnabled = isFragmentsHttpEnabled(transport);
+    boolean streamEnabled = isFragmentsStreamEnabled(transport);
+    System.setProperty("server.enableFragmentsHttp", Boolean.toString(httpEnabled));
+    System.setProperty("server.enableFetchFragmentsRpc", Boolean.toString(streamEnabled));
     String cf = System.getProperty("wave.clientFlags");
+    String configuredMode = null;
+    if (config != null && config.hasPath("client.flags.defaults.fragmentFetchMode")) {
+      try {
+        configuredMode = config.getString("client.flags.defaults.fragmentFetchMode");
+      } catch (Throwable ignore) {}
+    }
+    if (configuredMode != null) {
+      configuredMode = configuredMode.trim().toLowerCase();
+      if (configuredMode.isEmpty()) {
+        configuredMode = null;
+      }
+    }
     if (cf == null || !cf.contains("fragmentFetchMode")) {
-      String mode = tStream ? "stream" : (tHttp ? "http" : "off");
+      String mode = (configuredMode != null)
+          ? configuredMode
+          : (streamEnabled ? "stream" : (httpEnabled ? "http" : "off"));
       System.setProperty("wave.clientFlags",
           (cf == null || cf.isEmpty()) ? ("fragmentFetchMode=" + mode)
               : (cf + ",fragmentFetchMode=" + mode));
+    } else if (configuredMode != null && cf != null) {
+      // Sync existing property to configured mode when caller supplied a default.
+      String updated = cf.replaceAll("fragmentFetchMode=([^,]+)", "fragmentFetchMode=" + configuredMode);
+      if (!updated.equals(cf)) {
+        System.setProperty("wave.clientFlags", updated);
+      }
     }
     // Also propagate selected client flag defaults when present in config
     try {
@@ -526,6 +546,26 @@ public class ServerMain {
         System.setProperty("wave.clientFlags", sb.toString());
       }
     } catch (Throwable ignore) {}
+  }
+
+  private static boolean isFragmentsHttpEnabled(String transport) {
+    if (transport == null) {
+      return false;
+    }
+    if ("http".equals(transport) || "both".equals(transport) || "stream".equals(transport)) {
+      return true;
+    }
+    return false;
+  }
+
+  private static boolean isFragmentsStreamEnabled(String transport) {
+    if (transport == null) {
+      return false;
+    }
+    if ("stream".equals(transport) || "both".equals(transport)) {
+      return true;
+    }
+    return false;
   }
 
   private static void initializeRobots(Injector injector, WaveBus waveBus) {
