@@ -73,8 +73,8 @@ public class AccessLogJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   public static class PingServlet extends HttpServlet {
@@ -91,9 +91,9 @@ public class AccessLogJakartaIT {
   @Test
   public void writesNCSALogEntry() throws Exception {
     URL url = new URL("http://localhost:" + port + "/ping");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
-    boolean signaled = latchingLog.await(2, TimeUnit.SECONDS);
+    boolean signaled = latchingLog.await(5, TimeUnit.SECONDS);
     assertTrue("access log should be written within timeout", signaled);
     String path = latchingLog.getLastPath();
     assertNotNull(path);

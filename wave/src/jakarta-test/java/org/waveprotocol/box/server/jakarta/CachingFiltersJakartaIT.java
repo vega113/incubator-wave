@@ -75,15 +75,15 @@ public class CachingFiltersJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
     // No temporary filesystem resources used by this test
   }
 
   @Test
   public void staticGetsImmutableCache() throws Exception {
     URL url = new URL("http://localhost:" + port + "/static/test.js");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertOk(c, "/static/test.js");
     String cc = header(c, "Cache-Control");
     if (cc == null) fail("Cache-Control header missing for /static/*; response headers:\n" + dumpHeaders(c));
@@ -95,7 +95,7 @@ public class CachingFiltersJakartaIT {
   @Test
   public void webclientGetsNoCache() throws Exception {
     URL url = new URL("http://localhost:" + port + "/webclient/app.nocache.js");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertOk(c, "/webclient/app.nocache.js");
     String cc = header(c, "Cache-Control");
     if (cc == null) fail("Cache-Control header missing for /webclient/*; response headers:\n" + dumpHeaders(c));

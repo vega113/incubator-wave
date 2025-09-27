@@ -64,8 +64,8 @@ public class SearchServletJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   // Override performSearch to avoid deep Operation pipeline stubbing
@@ -87,7 +87,7 @@ public class SearchServletJakartaIT {
   public void searchRequiresLogin() throws Exception {
     Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(null);
     URL url = new URL("http://localhost:" + port + "/search/?query=in:inbox&index=0&numResults=1");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(403, c.getResponseCode());
   }
 
@@ -99,7 +99,7 @@ public class SearchServletJakartaIT {
     // Stub the Operation pipeline result by short-circuiting performSearch via registry mocks:
     // We rely on serializer mock to return a simple JSON string, so just ensure 200/JSON here.
     URL url = new URL("http://localhost:" + port + "/search/?query=in:inbox&index=0&numResults=1");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     assertTrue(c.getHeaderField("Content-Type").contains("application/json"));
   }
@@ -125,9 +125,11 @@ public class SearchServletJakartaIT {
       Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
       Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(new org.waveprotocol.wave.model.wave.ParticipantId("user@example.com"));
       URL url = new URL("http://localhost:" + p + "/search/?query=in:inbox&index=0&numResults=1");
-      HttpURLConnection c = (HttpURLConnection) url.openConnection();
+      HttpURLConnection c = TestSupport.openConnection(url);
       assertEquals(500, c.getResponseCode());
-    } finally { srv.stop(); }
+    } finally {
+      TestSupport.stopServerQuietly(srv);
+    }
   }
 
   @Test
@@ -136,7 +138,7 @@ public class SearchServletJakartaIT {
     Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(user);
     Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(user);
     URL url = new URL("http://localhost:" + port + "/search/?query=in:all&index=abc&numResults=xyz");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(400, c.getResponseCode());
   }
 
@@ -146,7 +148,7 @@ public class SearchServletJakartaIT {
     Mockito.when(sm.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(user);
     Mockito.when(sm.getLoggedInUser(Mockito.isNull(WebSession.class))).thenReturn(user);
     URL url = new URL("http://localhost:" + port + "/search/?query=in:all&index=-5&numResults=100000");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
   }
 

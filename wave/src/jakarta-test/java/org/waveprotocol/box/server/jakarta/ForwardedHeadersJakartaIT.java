@@ -73,8 +73,8 @@ public class ForwardedHeadersJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   public static class WhoAmIServlet extends HttpServlet {
@@ -92,7 +92,7 @@ public class ForwardedHeadersJakartaIT {
   @Test
   public void forwardedHeadersAffectSchemeAndRemote() throws Exception {
     URL url = new URL("http://localhost:" + port + "/whoami");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     c.setRequestProperty("X-Forwarded-Proto", "https");
     c.setRequestProperty("X-Forwarded-For", "203.0.113.9");
     assertEquals(200, c.getResponseCode());
@@ -106,7 +106,7 @@ public class ForwardedHeadersJakartaIT {
   @Test
   public void noForwardedHeadersUsesActualConnection() throws Exception {
     URL url = new URL("http://localhost:" + port + "/whoami");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     String body = new String(c.getInputStream().readAllBytes());
     // Without headers, scheme should reflect the actual request
@@ -128,7 +128,7 @@ public class ForwardedHeadersJakartaIT {
   @Test
   public void malformedForwardedHeadersAreIgnored() throws Exception {
     URL url = new URL("http://localhost:" + port + "/whoami");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     c.setRequestProperty("X-Forwarded-Proto", "!!!");
     c.setRequestProperty("X-Forwarded-For", "not_an_ip");
     assertEquals(200, c.getResponseCode());

@@ -29,8 +29,12 @@ public class GadgetProviderServletJakartaIT {
 
   @After
   public void cleanup() throws Exception {
-    if (server != null) server.stop();
-    if (jsonFile != null) jsonFile.delete();
+    TestSupport.stopServerQuietly(server);
+    if (jsonFile != null && jsonFile.exists()) {
+      if (!jsonFile.delete()) {
+        jsonFile.deleteOnExit();
+      }
+    }
   }
 
   private void startServer() throws Exception {
@@ -55,7 +59,7 @@ public class GadgetProviderServletJakartaIT {
 
     startServer();
 
-    HttpURLConnection c = (HttpURLConnection) new URL("http://localhost:" + port + "/gadget/gadgetlist").openConnection();
+    HttpURLConnection c = TestSupport.openConnection(new URL("http://localhost:" + port + "/gadget/gadgetlist"));
     assertEquals(200, c.getResponseCode());
     assertTrue(c.getHeaderField("Content-Type").contains("application/json"));
     String body = new String(c.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
@@ -69,7 +73,7 @@ public class GadgetProviderServletJakartaIT {
 
     startServer();
 
-    HttpURLConnection c = (HttpURLConnection) new URL("http://localhost:" + port + "/gadget/gadgetlist").openConnection();
+    HttpURLConnection c = TestSupport.openConnection(new URL("http://localhost:" + port + "/gadget/gadgetlist"));
     assertEquals(500, c.getResponseCode());
   }
 
@@ -81,7 +85,7 @@ public class GadgetProviderServletJakartaIT {
     }
     startServer();
 
-    HttpURLConnection c1 = (HttpURLConnection) new URL("http://localhost:" + port + "/gadget/gadgetlist").openConnection();
+    HttpURLConnection c1 = TestSupport.openConnection(new URL("http://localhost:" + port + "/gadget/gadgetlist"));
     assertEquals(200, c1.getResponseCode());
     String body1 = new String(c1.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
     assertEquals("{\"v\":1}", body1);
@@ -91,10 +95,9 @@ public class GadgetProviderServletJakartaIT {
       fw.write("{\"v\":2}\n");
     }
 
-    HttpURLConnection c2 = (HttpURLConnection) new URL("http://localhost:" + port + "/gadget/gadgetlist").openConnection();
+    HttpURLConnection c2 = TestSupport.openConnection(new URL("http://localhost:" + port + "/gadget/gadgetlist"));
     assertEquals(200, c2.getResponseCode());
     String body2 = new String(c2.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
     assertEquals("{\"v\":1}", body2);
   }
 }
-

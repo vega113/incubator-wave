@@ -72,10 +72,8 @@ public class WebSocketJakartaSmokeIT {
   }
 
   @After
-  public void stopServer() throws Exception {
-    if (server != null) {
-      server.stop();
-    }
+  public void stopServer() {
+    TestSupport.stopServerQuietly(server);
   }
 
   @ClientEndpoint

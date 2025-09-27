@@ -51,8 +51,8 @@ import org.waveprotocol.wave.util.escapers.jvm.JavaWaverefEncoder;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Tests for the FetchServlet. The fetch servlet provides wavelet snapshots

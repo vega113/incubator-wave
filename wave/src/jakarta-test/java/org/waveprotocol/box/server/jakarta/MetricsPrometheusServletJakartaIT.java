@@ -62,10 +62,8 @@ public final class MetricsPrometheusServletJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) {
-      server.stop();
-    }
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   @Test
@@ -73,7 +71,7 @@ public final class MetricsPrometheusServletJakartaIT {
     Counter counter = MetricsHolder.registry().counter("wave_metrics_test_counter", "state", "ok");
     counter.increment(2.0);
 
-    HttpURLConnection conn = (HttpURLConnection) new URL("http://localhost:" + port + "/metrics").openConnection();
+    HttpURLConnection conn = TestSupport.openConnection(new URL("http://localhost:" + port + "/metrics"));
     assertEquals(200, conn.getResponseCode());
     assertEquals("text/plain; version=0.0.4; charset=utf-8", conn.getHeaderField("Content-Type"));
 

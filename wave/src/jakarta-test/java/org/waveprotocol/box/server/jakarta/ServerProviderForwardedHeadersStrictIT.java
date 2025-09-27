@@ -115,7 +115,7 @@ public class ServerProviderForwardedHeadersStrictIT {
   @Test
   public void providerHandlesMalformedHeadersWithoutCrash() throws Exception {
     URL url = new URL("http://localhost:" + port + "/whoami");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     c.setRequestProperty("X-Forwarded-Proto", "!!!");
     c.setRequestProperty("X-Forwarded-For", "not_an_ip");
     assertEquals(200, c.getResponseCode());

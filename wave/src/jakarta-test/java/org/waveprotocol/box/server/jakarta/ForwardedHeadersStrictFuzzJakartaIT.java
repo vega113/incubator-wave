@@ -69,8 +69,8 @@ public class ForwardedHeadersStrictFuzzJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   public static class WhoAmIServlet extends HttpServlet {
@@ -87,7 +87,7 @@ public class ForwardedHeadersStrictFuzzJakartaIT {
 
   private String[] callWhoAmI(java.util.function.Consumer<HttpURLConnection> headerMutator) throws Exception {
     URL url = new URL("http://localhost:" + port + "/whoami");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     headerMutator.accept(c);
     int code;
     try {

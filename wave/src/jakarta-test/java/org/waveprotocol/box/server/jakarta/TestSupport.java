@@ -18,7 +18,13 @@
  */
 package org.waveprotocol.box.server.jakarta;
 
+import org.eclipse.jetty.server.Server;
 import org.junit.Assume;
+
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Test helpers for Jakarta EE10 (Jetty 12) integration tests.
@@ -28,6 +34,10 @@ import org.junit.Assume;
  * Keep methods static and dependency-free to avoid coupling.
  */
 public final class TestSupport {
+  private static final int DEFAULT_TIMEOUT_MILLIS =
+      Integer.getInteger("wave.jakartaTest.timeoutMillis",
+          (int) TimeUnit.SECONDS.toMillis(4));
+
   private TestSupport() {}
 
   public static boolean isJettyEe10Available() {
@@ -42,5 +52,31 @@ public final class TestSupport {
 
   public static void assumeJettyEe10PresentOrSkip() {
     Assume.assumeTrue("Jetty 12 EE10 classes not available on classpath", isJettyEe10Available());
+  }
+
+  public static void applyTimeouts(HttpURLConnection connection) {
+    if (connection == null) {
+      return;
+    }
+    connection.setConnectTimeout(DEFAULT_TIMEOUT_MILLIS);
+    connection.setReadTimeout(DEFAULT_TIMEOUT_MILLIS);
+  }
+
+  public static HttpURLConnection openConnection(URL url) throws IOException {
+    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    applyTimeouts(connection);
+    return connection;
+  }
+
+  public static void stopServerQuietly(Server server) {
+    if (server == null) {
+      return;
+    }
+    try {
+      server.stop();
+      server.join();
+    } catch (Exception ignore) {
+      // Best-effort shutdown; swallow exceptions so tests can proceed to assertions.
+    }
   }
 }

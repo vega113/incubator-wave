@@ -36,16 +36,14 @@ public class InitialsAvatarsServletJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) {
-      server.stop();
-    }
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   @Test
   public void servesDefaultAvatar() throws Exception {
     URL url = new URL("http://localhost:" + port + "/iniavatars/default");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     String contentType = c.getHeaderField("Content-Type");
     assertNotNull(contentType);

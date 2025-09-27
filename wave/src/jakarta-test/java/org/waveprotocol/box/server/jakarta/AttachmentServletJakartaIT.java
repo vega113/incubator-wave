@@ -63,8 +63,8 @@ public class AttachmentServletJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   @Test
@@ -79,7 +79,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(meta.getWaveRef()).thenReturn("example.com/w+abc/example.com/conv+root");
     Mockito.when(svc.getMetadata(aid)).thenReturn(meta);
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+123?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(403, c.getResponseCode());
   }
 
@@ -111,8 +111,8 @@ public class AttachmentServletJakartaIT {
       Mockito.when(svc2.getMetadata(aid)).thenReturn(meta);
 
       URL url = new URL("http://localhost:" + p + AttachmentServlet.THUMBNAIL_URL + "/att+123?waveRef=local:wave/local/wavelet");
-      HttpURLConnection hc = (HttpURLConnection) url.openConnection();
-      assertEquals(200, hc.getResponseCode());
+      HttpURLConnection hc = TestSupport.openConnection(url);
+    assertEquals(200, hc.getResponseCode());
       // Explicitly validate fallback PNG is used (invalid dir forces generated pattern)
       byte[] bytes = hc.getInputStream().readAllBytes();
       assertTrue("expected non-empty thumbnail bytes", bytes.length > 8);
@@ -129,7 +129,7 @@ public class AttachmentServletJakartaIT {
       assertNotNull(ct);
       assertTrue(ct.toLowerCase().contains("png"));
     } finally {
-      srv.stop();
+      TestSupport.stopServerQuietly(srv);
     }
   }
 
@@ -151,7 +151,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getAttachment(aid)).thenReturn(data);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+123?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     assertTrue(String.valueOf(c.getHeaderField("Content-Type")).contains("text/plain"));
     String disp = c.getHeaderField("Content-Disposition");
@@ -171,7 +171,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getMetadata(aid)).thenReturn(meta);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+123/evil?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertTrue("expected client error for backslash in id", c.getResponseCode() >= 400);
     Mockito.verify(wprov, Mockito.never()).checkAccessPermission(Mockito.any(), Mockito.any());
   }
@@ -180,7 +180,7 @@ public class AttachmentServletJakartaIT {
   public void rejectsBackslashInId() throws Exception {
     stubLoggedIn(sm, new ParticipantId("user@example.com"));
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att\\123?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     // Jetty 12 normalizes/flags invalid path chars; accept any client error
     assertTrue("expected client error for backslash in id", c.getResponseCode() >= 400);
   }
@@ -189,9 +189,11 @@ public class AttachmentServletJakartaIT {
   public void rejectsDotOrDotDot() throws Exception {
     stubLoggedIn(sm, new ParticipantId("user@example.com"));
     URL u1 = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/.." );
-    assertEquals(404, ((HttpURLConnection) u1.openConnection()).getResponseCode());
+    HttpURLConnection c1 = TestSupport.openConnection(u1);
+    assertEquals(404, c1.getResponseCode());
     URL u2 = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/." );
-    assertEquals(404, ((HttpURLConnection) u2.openConnection()).getResponseCode());
+    HttpURLConnection c2 = TestSupport.openConnection(u2);
+    assertEquals(404, c2.getResponseCode());
   }
 
   @Test
@@ -199,7 +201,7 @@ public class AttachmentServletJakartaIT {
     stubLoggedIn(sm, new ParticipantId("user@example.com"));
     String longId = "a".repeat(1024);
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/" + longId);
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(404, c.getResponseCode());
     Mockito.verify(svc, Mockito.never()).getMetadata(Mockito.any());
   }
@@ -222,7 +224,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getAttachment(aid)).thenReturn(data);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/example.com/att123?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
   }
 
@@ -240,7 +242,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getMetadata(aid)).thenReturn(meta);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+nope?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(403, c.getResponseCode());
   }
 
@@ -261,7 +263,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getMetadata(aid)).thenReturn(meta);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+meta?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(403, c.getResponseCode());
 
     ArgumentCaptor<WaveletName> cap = ArgumentCaptor.forClass(WaveletName.class);
@@ -287,7 +289,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getMetadata(aid)).thenReturn(meta);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+meta2");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(403, c.getResponseCode());
 
     ArgumentCaptor<WaveletName> cap = ArgumentCaptor.forClass(WaveletName.class);
@@ -318,7 +320,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getThumbnail(aid)).thenReturn(thumb);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.THUMBNAIL_URL + "/att+img?waveRef=local:wave/IGNORED/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     // ensure attachment data was not fetched for thumbnail path
     Mockito.verify(svc, Mockito.never()).getAttachment(Mockito.any());
@@ -331,7 +333,7 @@ public class AttachmentServletJakartaIT {
     AttachmentId aid = AttachmentId.deserialise("att+missing2");
     Mockito.when(svc.getMetadata(aid)).thenReturn(null);
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+missing2?waveRef=local:wave/local/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(404, c.getResponseCode());
     // Must not attempt to create metadata using request parameters
     Mockito.verify(svc, Mockito.never()).buildAndStoreMetadataWithThumbnail(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
@@ -349,7 +351,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(meta.getWaveRef()).thenReturn("example.com/w+deny/example.com/conv+root");
     Mockito.when(svc.getMetadata(aid)).thenReturn(meta);
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+deny?waveRef=local:wave/ALSO_IGNORED/wavelet");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(403, c.getResponseCode());
     Mockito.verify(svc, Mockito.never()).getAttachment(Mockito.any());
   }
@@ -362,7 +364,7 @@ public class AttachmentServletJakartaIT {
     Mockito.when(svc.getMetadata(aid)).thenReturn(null);
 
     URL url = new URL("http://localhost:" + port + AttachmentServlet.ATTACHMENT_URL + "/att+missing?waveRef=example.com/w+miss/example.com/conv+root");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(404, c.getResponseCode());
     Mockito.verify(wprov, Mockito.never()).checkAccessPermission(Mockito.any(WaveletName.class), Mockito.any());
   }

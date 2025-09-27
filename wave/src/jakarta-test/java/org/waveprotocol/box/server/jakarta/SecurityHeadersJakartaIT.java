@@ -69,14 +69,14 @@ public class SecurityHeadersJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   @Test
   public void addsSecurityHeaders() throws Exception {
     URL url = new URL("http://localhost:" + port + "/hello");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertOk(c, "/hello");
     // Lookup headers case-insensitively for reliability across JDKs/containers
     java.util.Map<String, java.util.List<String>> headers = c.getHeaderFields();
@@ -119,7 +119,7 @@ public class SecurityHeadersJakartaIT {
 
     try {
       URL url = new URL("http://localhost:" + p + "/hello");
-      HttpURLConnection c2 = (HttpURLConnection) url.openConnection();
+      HttpURLConnection c2 = TestSupport.openConnection(url);
       assertOk(c2, "/hello");
       java.util.Map<String, java.util.List<String>> headers = c2.getHeaderFields();
       String csp = getHeader(headers, "Content-Security-Policy");
@@ -130,7 +130,7 @@ public class SecurityHeadersJakartaIT {
       assertNotNull("X-Content-Type-Options header expected", xcto);
       assertTrue("X-Content-Type-Options should be nosniff, was: " + xcto, "nosniff".equalsIgnoreCase(xcto));
     } finally {
-      try { srv.stop(); } catch (Exception ignore) {}
+      TestSupport.stopServerQuietly(srv);
     }
   }
 

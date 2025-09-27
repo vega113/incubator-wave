@@ -20,11 +20,13 @@ package org.waveprotocol.box.server.jakarta;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import org.eclipse.jetty.session.SessionHandler;
+import org.eclipse.jetty.ee10.servlet.SessionHandler;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.waveprotocol.box.server.authentication.SessionManager;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -57,8 +59,12 @@ public class StaticHeadersJakartaIT {
       String conf = "core { http_frontend_addresses : [\"127.0.0.1:0\"], resource_bases : [\"" + tempDir.getAbsolutePath().replace("\\", "/") + "\"] }";
       Config cfg = ConfigFactory.parseString(conf);
       Class<?> prov = Class.forName("org.waveprotocol.box.server.rpc.ServerRpcProvider");
-      provider = prov.getConstructor(com.typesafe.config.Config.class, Object.class, org.eclipse.jetty.session.SessionHandler.class, java.util.concurrent.Executor.class)
-          .newInstance(cfg, null, new SessionHandler(), Executors.newSingleThreadExecutor());
+      SessionManager sessionManager = Mockito.mock(SessionManager.class);
+      provider = prov.getConstructor(com.typesafe.config.Config.class,
+              org.waveprotocol.box.server.authentication.SessionManager.class,
+              SessionHandler.class,
+              java.util.concurrent.Executor.class)
+          .newInstance(cfg, sessionManager, new SessionHandler(), Executors.newSingleThreadExecutor());
       prov.getMethod("startWebSocketServer", com.google.inject.Injector.class).invoke(provider, new Object[]{null});
     } catch (Throwable t) {
       Assume.assumeNoException("Jakarta bootstrap unavailable", t);
@@ -83,9 +89,7 @@ public class StaticHeadersJakartaIT {
     Assume.assumeTrue(!addrs.isEmpty());
     InetSocketAddress a = addrs.get(0);
     URL url = new URL("http://" + a.getHostString() + ":" + a.getPort() + "/static/test.txt");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
-    c.setConnectTimeout(2000);
-    c.setReadTimeout(2000);
+    HttpURLConnection c = TestSupport.openConnection(url);
     int code = c.getResponseCode();
     assertEquals(200, code);
     String cc = c.getHeaderField("Cache-Control");

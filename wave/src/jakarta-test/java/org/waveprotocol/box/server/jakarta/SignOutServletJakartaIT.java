@@ -37,14 +37,14 @@ public class SignOutServletJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   @Test
   public void signout_withRedirectParam_redirects302() throws Exception {
     URL url = new URL("http://localhost:" + port + "/auth/signout?r=%2Fafter");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
     assertEquals("/after", c.getHeaderField("Location"));
@@ -54,7 +54,7 @@ public class SignOutServletJakartaIT {
   @Test
   public void signout_withoutRedirect_returns200Html() throws Exception {
     URL url = new URL("http://localhost:" + port + "/auth/signout");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     assertTrue(c.getHeaderField("Content-Type").contains("text/html"));
     Mockito.verify(sessionManager).logout(Mockito.any());
@@ -64,21 +64,21 @@ public class SignOutServletJakartaIT {
   public void rejectsAbsoluteUrlOrSchemeRelativeOrTraversal() throws Exception {
     // Absolute URL -> no redirect, simple 200 HTML
     URL u1 = new URL("http://localhost:" + port + "/auth/signout?r=http%3A%2F%2Fevil.example%2Fout");
-    HttpURLConnection c1 = (HttpURLConnection) u1.openConnection();
+    HttpURLConnection c1 = TestSupport.openConnection(u1);
     c1.setInstanceFollowRedirects(false);
     assertEquals(200, c1.getResponseCode());
     assertNull(c1.getHeaderField("Location"));
 
     // Scheme-relative //evil.example
     URL u2 = new URL("http://localhost:" + port + "/auth/signout?r=%2F%2Fevil.example");
-    HttpURLConnection c2 = (HttpURLConnection) u2.openConnection();
+    HttpURLConnection c2 = TestSupport.openConnection(u2);
     c2.setInstanceFollowRedirects(false);
     assertEquals(200, c2.getResponseCode());
     assertNull(c2.getHeaderField("Location"));
 
     // Traversal /../secret
     URL u3 = new URL("http://localhost:" + port + "/auth/signout?r=%2F..%2Fsecret");
-    HttpURLConnection c3 = (HttpURLConnection) u3.openConnection();
+    HttpURLConnection c3 = TestSupport.openConnection(u3);
     c3.setInstanceFollowRedirects(false);
     assertEquals(200, c3.getResponseCode());
     assertNull(c3.getHeaderField("Location"));

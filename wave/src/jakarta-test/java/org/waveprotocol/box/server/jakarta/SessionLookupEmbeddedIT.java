@@ -87,8 +87,8 @@ public class SessionLookupEmbeddedIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   public static class EchoSessionIdServlet extends HttpServlet {
@@ -108,7 +108,7 @@ public class SessionLookupEmbeddedIT {
   public void lookupByToken_whenFlagEnabled_returnsSession() throws Exception {
     // 1) Create a session via servlet and capture the session id body
     URL url = new URL("http://localhost:" + port + "/sid");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     String sid = new String(c.getInputStream().readAllBytes());
     assertNotNull(sid);

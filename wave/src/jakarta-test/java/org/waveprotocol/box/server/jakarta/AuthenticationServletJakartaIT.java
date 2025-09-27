@@ -66,15 +66,15 @@ public class AuthenticationServletJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) server.stop();
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
   }
 
   @Test
   public void get_withoutLogin_showsLoginPage200() throws Exception {
     stubLoggedOut();
     URL url = new URL("http://localhost:" + port + "/auth/signin");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     assertEquals(200, c.getResponseCode());
     assertTrue(c.getHeaderField("Content-Type").contains("text/html"));
   }
@@ -83,7 +83,7 @@ public class AuthenticationServletJakartaIT {
   public void get_whenLoggedIn_redirectsToR() throws Exception {
     stubLoggedIn(new ParticipantId("user@example.com"));
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=%2Fhome");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     // Jetty follows redirects by default if using HttpURLConnection? It does not automatically follow for 302 unless setInstanceFollowRedirects.
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
@@ -95,7 +95,7 @@ public class AuthenticationServletJakartaIT {
     stubLoggedIn(new ParticipantId("user@example.com"));
     // r=/home?x=1&y=2 -> urlencoded as %2Fhome%3Fx%3D1%26y%3D2
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=%2Fhome%3Fx%3D1%26y%3D2");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
     assertEquals("/home?x=1&y=2", c.getHeaderField("Location"));
@@ -106,7 +106,7 @@ public class AuthenticationServletJakartaIT {
     stubLoggedIn(new ParticipantId("user@example.com"));
     // r=/app#section -> urlencoded as %2Fapp%23section
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=%2Fapp%23section");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
     assertEquals("/app#section", c.getHeaderField("Location"));
@@ -117,7 +117,7 @@ public class AuthenticationServletJakartaIT {
     stubLoggedIn(new ParticipantId("user@example.com"));
     // r=http://evil.example
     URL url = new URL("http://localhost:" + port + "/auth/signin?r=http%3A%2F%2Fevil.example");
-    HttpURLConnection c = (HttpURLConnection) url.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(url);
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
     assertEquals("/", c.getHeaderField("Location"));
@@ -128,14 +128,14 @@ public class AuthenticationServletJakartaIT {
     stubLoggedIn(new ParticipantId("user@example.com"));
     // r=//evil.example -> fallback
     URL u1 = new URL("http://localhost:" + port + "/auth/signin?r=%2F%2Fevil.example");
-    HttpURLConnection c1 = (HttpURLConnection) u1.openConnection();
+    HttpURLConnection c1 = TestSupport.openConnection(u1);
     c1.setInstanceFollowRedirects(false);
     assertEquals(302, c1.getResponseCode());
     assertEquals("/", c1.getHeaderField("Location"));
 
     // r=/../secret -> fallback
     URL u2 = new URL("http://localhost:" + port + "/auth/signin?r=%2F..%2Fsecret");
-    HttpURLConnection c2 = (HttpURLConnection) u2.openConnection();
+    HttpURLConnection c2 = TestSupport.openConnection(u2);
     c2.setInstanceFollowRedirects(false);
     assertEquals(302, c2.getResponseCode());
     assertEquals("/", c2.getHeaderField("Location"));
@@ -145,7 +145,7 @@ public class AuthenticationServletJakartaIT {
   public void rejectsCRLFInR() throws Exception {
     stubLoggedIn(new ParticipantId("user@example.com"));
     URL u = new URL("http://localhost:" + port + "/auth/signin?r=%2Fok%0D%0AX-Evil%3Ayes");
-    HttpURLConnection c = (HttpURLConnection) u.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(u);
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
     assertEquals("/", c.getHeaderField("Location"));
@@ -157,21 +157,21 @@ public class AuthenticationServletJakartaIT {
 
     // Encoded traversal in path
     URL u1 = new URL("http://localhost:" + port + "/auth/signin?r=%2Fa%2F%252e%252e%2Fb");
-    HttpURLConnection c1 = (HttpURLConnection) u1.openConnection();
+    HttpURLConnection c1 = TestSupport.openConnection(u1);
     c1.setInstanceFollowRedirects(false);
     assertEquals(302, c1.getResponseCode());
     assertEquals("/", c1.getHeaderField("Location"));
 
     // Encoded backslash
     URL u2 = new URL("http://localhost:" + port + "/auth/signin?r=%5Ca%5Cb");
-    HttpURLConnection c2 = (HttpURLConnection) u2.openConnection();
+    HttpURLConnection c2 = TestSupport.openConnection(u2);
     c2.setInstanceFollowRedirects(false);
     assertEquals(302, c2.getResponseCode());
     assertEquals("/", c2.getHeaderField("Location"));
 
     // Literal backslash after decode
     URL u3 = new URL("http://localhost:" + port + "/auth/signin?r=%2Fa\\..\\b");
-    HttpURLConnection c3 = (HttpURLConnection) u3.openConnection();
+    HttpURLConnection c3 = TestSupport.openConnection(u3);
     c3.setInstanceFollowRedirects(false);
     assertEquals(302, c3.getResponseCode());
     assertEquals("/", c3.getHeaderField("Location"));
@@ -181,7 +181,7 @@ public class AuthenticationServletJakartaIT {
   public void rejectsLeadingWhitespace() throws Exception {
     stubLoggedIn(new ParticipantId("user@example.com"));
     URL u = new URL("http://localhost:" + port + "/auth/signin?r=%20/home");
-    HttpURLConnection c = (HttpURLConnection) u.openConnection();
+    HttpURLConnection c = TestSupport.openConnection(u);
     c.setInstanceFollowRedirects(false);
     assertEquals(302, c.getResponseCode());
     assertEquals("/", c.getHeaderField("Location"));

@@ -115,10 +115,8 @@ public final class DataApiOAuthServletJakartaIT {
   }
 
   @After
-  public void stop() throws Exception {
-    if (server != null) {
-      server.stop();
-    }
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
     CookieHandler.setDefault(null);
     cookieManager = null;
   }
@@ -183,14 +181,14 @@ public final class DataApiOAuthServletJakartaIT {
 
   private HttpURLConnection get(String path) throws IOException {
     URL url = resolve(path);
-    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+    HttpURLConnection conn = TestSupport.openConnection(url);
     conn.setInstanceFollowRedirects(false);
     return conn;
   }
 
   private HttpURLConnection post(String path, String body) throws IOException {
     URL url = resolve(path);
-    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+    HttpURLConnection conn = TestSupport.openConnection(url);
     conn.setInstanceFollowRedirects(false);
     conn.setRequestMethod("POST");
     conn.setDoOutput(true);
