@@ -45,12 +45,14 @@ import net.oauth.OAuthValidator;
 import net.oauth.OAuth.Parameter;
 
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.wave.model.id.TokenGenerator;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Locale;
@@ -216,7 +218,7 @@ public class DataApiOAuthServletTest extends TestCase {
     Map<String, String[]> params = getDoAuthorizeTokenParams();
     when(req.getParameterMap()).thenReturn(params);
 
-    when(sessionManager.getLoggedInUser(any(HttpSession.class))).thenReturn(ALEX);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(ALEX);
 
     servlet.doGet(req, resp);
 
@@ -245,7 +247,7 @@ public class DataApiOAuthServletTest extends TestCase {
     when(sessionManager.getLoginUrl(anyString())).thenReturn(expectedRedirect);
 
     // No user logged in.
-    when(sessionManager.getLoggedInUser(any(HttpSession.class))).thenReturn(null);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(null);
 
     servlet.doGet(req, resp);
 
@@ -259,7 +261,7 @@ public class DataApiOAuthServletTest extends TestCase {
     params.put(OAuth.OAUTH_TOKEN, new String[] {"wrong_token"});
     when(req.getParameterMap()).thenReturn(params);
 
-    when(sessionManager.getLoggedInUser(any(HttpSession.class))).thenReturn(ALEX);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(ALEX);
 
     servlet.doGet(req, resp);
 
@@ -271,11 +273,11 @@ public class DataApiOAuthServletTest extends TestCase {
     when(req.getMethod()).thenReturn("POST");
     Map<String, String[]> params = getDoAuthorizeTokenParams();
     when(req.getParameterMap()).thenReturn(params);
-    String token = servlet.getOrGenerateXsrfToken(ALEX);
+    String token = xsrfToken(ALEX);
     when(req.getParameter("token")).thenReturn(token);
     when(req.getParameter("agree")).thenReturn("yes");
 
-    when(sessionManager.getLoggedInUser(any(HttpSession.class))).thenReturn(ALEX);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(ALEX);
 
     servlet.doPost(req, resp);
 
@@ -293,7 +295,7 @@ public class DataApiOAuthServletTest extends TestCase {
     when(req.getParameterMap()).thenReturn(params);
     when(req.getParameter("token")).thenReturn("wrong_token");
 
-    when(sessionManager.getLoggedInUser(any(HttpSession.class))).thenReturn(ALEX);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(ALEX);
 
     servlet.doPost(req, resp);
 
@@ -306,10 +308,10 @@ public class DataApiOAuthServletTest extends TestCase {
     when(req.getParameter("cancel")).thenReturn("yes");
     Map<String, String[]> params = getDoAuthorizeTokenParams();
     when(req.getParameterMap()).thenReturn(params);
-    String token = servlet.getOrGenerateXsrfToken(ALEX);
+    String token = xsrfToken(ALEX);
     when(req.getParameter("token")).thenReturn(token);
 
-    when(sessionManager.getLoggedInUser(any(HttpSession.class))).thenReturn(ALEX);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(ALEX);
 
     servlet.doPost(req, resp);
 
@@ -328,10 +330,10 @@ public class DataApiOAuthServletTest extends TestCase {
 
     Map<String, String[]> params = getDoAuthorizeTokenParams();
     when(req.getParameterMap()).thenReturn(params);
-    String token = servlet.getOrGenerateXsrfToken(ALEX);
+    String token = xsrfToken(ALEX);
     when(req.getParameter("token")).thenReturn(token);
 
-    when(sessionManager.getLoggedInUser(any(HttpSession.class))).thenReturn(ALEX);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(ALEX);
 
     // We didn't set the cancel nor agree param, i.e. something is wrong with
     // the form being submitted.
@@ -434,5 +436,16 @@ public class DataApiOAuthServletTest extends TestCase {
       map.put(parameter.getKey(), parameter.getValue());
     }
     return map;
+  }
+
+  private String xsrfToken(ParticipantId user) {
+    try {
+      Method method = DataApiOAuthServlet.class
+          .getDeclaredMethod("getOrGenerateXsrfToken", ParticipantId.class);
+      method.setAccessible(true);
+      return (String) method.invoke(servlet, user);
+    } catch (Exception e) {
+      throw new AssertionError("Failed to invoke getOrGenerateXsrfToken", e);
+    }
   }
 }

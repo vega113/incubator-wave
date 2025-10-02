@@ -40,9 +40,9 @@ import org.waveprotocol.box.server.authentication.AccountStoreHolder;
 import org.waveprotocol.box.server.authentication.AuthTestUtil;
 import org.waveprotocol.box.server.authentication.PasswordDigest;
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryStore;
-import org.waveprotocol.box.server.robots.agent.welcome.WelcomeRobot;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.escapers.PercentEscaper;
 
@@ -69,7 +69,6 @@ public class AuthenticationServletTest extends TestCase {
   @Mock private HttpServletResponse resp;
   @Mock private HttpSession session;
   @Mock private SessionManager manager;
-  @Mock private WelcomeRobot welcomeBot;
 
   @Override
   protected void setUp() throws Exception {
@@ -89,7 +88,7 @@ public class AuthenticationServletTest extends TestCase {
     );
 
     servlet = new AuthenticationServlet(store, AuthTestUtil.makeConfiguration(),
-        manager, "examPLe.com", config, welcomeBot);
+        manager, "examPLe.com", config);
     AccountStoreHolder.init(store, "eXaMple.com");
   }
 
@@ -113,7 +112,7 @@ public class AuthenticationServletTest extends TestCase {
   public void testGetRedirects() throws IOException {
     String location = "/abc123?nested=query&string";
     when(req.getSession(false)).thenReturn(session);
-    when(manager.getLoggedInUser(session)).thenReturn(USER);
+    when(manager.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(USER);
     configureRedirectString(location);
 
     servlet.doGet(req, resp);
@@ -149,14 +148,14 @@ public class AuthenticationServletTest extends TestCase {
     attemptLogin("frodo@example.com", "incorrect", false);
 
     verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
-    verify(session, never()).setAttribute(eq("user"), anyString());
+    verify(manager, never()).setLoggedInUser(Mockito.any(), Mockito.any());
   }
 
   public void testInvalidUsernameReturns403() throws IOException {
     attemptLogin("madeup@example.com", "incorrect", false);
 
     verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
-    verify(session, never()).setAttribute(eq("address"), anyString());
+    verify(manager, never()).setLoggedInUser(Mockito.any(), Mockito.any());
   }
 
   // *** Utility methods
@@ -185,12 +184,11 @@ public class AuthenticationServletTest extends TestCase {
     // Servlet control flow forces us to set these return values first and
     // verify the logged in user was set afterwards.
     if (expectSuccess) {
-      when(manager.getLoggedInUser(Mockito.any())).thenReturn(USER);
-      when(session.getAttribute("user")).thenReturn(USER);
+      when(manager.getLoggedInUser(Mockito.any(WebSession.class))).thenReturn(USER);
     }
     servlet.doPost(req, resp);
     if (expectSuccess) {
-      verify(manager).setLoggedInUser(session, USER);
+      verify(manager).setLoggedInUser(Mockito.any(WebSession.class), eq(USER));
     }
   }
 }

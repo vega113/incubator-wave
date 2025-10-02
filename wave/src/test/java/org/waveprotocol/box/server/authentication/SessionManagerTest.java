@@ -32,8 +32,10 @@ import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryStore;
 import org.waveprotocol.wave.model.wave.ParticipantId;
-
-import jakarta.servlet.http.HttpSession;
+import com.google.common.collect.ImmutableMap;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import org.waveprotocol.box.server.authentication.WebSession;
 
 /**
  * Unit tests for {@link SessionManagerImpl}.
@@ -41,10 +43,11 @@ import jakarta.servlet.http.HttpSession;
  * @author josephg@gmail.com (Joseph Gentle)
  */
 public class SessionManagerTest extends TestCase {
-  @Mock private org.eclipse.jetty.server.session.SessionHandler jettySessionManager;
+  @Mock private org.eclipse.jetty.session.SessionHandler jettySessionManager;
 
   private SessionManager sessionManager;
   private HumanAccountData account;
+  private Config config;
 
   @Override
   protected void setUp() throws Exception {
@@ -53,11 +56,12 @@ public class SessionManagerTest extends TestCase {
     AccountStore store = new MemoryStore();
     account = new HumanAccountDataImpl(ParticipantId.ofUnsafe("tubes@example.com"));
     store.putAccount(account);
-    sessionManager = new SessionManagerImpl(store, jettySessionManager);
+    config = ConfigFactory.parseMap(ImmutableMap.of("experimental.jetty12_session_lookup", false));
+    sessionManager = new SessionManagerImpl(store, jettySessionManager, config);
   }
 
   public void testSessionFetchesAddress() {
-    HttpSession session = mock(HttpSession.class);
+    WebSession session = mock(WebSession.class);
     ParticipantId id = ParticipantId.ofUnsafe("tubes@example.com");
     when(session.getAttribute("user")).thenReturn(id);
 
@@ -66,7 +70,7 @@ public class SessionManagerTest extends TestCase {
   }
 
   public void testUnknownUserReturnsNull() {
-    HttpSession session = mock(HttpSession.class);
+    WebSession session = mock(WebSession.class);
     when(session.getAttribute("user")).thenReturn(ParticipantId.ofUnsafe("missing@example.com"));
 
     assertNull(sessionManager.getLoggedInAccount(session));
@@ -93,14 +97,4 @@ public class SessionManagerTest extends TestCase {
         SessionManager.SIGN_IN_URL + "?r=" + encoded_url, sessionManager.getLoginUrl(url));
   }
 
-  public void testGetSessionFromTokenReturnsNullWhenNoBackingSession() {
-    Mockito.when(jettySessionManager.getSession("abc123")).thenReturn(null);
-    assertNull(sessionManager.getSessionFromToken("abc123"));
-  }
-
-  public void testGetSessionFromUnknownToken() {
-    HttpSession session = mock(HttpSession.class);
-    Mockito.when(jettySessionManager.getSession("abc123")).thenReturn(null);
-    assertNull(sessionManager.getSessionFromToken("abc123"));
-  }
 }

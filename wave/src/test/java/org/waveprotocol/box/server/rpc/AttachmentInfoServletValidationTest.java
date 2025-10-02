@@ -27,6 +27,7 @@ import org.waveprotocol.wave.media.model.AttachmentId;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +58,7 @@ public class AttachmentInfoServletValidationTest {
     WaveletProvider provider = Mockito.mock(WaveletProvider.class);
     ProtoSerializer serializer = Mockito.mock(ProtoSerializer.class);
 
-    AttachmentInfoServlet servlet = new AttachmentInfoServlet(service, provider,
+    AttachmentInfoServlet servlet = newServlet(service, provider,
         Mockito.mock(org.waveprotocol.box.server.authentication.SessionManager.class), serializer);
 
     List<AttachmentId> ids = new ArrayList<>();
@@ -66,6 +67,20 @@ public class AttachmentInfoServletValidationTest {
     boolean any = servlet.processIds(ParticipantId.ofUnsafe("user@example.com"), ids,
         AttachmentsResponse.newBuilder());
     assertFalse(any);
+  }
+
+  private static AttachmentInfoServlet newServlet(AttachmentService service, WaveletProvider provider,
+                                                  org.waveprotocol.box.server.authentication.SessionManager sessionManager,
+                                                  ProtoSerializer serializer) {
+    try {
+      Constructor<AttachmentInfoServlet> ctor = AttachmentInfoServlet.class
+          .getDeclaredConstructor(AttachmentService.class, WaveletProvider.class,
+              org.waveprotocol.box.server.authentication.SessionManager.class, ProtoSerializer.class);
+      ctor.setAccessible(true);
+      return ctor.newInstance(service, provider, sessionManager, serializer);
+    } catch (Exception e) {
+      throw new AssertionError("Failed to instantiate AttachmentInfoServlet", e);
+    }
   }
 }
 
