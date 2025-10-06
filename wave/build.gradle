@@ -585,6 +585,8 @@ task verifyPstCodegen {
 // Ensure verification runs with the standard checks
 tasks.named('check') {
     dependsOn(verifyPstCodegen)
+    dependsOn('testJakarta')
+    dependsOn('testJakartaIT')
 }
 
 tasks.named('test') {
@@ -1031,7 +1033,8 @@ task testAll() {
 }
 
 testAll.dependsOn compileJava, compileGwt
-testAll.dependsOn test, testMongo, testLarge, testGwt
+// Include Jakarta suites in the aggregated test target
+testAll.dependsOn test, testMongo, testLarge, testGwt, testJakarta, testJakartaIT
 
 testGwt.mustRunAfter compileGwt, testLarge
 

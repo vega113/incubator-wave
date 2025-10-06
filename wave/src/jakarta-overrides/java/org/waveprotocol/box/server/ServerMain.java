@@ -85,7 +85,6 @@ public class ServerMain {
   public static void run(Module coreSettings) throws PersistenceException, WaveServerException {
     Injector injector = Guice.createInjector(coreSettings);
     Config config = injector.getInstance(Config.class);
-    boolean isJakarta = isJakarta(config);
 
     Module profilingModule = injector.getInstance(StatModule.class);
     ExecutorsModule executorsModule = injector.getInstance(ExecutorsModule.class);
@@ -95,18 +94,11 @@ public class ServerMain {
     Module federationModule = buildFederationModule(injector);
     PersistenceModule persistenceModule = injector.getInstance(PersistenceModule.class);
     Module searchModule = injector.getInstance(SearchModule.class);
+    Module robotApiModule = new RobotApiModule();
+    Module profileFetcherModule = injector.getInstance(ProfileFetcherModule.class);
 
-    if (!isJakarta) {
-      // Legacy path wires robots/profile fetchers directly from server module tree.
-      injector = injector.createChildInjector(serverModule, persistenceModule,
-          federationModule, searchModule);
-    } else {
-      // Jakarta path wires explicit robot and profile modules while retaining the federation stub.
-      Module robotApiModule = new RobotApiModule();
-      Module profileFetcherModule = injector.getInstance(ProfileFetcherModule.class);
-      injector = injector.createChildInjector(serverModule, persistenceModule,
-          robotApiModule, searchModule, federationModule, profileFetcherModule);
-    }
+    injector = injector.createChildInjector(serverModule, persistenceModule,
+        robotApiModule, searchModule, federationModule, profileFetcherModule);
 
     ServerRpcProvider server = injector.getInstance(ServerRpcProvider.class);
     WaveBus waveBus = injector.getInstance(WaveBus.class);
@@ -119,24 +111,10 @@ public class ServerMain {
     initializeServer(injector, domain);
     initializeServlets(server, config);
     initializeFrontend(injector, server, waveBus);
-    if (!isJakarta) {
-      initializeFederation(injector);
-      initializeSearch(injector, waveBus);
-    }
     initializeShutdownHandler(server);
 
     LOG.info("Starting server");
     server.startWebSocketServer(injector);
-  }
-
-  private static boolean isJakarta(Config config) {
-    try {
-      if (config != null && config.hasPath("core.jetty_family")) {
-        return "jakarta".equalsIgnoreCase(config.getString("core.jetty_family"));
-      }
-    } catch (Throwable ignore) {}
-    String prop = System.getProperty("jettyFamily", System.getProperty("wave.jetty.family", "javax"));
-    return "jakarta".equalsIgnoreCase(prop);
   }
 
   private static Module buildFederationModule(Injector settingsInjector) {

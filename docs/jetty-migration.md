@@ -19,7 +19,8 @@ Status Summary
   - Tests: jakartaTest and jakarta ITs cover forwarded headers, access logs, caching filters, security headers, DI guard, session lookup, and robot servlet flows.
 
 Recent changes (2025-09-27)
-- 2025-09-27: Restored profiling parity on the Jakarta server by porting RequestScopeFilter and TimingFilter to jakarta.servlet, re-enabling StatModule, and wiring the filters through ServerRpcProvider alongside targeted tests.
+- 2025-09-27: Restored profiling parity on the Jakarta server by porting RequestScopeFilter and TimingFilter to jakarta.servlet, re-enabling StatModule, and wiring the filters through ServerRpcProvider alongside targeted tests. Added Jakarta HealthServlet wiring and smoke coverage for /healthz and /readyz endpoints.
+- 2025-09-27: Removed the runtime `isJakarta` gating in ServerMain and made the Jakarta test suites part of the default `check`/`testAll` flow.
 
 Recent changes (2025-09-18)
 - 2025-09-18: Completed Jakarta robot service registries, RobotApiModule wiring, passive connector overrides, and NotifyOperationService; added a Jakarta override for `com.google.wave.api.AbstractRobot`; introduced Micrometer HTTP metrics filter, Prometheus `/metrics`, and Jakarta variants of remote logging/statusz. Verified `./gradlew -PjettyFamily=jakarta :wave:compileJava :wave:testJakarta :wave:testJakartaIT` with the Jakarta profile as default and documented the Jetty 9.4 fallback path.
