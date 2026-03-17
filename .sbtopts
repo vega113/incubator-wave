@@ -1,0 +1,12 @@
+-Dsbt.global.base=.sbt-global
+-Dsbt.boot.directory=.sbt-boot
+-Dsbt.ivy.home=.ivy2
+-Dcoursier.cache=.coursier-cache
+
+-J-Xms1g
+-J-Xmx2g
+-J-Xss4M
+-J-XX:ReservedCodeCacheSize=256m
+
+-Dsbt.log.noformat=true
+-Dsbt.supershell=false
