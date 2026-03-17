@@ -102,6 +102,7 @@ import org.waveprotocol.wave.client.render.undercurrent.ScreenController;
 import org.waveprotocol.wave.client.render.undercurrent.ScreenControllerImpl;
 import org.waveprotocol.wave.client.wavepanel.render.RenderCssLoader;
 import org.waveprotocol.wave.client.wavepanel.render.DynamicRendererImpl;
+import org.waveprotocol.wave.client.wavepanel.render.ObservableDynamicRenderer;
 import org.waveprotocol.wave.client.wavepanel.render.FragmentRequester;
 import org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.RequestContext;
 import org.waveprotocol.wave.client.wavepanel.render.FragmentRequester.Callback;
@@ -996,7 +997,7 @@ public interface StageTwo {
                         } else {
                             requester = FragmentRequester.NO_OP;
                         }
-                        DynamicRendererImpl dyn = DynamicRendererImpl.create(
+                        ObservableDynamicRenderer<Element> dyn = DynamicRendererImpl.create(
                                 getConversations(), getModelAsViewProvider(), getBlipQueue(),
                                 getPagingHandler(),
                                 requester,

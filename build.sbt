@@ -200,7 +200,7 @@ ThisBuild / assembly / assemblyMergeStrategy := {
 
 // Managed dependencies
 lazy val JettyV         = "9.4.54.v20240208"          // javax servlet stack (default)
-lazy val JettyJakartaV  = "11.0.20"                    // jakarta servlet stack (scaffold)
+lazy val JettyJakartaV  = "12.0.23"                    // jakarta servlet stack (EE10, matches Gradle)
 lazy val JakartaServletV = "5.0.0"                     // jakarta.servlet-api
 lazy val JakartaWsV      = "2.0.0"                     // jakarta.websocket-api
 

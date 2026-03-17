@@ -64,7 +64,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 /** Minimal dynamic renderer: pages in only visible blips; no page-out yet. */
-public final class DynamicRendererImpl implements DynamicRenderer, ScreenController.Listener,
+public final class DynamicRendererImpl implements ObservableDynamicRenderer<Element>, ScreenController.Listener,
     Listener {
   private final ObservableConversationView view;
   private final ScreenController screen;
@@ -78,6 +78,9 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
       new HashMap<ObservableConversation, ObservableConversation.Listener>();
   private final Map<ObservableConversation, Integer> conversationBlipCounts =
       new HashMap<ObservableConversation, Integer>();
+  private final Set<ObservableDynamicRenderer.Listener> rendererListeners =
+      new HashSet<ObservableDynamicRenderer.Listener>();
+
   private int prerenderPxTop = 600;
   private int prerenderPxBottom = 800;
   private int pageOutSlackPx = 1200;
@@ -169,6 +172,124 @@ public final class DynamicRendererImpl implements DynamicRenderer, ScreenControl
     pagedIn.clear();
     totalBlips = 0;
     conversationBlipCounts.clear();
+    rendererListeners.clear();
+  }
+
+  @Override
+  public void addListener(ObservableDynamicRenderer.Listener listener) {
+    if (listener != null) {
+      rendererListeners.add(listener);
+    }
+  }
+
+  @Override
+  public void removeListener(ObservableDynamicRenderer.Listener listener) {
+    if (listener != null) {
+      rendererListeners.remove(listener);
+    }
+  }
+
+  @Override
+  public void dynamicRendering() {
+    // TODO: Implement dynamic rendering from current position
+  }
+
+  @Override
+  public void dynamicRendering(ConversationBlip startBlip) {
+    // TODO: Implement dynamic rendering from start blip
+  }
+
+  @Override
+  public void dynamicRendering(String startBlipId) {
+    // TODO: Implement dynamic rendering from start blip id
+  }
+
+  @Override
+  public boolean isBlipReady(ConversationBlip blip) {
+    return blip != null && pagedIn.contains(blip);
+  }
+
+  @Override
+  public boolean isBlipReady(String blipId) {
+    if (blipId == null || blipId.isEmpty()) {
+      return false;
+    }
+    for (ConversationBlip blip : pagedIn) {
+      if (blipId.equals(blip.getId())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public boolean isBlipVisible(ConversationBlip blip) {
+    if (blip == null) {
+      return false;
+    }
+    BlipView bv = modelAsView.getBlipView(blip);
+    if (bv == null) {
+      return false;
+    }
+    @SuppressWarnings("unchecked")
+    BlipViewImpl<BlipViewDomImpl> impl = (BlipViewImpl<BlipViewDomImpl>) bv;
+    Element e = null;
+    try {
+      e = impl.getIntrinsic() != null ? impl.getIntrinsic().getElement() : null;
+    } catch (ClassCastException | NullPointerException expected) {
+      return false;
+    }
+    if (e == null) {
+      return false;
+    }
+    int scrollTop = screen.getScrollTop();
+    int viewportHeight = screen.getViewportHeight();
+    int absTop;
+    int h;
+    try {
+      absTop = getAbsoluteTop(e);
+      h = e.getOffsetHeight();
+    } catch (Exception ex) {
+      return false;
+    }
+    if (h <= 0) {
+      return false;
+    }
+    int top = scrollTop - prerenderPxTop;
+    int bottom = scrollTop + viewportHeight + prerenderPxBottom;
+    return intersects(absTop, absTop + h, top, bottom);
+  }
+
+  @Override
+  public Element getElementByBlip(ConversationBlip blip) {
+    if (blip == null) {
+      return null;
+    }
+    BlipView bv = modelAsView.getBlipView(blip);
+    if (bv == null) {
+      return null;
+    }
+    @SuppressWarnings("unchecked")
+    BlipViewImpl<BlipViewDomImpl> impl = (BlipViewImpl<BlipViewDomImpl>) bv;
+    try {
+      return impl.getIntrinsic() != null ? impl.getIntrinsic().getElement() : null;
+    } catch (ClassCastException | NullPointerException e) {
+      return null;
+    }
+  }
+
+  @Override
+  public String getBlipIdByElement(Element element) {
+    if (element == null) {
+      return null;
+    }
+    for (ConversationBlip blip : pagedIn) {
+      Element e = getElementByBlip(blip);
+      if (element == e) {
+        return blip.getId();
+      }
+    }
+    return null;
   }
 
   @Override

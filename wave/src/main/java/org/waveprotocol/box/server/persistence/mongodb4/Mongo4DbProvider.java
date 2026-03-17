@@ -7,6 +7,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import org.waveprotocol.box.server.persistence.AttachmentStore;
 import org.waveprotocol.box.server.persistence.AccountStore;
+import org.waveprotocol.box.server.waveserver.DeltaStore;
 import org.waveprotocol.wave.crypto.CertPathStore;
 
 /**
@@ -52,5 +53,5 @@ public class Mongo4DbProvider implements AutoCloseable {
 
   public AccountStore provideMongoDbAccountStore() { ensure(); return new Mongo4AccountStore(db); }
 
-  // Delta store not yet implemented for v4
+  public DeltaStore provideMongoDbDeltaStore() { ensure(); return new Mongo4DeltaStore(db); }
 }

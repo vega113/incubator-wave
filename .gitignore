@@ -78,3 +78,4 @@ journal/
 /wave/bin/
 /pst/bin/
 target/
+.coursier-cache/

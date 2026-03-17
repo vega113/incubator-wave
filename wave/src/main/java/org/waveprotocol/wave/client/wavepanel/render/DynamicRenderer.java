@@ -19,12 +19,84 @@
 
 package org.waveprotocol.wave.client.wavepanel.render;
 
+import org.waveprotocol.wave.model.conversation.ConversationBlip;
+
 /**
- * Renders only visible conversation content plus a small buffer.
- * This is a placeholder interface for a future implementation.
+ * Dynamic renderer interface.
+ *
+ * @param <T> type of rendered elements
  */
-public interface DynamicRenderer {
+public interface DynamicRenderer<T> {
+
+  /**
+   * Initializes the renderer.
+   */
   void init();
+
+  /**
+   * Destroys the renderer.
+   */
   void destroy();
+
+  /**
+   * Starts rendering from the current position.
+   */
+  void dynamicRendering();
+
+  /**
+   * Starts rendering from the given start blip.
+   *
+   * @param startBlip start blip
+   */
+  void dynamicRendering(ConversationBlip startBlip);
+
+  /**
+   * Starts rendering from the blip with the given id.
+   *
+   * @param startBlipId start blip id
+   */
+  void dynamicRendering(String startBlipId);
+
+  /**
+   * Checks, if the blip is ready for interaction.
+   *
+   * @param blip the blip
+   * @return true, if the blip is rendered and ready to interact with.
+   */
+  boolean isBlipReady(ConversationBlip blip);
+
+  /**
+   * Checks, if the blip is ready for interaction.
+   *
+   * @param blipId the blip id
+   * @return true, if the blip is rendered and ready for interaction.
+   */
+  boolean isBlipReady(String blipId);
+
+  /**
+   * Checks the blip's visibility on the screen.
+   *
+   * @param blip the blip
+   * @return true, if the blip is at least partially visible on the screen
+   */
+  boolean isBlipVisible(ConversationBlip blip);
+
+  /**
+   * Returns rendered element for the given blip.
+   * If the blip isn't rendered, returns null.
+   *
+   * @param blip the given blip
+   * @return the blip's rendered element
+   */
+  T getElementByBlip(ConversationBlip blip);
+
+  /**
+   * Returns blip id for the rendered blip element.
+   * If no such blip found, returns null.
+   *
+   * @param element the given blip element
+   * @return the blip id
+   */
+  String getBlipIdByElement(T element);
 }
 

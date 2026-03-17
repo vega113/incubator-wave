@@ -165,7 +165,7 @@ public class PersistenceModule extends AbstractModule {
       bind(DeltaStore.class).to(FileDeltaStore.class).in(Singleton.class);
     } else if (deltaStoreType.equalsIgnoreCase("mongodb")) {
       if ("v4".equalsIgnoreCase(mongoDriver)) {
-        throw new RuntimeException("MongoDB v4 DeltaStore not yet implemented");
+        bind(DeltaStore.class).toInstance(getMongo4Provider().provideMongoDbDeltaStore());
       } else {
         bind(DeltaStore.class).toInstance(getMongoDbProvider().provideMongoDbDeltaStore());
       }

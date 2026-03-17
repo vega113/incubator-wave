@@ -47,7 +47,8 @@ public final class InitialsAvatarsServlet extends HttpServlet {
 
   private static BufferedImage loadDefault() throws IOException {
     try {
-      return ImageIO.read(Resources.getResource("static/images/avatar/unknown.jpg"));
+      return ImageIO.read(Resources.getResource(
+          "org/apache/wave/box/server/rpc/avatar/unknown.jpg"));
     } catch (Exception primary) {
       LOG.warning("Default avatar image missing from static path; falling back", primary);
       return ImageIO.read(Resources.getResource(

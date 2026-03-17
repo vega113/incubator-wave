@@ -420,10 +420,12 @@ dependencies {
         [group: "org.gwtproject", name: "gwt-user", version: gwtVersion],
         [group: "com.google.guava", name: "guava-gwt", version: "20.0"]
     )
-    // Protobuf include dependencies for the 'proto' source set
+    // Protobuf include dependencies for the 'proto' source set.
+    // NOTE: Do NOT include wave-pst-*.jar here — it contains extensions.proto
+    // which shadows the authoritative copy in src/proto/proto/ and causes protoc
+    // shadow errors. The PST JAR is only needed at generation-time (generateMessages).
     protoProtobuf (
-        [group: "com.google.protobuf", name: "protobuf-java", version: "3.25.3"],
-        fileTree(dir: '../pst/build/libs', include: '**/wave-pst-*.jar')
+        [group: "com.google.protobuf", name: "protobuf-java", version: "3.25.3"]
     )
     // Protobuf runtime for compiling generated 'proto' Java sources
     protoImplementation (
