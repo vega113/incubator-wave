@@ -79,3 +79,13 @@ journal/
 /pst/bin/
 target/
 .coursier-cache/
+
+### SBT
+.ivy2/
+.sbt-boot/
+.sbt-global/
+project/target/
+project/project/
+
+### Proto generated sources (not committed)
+proto_src/

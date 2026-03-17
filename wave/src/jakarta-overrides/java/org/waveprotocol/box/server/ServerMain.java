@@ -111,6 +111,7 @@ public class ServerMain {
     initializeServer(injector, domain);
     initializeServlets(server, config);
     initializeFrontend(injector, server, waveBus);
+    initializeSearch(injector, waveBus);
     initializeShutdownHandler(server);
 
     LOG.info("Starting server");
