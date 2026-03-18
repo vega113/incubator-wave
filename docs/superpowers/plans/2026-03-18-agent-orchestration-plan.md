@@ -10,6 +10,9 @@
 
 ---
 
+Current batching and team-lead assignments for the open task queue are tracked
+in [2026-03-18-outstanding-task-batching-plan.md](/Users/vega/devroot/incubator-wave/docs/superpowers/plans/2026-03-18-outstanding-task-batching-plan.md).
+
 ## Operating Rules
 
 - `main` is the integration branch.
