@@ -37,6 +37,8 @@ import org.waveprotocol.box.server.gxp.TopBar;
 import org.waveprotocol.box.server.gxp.WaveClientPage;
 import org.waveprotocol.box.server.util.RandomBase64Generator;
 import org.waveprotocol.box.server.util.UrlParameters;
+import org.waveprotocol.wave.client.util.ClientFlagsBase;
+import org.waveprotocol.wave.common.bootstrap.FlagConstants;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.box.server.authentication.WebSessions;
 import org.waveprotocol.box.server.authentication.WebSession;
@@ -46,7 +48,6 @@ import javax.inject.Singleton;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-// Note: SessionManager uses javax.servlet.http.HttpSession; adapt session before passing
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Enumeration;
@@ -57,12 +58,19 @@ import java.util.List;
 @Singleton
 public class WaveClientServlet extends HttpServlet {
   private static final Log LOG = Log.get(WaveClientServlet.class);
-  // No client flags mapping on Jakarta path (avoid GWT client dependency)
+  private static final HashMap<String, String> FLAG_MAP = Maps.newHashMap();
+  static {
+    for (int i = 0; i < FlagConstants.__NAME_MAPPING__.length; i += 2) {
+      FLAG_MAP.put(FlagConstants.__NAME_MAPPING__[i], FlagConstants.__NAME_MAPPING__[i + 1]);
+    }
+  }
+  private static volatile boolean loggedClientFlagsOnce = false;
 
   private final String domain;
   private final String analyticsAccount;
   private final SessionManager sessionManager;
   private final String websocketPresentedAddress;
+  private final Config config;
 
   @Inject
   public WaveClientServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
@@ -76,6 +84,7 @@ public class WaveClientServlet extends HttpServlet {
     this.websocketPresentedAddress = StringUtils.isEmpty(websocketPresentedAddress) ? websocketAddress1 : websocketPresentedAddress;
     this.analyticsAccount = config.getString("administration.analytics_account");
     this.sessionManager = sessionManager;
+    this.config = config;
   }
 
   @Override
@@ -116,7 +125,148 @@ public class WaveClientServlet extends HttpServlet {
     }
   }
 
-  private JSONObject getClientFlags(HttpServletRequest request) { return new JSONObject(); }
+  private JSONObject getClientFlags(HttpServletRequest request) {
+    try {
+      JSONObject ret = new JSONObject();
+
+      Enumeration<?> iter = request.getParameterNames();
+      while (iter.hasMoreElements()) {
+        String name = (String) iter.nextElement();
+        String value = request.getParameter(name);
+
+        if (FLAG_MAP.containsKey(name)) {
+          try {
+            Method getter = ClientFlagsBase.class.getMethod(name);
+            Class<?> retType = getter.getReturnType();
+
+            if (retType.equals(String.class)) {
+              ret.put(FLAG_MAP.get(name), value);
+            } else if (retType.equals(Integer.class)) {
+              ret.put(FLAG_MAP.get(name), Integer.parseInt(value));
+            } else if (retType.equals(Boolean.class)) {
+              ret.put(FLAG_MAP.get(name), Boolean.parseBoolean(value));
+            } else if (retType.equals(Float.class)) {
+              ret.put(FLAG_MAP.get(name), Float.parseFloat(value));
+            } else if (retType.equals(Double.class)) {
+              ret.put(FLAG_MAP.get(name), Double.parseDouble(value));
+            } else {
+              LOG.warning("Ignoring flag [" + name + "] with unknown return type: " + retType);
+            }
+          } catch (SecurityException | NumberFormatException ex) {
+            LOG.warning("Ignoring flag [" + name + "]: " + ex.getClass().getSimpleName());
+          } catch (NoSuchMethodException ex) {
+            LOG.warning("Failed to find the flag [" + name + "] in ClientFlagsBase.");
+          }
+        }
+      }
+
+      try {
+        if (config != null) {
+          for (String name : FLAG_MAP.keySet()) {
+            String path = "client.flags.defaults." + name;
+            if (!config.hasPath(path)) continue;
+            try {
+              Method getter = ClientFlagsBase.class.getMethod(name);
+              Class<?> retType = getter.getReturnType();
+              if (ret.has(FLAG_MAP.get(name))) {
+                continue;
+              }
+              if (retType.equals(String.class)) {
+                ret.put(FLAG_MAP.get(name), config.getString(path));
+              } else if (retType.equals(Integer.class)) {
+                ret.put(FLAG_MAP.get(name), config.getInt(path));
+              } else if (retType.equals(Boolean.class)) {
+                ret.put(FLAG_MAP.get(name), config.getBoolean(path));
+              } else if (retType.equals(Float.class)) {
+                ret.put(FLAG_MAP.get(name), (float) config.getDouble(path));
+              } else if (retType.equals(Double.class)) {
+                ret.put(FLAG_MAP.get(name), config.getDouble(path));
+              }
+            } catch (Exception ignored) {}
+          }
+          applyDerivedFragmentDefaults(ret);
+          if (config.hasPath("client.flags.defaults")
+              && config.getValue("client.flags.defaults").valueType().name().equals("STRING")) {
+            String defaults = config.getString("client.flags.defaults");
+            if (defaults != null && !defaults.trim().isEmpty()) {
+              String[] pairs = defaults.split(",");
+              for (String pair : pairs) {
+                String p = pair.trim();
+                if (p.isEmpty()) continue;
+                int eq = p.indexOf('=');
+                String name = (eq > 0) ? p.substring(0, eq).trim() : p;
+                String value = (eq > 0) ? p.substring(eq + 1).trim() : "true";
+                if (!FLAG_MAP.containsKey(name)) continue;
+                try {
+                  Method getter = ClientFlagsBase.class.getMethod(name);
+                  Class<?> retType = getter.getReturnType();
+                  if (ret.has(FLAG_MAP.get(name))) {
+                    continue;
+                  }
+                  if (retType.equals(String.class)) {
+                    ret.put(FLAG_MAP.get(name), value);
+                  } else if (retType.equals(Integer.class)) {
+                    ret.put(FLAG_MAP.get(name), Integer.parseInt(value));
+                  } else if (retType.equals(Boolean.class)) {
+                    ret.put(FLAG_MAP.get(name), Boolean.parseBoolean(value));
+                  } else if (retType.equals(Float.class)) {
+                    ret.put(FLAG_MAP.get(name), Float.parseFloat(value));
+                  } else if (retType.equals(Double.class)) {
+                    ret.put(FLAG_MAP.get(name), Double.parseDouble(value));
+                  }
+                } catch (Exception ignored) {}
+              }
+            }
+          }
+        }
+      } catch (Exception ignored) {}
+
+      if (!loggedClientFlagsOnce) {
+        loggedClientFlagsOnce = true;
+        try {
+          LOG.info("WaveClient flags: " + ret.toString());
+        } catch (Throwable ignore) {}
+      }
+
+      return ret;
+    } catch (JSONException ex) {
+      LOG.severe("Failed to create flags JSON");
+      return new JSONObject();
+    }
+  }
+
+  private void applyDerivedFragmentDefaults(JSONObject ret) {
+    applyStringFlagDefault(ret, "fragmentFetchMode", "server.fragments.transport");
+    applyBooleanFlagDefault(ret, "forceClientFragments", "wave.fragments.forceClientApplier");
+  }
+
+  private void applyStringFlagDefault(JSONObject ret, String flagName, String configPath) {
+    if (ret.has(FLAG_MAP.get(flagName))) {
+      return;
+    }
+    if (config == null || !config.hasPath(configPath)) {
+      return;
+    }
+    String value = config.getString(configPath);
+    if (value == null || value.trim().isEmpty()) {
+      return;
+    }
+    try {
+      ret.put(FLAG_MAP.get(flagName), value.trim().toLowerCase());
+    } catch (JSONException ignored) {}
+  }
+
+  private void applyBooleanFlagDefault(JSONObject ret, String flagName, String configPath) {
+    if (ret.has(FLAG_MAP.get(flagName))) {
+      return;
+    }
+    if (config == null || !config.hasPath(configPath)) {
+      return;
+    }
+    try {
+      ret.put(FLAG_MAP.get(flagName), config.getBoolean(configPath));
+    } catch (JSONException ignored) {}
+  }
 
   private JSONObject getSessionJson(WebSession session) {
     try {

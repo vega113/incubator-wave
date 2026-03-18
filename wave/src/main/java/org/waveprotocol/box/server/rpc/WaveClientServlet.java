@@ -203,46 +203,11 @@ public class WaveClientServlet extends HttpServlet {
         }
       }
 
-      // Merge default flags from system property (dev convenience):
-      // -Dwave.clientFlags="enableDynamicRendering=true,enableQuasiDeletionUi=true"
-      try {
-        String sys = System.getProperty("wave.clientFlags");
-        if (sys != null && !sys.trim().isEmpty()) {
-          String[] pairs = sys.split(",");
-          for (String pair : pairs) {
-            String p = pair.trim();
-            if (p.isEmpty()) continue;
-            int eq = p.indexOf('=');
-            String name = (eq > 0) ? p.substring(0, eq).trim() : p;
-            String value = (eq > 0) ? p.substring(eq + 1).trim() : "true";
-            if (!FLAG_MAP.containsKey(name)) continue;
-
-            try {
-              Method getter = ClientFlagsBase.class.getMethod(name);
-              Class<?> retType = getter.getReturnType();
-              if (retType.equals(String.class)) {
-                ret.put(FLAG_MAP.get(name), value);
-              } else if (retType.equals(Integer.class)) {
-                ret.put(FLAG_MAP.get(name), Integer.parseInt(value));
-              } else if (retType.equals(Boolean.class)) {
-                ret.put(FLAG_MAP.get(name), Boolean.parseBoolean(value));
-              } else if (retType.equals(Float.class)) {
-                ret.put(FLAG_MAP.get(name), Float.parseFloat(value));
-              } else if (retType.equals(Double.class)) {
-                ret.put(FLAG_MAP.get(name), Double.parseDouble(value));
-              }
-            } catch (Exception ignored) {
-            }
-          }
-        }
-      } catch (Exception ignored) {
-      }
-
       // Merge defaults from reference.conf/application.conf under client.flags.defaults
       // Support two forms for simplicity and clarity:
       // 1) Object form (preferred): client.flags.defaults.<flagName>=<typedValue>
       // 2) Legacy CSV string: client.flags.defaults = "flagA=true,flagB=123"
-      // Precedence: request params > -Dwave.clientFlags > object defaults > CSV defaults
+      // Precedence: request params > object defaults > derived fragment defaults > CSV defaults
       try {
         if (config != null) {
           // Object-form defaults
@@ -268,6 +233,7 @@ public class WaveClientServlet extends HttpServlet {
               }
             } catch (Exception ignored) {}
           }
+          applyDerivedFragmentDefaults(ret);
           // Legacy CSV-form defaults
           if (config.hasPath("client.flags.defaults") && config.getValue("client.flags.defaults").valueType().name().equals("STRING")) {
             String defaults = config.getString("client.flags.defaults");
@@ -315,6 +281,41 @@ public class WaveClientServlet extends HttpServlet {
     } catch (JSONException ex) {
       LOG.severe("Failed to create flags JSON");
       return new JSONObject();
+    }
+  }
+
+  private void applyDerivedFragmentDefaults(JSONObject ret) {
+    applyStringFlagDefault(ret, "fragmentFetchMode", "server.fragments.transport");
+    applyBooleanFlagDefault(ret, "forceClientFragments", "wave.fragments.forceClientApplier");
+  }
+
+  private void applyStringFlagDefault(JSONObject ret, String flagName, String configPath) {
+    if (ret.has(FLAG_MAP.get(flagName))) {
+      return;
+    }
+    if (config == null || !config.hasPath(configPath)) {
+      return;
+    }
+    String value = config.getString(configPath);
+    if (value == null || value.trim().isEmpty()) {
+      return;
+    }
+    try {
+      ret.put(FLAG_MAP.get(flagName), value.trim().toLowerCase());
+    } catch (JSONException ignored) {
+    }
+  }
+
+  private void applyBooleanFlagDefault(JSONObject ret, String flagName, String configPath) {
+    if (ret.has(FLAG_MAP.get(flagName))) {
+      return;
+    }
+    if (config == null || !config.hasPath(configPath)) {
+      return;
+    }
+    try {
+      ret.put(FLAG_MAP.get(flagName), config.getBoolean(configPath));
+    } catch (JSONException ignored) {
     }
   }
 
