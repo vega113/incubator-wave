@@ -19,6 +19,9 @@ Canonical status note (2026-03-18)
   prioritized backlog.
 - Keep this file as the detailed modernization task ledger and historical phase
   log.
+- This ledger is not the canonical source of truth for task status; use
+  `.beads/issues.jsonl` for live task execution and `docs/current-state.md` for
+  the current resume point.
 
 How we track task status and updates
 - Each task includes a Status field with one of: Planned | In Progress | Completed.

@@ -66,9 +66,9 @@ Notes:
 ## Documentation map
 
 - Verified current status and prioritized backlog: `docs/current-state.md`
-- Detailed modernization ledger: `docs/modernization-plan.md`
-- Renderer / fragments import ledger: `docs/migrate-conversation-renderer-to-apache-wave.md`
-- Server-first blocks / segment-state ledger: `docs/blocks-adoption-plan.md`
+- Detailed modernization ledgers: `docs/modernization-plan.md`, `docs/jetty-migration.md`
+- Historical renderer / fragments import ledger: `docs/migrate-conversation-renderer-to-apache-wave.md`
+- Historical server-first blocks / segment-state ledger: `docs/blocks-adoption-plan.md`
 - Local development setup: `docs/DEV_SETUP.md`
 - Smoke-test guidance: `docs/SMOKE_TESTS.md`
 - SBT additive build notes: `docs/BUILDING-sbt.md`
@@ -81,6 +81,7 @@ This repository now tracks its active roadmap in repo-local Beads files:
 
 - Human-readable overview: `docs/current-state.md`
 - Live backlog: `.beads/issues.jsonl`
+- Epic index: `docs/epics/README.md`
 
 The `.beads/` directory is configured in no-db mode so the backlog can live in
 git without committing daemon state or SQLite runtime files.

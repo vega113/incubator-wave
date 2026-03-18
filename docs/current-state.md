@@ -35,19 +35,21 @@ Read these files first when resuming work:
    - Verified current repository snapshot and prioritized backlog.
 3. `docs/modernization-plan.md`
    - Detailed modernization ledger for phases 0 through 8.
-4. `docs/migrate-conversation-renderer-to-apache-wave.md`
+4. `docs/jetty-migration.md`
+   - Detailed Jetty / Jakarta migration ledger and test history.
+5. `docs/migrate-conversation-renderer-to-apache-wave.md`
    - Detailed renderer, quasi-deletion, and fragment import log.
-5. `docs/blocks-adoption-plan.md`
+6. `docs/blocks-adoption-plan.md`
    - Detailed server-first fragments and segment-state adoption log.
-6. `docs/BUILDING-sbt.md`
+7. `docs/BUILDING-sbt.md`
    - State of the additive SBT build port.
-7. `docs/DEV_SETUP.md`
+8. `docs/DEV_SETUP.md`
    - Local development requirements and setup notes.
-8. `docs/SMOKE_TESTS.md`
+9. `docs/SMOKE_TESTS.md`
    - Manual and scripted smoke-test guidance.
-9. `docs/CONFIG_FLAGS.md` and `docs/fragments-config.md`
+10. `docs/CONFIG_FLAGS.md` and `docs/fragments-config.md`
    - Configuration behavior and fragments-specific settings.
-10. `.beads/issues.jsonl`
+11. `.beads/issues.jsonl`
    - Live project backlog for epics and tasks.
 
 ## Verified current state
@@ -96,6 +98,9 @@ Read these files first when resuming work:
    complete.
 6. SBT is still additive and server-only. Gradle remains the canonical build.
 7. Packaging and DX verification still need a post-Jakarta pass.
+8. The documentation surface is now intentionally split between one canonical
+   resume guide, a few live ledgers, and Beads tasks; do not re-open one-off
+   plan docs when the live backlog already captures the work.
 
 ### Wiab.pro product features that are still not imported
 
@@ -113,8 +118,8 @@ Read these files first when resuming work:
 - Keep documentation current before additional implementation work.
 - Use the repo-local Beads backlog in `.beads/issues.jsonl` as the live task
   source.
-- Treat this document and `docs/superpowers/plans/2026-03-18-wave-modernization-resume.md`
-  as the written resumption guide.
+- Treat this document as the written resumption guide and use Beads for live
+  execution tracking.
 
 ### 2. Modernization Phase 6 through 8
 
@@ -149,6 +154,10 @@ The project backlog is tracked in `.beads/issues.jsonl` with these epic ids:
   - Documentation and backlog foundation.
   - Closed by the documentation refresh that introduced this canonical resume
     guide.
+- `incubator-wave-docs-maintenance`
+  - Documentation maintenance and ledger cleanup.
+  - Closed by the follow-up docs refresh that retired the one-off resume plan
+    and aligned the live documentation map with Beads.
 - `incubator-wave-modernization`
   - Remaining modernization phase work.
 - `incubator-wave-wiab-core`
@@ -165,4 +174,6 @@ See `docs/epics/README.md` for the human-readable epic overview and
   but add a status banner when the body is now mostly historical.
 - Remove one-off or tool-specific documents once their actionable findings are
   folded into the canonical docs and backlog.
+- The one-off resumption plan was retired once its content was folded into this
+  document and the Beads backlog.
 - Update `README.md` and this file whenever the canonical doc set changes.

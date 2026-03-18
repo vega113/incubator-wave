@@ -3,6 +3,12 @@
 Owner: Migration Engineering
 Last updated: 2025-09-27
 
+Status note (2026-03-18)
+- Historical implementation ledger for the renderer, quasi-deletion, and
+  fragments import work.
+- The canonical current state lives in `docs/current-state.md`; active work is
+  tracked in `.beads/issues.jsonl` under `incubator-wave-wiab-core`.
+
 -------------------------------------------------------------------------------
 
 ## Delta Since Last Edit (2025-09-27)

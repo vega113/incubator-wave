@@ -4,6 +4,11 @@ Status: In Progress (staged migration)
 Owner: Project Maintainers
 Date: 2025-10-11
 
+Status note (2026-03-18)
+- Detailed Jetty / Jakarta migration ledger kept for implementation history.
+- Canonical current-state tracking lives in `docs/current-state.md` and
+  `.beads/issues.jsonl` under `incubator-wave-modernization`.
+
 Status Summary
 - Completed: Stage 1 — Jetty 9.4 baseline upgrade and server hardening validated on JDK 17.
 - Decision (2025-09-02): Target Jetty 12 (EE10). For Jakarta, use programmatic servlet/filter registration and a programmatic WebSocket endpoint. Retire guice-servlet on the Jakarta path (it is javax-only).

@@ -16,6 +16,8 @@ Status note (2026-03-18)
 - Remaining work is concentrated around end-to-end verification, snapshot
   gating, storage-backed segment-state decisions, and the follow-on relationship
   between blocks adoption and the renderer path.
+- Canonical tracking now lives in `docs/current-state.md` and
+  `.beads/issues.jsonl` under `incubator-wave-wiab-core`.
 
 -------------------------------------------------------------------------------
 

@@ -52,6 +52,7 @@ git worktrees.
 ## Git Worktrees And PRs
 - Every agent that edits code or docs must work in its own git worktree.
 - Do not mix agent edits in the main working tree.
+- Use `/Users/vega/devroot/worktrees` as the shared root for local worktrees.
 - When implementation is complete and review is resolved, create a pull request
   from the reviewed worktree.
 - Keep Beads, commits, and PRs aligned so the task status is always traceable.
