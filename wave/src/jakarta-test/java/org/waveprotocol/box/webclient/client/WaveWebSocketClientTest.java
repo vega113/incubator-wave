@@ -16,16 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.waveprotocol.box.webclient.client;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import com.google.gwt.core.client.Scheduler;
-
-import org.junit.Test;
-
 import java.lang.reflect.Field;
+import org.junit.Test;
 
 public final class WaveWebSocketClientTest {
 
@@ -53,12 +52,14 @@ public final class WaveWebSocketClientTest {
 
     setConnectState(client, "CONNECTED");
     setConnectTry(client, 0L);
+    setReconnectScheduled(client, true);
 
-    executeReconnectCommand(client);
-    executeReconnectCommand(client);
+    boolean keepScheduled = executeReconnectCommand(client);
 
+    assertFalse(keepScheduled);
     assertEquals(0L, getConnectTry(client));
     assertEquals(0, socket.connectCalls);
+    assertFalse(isReconnectScheduled(client));
   }
 
   @Test
@@ -68,10 +69,29 @@ public final class WaveWebSocketClientTest {
 
     setConnectState(client, "CONNECTED");
     setConnectTry(client, 2L);
+    setReconnectScheduled(client, true);
 
     client.resetReconnectStateAfterConnect();
 
     assertEquals(0L, getConnectTry(client));
+  }
+
+  @Test
+  public void disconnectedStateUsesFreshReconnectBudget() throws Exception {
+    FakeWaveSocket socket = new FakeWaveSocket();
+    WaveWebSocketClient client = createClient(socket);
+
+    client.resetReconnectStateAfterConnect();
+    setConnectState(client, "DISCONNECTED");
+    setReconnectScheduled(client, true);
+    assertEquals(0L, getConnectTry(client));
+
+    boolean keepScheduled = executeReconnectCommand(client);
+
+    assertTrue(keepScheduled);
+    assertEquals(1, socket.connectCalls);
+    assertEquals(1L, getConnectTry(client));
+    assertEquals("CONNECTING", getConnectState(client));
   }
 
   private static WaveWebSocketClient createClient(FakeWaveSocket socket) throws Exception {
@@ -80,10 +100,10 @@ public final class WaveWebSocketClientTest {
     return client;
   }
 
-  private static void executeReconnectCommand(WaveWebSocketClient client) throws Exception {
+  private static boolean executeReconnectCommand(WaveWebSocketClient client) throws Exception {
     Scheduler.RepeatingCommand command =
         (Scheduler.RepeatingCommand) getField(client, "reconnectCommand");
-    command.execute();
+    return command.execute();
   }
 
   private static void setConnectState(WaveWebSocketClient client, String stateName)
@@ -95,12 +115,25 @@ public final class WaveWebSocketClientTest {
     field.set(client, state);
   }
 
+  private static String getConnectState(WaveWebSocketClient client) throws Exception {
+    return ((Enum<?>) getField(client, "connected")).name();
+  }
+
   private static void setConnectTry(WaveWebSocketClient client, long value) throws Exception {
     setField(client, "connectTry", value);
   }
 
   private static long getConnectTry(WaveWebSocketClient client) throws Exception {
     return ((Long) getField(client, "connectTry")).longValue();
+  }
+
+  private static void setReconnectScheduled(WaveWebSocketClient client, boolean value)
+      throws Exception {
+    setField(client, "reconnectScheduled", value);
+  }
+
+  private static boolean isReconnectScheduled(WaveWebSocketClient client) throws Exception {
+    return ((Boolean) getField(client, "reconnectScheduled")).booleanValue();
   }
 
   private static Object getField(WaveWebSocketClient client, String name) throws Exception {
