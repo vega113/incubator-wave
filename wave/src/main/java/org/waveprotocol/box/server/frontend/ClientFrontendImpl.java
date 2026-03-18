@@ -24,12 +24,14 @@ import com.google.common.collect.Sets;
 
 import org.waveprotocol.box.common.DeltaSequence;
 import org.waveprotocol.box.common.comms.WaveClientRpc;
+import org.waveprotocol.box.server.util.WaveletDataUtil;
 import org.waveprotocol.box.server.waveserver.WaveBus;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.box.server.waveserver.WaveletProvider.SubmitRequestListener;
 import org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta;
 import org.waveprotocol.wave.model.id.IdFilter;
+import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
@@ -149,13 +151,17 @@ public class ClientFrontendImpl implements ClientFrontend, WaveBus.Subscriber {
         snapshotToSend = waveletProvider.getSnapshot(waveletName);
       } catch (WaveServerException e) {
         LOG.warning("Failed to retrieve snapshot for wavelet " + waveletName, e);
+        userManager.unsubscribe(subscription);
         openListener.onFailure("Wave server failure retrieving wavelet");
         return;
+      }
+      if (snapshotToSend == null && isMissingUserDataWavelet(waveletName, loggedInUser)) {
+        snapshotToSend = createEmptyUserDataSnapshot(waveletName, loggedInUser);
       }
 
       LOG.fine("snapshot in response is: " + (snapshotToSend != null));
       if (snapshotToSend == null) {
-        // Send deltas.
+        // Signal channel establishment for a visible wavelet that has no snapshot yet.
         openListener.onUpdate(waveletName, snapshotToSend, DeltaSequence.empty(), null, null,
             channelId);
       } else {
@@ -252,10 +258,7 @@ public class ClientFrontendImpl implements ClientFrontend, WaveBus.Subscriber {
     }
 
     WaveletName waveletName = WaveletName.of(wavelet.getWaveId(), wavelet.getWaveletId());
-
-    if(waveletInfo.getCurrentWaveletVersion(waveletName).getVersion() == 0 && LOG.isWarningLoggable()) {
-      LOG.warning("Wavelet does not appear to have been initialized by client. Continuing anyway.");
-    }
+    backfillWaveletState(waveletName, wavelet, newDeltas);
 
     waveletInfo.syncWaveletVersion(waveletName, newDeltas);
 
@@ -294,5 +297,42 @@ public class ClientFrontendImpl implements ClientFrontend, WaveBus.Subscriber {
     final WaveletName dummyWaveletName =
       WaveletName.of(waveId, WaveletId.of(waveId.getDomain(), "dummy+root"));
     return dummyWaveletName;
+  }
+
+  private boolean isMissingUserDataWavelet(WaveletName waveletName, ParticipantId loggedInUser) {
+    return IdUtil.isUserDataWavelet(waveletName.waveletId)
+        && waveletName.waveletId.equals(IdUtil.buildUserDataWaveletId(loggedInUser));
+  }
+
+  private CommittedWaveletSnapshot createEmptyUserDataSnapshot(WaveletName waveletName,
+      ParticipantId loggedInUser) {
+    HashedVersion version = waveletInfo.getCurrentWaveletVersion(waveletName);
+    ReadableWaveletData snapshot = WaveletDataUtil.createEmptyWavelet(waveletName, loggedInUser,
+        version, System.currentTimeMillis());
+    return new CommittedWaveletSnapshot(snapshot, version);
+  }
+
+  private void backfillWaveletState(WaveletName waveletName, ReadableWaveletData wavelet,
+      DeltaSequence newDeltas) {
+    if (waveletInfo.getCurrentWaveletVersion(waveletName).getVersion() != 0
+        || newDeltas.getStartVersion() == 0) {
+      return;
+    }
+
+    Set<ParticipantId> participants = Sets.newHashSet(wavelet.getParticipants());
+    for (int i = newDeltas.size() - 1; i >= 0; i--) {
+      TransformedWaveletDelta delta = newDeltas.get(i);
+      for (WaveletOperation operation : delta) {
+        if (operation instanceof AddParticipant) {
+          participants.remove(((AddParticipant) operation).getParticipantId());
+        }
+        if (operation instanceof RemoveParticipant) {
+          participants.add(((RemoveParticipant) operation).getParticipantId());
+        }
+      }
+    }
+
+    waveletInfo.backfillWavelet(waveletName, HashedVersion.unsigned(newDeltas.getStartVersion()),
+        participants);
   }
 }
