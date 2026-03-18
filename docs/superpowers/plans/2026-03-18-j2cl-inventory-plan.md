@@ -14,6 +14,9 @@
 
 The current branch already shows the migration is not blocked by one subsystem, but by several large GWT-specific surfaces that must be inventoried separately:
 
+- Treat the counts below as an architect snapshot, not as final deliverable values.
+- The worker phase must re-run the counting commands on this branch and refresh the numbers in the final docs if they differ.
+
 - `wave/build.gradle` still wires dedicated GWT toolchains and tasks:
   - `compileGwt`, `compileGwtDev`, `gwtCodeServer`, `gwtDev2`, `testGwt`, `testGwtHosted`
   - `gwt-user`, `gwt-dev`, and `gwt-codeserver` are still explicit dependencies.
@@ -72,7 +75,6 @@ Use these files and commands as the authoritative evidence base for the final in
 
 - Build and tooling:
   - `wave/build.gradle`
-  - `build.sbt`
 - Top-level module graph:
   - `wave/src/main/resources/org/waveprotocol/box/webclient/WebClient.gwt.xml`
   - `wave/src/main/resources/org/waveprotocol/wave/client/Client.gwt.xml`
@@ -199,6 +201,11 @@ Run:
 fd --glob '*.gwt.xml' wave/src/main/resources wave/src/test -HI -a | wc -l
 ```
 
+Fallback if `fd` is unavailable:
+```bash
+find wave/src/main/resources wave/src/test -name '*.gwt.xml' | wc -l
+```
+
 Expected:
 - A numeric module count recorded in the inventory.
 
@@ -276,6 +283,11 @@ printf 'UiBinder templates: '; fd --glob '*.ui.xml' wave/src/main/resources | wc
 printf 'GWT.create callsites: '; rg -l 'GWT\.create\(' wave/src/main/java | wc -l
 ```
 
+Fallback for `.ui.xml` count if `fd` is unavailable:
+```bash
+find wave/src/main/resources -name '*.ui.xml' | wc -l
+```
+
 Expected:
 - Numeric counts recorded in the inventory.
 
@@ -336,6 +348,7 @@ Buckets:
 - Modify: `docs/j2cl-gwt3-decision-memo.md`
 - Modify: `.beads/issues.jsonl`
 - Modify: `docs/modernization-plan.md`
+- Modify: `docs/current-state.md`
 
 - [ ] **Step 1: Write the evidence-backed decision summary**
 
@@ -345,6 +358,10 @@ The memo must answer:
 - Which subsystems should be isolated before any compiler/runtime switch?
 
 - [ ] **Step 2: Propose follow-on tasks in dependency order**
+
+The expected artifact for this task is:
+- concrete proposed task titles recorded in the decision memo and Beads comments
+- not immediate creation of new Beads issues unless the user explicitly asks for backlog expansion in the same pass
 
 At minimum, propose follow-on tasks for:
 - module graph reduction
@@ -359,13 +376,13 @@ At minimum, propose follow-on tasks for:
 Record:
 - final inventory and memo paths
 - short blocker summary
-- follow-on task ids or proposed task titles
+- proposed follow-on task titles in dependency order
 
 - [ ] **Step 4: Verify the documents are internally consistent**
 
 Run:
 ```bash
-rg -n "J2CL|GWT 3|guava-gwt|UiBinder|JavaScriptObject|JSNI|GWTTestCase" docs/j2cl-gwt3-inventory.md docs/j2cl-gwt3-decision-memo.md docs/modernization-plan.md
+rg -n "J2CL|GWT 3|guava-gwt|UiBinder|JavaScriptObject|JSNI|GWTTestCase" docs/j2cl-gwt3-inventory.md docs/j2cl-gwt3-decision-memo.md docs/modernization-plan.md docs/current-state.md
 ```
 
 Expected:
@@ -374,7 +391,7 @@ Expected:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add docs/j2cl-gwt3-inventory.md docs/j2cl-gwt3-decision-memo.md docs/modernization-plan.md .beads/issues.jsonl
+git add docs/j2cl-gwt3-inventory.md docs/j2cl-gwt3-decision-memo.md docs/modernization-plan.md docs/current-state.md .beads/issues.jsonl
 git commit -m "Document J2CL inventory and decision memo"
 ```
 
