@@ -38,7 +38,7 @@ git worktrees.
 
 ### Worker
 - Implements the assigned Beads task in a dedicated git worktree.
-- Uses the mini worker model (`gpt-5.3-mini`).
+- Uses `gpt-5.4-mini` with `high` reasoning.
 - Keeps the change set narrow and reports the files changed plus verification
   performed.
 
