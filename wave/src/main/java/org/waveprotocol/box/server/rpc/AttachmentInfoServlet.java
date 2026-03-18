@@ -76,29 +76,27 @@ public class AttachmentInfoServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
     List<AttachmentId> attachmentIds = getIdsFromRequest(request);
-
     if (attachmentIds == null) {
       response.sendError(HttpServletResponse.SC_NOT_FOUND);
       return;
     }
+    if (attachmentIds.isEmpty()) {
+      response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+      return;
+    }
 
     ParticipantId user = sessionManager.getLoggedInUser(request.getSession(false));
+    if (user == null) {
+      response.sendError(HttpServletResponse.SC_FORBIDDEN);
+      return;
+    }
 
     AttachmentsResponse.Builder attachmentsResponse = AttachmentsResponse.newBuilder();
-    for (AttachmentId id : attachmentIds) {
-      AttachmentMetadata metadata = service.getMetadata(id);
-      if (metadata != null) {
-        boolean isAuthorized = false;
-        WaveletName waveletName = AttachmentUtil.waveRef2WaveletName(metadata.getWaveRef());
-        try {
-          isAuthorized = waveletProvider.checkAccessPermission(waveletName, user);
-        } catch (WaveServerException e) {
-          LOG.warning("Problem while authorizing user: " + user + " for wavelet: " + waveletName, e);
-        }
-        if (isAuthorized) {
-          attachmentsResponse.addAttachment(new AttachmentMetadataProtoImpl(metadata).getPB());
-        }
-      }
+    boolean anyAuthorized = processIds(user, attachmentIds, attachmentsResponse);
+
+    if (!anyAuthorized) {
+      response.sendError(HttpServletResponse.SC_FORBIDDEN);
+      return;
     }
 
     String info;
@@ -126,18 +124,87 @@ public class AttachmentInfoServlet extends HttpServlet {
    */
   private static List<AttachmentId> getIdsFromRequest(HttpServletRequest request) {
     String par = request.getParameter("attachmentIds");
-    if (par != null) {
-      List<AttachmentId> ids = new ArrayList<AttachmentId>();
-      for (String id : par.split(",", -1)) {
-        try {
-          ids.add(AttachmentId.deserialise(id));
-        } catch (InvalidIdException ex) {
-          LOG.log(Level.SEVERE, "Deserialize attachment Id " + id, ex);
-        }
-      }
-      return ids;
+    if (par == null) return null;
+    if (par.length() > 4096) {
+      LOG.warning("attachmentIds parameter too long; rejecting");
+      return new ArrayList<>();
     }
-    return null;
+    String[] raw = par.split(",", -1);
+    if (raw.length == 0 || raw.length > 100) {
+      LOG.warning("attachmentIds count invalid: " + raw.length);
+      return new ArrayList<>();
+    }
+    java.util.regex.Pattern SAFE = java.util.regex.Pattern.compile("^[A-Za-z0-9._:+\\-=/]{1,256}$");
+    List<AttachmentId> ids = new ArrayList<>();
+    for (String r : raw) {
+      String trimmed = r == null ? "" : r.trim();
+      if (trimmed.isEmpty()) continue;
+      if (trimmed.length() > 256 || !SAFE.matcher(trimmed).matches()) {
+        LOG.fine("Skipping invalid attachmentId token: " + mask(trimmed));
+        continue;
+      }
+      try {
+        ids.add(AttachmentId.deserialise(trimmed));
+      } catch (InvalidIdException ex) {
+        LOG.log(Level.FINE, "Deserialize attachment Id (masked) " + mask(trimmed), ex);
+      }
+    }
+    return ids;
+  }
+
+  // Visible for tests in same package
+  boolean processIds(ParticipantId user,
+                     List<AttachmentId> attachmentIds,
+                     AttachmentsResponse.Builder out) {
+    boolean anyAuthorized = false;
+    for (AttachmentId id : attachmentIds) {
+      if (id == null) { LOG.fine("Null attachmentId token after parsing; skipping"); continue; }
+      AttachmentMetadata metadata = null;
+      try {
+        metadata = service.getMetadata(id);
+      } catch (Exception ex) {
+        LOG.log(Level.WARNING, "Failed to fetch metadata for attachmentId=" + maskAttachmentId(id), ex);
+      }
+      if (metadata != null) {
+        boolean isAuthorized = false;
+        WaveletName waveletName = AttachmentUtil.waveRef2WaveletName(metadata.getWaveRef());
+        try {
+          isAuthorized = waveletProvider.checkAccessPermission(waveletName, user);
+        } catch (WaveServerException e) {
+          LOG.warning("Problem while authorizing user: " + maskParticipant(user) + " for resource", e);
+          isAuthorized = false;
+        }
+        if (isAuthorized) {
+          out.addAttachment(new AttachmentMetadataProtoImpl(metadata).getPB());
+          anyAuthorized = true;
+        } else {
+          LOG.fine("Authorization denied for attachmentId=" + maskAttachmentId(id) + ", user=" + maskParticipant(user));
+        }
+      } else {
+        LOG.fine("No metadata for attachmentId=" + maskAttachmentId(id) + "; skipping");
+      }
+    }
+    return anyAuthorized;
+  }
+
+  private static String maskAttachmentId(AttachmentId id) {
+    return (id == null) ? "null" : mask(id.toString());
+  }
+
+  private static String maskParticipant(ParticipantId p) {
+    if (p == null) return "null";
+    String addr = p.getAddress();
+    int at = (addr != null) ? addr.indexOf('@') : -1;
+    String local = (at > 0) ? addr.substring(0, at) : (addr == null ? "" : addr);
+    String domain = (at > 0) ? addr.substring(at) : ""; // include '@'
+    return mask(local) + domain;
+  }
+
+  private static String mask(String s) {
+    if (s == null) return "null";
+    int len = s.length();
+    if (len <= 6) return "***";
+    return s.substring(0, 3) + "***" + s.substring(len - 2);
   }
 
 }

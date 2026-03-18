@@ -112,13 +112,13 @@ public class DocumentBasedStructuredValueTest extends TestCase {
     // set(String, String).
     createEmptyTarget();
     value.set(Key.NAME1, 42);
-    assertEquals(new Integer(42), value.get(Key.NAME1));
+    assertEquals(Integer.valueOf(42), value.get(Key.NAME1));
     assertNull(value.get(Key.NAME2));
 
     // set(Map).
     createEmptyTarget();
     value.set(CollectionUtils.immutableMap(Key.NAME1, 42));
-    assertEquals(new Integer(42), value.get(Key.NAME1));
+    assertEquals(Integer.valueOf(42), value.get(Key.NAME1));
     assertNull(value.get(Key.NAME2));
   }
 
@@ -140,7 +140,7 @@ public class DocumentBasedStructuredValueTest extends TestCase {
 
   public void testSubstrateValueIsReflected() {
     createTargetOn(CollectionUtils.immutableMap(Key.NAME1, 10));
-    assertEquals(new Integer(10), value.get(Key.NAME1));
+    assertEquals(Integer.valueOf(10), value.get(Key.NAME1));
     assertNull(value.get(Key.NAME2));
   }
 
@@ -148,15 +148,15 @@ public class DocumentBasedStructuredValueTest extends TestCase {
     // set(String, String).
     createTargetOn(CollectionUtils.immutableMap(Key.NAME1, 10, Key.NAME2, 20));
     value.set(Key.NAME1, 5);
-    assertEquals(new Integer(5), value.get(Key.NAME1));
-    assertEquals(new Integer(20), value.get(Key.NAME2));
+    assertEquals(Integer.valueOf(5), value.get(Key.NAME1));
+    assertEquals(Integer.valueOf(20), value.get(Key.NAME2));
     assertSubstrateEquals(CollectionUtils.immutableMap(Key.NAME1, 5, Key.NAME2, 20));
 
     // set(Map).
     createTargetOn(CollectionUtils.immutableMap(Key.NAME1, 10, Key.NAME2, 20));
     value.set(CollectionUtils.immutableMap(Key.NAME1, 5));
-    assertEquals(new Integer(5), value.get(Key.NAME1));
-    assertEquals(new Integer(20), value.get(Key.NAME2));
+    assertEquals(Integer.valueOf(5), value.get(Key.NAME1));
+    assertEquals(Integer.valueOf(20), value.get(Key.NAME2));
     assertSubstrateEquals(CollectionUtils.immutableMap(Key.NAME1, 5, Key.NAME2, 20));
   }
 
@@ -178,8 +178,8 @@ public class DocumentBasedStructuredValueTest extends TestCase {
     createTargetOn(CollectionUtils.immutableMap(Key.NAME1, 10, Key.NAME2, 20));
     setValue(Key.NAME1, 5);
 
-    assertEquals(new Integer(5), value.get(Key.NAME1));
-    assertEquals(new Integer(20), value.get(Key.NAME2));
+    assertEquals(Integer.valueOf(5), value.get(Key.NAME1));
+    assertEquals(Integer.valueOf(20), value.get(Key.NAME2));
     assertSubstrateEquals(CollectionUtils.immutableMap(Key.NAME1, 5, Key.NAME2, 20));
   }
 

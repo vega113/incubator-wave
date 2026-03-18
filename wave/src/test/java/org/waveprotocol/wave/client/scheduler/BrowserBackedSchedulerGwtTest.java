@@ -46,8 +46,14 @@ import java.util.List;
 public class BrowserBackedSchedulerGwtTest extends GWTTestCase {
 
   /** Usable priorities (excludes {@link Priority#INTERNAL_SUPPRESS}) */
-  private static final Collection<Priority> priorities =
-      EnumSet.complementOf(EnumSet.of(Priority.INTERNAL_SUPPRESS));
+  private static final Collection<Priority> priorities;
+
+  static {
+    // GWT JRE emulation does not support EnumSet.complementOf; build manually.
+    EnumSet<Priority> all = EnumSet.allOf(Priority.class);
+    all.remove(Priority.INTERNAL_SUPPRESS);
+    priorities = all;
+  }
 
 
   private abstract class HasProgress {
@@ -503,7 +509,7 @@ public class BrowserBackedSchedulerGwtTest extends GWTTestCase {
     // Check we have gotten call back for task too slow
     assertEquals(1, executedJob.size());
     assertEquals("FakeTask 500 ms", executedJob.get(0).first.toString());
-    assertEquals(new Integer(500), executedJob.get(0).second);
+    assertEquals(Integer.valueOf(500), executedJob.get(0).second);
   }
 
 

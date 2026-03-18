@@ -29,6 +29,7 @@ import com.google.common.collect.Sets;
 import org.waveprotocol.box.common.DeltaSequence;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
+import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
@@ -122,6 +123,7 @@ public class WaveletInfo {
   public Set<WaveletId> visibleWaveletsFor(WaveViewSubscription subscription,
       ParticipantId loggedInUser) throws WaveServerException {
     Set<WaveletId> visible = Sets.newHashSet();
+    boolean userHasAccessToWave = false;
     Set<Entry<WaveletId, PerWavelet>> entrySet;
     try {
       entrySet = perWavelet.get(subscription.getWaveId()).asMap().entrySet();
@@ -130,12 +132,28 @@ public class WaveletInfo {
     }
     for (Entry<WaveletId, PerWavelet> entry : entrySet) {
       WaveletName waveletName = WaveletName.of(subscription.getWaveId(), entry.getKey());
-      if (subscription.includes(entry.getKey())
-          && waveletProvider.checkAccessPermission(waveletName, loggedInUser)) {
+      boolean hasAccess = waveletProvider.checkAccessPermission(waveletName, loggedInUser);
+      if (hasAccess) {
+        userHasAccessToWave = true;
+      }
+      if (subscription.includes(entry.getKey()) && hasAccess) {
         visible.add(entry.getKey());
       }
     }
+    maybeAddUserDataWavelet(visible, subscription, loggedInUser, userHasAccessToWave);
     return visible;
+  }
+
+  private void maybeAddUserDataWavelet(Set<WaveletId> visible,
+      WaveViewSubscription subscription, ParticipantId loggedInUser, boolean userHasAccessToWave) {
+    if (!userHasAccessToWave) {
+      return;
+    }
+
+    WaveletId userDataWaveletId = IdUtil.buildUserDataWaveletId(loggedInUser);
+    if (subscription.includes(userDataWaveletId)) {
+      visible.add(userDataWaveletId);
+    }
   }
 
   /**
@@ -208,6 +226,19 @@ public class WaveletInfo {
     }
   }
 
+  public void backfillWavelet(WaveletName waveletName, HashedVersion version,
+      Set<ParticipantId> participants) {
+    PerWavelet waveletInfo = getWavelet(waveletName);
+    synchronized (waveletInfo) {
+      if (waveletInfo.getCurrentVersion().getVersion() != 0) {
+        return;
+      }
+      waveletInfo.setCurrentVersion(version);
+      waveletInfo.explicitParticipants.clear();
+      waveletInfo.explicitParticipants.addAll(participants);
+    }
+  }
+
   /**
    * @param waveletName the waveletName.
    * @return the wavelet participants.
@@ -229,7 +260,7 @@ public class WaveletInfo {
   public Set<ParticipantId> getImplicitWaveletParticipants(WaveletName waveletName) {
     PerWavelet waveletInfo = getWavelet(waveletName);
     synchronized (waveletInfo) {
-      return ImmutableSet.copyOf(waveletInfo.explicitParticipants);
+      return ImmutableSet.copyOf(waveletInfo.implicitParticipants);
     }
   }
 

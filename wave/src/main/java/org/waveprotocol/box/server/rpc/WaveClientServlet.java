@@ -24,7 +24,7 @@ import com.google.gxp.base.GxpContext;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.typesafe.config.Config;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.waveprotocol.box.common.SessionConstants;
@@ -71,10 +71,13 @@ public class WaveClientServlet extends HttpServlet {
     }
   }
 
+  private static volatile boolean loggedClientFlagsOnce = false;
+
   private final String domain;
   private final String analyticsAccount;
   private final SessionManager sessionManager;
   private final String websocketPresentedAddress;
+  private final Config config;
 
   /**
    * Creates a servlet for the wave client.
@@ -93,6 +96,7 @@ public class WaveClientServlet extends HttpServlet {
                                              websocketAddress1 : websocketPresentedAddress;
     this.analyticsAccount = config.getString("administration.analytics_account");
     this.sessionManager = sessionManager;
+    this.config = config;
   }
 
   @Override
@@ -120,22 +124,43 @@ public class WaveClientServlet extends HttpServlet {
       }
     }
 
+    // In Dev mode, ensure the GWT logger/debug panel is enabled by forcing
+    // the deferred-binding property via URL param `ll=debug` when not present.
+    // This keeps prod behavior unchanged while making :wave:runDev predictable.
+    try {
+      boolean forceDebug = Boolean.parseBoolean(System.getProperty("wave.forceDebugPanel", "false"));
+      if (forceDebug && request.getParameter("ll") == null) {
+        String redirect = UrlParameters.addParameter(request.getRequestURL().toString(), "ll", "debug");
+        response.sendRedirect(redirect);
+        return;
+      }
+    } catch (Exception ignored) {
+    }
+
     String[] parts = id.getAddress().split("@");
     String username = parts[0];
     String userDomain = id.getDomain();
 
+    // Set Content-Type BEFORE getWriter() — once getWriter() is called,
+    // response headers are committed and setContentType() becomes a no-op.
+    response.setContentType("text/html");
+    response.setCharacterEncoding("UTF-8");
+    response.setStatus(HttpServletResponse.SC_OK);
     try {
+      // Use the request Host header for websocket address to ensure cookies and
+      // origin match (e.g., localhost vs 127.0.0.1).
+      String hostHeader = request.getHeader("Host");
+      String wsAddressForPage = (hostHeader != null && !hostHeader.isEmpty())
+          ? hostHeader
+          : websocketPresentedAddress;
       WaveClientPage.write(response.getWriter(), new GxpContext(request.getLocale()),
-          getSessionJson(request.getSession(false)), getClientFlags(request), websocketPresentedAddress,
+          getSessionJson(request.getSession(false)), getClientFlags(request), wsAddressForPage,
           TopBar.getGxpClosure(username, userDomain), analyticsAccount);
     } catch (IOException e) {
       LOG.warning("Failed to write GXP for request " + request, e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
       return;
     }
-
-    response.setContentType("text/html");
-    response.setStatus(HttpServletResponse.SC_OK);
   }
 
   private JSONObject getClientFlags(HttpServletRequest request) {
@@ -170,11 +195,120 @@ public class WaveClientServlet extends HttpServlet {
             }
 
             // Ignore the flag on any exception
-          } catch (SecurityException | NumberFormatException ignored) {
+          } catch (SecurityException | NumberFormatException ex) {
+            LOG.warning("Ignoring flag [" + name + "]: " + ex.getClass().getSimpleName());
           } catch (NoSuchMethodException ex) {
             LOG.warning("Failed to find the flag [" + name + "] in ClientFlagsBase.");
           }
         }
+      }
+
+      // Merge default flags from system property (dev convenience):
+      // -Dwave.clientFlags="enableDynamicRendering=true,enableQuasiDeletionUi=true"
+      try {
+        String sys = System.getProperty("wave.clientFlags");
+        if (sys != null && !sys.trim().isEmpty()) {
+          String[] pairs = sys.split(",");
+          for (String pair : pairs) {
+            String p = pair.trim();
+            if (p.isEmpty()) continue;
+            int eq = p.indexOf('=');
+            String name = (eq > 0) ? p.substring(0, eq).trim() : p;
+            String value = (eq > 0) ? p.substring(eq + 1).trim() : "true";
+            if (!FLAG_MAP.containsKey(name)) continue;
+
+            try {
+              Method getter = ClientFlagsBase.class.getMethod(name);
+              Class<?> retType = getter.getReturnType();
+              if (retType.equals(String.class)) {
+                ret.put(FLAG_MAP.get(name), value);
+              } else if (retType.equals(Integer.class)) {
+                ret.put(FLAG_MAP.get(name), Integer.parseInt(value));
+              } else if (retType.equals(Boolean.class)) {
+                ret.put(FLAG_MAP.get(name), Boolean.parseBoolean(value));
+              } else if (retType.equals(Float.class)) {
+                ret.put(FLAG_MAP.get(name), Float.parseFloat(value));
+              } else if (retType.equals(Double.class)) {
+                ret.put(FLAG_MAP.get(name), Double.parseDouble(value));
+              }
+            } catch (Exception ignored) {
+            }
+          }
+        }
+      } catch (Exception ignored) {
+      }
+
+      // Merge defaults from reference.conf/application.conf under client.flags.defaults
+      // Support two forms for simplicity and clarity:
+      // 1) Object form (preferred): client.flags.defaults.<flagName>=<typedValue>
+      // 2) Legacy CSV string: client.flags.defaults = "flagA=true,flagB=123"
+      // Precedence: request params > -Dwave.clientFlags > object defaults > CSV defaults
+      try {
+        if (config != null) {
+          // Object-form defaults
+          for (String name : FLAG_MAP.keySet()) {
+            String path = "client.flags.defaults." + name;
+            if (!config.hasPath(path)) continue;
+            try {
+              Method getter = ClientFlagsBase.class.getMethod(name);
+              Class<?> retType = getter.getReturnType();
+              if (ret.has(FLAG_MAP.get(name))) {
+                continue; // don't override higher-precedence sources
+              }
+              if (retType.equals(String.class)) {
+                ret.put(FLAG_MAP.get(name), config.getString(path));
+              } else if (retType.equals(Integer.class)) {
+                ret.put(FLAG_MAP.get(name), config.getInt(path));
+              } else if (retType.equals(Boolean.class)) {
+                ret.put(FLAG_MAP.get(name), config.getBoolean(path));
+              } else if (retType.equals(Float.class)) {
+                ret.put(FLAG_MAP.get(name), (float) config.getDouble(path));
+              } else if (retType.equals(Double.class)) {
+                ret.put(FLAG_MAP.get(name), config.getDouble(path));
+              }
+            } catch (Exception ignored) {}
+          }
+          // Legacy CSV-form defaults
+          if (config.hasPath("client.flags.defaults") && config.getValue("client.flags.defaults").valueType().name().equals("STRING")) {
+            String defaults = config.getString("client.flags.defaults");
+            if (defaults != null && !defaults.trim().isEmpty()) {
+              String[] pairs = defaults.split(",");
+              for (String pair : pairs) {
+                String p = pair.trim();
+                if (p.isEmpty()) continue;
+                int eq = p.indexOf('=');
+                String name = (eq > 0) ? p.substring(0, eq).trim() : p;
+                String value = (eq > 0) ? p.substring(eq + 1).trim() : "true";
+                if (!FLAG_MAP.containsKey(name)) continue;
+                try {
+                  Method getter = ClientFlagsBase.class.getMethod(name);
+                  Class<?> retType = getter.getReturnType();
+                  if (ret.has(FLAG_MAP.get(name))) {
+                    continue; // don't override object/defaults or sysprop/params
+                  }
+                  if (retType.equals(String.class)) {
+                    ret.put(FLAG_MAP.get(name), value);
+                  } else if (retType.equals(Integer.class)) {
+                    ret.put(FLAG_MAP.get(name), Integer.parseInt(value));
+                  } else if (retType.equals(Boolean.class)) {
+                    ret.put(FLAG_MAP.get(name), Boolean.parseBoolean(value));
+                  } else if (retType.equals(Float.class)) {
+                    ret.put(FLAG_MAP.get(name), Float.parseFloat(value));
+                  } else if (retType.equals(Double.class)) {
+                    ret.put(FLAG_MAP.get(name), Double.parseDouble(value));
+                  }
+                } catch (Exception ignored) {}
+              }
+            }
+          }
+        }
+      } catch (Exception ignored) {}
+
+      if (!loggedClientFlagsOnce) {
+        loggedClientFlagsOnce = true;
+        try {
+          LOG.info("WaveClient flags: " + ret.toString());
+        } catch (Throwable ignore) {}
       }
 
       return ret;

@@ -23,8 +23,11 @@ import com.google.common.base.Preconditions;
 import com.google.inject.Inject;
 
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.util.HttpSanitizers;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import javax.inject.Singleton;
 import javax.servlet.http.HttpServlet;
@@ -57,12 +60,38 @@ public class SignOutServlet extends HttpServlet {
     sessionManager.logout(session);
 
     String redirectUrl = req.getParameter("r");
-    if (redirectUrl != null && redirectUrl.startsWith("/")) {
-      resp.sendRedirect(redirectUrl);
-    } else {
-      resp.setStatus(HttpServletResponse.SC_OK);
-      resp.setContentType("text/html");
-      resp.getWriter().print("<html><body>Logged out.</body></html>");
+    if (isSafeLocalRedirect(redirectUrl)) {
+      // Normalize before redirecting
+      try {
+        URI u = new URI(redirectUrl).normalize();
+        resp.sendRedirect(u.toString());
+        return;
+      } catch (URISyntaxException ignore) {
+        // Fall through to HTML response
+      }
+    }
+
+    resp.setStatus(HttpServletResponse.SC_OK);
+    resp.setContentType("text/html");
+    resp.getWriter().print("<html><body>Logged out.</body></html>");
+  }
+
+  private static boolean isSafeLocalRedirect(String r) {
+    if (r == null || r.isEmpty()) return false;
+    if (r.length() > 2048) return false;
+    if (r.indexOf('\r') >= 0 || r.indexOf('\n') >= 0) return false;
+    // Disallow scheme-relative //host paths
+    if (r.startsWith("//")) return false;
+    try {
+      URI u = new URI(r).normalize();
+      boolean hasScheme = u.getScheme() != null;
+      boolean hasAuthority = u.getRawAuthority() != null || u.getHost() != null;
+      String path = u.getPath();
+      boolean startsWithSlash = path != null && path.startsWith("/");
+      boolean containsTraversal = path != null && (path.contains("/../") || path.contains("/./"));
+      return !hasScheme && !hasAuthority && startsWithSlash && !containsTraversal;
+    } catch (URISyntaxException e) {
+      return false;
     }
   }
 }

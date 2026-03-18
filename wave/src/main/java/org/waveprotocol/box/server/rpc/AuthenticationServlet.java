@@ -125,35 +125,30 @@ private final WelcomeRobot welcomeBot;
 
   @SuppressWarnings("unchecked")
   private LoginContext login(BufferedReader body) throws IOException, LoginException {
-    try {
-      Subject subject = new Subject();
-
-      String parametersLine = body.readLine();
-      // Throws UnsupportedEncodingException.
-      byte[] utf8Bytes = parametersLine.getBytes("UTF-8");
-
-      CharsetDecoder utf8Decoder = Charset.forName("UTF-8").newDecoder();
-      utf8Decoder.onMalformedInput(CodingErrorAction.IGNORE);
-      utf8Decoder.onUnmappableCharacter(CodingErrorAction.IGNORE);
-
-      // Throws CharacterCodingException.
-      CharBuffer parsed = utf8Decoder.decode(ByteBuffer.wrap(utf8Bytes));
-      parametersLine = parsed.toString();
-
-      MultiMap<String> parameters = new UrlEncoded(parametersLine);
-      CallbackHandler callbackHandler = new HttpRequestBasedCallbackHandler(parameters);
-
-      LoginContext context = new LoginContext("Wave", subject, callbackHandler, configuration);
-
-      // If authentication fails, login() will throw a LoginException.
-      context.login();
-      return context;
-    } catch (CharacterCodingException cce) {
-      throw new LoginException("Character coding exception (not utf-8): "
-          + cce.getLocalizedMessage());
-    } catch (UnsupportedEncodingException uee) {
-      throw new LoginException("ad character encoding specification: " + uee.getLocalizedMessage());
+    // Strict, size‑bounded read of the x-www-form-urlencoded POST body.
+    final int MAX_LEN = 8192;
+    StringBuilder sb = new StringBuilder(256);
+    char[] buf = new char[512];
+    int n, total = 0;
+    while ((n = body.read(buf)) != -1) {
+      total += n;
+      if (total > MAX_LEN) {
+        throw new LoginException("Authentication request too large");
+      }
+      sb.append(buf, 0, n);
     }
+    if (sb.length() == 0) {
+      throw new LoginException("Empty authentication request body");
+    }
+
+    Subject subject = new Subject();
+    MultiMap<String> parameters = new MultiMap<String>();
+    UrlEncoded.decodeTo(sb.toString(), parameters, "UTF-8");
+    CallbackHandler callbackHandler = new HttpRequestBasedCallbackHandler(parameters);
+
+    LoginContext context = new LoginContext("Wave", subject, callbackHandler, configuration);
+    context.login();
+    return context;
   }
 
   /**
@@ -376,37 +371,151 @@ private final WelcomeRobot welcomeBot;
    */
   private void redirectLoggedInUser(HttpServletRequest req, HttpServletResponse resp)
       throws IOException {
-     Preconditions.checkState(sessionManager.getLoggedInUser(req.getSession(false)) != null,
-         "The user is not logged in");
+    Preconditions.checkState(sessionManager.getLoggedInUser(req.getSession(false)) != null,
+        "The user is not logged in");
     String query = req.getQueryString();
+
+    String gwtCodesvr = extractGwtCodesvr(req);
 
     // Not using req.getParameter() for this because calling that method might parse the password
     // sitting in POST data into a String, where it could be read by another process after the
     // string is garbage collected.
-    if (query == null || !query.startsWith("r=")) {
+    String encoded = extractQueryParam(query, "r");
+    if (encoded == null || encoded.isEmpty()) {
+      // Default redirect to root; preserve Super Dev Mode flag when present so
+      // the page can load from the running CodeServer without prompting again.
+      if (gwtCodesvr != null && !gwtCodesvr.isEmpty()) {
+        resp.sendRedirect(DEFAULT_REDIRECT_URL + "?gwt.codesvr=" + gwtCodesvr);
+      } else {
+        resp.sendRedirect(DEFAULT_REDIRECT_URL);
+      }
+      return;
+    }
+
+    // Decode but guard against CR/LF and excessive length
+    String candidate;
+    try {
+      candidate = URLDecoder.decode(encoded, "UTF-8");
+    } catch (IllegalArgumentException iae) {
       resp.sendRedirect(DEFAULT_REDIRECT_URL);
       return;
     }
 
-    String encoded_url = query.substring("r=".length());
-    String path = URLDecoder.decode(encoded_url, "UTF-8");
-
-    // The URL must not be an absolute URL to prevent people using this as a
-    // generic redirection service.
-    URI uri;
-    try {
-      uri = new URI(path);
-    } catch (URISyntaxException e) {
-      // The redirect URL is invalid.
-      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    if (candidate.length() > 2048 || candidate.indexOf('\r') >= 0 || candidate.indexOf('\n') >= 0) {
+      resp.sendRedirect(DEFAULT_REDIRECT_URL);
       return;
     }
 
-    if (Strings.isNullOrEmpty(uri.getHost()) == false) {
-      // The URL includes a host component. Disallow it.
-      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-    } else {
-      resp.sendRedirect(path);
+    // Additional guards: reject backslashes and encoded traversal attempts
+    String encLc = encoded.toLowerCase(java.util.Locale.ROOT);
+    if (encLc.contains("%0d") || encLc.contains("%0a")) {
+      resp.sendRedirect(DEFAULT_REDIRECT_URL);
+      return;
     }
+    if (candidate.indexOf('\\') >= 0 || encLc.contains("%5c") || containsEncodedPathTraversal(encLc)) {
+      resp.sendRedirect(DEFAULT_REDIRECT_URL);
+      return;
+    }
+
+    // Validate as an intra-site absolute path only. Disallow scheme, authority, and //-prefixed paths.
+    try {
+      URI u = new URI(candidate).normalize();
+      boolean hasAuthority = (u.getRawAuthority() != null) || (u.getHost() != null);
+      boolean hasScheme = u.getScheme() != null;
+      String raw = u.toString();
+      boolean looksSchemeRelative = raw.startsWith("//");
+      boolean startsWithSlash = u.getPath() != null && u.getPath().startsWith("/");
+      boolean containsTraversal = u.getPath() != null && (u.getPath().contains("/../") || u.getPath().contains("/./"));
+
+      if (hasScheme || hasAuthority || looksSchemeRelative || !startsWithSlash || containsTraversal) {
+        resp.sendRedirect(DEFAULT_REDIRECT_URL);
+        return;
+      }
+
+      // Preserve Super Dev Mode flag on custom redirect if present and target has no query yet
+      if (gwtCodesvr != null && !gwtCodesvr.isEmpty()) {
+        String sep = raw.contains("?") ? "&" : "?";
+        resp.sendRedirect(raw + sep + "gwt.codesvr=" + gwtCodesvr);
+      } else {
+        resp.sendRedirect(raw);
+      }
+    } catch (URISyntaxException use) {
+      resp.sendRedirect(DEFAULT_REDIRECT_URL);
+    }
+  }
+
+  /**
+   * Extracts a query parameter without triggering servlet request parameter parsing.
+   */
+  private static String extractQueryParam(String query, String name) {
+    if (query == null || name == null) return null;
+    int i = 0;
+    while (i <= query.length()) {
+      int amp = query.indexOf('&', i);
+      String pair = (amp == -1) ? query.substring(i) : query.substring(i, amp);
+      if (!pair.isEmpty()) {
+        int eq = pair.indexOf('=');
+        String k = (eq == -1) ? pair : pair.substring(0, eq);
+        if (k.equals(name)) {
+          return (eq == -1) ? "" : pair.substring(eq + 1);
+        }
+      }
+      if (amp == -1) break;
+      i = amp + 1;
+    }
+    return null;
+  }
+
+  private static String extractGwtCodesvr(HttpServletRequest req) {
+    // 1) If provided as a query param on this request, use it
+    String direct = req.getParameter("gwt.codesvr");
+    if (direct != null && !direct.isEmpty()) return sanitizeCodesvr(direct);
+    // 2) Try Referer header (common when user navigates from a page with the flag)
+    String ref = req.getHeader("Referer");
+    if (ref != null) {
+      try {
+        URI uri = new URI(ref);
+        String q = uri.getQuery();
+        if (q != null) {
+          for (String kv : q.split("&")) {
+            int idx = kv.indexOf('=');
+            if (idx > 0) {
+              String k = kv.substring(0, idx);
+              if ("gwt.codesvr".equals(k)) {
+                return sanitizeCodesvr(kv.substring(idx + 1));
+              }
+            }
+          }
+        }
+      } catch (URISyntaxException ignore) { }
+    }
+    return null;
+  }
+
+  private static boolean containsEncodedPathTraversal(String encLc) {
+    return encLc.contains("%2e%2e") ||
+           encLc.contains("%2f%2e") ||
+           encLc.contains("%2e%2f") ||
+           encLc.contains("%5c%2e") ||
+           encLc.contains("%2e%5c") ||
+           encLc.contains("%2f%2e%2e") ||
+           encLc.contains("%5c%2e%2e") ||
+           encLc.contains("%2e%2e%2f") ||
+           encLc.contains("%2e%2e%5c");
+  }
+
+  private static String sanitizeCodesvr(String v) {
+    // Keep it simple: allow digits, colon, dot, and localhost-like tokens
+    // e.g., 127.0.0.1:9876 or localhost:9876
+    String s = v.trim();
+    // Drop any http:// prefix if present
+    if (s.startsWith("http://")) {
+      s = s.substring(7);
+    }
+    // Basic allowlist
+    if (s.matches("[a-zA-Z0-9._-]+:[0-9]{1,5}")) {
+      return s;
+    }
+    return null;
   }
 }

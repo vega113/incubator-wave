@@ -24,8 +24,9 @@ import com.google.common.io.ByteStreams;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 
-import javax.servlet.http.HttpServletResponse;
+import static java.net.HttpURLConnection.HTTP_OK;
 
 /**
  * A helper class that contains utility method to be used by
@@ -46,7 +47,7 @@ public class RobotConnectionUtil {
    */
   public static String validateAndReadResponse(String url, int statusCode, byte[] response)
       throws RobotConnectionException {
-    if (statusCode != HttpServletResponse.SC_OK) {
+    if (statusCode != HTTP_OK) {
       String msg = "Robot fetch http failure: " + url + ": " + statusCode;
       throw new RobotConnectionException(msg, statusCode);
     }

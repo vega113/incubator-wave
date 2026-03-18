@@ -62,3 +62,30 @@ wave/config/wave.conf
 
 ### Server running
 **/*.log.*
+wave/logs/
+
+# Local development journals (not committed)
+journal/
+/wave_server.out
+/wave_server.pid
+/wave/config/dev-keystore.jks
+/wave/config/dev-keystore.jks.bak
+/gradle.pid
+/run.out
+/run.ui.out
+/gradle.ui.pid
+/.private-journal/
+/wave/bin/
+/pst/bin/
+target/
+.coursier-cache/
+
+### SBT
+.ivy2/
+.sbt-boot/
+.sbt-global/
+project/target/
+project/project/
+
+### Proto generated sources (not committed)
+proto_src/

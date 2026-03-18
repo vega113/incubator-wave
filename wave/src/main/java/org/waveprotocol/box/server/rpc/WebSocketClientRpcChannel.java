@@ -22,8 +22,8 @@ package org.waveprotocol.box.server.rpc;
 import org.waveprotocol.wave.util.logging.Log;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import com.google.protobuf.Descriptors.MethodDescriptor;
 import com.google.protobuf.Message;
 import com.google.protobuf.RpcCallback;
@@ -37,6 +37,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -49,7 +50,7 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
   private final WebSocketClient socketClient;
   private final WebSocketChannel clientChannel;
   private final AtomicInteger lastSequenceNumber = new AtomicInteger();
-  private final BiMap<Integer, ClientRpcController> activeMethodMap = HashBiMap.create();
+  private final Map<Integer, ClientRpcController> activeMethodMap = new ConcurrentHashMap<>();
 
   /**
    * Set up a new WebSocketClientRpcChannel pointing at the given server
@@ -64,20 +65,22 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
     ProtoCallback callback = new ProtoCallback() {
       @Override
       public void message(int sequenceNo, Message message) {
-        final ClientRpcController controller;
-        synchronized (activeMethodMap) {
-          controller = activeMethodMap.get(sequenceNo);
-          // TODO: remove controller from activeMethodMap
+        final ClientRpcController controller = activeMethodMap.get(sequenceNo);
+        if (controller == null) {
+          LOG.warning("Received message for unknown sequence " + sequenceNo + ": " + message);
+          return;
         }
-        if (message instanceof Rpc.RpcFinished) {
-          Rpc.RpcFinished finished = (Rpc.RpcFinished) message;
-          if (finished.getFailed()) {
+        if (message instanceof Rpc.RpcFinished finished) {
+            if (finished.getFailed()) {
             controller.failure(finished.getErrorText());
           } else {
             controller.response(null);
           }
         } else {
           controller.response(message);
+        }
+        if (controller.status() == ClientRpcController.Status.COMPLETE) {
+          activeMethodMap.remove(sequenceNo);
         }
       }
     };
@@ -116,9 +119,7 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
           }
         });
     controller.configure(rpcStatus);
-    synchronized (activeMethodMap) {
-      activeMethodMap.put(sequenceNo, controller);
-    }
+    activeMethodMap.put(sequenceNo, controller);
     LOG.fine("Calling a new RPC (seq " + sequenceNo + "), method " + method.getFullName() + " for "
         + clientChannel);
 
@@ -128,26 +129,62 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
 
   private WebSocketClient openWebSocket(WebSocketChannel clientChannel,
       InetSocketAddress inetAddress) throws IOException {
-    URI uri;
+    // Validate input early to avoid ambiguous failures
+    if (inetAddress == null || inetAddress.getPort() <= 0) {
+      throw new IllegalArgumentException("Invalid server address: " + inetAddress);
+    }
+
+    final URI uri;
     try {
-      uri = new URI("ws", null, inetAddress.getHostName(), inetAddress.getPort(), "/socket",
-          null, null);
+      uri = new URI(
+          "ws",
+          null,
+          inetAddress.getHostString(),
+          inetAddress.getPort(),
+          "/socket",
+          null,
+          null);
     } catch (URISyntaxException e) {
       LOG.severe("Unable to create ws:// uri from given address (" + inetAddress + ")", e);
       throw new IllegalStateException(e);
     }
-    WebSocketClient client = new WebSocketClient();
-    try {
-      client.start();
-    } catch (Exception ex) {
-      throw new RuntimeException(ex);
+
+    int attempts = 3;
+    final int connectTimeoutMs = Integer.getInteger("wave.websocket.connectTimeoutMs", 10_000);
+    final int connectWaitMs = Integer.getInteger("wave.websocket.connectWaitMs", 15_000);
+    final int maxBackoffMs = Integer.getInteger("wave.websocket.maxBackoffMs", 8_000);
+    final double jitterFraction = Double.parseDouble(System.getProperty("wave.websocket.jitterFraction", "0.2"));
+    long backoffMs = 1000;
+    Exception last = null;
+    for (int i = 1; i <= attempts; i++) {
+      WebSocketClient client = new WebSocketClient();
+      client.setConnectTimeout(connectTimeoutMs);
+      boolean started = false;
+      try {
+        client.start();
+        started = true;
+        ClientUpgradeRequest request = new ClientUpgradeRequest();
+        client.connect(clientChannel, uri, request).get(connectWaitMs, TimeUnit.MILLISECONDS);
+        return client; // success
+      } catch (Exception ex) {
+        last = ex;
+        LOG.warning("WebSocket connect attempt " + i + " failed", ex);
+        if (started) {
+          try { client.stop(); } catch (Exception stopEx) {
+            LOG.warning("WebSocket client stop() failed during cleanup", stopEx);
+          }
+        }
+        if (i < attempts) {
+          long sleepMs = backoffMs;
+          if (jitterFraction > 0) {
+            double r = (Math.random() * 2 * jitterFraction) - jitterFraction; // [-jitter,+jitter]
+            sleepMs = Math.max(0, (long) (backoffMs * (1.0 + r)));
+          }
+          try { Thread.sleep(sleepMs); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+          backoffMs = Math.min(backoffMs * 2, maxBackoffMs);
+        }
+      }
     }
-    ClientUpgradeRequest request = new ClientUpgradeRequest();
-    try {
-      client.connect(clientChannel, uri, request).get();
-    } catch (Exception ex) {
-      throw new IOException(ex);
-    }
-    return client;
+    throw new IOException(last);
   }
 }

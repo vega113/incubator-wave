@@ -19,12 +19,12 @@
 
 package org.waveprotocol.box.server.frontend;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,7 +38,7 @@ import junit.framework.TestCase;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.waveprotocol.box.common.DeltaSequence;
 import org.waveprotocol.box.common.ExceptionalIterator;
@@ -54,6 +54,7 @@ import org.waveprotocol.wave.model.id.IdConstants;
 import org.waveprotocol.wave.model.id.IdFilter;
 import org.waveprotocol.wave.model.id.IdFilters;
 import org.waveprotocol.wave.model.id.IdURIEncoderDecoder;
+import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
@@ -92,11 +93,21 @@ public class ClientFrontendImplTest extends TestCase {
   private static final WaveletName WN2 = WaveletName.of(WAVE_ID, W2);
 
   private static final ParticipantId USER = new ParticipantId("user@example.com");
+  private static final ParticipantId OTHER_USER = new ParticipantId("other@example.com");
+  private static final WaveletId USER_DATA_WAVELET_ID = IdUtil.buildUserDataWaveletId(USER);
+  private static final WaveletId OTHER_USER_DATA_WAVELET_ID =
+      IdUtil.buildUserDataWaveletId(OTHER_USER);
+  private static final WaveletName USER_DATA_WAVELET_NAME =
+      WaveletName.of(WAVE_ID, USER_DATA_WAVELET_ID);
+  private static final WaveletName OTHER_USER_DATA_WAVELET_NAME =
+      WaveletName.of(WAVE_ID, OTHER_USER_DATA_WAVELET_ID);
   private static final DeltaTestUtil UTIL = new DeltaTestUtil(USER);
 
   private static final HashedVersion V0 = HASH_FACTORY.createVersionZero(WN1);
   private static final HashedVersion V1 = HashedVersion.unsigned(1L);
   private static final HashedVersion V2 = HashedVersion.unsigned(2L);
+  private static final HashedVersion USER_DATA_V0 =
+      HASH_FACTORY.createVersionZero(USER_DATA_WAVELET_NAME);
 
   private static final TransformedWaveletDelta DELTA = TransformedWaveletDelta.cloneOperations(
       USER, V1, 0, ImmutableList.of(UTIL.addParticipant(USER)));
@@ -108,6 +119,7 @@ public class ClientFrontendImplTest extends TestCase {
 
   private ClientFrontendImpl clientFrontend;
   private WaveletProvider waveletProvider;
+  private WaveletInfo waveletInfo;
 
   @Override
   protected void setUp() throws Exception {
@@ -115,7 +127,7 @@ public class ClientFrontendImplTest extends TestCase {
     waveletProvider = mock(WaveletProvider.class);
     when(waveletProvider.getWaveletIds(any(WaveId.class))).thenReturn(ImmutableSet.<WaveletId>of());
 
-    WaveletInfo waveletInfo = WaveletInfo.create(HASH_FACTORY, waveletProvider);
+    waveletInfo = WaveletInfo.create(HASH_FACTORY, waveletProvider);
     clientFrontend = new ClientFrontendImpl(waveletProvider, waveletInfo);
   }
 
@@ -160,6 +172,68 @@ public class ClientFrontendImplTest extends TestCase {
     verifyMarker(listener, WAVE_ID);
   }
 
+  public void testOpenWaveSynthesizesMissingUserDataWaveletSnapshot() throws Exception {
+    provideWavelet(OTHER_USER_DATA_WAVELET_NAME);
+    when(waveletProvider.getWaveletIds(WAVE_ID)).thenReturn(ImmutableSet.of(OTHER_USER_DATA_WAVELET_ID));
+    when(waveletProvider.checkAccessPermission(OTHER_USER_DATA_WAVELET_NAME, USER)).thenReturn(true);
+
+    IdFilter filter = IdFilter.of(
+        Collections.singleton(USER_DATA_WAVELET_ID),
+        Collections.singleton(IdConstants.CONVERSATION_WAVELET_PREFIX));
+    OpenListener listener = openWave(WAVE_ID, filter);
+
+    ArgumentCaptor<CommittedWaveletSnapshot> snapshotCaptor =
+        ArgumentCaptor.forClass(CommittedWaveletSnapshot.class);
+    verify(listener).onUpdate(eq(USER_DATA_WAVELET_NAME), snapshotCaptor.capture(),
+        eq(DeltaSequence.empty()), eq(USER_DATA_V0), isNullMarker(), any(String.class));
+
+    CommittedWaveletSnapshot snapshot = snapshotCaptor.getValue();
+    assertEquals(USER_DATA_WAVELET_ID, snapshot.snapshot.getWaveletId());
+    assertEquals(USER, snapshot.snapshot.getCreator());
+    assertEquals(USER_DATA_V0, snapshot.snapshot.getHashedVersion());
+    assertEquals(USER_DATA_V0, snapshot.committedVersion);
+    verifyMarker(listener, WAVE_ID);
+  }
+
+  public void testFailedOpenDoesNotLeaveSubscriptionActive() throws Exception {
+    CommittedWaveletSnapshot snapshot = provideWavelet(WN1);
+    when(waveletProvider.getWaveletIds(WAVE_ID)).thenReturn(ImmutableSet.of(W1));
+    when(waveletProvider.checkAccessPermission(WN1, USER)).thenReturn(true);
+    when(waveletProvider.getSnapshot(WN1)).thenReturn(snapshot).thenThrow(new WaveServerException("boom"));
+
+    OpenListener listener = mock(OpenListener.class);
+    clientFrontend.openRequest(USER, WAVE_ID, IdFilters.ALL_IDS, NO_KNOWN_WAVELETS, listener);
+    verify(listener).onFailure("Wave server failure retrieving wavelet");
+
+    TransformedWaveletDelta delta = makeDelta(USER, V2, 1234567890L, UTIL.noOp());
+    WaveletData wavelet = WaveletDataUtil.createEmptyWavelet(WN1, USER, V0, 1234567890L);
+    DELTA.get(0).apply(wavelet);
+    WaveletDataUtil.applyWaveletDelta(delta, wavelet);
+    clientFrontend.waveletUpdate(wavelet, DeltaSequence.of(delta));
+
+    verify(listener, never()).onUpdate(eq(WN1), isNullSnapshot(),
+        eq(DeltaSequence.of(delta)), isNullVersion(), isNullMarker(), anyString());
+  }
+
+  public void testImplicitParticipantsTrackedSeparately() {
+    waveletInfo.notifyAddedImplcitParticipant(WN1, USER);
+
+    assertEquals(ImmutableSet.of(USER), waveletInfo.getImplicitWaveletParticipants(WN1));
+    assertEquals(ImmutableSet.<ParticipantId>of(), waveletInfo.getWaveletParticipants(WN1));
+  }
+
+  public void testWaveletUpdateBackfillsMissingWaveletState() throws Exception {
+    TransformedWaveletDelta delta = makeDelta(USER, V2, 1234567890L, UTIL.noOp());
+    WaveletData wavelet = WaveletDataUtil.createEmptyWavelet(WN1, USER, V0, 1234567890L);
+    DELTA.get(0).apply(wavelet);
+    WaveletDataUtil.applyWaveletDelta(delta, wavelet);
+
+    clientFrontend.waveletUpdate(wavelet, DeltaSequence.of(delta));
+
+    assertEquals(V2, waveletInfo.getCurrentWaveletVersion(WN1));
+    assertEquals(ImmutableSet.of(USER), waveletInfo.getWaveletParticipants(WN1));
+  }
+
   /**
    * Tests that a snapshot not matching the subscription filter is not received.
    * @throws WaveServerException
@@ -173,7 +247,7 @@ public class ClientFrontendImplTest extends TestCase {
     ReadableWaveletData wavelet = provideWavelet(WN1).snapshot;
     clientFrontend.waveletUpdate(wavelet, DELTAS);
     verify(listener, Mockito.never()).onUpdate(eq(WN1),
-        any(CommittedWaveletSnapshot.class), Matchers.anyList(),
+        any(CommittedWaveletSnapshot.class), org.mockito.ArgumentMatchers.anyList(),
         any(HashedVersion.class), isNullMarker(), anyString());
   }
 

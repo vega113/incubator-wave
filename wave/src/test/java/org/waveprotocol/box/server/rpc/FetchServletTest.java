@@ -19,7 +19,7 @@
 
 package org.waveprotocol.box.server.rpc;
 
-import static org.mockito.Matchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -28,6 +28,8 @@ import static org.mockito.Mockito.when;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+
+import org.mockito.Mockito;
 import com.google.protobuf.Message;
 
 import junit.framework.TestCase;
@@ -35,7 +37,7 @@ import junit.framework.TestCase;
 import org.waveprotocol.box.common.comms.WaveClientRpc.WaveletSnapshot;
 import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.authentication.SessionManager;
-import org.waveprotocol.box.server.authentication.SessionManagerImpl;
+import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.common.SnapshotSerializer;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryStore;
@@ -51,8 +53,8 @@ import org.waveprotocol.wave.util.escapers.jvm.JavaWaverefEncoder;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Tests for the FetchServlet. The fetch servlet provides wavelet snapshots
@@ -73,9 +75,9 @@ public class FetchServletTest extends TestCase {
     waveletProvider = new WaveletProviderStub();
     AccountStore accountStore = new MemoryStore();
     accountStore.putAccount(new HumanAccountDataImpl(ParticipantId.ofUnsafe("fred@example.com")));
-    org.eclipse.jetty.server.SessionManager jettySessionManager =
-        mock(org.eclipse.jetty.server.SessionManager.class);
-    SessionManager sessionManager = new SessionManagerImpl(accountStore, jettySessionManager);
+    SessionManager sessionManager = mock(SessionManager.class);
+    when(sessionManager.getLoggedInUser(Mockito.any(WebSession.class)))
+        .thenReturn(ParticipantId.ofUnsafe("fred@example.com"));
     servlet = new FetchServlet(waveletProvider, protoSerializer, sessionManager);
   }
 
@@ -186,7 +188,7 @@ public class FetchServletTest extends TestCase {
 
   private <T extends Message> T fetchWaverRefAndParse(WaveRef waveref, Class<T> klass) throws Exception {
     String message = fetchWaveRef(waveref);
-    JsonElement json = new JsonParser().parse(message);
+    JsonElement json = JsonParser.parseString(message);
     return protoSerializer.fromJson(json, klass);
   }
 }

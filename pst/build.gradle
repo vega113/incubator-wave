@@ -20,8 +20,8 @@
 //=============================================================================
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '1.2.3'
-    id 'com.google.protobuf' version '0.8.0'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'com.google.protobuf' version '0.9.4'
 }
 apply plugin: 'checkstyle'
 apply plugin: 'com.google.protobuf'
@@ -30,8 +30,14 @@ apply plugin: 'com.google.protobuf'
 // Project Level Settings
 //=============================================================================
 version = 0.1
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+java {
+    // Compile and target JDK 17 bytecode
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
 def title = 'Apache Wave PST Compiler'
 def vendor = 'The Apache Software Foundation'
 
@@ -50,6 +56,10 @@ jar {
 
 tasks.withType(Tar) {
     compression = Compression.BZIP2
+}
+
+tasks.withType(ProcessResources) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 //=============================================================================
@@ -75,6 +85,9 @@ sourceSets {
     }
 }
 
+// Ensure generated proto sources are available before compiling Java
+compileJava.dependsOn generateProto
+
 //=============================================================================
 // Dependencies
 // Note: next to each dependency is a review stamp [last review, next review].
@@ -86,12 +99,12 @@ repositories {
 }
 
 dependencies {
-    compile group: 'com.google.protobuf', name: 'protobuf-java', version: '2.6.1' // [12/2015, 3/2016]
-    compile group: 'com.google.guava', name: 'guava', version: '19.0'             // [1/2016, 6/2016]
-    compile group: 'org.antlr', name: 'antlr', version: '3.2'                     // [12/2015, 3/2016]
-    compile group: 'commons-cli', name: 'commons-cli', version: '1.3.1'           // [1/2016, 6/2016]
+implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.25.3'
+    implementation group: 'com.google.guava', name: 'guava', version: '19.0'             // [1/2016, 6/2016]
+    implementation group: 'org.antlr', name: 'antlr', version: '3.2'                     // [12/2015, 3/2016]
+    implementation group: 'commons-cli', name: 'commons-cli', version: '1.3.1'           // [1/2016, 6/2016]
 
-    testCompile group: 'junit', name: 'junit', version: '4.12'                    // [1/2016, 1/2017]
+    testImplementation group: 'junit', name: 'junit', version: '4.12'                    // [1/2016, 1/2017]
 }
 
 //=============================================================================
@@ -109,7 +122,7 @@ checkstyleMain.source = "src/main/java" // only checks the manually written java
 //=============================================================================
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:2.6.1'
+        artifact = 'com.google.protobuf:protoc:3.25.3'
     }
     generatedFilesBaseDir = "$projectDir/generated"
 }
@@ -119,9 +132,13 @@ protobuf {
 //=============================================================================
 
 shadowJar {
-    baseName = 'wave-pst'
-    classifier = ''
+    archiveBaseName = 'wave-pst'
+    archiveClassifier = ''
     exclude 'META-INF/**/*'
+    // Use project-provided protobuf runtime from the consumer; avoid embedding it here to prevent conflicts
+    exclude 'com/google/protobuf/**'
+    // Avoid bundling Guava; rely on consumer's version to prevent conflicts
+    exclude 'com/google/common/**'
 }
 
 //=============================================================================
@@ -142,8 +159,8 @@ def srcExcludes = [
 ]
 
 task createDistSourceTar(type: Tar) {
-    baseName = srcName
-    destinationDir = file('../distributions')
+    archiveBaseName = srcName
+    destinationDirectory = file('../distributions')
     from('./') {
         into 'apache-wave-pst-src'
     }
@@ -152,8 +169,8 @@ task createDistSourceTar(type: Tar) {
 }
 
 task createDistSourceZip(type: Zip) {
-    baseName = srcName
-    destinationDir = file('../distributions')
+    archiveBaseName = srcName
+    destinationDirectory = file('../distributions')
     from('./') {
         into 'apache-wave-pst-src'
     }
@@ -179,8 +196,8 @@ createDistSource.dependsOn createDistSourceTar, createDistSourceZip
 def binName = this.group + "-" + this.name + "-bin"
 
 task createDistBinTar(type: Tar) {
-    baseName = binName
-    destinationDir = file('../distributions')
+    archiveBaseName = binName
+    destinationDirectory = file('../distributions')
     from(shadowJar) {
         into 'apache-wave-pst/bin'
     }
@@ -190,8 +207,8 @@ task createDistBinTar(type: Tar) {
 }
 
 task createDistBinZip(type: Zip) {
-    baseName = binName
-    destinationDir = file('../distributions')
+    archiveBaseName = binName
+    destinationDirectory = file('../distributions')
     from(shadowJar) {
         into 'apache-wave-pst/bin'
     }

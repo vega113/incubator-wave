@@ -37,11 +37,13 @@ import net.oauth.OAuthServiceProvider;
 import net.oauth.OAuthValidator;
 import net.oauth.SimpleOAuthValidator;
 
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.MultiThreadedHttpConnectionManager;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.waveprotocol.box.server.robots.active.ActiveApiOperationServiceRegistry;
 import org.waveprotocol.box.server.robots.dataapi.DataApiOAuthServlet;
 import org.waveprotocol.box.server.robots.dataapi.DataApiOperationServiceRegistry;
+import org.waveprotocol.box.server.robots.passive.RobotCapabilityFetcher;
 import org.waveprotocol.box.server.robots.passive.RobotConnector;
 
 import java.util.concurrent.Executor;
@@ -67,6 +69,8 @@ public class RobotApiModule extends AbstractModule {
     install(new EventDataConverterModule());
     install(new RobotSerializerModule());
 
+    bind(RobotCapabilityFetcher.class).to(RobotConnector.class);
+
     bind(String.class).annotatedWith(Names.named("authorize_token_path")).toInstance(
         AUTHORIZE_TOKEN_PATH);
     bind(String.class).annotatedWith(Names.named("request_token_path")).toInstance(
@@ -88,7 +92,10 @@ public class RobotApiModule extends AbstractModule {
   @Provides
   @Singleton
   protected RobotConnection provideRobotConnection() {
-    HttpClient httpClient = new HttpClient(new MultiThreadedHttpConnectionManager());
+    PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
+    cm.setMaxTotal(50);
+    cm.setDefaultMaxPerRoute(10);
+    CloseableHttpClient httpClient = HttpClients.custom().setConnectionManager(cm).build();
 
     ThreadFactory threadFactory =
         new ThreadFactoryBuilder().setNameFormat("RobotConnection").build();

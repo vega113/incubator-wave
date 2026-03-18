@@ -105,6 +105,10 @@ final class UserManager {
     return subscription;
   }
 
+  public synchronized void unsubscribe(WaveViewSubscription subscription) {
+    subscriptions.remove(subscription.getWaveId(), subscription);
+  }
+
   /**
    * Tell the user manager that we have a submit request outstanding. While a
    * submit request is outstanding, all wavelet updates are queued.

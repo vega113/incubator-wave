@@ -29,10 +29,19 @@ import java.util.Map;
 @SuppressWarnings({"rawtypes"})
 public class Timing {
   static private final StatRecorder statsRecorder = new StatRecorder();
-  static private final StatRenderer renderer = new StatRenderer();
+  static private StatRenderer renderer;
   static private RequestScope scope;
 
   static private boolean enabled = false;
+
+  static {
+    try {
+      renderer = new StatRenderer();
+    } catch (Throwable e) {
+      // GWT or other dependencies not available on server side - that's ok, profiling will be disabled
+      renderer = null;
+    }
+  }
 
   /**
    * Gets recorder of statistic.
@@ -230,6 +239,7 @@ public class Timing {
    * Renders statistics for all program.
    */
   static public String renderGlobalStatistics() {
+    if (renderer == null) return "";
     return renderer.renderHtml(
             statsRecorder.getGlobalStore().getMeasurements(),
             statsRecorder.getGlobalStore().getProfiledRequests());
@@ -239,6 +249,7 @@ public class Timing {
    * Renders statistics for current session. Server only.
    */
   static public String renderSessionStatistics() {
+    if (renderer == null) return "";
     return renderer.renderHtml(
             statsRecorder.getSessionStore().getMeasurements(),
             statsRecorder.getSessionStore().getProfiledRequests());
@@ -248,6 +259,7 @@ public class Timing {
    * Renders tracked statistic.
    */
   static public String renderStats() {
+    if (renderer == null) return "";
     return renderer.renderHtml(Statistic.getStats());
   }
 
@@ -255,6 +267,7 @@ public class Timing {
    * Renders title.
    */
   static public String renderTitle(String title, int level) {
+    if (renderer == null) return "";
     return renderer.renderTitle(title, level);
   }
 

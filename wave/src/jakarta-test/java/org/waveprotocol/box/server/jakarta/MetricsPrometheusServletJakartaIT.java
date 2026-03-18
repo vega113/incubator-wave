@@ -1,0 +1,83 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with this
+ * work for additional information regarding copyright ownership.  The ASF
+ * licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package org.waveprotocol.box.server.jakarta;
+
+import io.micrometer.core.instrument.Counter;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.waveprotocol.box.server.stat.MetricsHolder;
+import org.waveprotocol.box.server.stat.MetricsPrometheusServlet;
+
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.Assert.*;
+
+/**
+ * Verifies the Jakarta Prometheus servlet exposes registered Micrometer metrics.
+ */
+public final class MetricsPrometheusServletJakartaIT {
+  private Server server;
+  private int port;
+
+  @Before
+  public void start() throws Exception {
+    TestSupport.assumeJettyEe10PresentOrSkip();
+    server = new Server();
+    ServerConnector connector = new ServerConnector(server);
+    connector.setPort(0);
+    server.addConnector(connector);
+
+    ServletContextHandler handler = new ServletContextHandler(ServletContextHandler.SESSIONS);
+    handler.setContextPath("/");
+    handler.addServlet(new org.eclipse.jetty.ee10.servlet.ServletHolder(new MetricsPrometheusServlet()), "/metrics");
+    server.setHandler(handler);
+
+    server.start();
+    port = connector.getLocalPort();
+  }
+
+  @After
+  public void stop() {
+    TestSupport.stopServerQuietly(server);
+  }
+
+  @Test
+  public void metricsEndpointExposesRegisteredCounters() throws Exception {
+    Counter counter = MetricsHolder.registry().counter("wave_metrics_test_counter", "state", "ok");
+    counter.increment(2.0);
+
+    HttpURLConnection conn = TestSupport.openConnection(new URL("http://localhost:" + port + "/metrics"));
+    assertEquals(200, conn.getResponseCode());
+    assertEquals("text/plain; version=0.0.4; charset=utf-8", conn.getHeaderField("Content-Type"));
+
+    String body = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertTrue("Prometheus output should contain HELP header", body.contains("# HELP"));
+    assertTrue("Counter sample should be exported", body.contains("wave_metrics_test_counter_total"));
+    assertTrue("Counter label should be present", body.contains("state=\"ok\""));
+  }
+}

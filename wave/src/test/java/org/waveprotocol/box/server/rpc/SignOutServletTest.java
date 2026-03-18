@@ -19,7 +19,8 @@
 
 package org.waveprotocol.box.server.rpc;
 
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,12 +31,13 @@ import junit.framework.TestCase;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSession;
 
 import java.io.PrintWriter;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 /**
  * @author josephg@gmail.com (Joseph Gentle)
@@ -61,7 +63,7 @@ public class SignOutServletTest extends TestCase {
   public void testUserSignedOut() throws Exception {
     servlet.doGet(req, resp);
     
-    verify(sessionManager).logout(session);
+    verify(sessionManager).logout(any(WebSession.class));
     verify(resp).setStatus(HttpServletResponse.SC_OK);
   }
 

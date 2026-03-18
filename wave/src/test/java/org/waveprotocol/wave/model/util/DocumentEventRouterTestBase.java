@@ -305,11 +305,11 @@ public abstract class DocumentEventRouterTestBase extends TestCase {
   }
 
   private static Doc.E anyElement() {
-    return Matchers.<Doc.E>any();
+    return org.mockito.ArgumentMatchers.<Doc.E>any();
   }
 
   private static Map<String, String> anyAttribs() {
-    return Matchers.<Map<String, String>>any();
+    return org.mockito.ArgumentMatchers.<Map<String, String>>any();
   }
 
   private static Map<String, String> noAttribs() {

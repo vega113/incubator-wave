@@ -39,15 +39,52 @@ software:
   Wave requires the BouncyCastle Java cryptography APIs:
     http://www.bouncycastle.org/java.html
 
-## Run Binary
+## Quick Start (Dev)
 
-The nightly binaries can be downloaded from https://builds.apache.org/view/S-Z/view/Wave/job/wave-artifacts/lastSuccessfulBuild/artifact/.
-The latest "dev" releases can be downloaded from: https://dist.apache.org/repos/dist/dev/incubator/wave/.
-The latest officially released binaries can be downloaded from: https://dist.apache.org/repos/dist/release/incubator/wave/.
+Requirements: Java 17+, Gradle Wrapper (included)
 
-Extract the archive and execute ./bin/wave for Linux/Mac or bin\wave.bat for Windows.
+1) One‑time bootstrap (creates config and optional dev keystore):
 
-The web client will be accessible by default at http://localhost:9898/.
+   - Dev HTTP only:
+     `scripts/wave-bootstrap.sh`
+
+   - Dev HTTPS (self‑signed):
+     `scripts/wave-bootstrap.sh --with-ssl`
+
+2) Run the server:
+
+   `./gradlew :wave:run`
+
+   - Default dev URL: http://localhost:9898/
+   - If you enabled SSL: https://localhost:9898/
+   - The Jakarta (Jetty 12) profile is the default. Use `./gradlew -PjettyFamily=javax :wave:run` if you need the legacy Jetty 9.4 build for bisects.
+
+Notes:
+- WebSocket auth: In dev, `network.session_cookie_http_only = false` so the legacy web client can read `JSESSIONID` for a WebSocket fallback authenticate.
+- The server renders the WebSocket address from the request Host header to avoid localhost/127.0.0.1 cookie mismatches.
+
+## Documentation map
+
+- Verified current status and prioritized backlog: `docs/current-state.md`
+- Detailed modernization ledgers: `docs/modernization-plan.md`, `docs/jetty-migration.md`
+- Historical renderer / fragments import ledger: `docs/migrate-conversation-renderer-to-apache-wave.md`
+- Historical server-first blocks / segment-state ledger: `docs/blocks-adoption-plan.md`
+- Local development setup: `docs/DEV_SETUP.md`
+- Smoke-test guidance: `docs/SMOKE_TESTS.md`
+- SBT additive build notes: `docs/BUILDING-sbt.md`
+- Configuration and fragments flags: `docs/CONFIG_FLAGS.md`, `docs/fragments-config.md`
+- Beads epic index: `docs/epics/README.md`
+
+## Task tracking
+
+This repository now tracks its active roadmap in repo-local Beads files:
+
+- Human-readable overview: `docs/current-state.md`
+- Live backlog: `.beads/issues.jsonl`
+- Epic index: `docs/epics/README.md`
+
+The `.beads/` directory is configured in no-db mode so the backlog can live in
+git without committing daemon state or SQLite runtime files.
 
 ## Setup with Vagrant
 
@@ -104,7 +141,7 @@ run `./gradlew cleanEclipse` or `./gradlew cleanIdea` depending on your IDE.
 
 ## Gradle Tasks
 
-Apache Wave requires Java 7 & Gradle 2.8+ to build.
+Apache Wave now targets Java 17+. Use the included Gradle Wrapper.
 
 Gradle tasks can be run by `./gradlew [task name]`
 
@@ -164,14 +201,54 @@ Note:
 
 Take a look at the reference.conf to learn about configuration and possible/default values.
 
-The server can be started (on Linux/MacOS) by running
-    ./run-server.sh
-Or on Windows by running
-    run-server.bat
-    Note: must be cd'ed into the root directory
-Or, you can run the server from the compiled classes with Gradle:
-    gradle run
-The web client will be accessible by default at http://localhost:9898/.
+To run from sources:
+    ./gradlew :wave:run
+The web client is accessible by default at http://localhost:9898/.
+
+To build an installable distribution:
+    ./gradlew :wave:installDist
+Use `scripts/wave-smoke.sh start|status|stop` against the installed dist.
+
+### Jetty profiles (Jakarta by default)
+
+**Jakarta EE 10 (default):**
+- Standard builds and `./gradlew :wave:run` already target Jetty 12 with Jakarta APIs.
+- The dedicated Jakarta test suites remain available when you want to be explicit:
+  - Compile Jakarta sources and tests: `./gradlew -PjettyFamily=jakarta :wave:classes :wave:jakartaTestClasses`
+  - Run Jakarta unit tests: `./gradlew -PjettyFamily=jakarta :wave:testJakarta`
+  - Run Jakarta integration tests: `./gradlew -PjettyFamily=jakarta :wave:testJakartaIT`
+  - Build an installable distribution: `./gradlew -PjettyFamily=jakarta :wave:installDist`
+
+**Legacy Jetty 9.4 (javax) fallback:**
+- Only needed for bisects or compatibility testing: `./gradlew -PjettyFamily=javax :wave:run`
+- Matching build/test commands work with the same flag, e.g. `./gradlew -PjettyFamily=javax :wave:test`
+
+**Docker builds:**
+- Jakarta is now the default: `docker build -t wave:jakarta .`
+- Use `--build-arg JETTY_FAMILY=javax` if you need the legacy servlet profile: `docker build --build-arg JETTY_FAMILY=javax -t wave:javax .`
+- Run the container: `docker run --rm -p 9898:9898 wave:jakarta`
+
+### Enabling SSL and handling sensitive data
+
+- To enable SSL locally or in Docker, you need a Java keystore that contains a certificate/private key.
+  - Example (self-signed for development only):
+    `keytool -genkeypair -alias wave -keyalg RSA -keysize 2048 -validity 365 \\
+      -keystore wave/config/keystore.jks -storepass changeit -dname "CN=localhost"`
+  - Set `WAVE_SSL_KEYSTORE_PASSWORD` and point the server config to the keystore path.
+- Never commit keystores or passwords to source control. Avoid printing secrets in logs; review your logging configuration to ensure sensitive values are not logged.
+- Scrub CI/CD logs and artifacts as needed and prefer environment variables or secret stores for sensitive configuration.
+
+
+### WebSocket tuning (internal clients)
+
+Apache Wave uses an internal Jetty WebSocket client for live RPC channels. You can tune connection behavior via Typesafe Config (reference.conf/application.conf):
+
+- wave.websocket.connectTimeoutMs: Jetty client connect timeout (default: 10000)
+- wave.websocket.connectWaitMs: Max wait for a connect to complete per attempt (default: 15000)
+- wave.websocket.maxBackoffMs: Cap for exponential backoff between retries (default: 8000)
+- wave.websocket.jitterFraction: Jitter applied to backoff sleeps, as a fraction (default: 0.2 for ±20%)
+
+The server applies these to system properties at startup so the internal client picks them up. Override in config/application.conf to suit your environment.
 
 
 ## To learn more about Wave in a Box and Wave Federation Protocol:
@@ -182,16 +259,53 @@ The web client will be accessible by default at http://localhost:9898/.
 4. Watch the Wave Summit videos on YouTube, find the links at: https://cwiki.apache.org/confluence/display/WAVE/Wave+Summit+Talks
 
 
-## To enable SSL:
+## Dev vs. Prod configuration
 
-Create a Java keystore for your server (e.g. using http://portecle.sourceforge.net/).
-You will need a key (e.g. called "server") whose subject Common Name (CN) is
-the hostname of your server.
+Configuration files live under `wave/config/`.
 
-Set enable_ssl = true and set the ssl_keystore_path and ssl_keystore_password options.
+For an overview of important server flags and test environment variables (including temporary experimental flags slated for removal), see docs/CONFIG_FLAGS.md.
+
+- `reference.conf` — all defaults and documented options.
+- `application.conf` — your overrides (created by `scripts/wave-bootstrap.sh`).
+
+Key settings:
+
+- `core.http_frontend_addresses`: list of `host:port` listeners. Dev default is `127.0.0.1:9898`.
+- `network.session_cookie_http_only`:
+  - Dev default: `false` (legacy web client reads `JSESSIONID` to send a WebSocket ProtocolAuthenticate).
+  - Prod recommended: `true`.
+- `security.enable_ssl`:
+  - Dev default: `false` (HTTP only).
+  - Prod recommended: `true` with a real certificate.
+
+### Enabling SSL
+
+Option A (dev self‑signed):
+
+    scripts/wave-bootstrap.sh --with-ssl
+
+This generates `wave/config/dev-keystore.jks` (password `changeme`) and flips `enable_ssl = true`.
+
+Option B (prod):
+
+1. Obtain a real certificate and create/import a Java keystore (JKS or PKCS12).
+2. In `application.conf`:
+
+```
+security {
+  enable_ssl = true
+  ssl_keystore_path = "config/your-prod.jks"
+  ssl_keystore_password = ${?WAVE_SSL_KEYSTORE_PASSWORD}
+}
+```
+
+Run with the password provided by environment variable:
+
+    export WAVE_SSL_KEYSTORE_PASSWORD='...'
+    ./gradlew :wave:run
 
 
-To enable X.509 client authentication:
+### X.509 client authentication (optional)
 
 If your users have X.509 certificates which include their email address, you can have
 them logged in automatically (with their wave ID being the same as their email address):
@@ -203,8 +317,8 @@ You can get your CA's certficate from their website, though note they might prov
 3. Set clientauth_cert_domain (to the part after the "@" in your email addresses).
 4. (optional) Set disable_loginpage = true to prevent password-based logins.
 
-Users will be automatically logged in when they access the site, with the
-username taken from the email address in their certificate.
+Users will be automatically logged in when they access the site, with the username
+taken from the email address in their certificate.
 
 Setting up third party optional dependencies:
 
@@ -214,14 +328,29 @@ In order to specify MongoDB in server.config as the storage option for storing d
 Or on Ubuntu Linux you can use the following command:
     sudo apt-get install mongodb-org
 
-## To enable Solr (Currently Disabled):
+## Solr (status)
 
-In order to specify Solr in server.config as the search type - you need to install Solr according to instructions at: http://www.apache.org/dyn/closer.cgi/lucene/solr/4.9.1.
-Or, you can use built in Ant script, i.e. run:
-    ant get-third-party-solr-dep
-This will download and unzip the Solr distribution into third_party/solr folder.
-You can then run the Solr server with:
-    run-solr.sh
-for Linux/Mac or:
-    run-solr.bat
-for Windows.
+Solr integration is currently disabled. The code paths remain for historical reference,
+but the build no longer relies on Ant and we do not ship Solr helpers. If you want to
+experiment, point `core.search_type = solr` and set `core.solr_base_url`, then run a
+separate Solr instance yourself. Contributions to re-enable and modernize Solr support
+via Gradle are welcome.
+## Docker
+
+Build the image (multi-stage, Java 17):
+
+    docker build -t wave:dev .
+
+Run (HTTP on 9898):
+
+    docker run --rm -p 9898:9898 wave:dev
+
+Mount a custom config (optional):
+
+    docker run --rm -p 9898:9898 -v "$PWD/wave/config:/opt/wave/config" wave:dev
+
+Enable SSL in the container (mount keystore and set env):
+
+    docker run --rm -p 9898:9898 \
+      -v "$PWD/wave/config:/opt/wave/config" \
+      -e WAVE_SSL_KEYSTORE_PASSWORD=changeme wave:dev

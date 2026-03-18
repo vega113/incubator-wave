@@ -37,6 +37,7 @@ import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.util.logging.Log;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
@@ -153,9 +154,12 @@ final class WaveViewSubscription {
 
     // Forward any queued deltas.
     List<TransformedWaveletDelta> filteredDeltas =  filterOwnDeltas(state.heldBackDeltas, state);
-    if (!filteredDeltas.isEmpty()) {
-      sendUpdate(waveletName, filteredDeltas, null);
-    }
+      if (!filteredDeltas.isEmpty()) {
+          for (TransformedWaveletDelta delta : filteredDeltas) {
+              List<TransformedWaveletDelta> singletonDeltaList = Collections.singletonList(delta);
+              sendUpdate(waveletName, singletonDeltaList, null);
+          }
+      }
     state.heldBackDeltas.clear();
   }
 

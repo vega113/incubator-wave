@@ -32,6 +32,7 @@ import org.waveprotocol.box.server.attachment.AttachmentService;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.persistence.AttachmentStore.AttachmentData;
 import org.waveprotocol.box.server.persistence.AttachmentUtil;
+import org.waveprotocol.box.server.util.HttpSanitizers;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.wave.media.model.AttachmentId;
@@ -47,6 +48,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URLDecoder;
 import java.util.Calendar;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.Color;
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.logging.Level;
 
@@ -72,6 +77,8 @@ public class AttachmentServlet extends HttpServlet {
   private final WaveletProvider waveletProvider;
   private final SessionManager sessionManager;
   private final String thumbnailPattternsDirectory;
+  private final File thumbnailPatternsDir;
+  private final String contentDispositionMode; // sanitized | hashed (default: sanitized)
 
   @Inject
   private AttachmentServlet(AttachmentService service, WaveletProvider waveletProvider,
@@ -79,89 +86,196 @@ public class AttachmentServlet extends HttpServlet {
     this.service = service;
     this.waveletProvider = waveletProvider;
     this.sessionManager = sessionManager;
-    this.thumbnailPattternsDirectory = config.getString("core.thumbnail_patterns_directory");
+    String dir = null;
+    File dirFile = null;
+    try {
+      if (config != null && config.hasPath("core.thumbnail_patterns_directory")) {
+        dir = config.getString("core.thumbnail_patterns_directory");
+        dirFile = (dir == null || dir.isBlank()) ? null : new File(dir);
+        if (dirFile != null && (!dirFile.exists() || !dirFile.isDirectory() || !dirFile.canRead())) {
+          LOG.warning("thumbnail patterns directory invalid or unreadable: '" + dir + "' (patterns will use generated fallback)");
+          dirFile = null;
+        }
+      }
+    } catch (Exception e) {
+      LOG.warning("Failed to read thumbnail patterns directory from config; using generated fallback", e);
+      dirFile = null;
+    }
+    this.thumbnailPattternsDirectory = dir != null ? dir : "";
+    this.thumbnailPatternsDir = dirFile;
+    String mode = "sanitized";
+    try {
+      if (config.hasPath("server.attachments.contentDispositionMode")) {
+        mode = config.getString("server.attachments.contentDispositionMode");
+      }
+    } catch (Exception ignore) {
+      // default stays sanitized
+    }
+    this.contentDispositionMode = mode;
   }
 
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
-    AttachmentId attachmentId = getAttachmentIdFromRequest(request);
+    // One-orchestrator / single-exit flow: delegate steps to helpers,
+    // then finalize the response once.
+    int status = HttpServletResponse.SC_OK;
+    String errorLog = null;
 
+    AttachmentId attachmentId = resolveAttachmentId(request);
     if (attachmentId == null) {
-      response.sendError(HttpServletResponse.SC_NOT_FOUND);
-      return;
+      status = HttpServletResponse.SC_NOT_FOUND;
+      errorLog = "Missing attachmentId";
     }
 
-    String fileName = getFileNameFromRequest(request);
-    String waveRefStr = getWaveRefFromRequest(request);
-
-    AttachmentMetadata metadata = service.getMetadata(attachmentId);
-    WaveletName waveletName;
-
-    if (metadata == null) {
-      // Old attachments does not have metainfo.
-      if (waveRefStr != null) {
-        waveletName = AttachmentUtil.waveRef2WaveletName(waveRefStr);
+    AttachmentMetadata metadata = null;
+    WaveletName waveletName = null;
+    if (status == HttpServletResponse.SC_OK) {
+      String waveRefStr = getWaveRefFromRequest(request);
+      metadata = service.getMetadata(attachmentId);
+      WaveletName resolved = resolveWaveletName(metadata, waveRefStr);
+      if (resolved == null) {
+        status = HttpServletResponse.SC_NOT_FOUND;
+        errorLog = "No metadata and missing waveRef";
       } else {
-        response.sendError(HttpServletResponse.SC_NOT_FOUND);
-        return;
+        waveletName = resolved;
       }
-    } else {
-      waveletName = AttachmentUtil.waveRef2WaveletName(metadata.getWaveRef());
     }
 
-    ParticipantId user = sessionManager.getLoggedInUser(request.getSession(false));
-    boolean isAuthorized = false;
+    if (status == HttpServletResponse.SC_OK) {
+      if (!isAuthorized(waveletName, sessionManager.getLoggedInUser(request.getSession(false)))) {
+        status = HttpServletResponse.SC_FORBIDDEN;
+        errorLog = "User not authorized";
+      }
+    }
+
+    if (status == HttpServletResponse.SC_OK) {
+      // Backfill metadata if needed (old attachments)
+      metadata = ensureMetadata(metadata, attachmentId, waveletName, getFileNameFromRequest(request));
+    }
+
+    AttachmentData data = null;
+    String contentType = null;
+    if (status == HttpServletResponse.SC_OK) {
+      Content content = resolveContentAndType(request.getRequestURI(), metadata, attachmentId);
+      if (content.status != HttpServletResponse.SC_OK) {
+        status = content.status;
+        errorLog = content.errorMessage;
+      } else {
+        data = content.data;
+        contentType = content.contentType;
+      }
+    }
+
+    finalizeResponse(response, status, errorLog, metadata, data, contentType, attachmentId);
+  }
+
+  // ---- Helpers ----
+
+  private AttachmentId resolveAttachmentId(HttpServletRequest request) {
+    return getAttachmentIdFromRequest(request);
+  }
+
+  private WaveletName resolveWaveletName(AttachmentMetadata metadata, String waveRefStr) {
+    if (metadata != null) {
+      return AttachmentUtil.waveRef2WaveletName(metadata.getWaveRef());
+    }
+    if (waveRefStr != null) {
+      return AttachmentUtil.waveRef2WaveletName(waveRefStr);
+    }
+    return null;
+  }
+
+  private boolean isAuthorized(WaveletName waveletName, ParticipantId user) {
     try {
-      isAuthorized = waveletProvider.checkAccessPermission(waveletName, user);
+      return waveletProvider.checkAccessPermission(waveletName, user);
     } catch (WaveServerException e) {
       LOG.warning("Problem while authorizing user: " + user + " for wavelet: " + waveletName, e);
+      return false;
     }
-    if (!isAuthorized) {
-      response.sendError(HttpServletResponse.SC_FORBIDDEN);
-      return;
-    }
+  }
 
-    if (metadata == null) {
-      metadata = service.buildAndStoreMetadataWithThumbnail(attachmentId, waveletName, fileName, null);
+  private AttachmentMetadata ensureMetadata(AttachmentMetadata metadata, AttachmentId id,
+                                            WaveletName waveletName, String fileName) {
+    if (metadata != null) return metadata;
+    try {
+      return service.buildAndStoreMetadataWithThumbnail(id, waveletName, fileName, null);
+    } catch (IOException e) {
+      LOG.warning("Failed to backfill attachment metadata for id=" + id, e);
+      return null;
     }
+  }
 
-    String contentType;
-    AttachmentData data;
-    if (request.getRequestURI().startsWith(ATTACHMENT_URL)) {
-      contentType = metadata.getMimeType();
-      data = service.getAttachment(attachmentId);
-      if (data == null) {
-        response.sendError(HttpServletResponse.SC_NOT_FOUND);
-        return;
+  private static final class Content {
+    final int status; final String errorMessage; final AttachmentData data; final String contentType;
+    Content(int s, String msg, AttachmentData d, String ct) { status=s; errorMessage=msg; data=d; contentType=ct; }
+    static Content ok(AttachmentData d, String ct) { return new Content(HttpServletResponse.SC_OK, null, d, ct); }
+  }
+
+  private Content resolveContentAndType(String uri, AttachmentMetadata metadata, AttachmentId id) {
+    if (uri.startsWith(ATTACHMENT_URL)) {
+      AttachmentData data;
+      try {
+        data = service.getAttachment(id);
+      } catch (IOException e) {
+        LOG.warning("Failed to load attachment data id=" + id, e);
+        return new Content(HttpServletResponse.SC_NOT_FOUND, "Attachment data not found", null, null);
       }
-    } else if (request.getRequestURI().startsWith(THUMBNAIL_URL)) {
+      return (data != null) ? Content.ok(data, metadata.getMimeType())
+          : new Content(HttpServletResponse.SC_NOT_FOUND, "Attachment data not found", null, null);
+    } else if (uri.startsWith(THUMBNAIL_URL)) {
       if (metadata.hasImageMetadata()) {
-        contentType = AttachmentService.THUMBNAIL_MIME_TYPE;
-        data = service.getThumbnail(attachmentId);
-        if (data == null) {
-          response.sendError(HttpServletResponse.SC_NOT_FOUND);
-          return;
+        AttachmentData thumb;
+        try {
+          thumb = service.getThumbnail(id);
+        } catch (IOException e) {
+          LOG.warning("Failed to load thumbnail id=" + id, e);
+          return new Content(HttpServletResponse.SC_NOT_FOUND, "Thumbnail not found", null, null);
         }
+        return (thumb != null) ? Content.ok(thumb, AttachmentService.THUMBNAIL_MIME_TYPE)
+            : new Content(HttpServletResponse.SC_NOT_FOUND, "Thumbnail not found", null, null);
       } else {
-        contentType = THUMBNAIL_PATTERN_FORMAT_NAME;
-        data = getThumbnailByContentType(metadata.getMimeType());
+        AttachmentData patt;
+        try {
+          patt = getThumbnailByContentType(metadata.getMimeType());
+        } catch (IOException e) {
+          LOG.warning("Failed to load default thumbnail for mime=" + metadata.getMimeType(), e);
+          patt = null;
+        }
+        return (patt != null) ? Content.ok(patt, THUMBNAIL_PATTERN_FORMAT_NAME)
+            : new Content(HttpServletResponse.SC_NOT_FOUND, "No thumbnail pattern", null, null);
       }
     } else {
-      response.sendError(HttpServletResponse.SC_NOT_FOUND);
-      return;
+      return new Content(HttpServletResponse.SC_NOT_FOUND, "Unknown path", null, null);
     }
-    if (data == null) {
-      response.sendError(HttpServletResponse.SC_NOT_FOUND);
-      return;
-    }
+  }
 
+  private void finalizeResponse(HttpServletResponse response,
+                                int status,
+                                String errorLog,
+                                AttachmentMetadata metadata,
+                                AttachmentData data,
+                                String contentType,
+                                AttachmentId attachmentId) throws IOException {
+    if (status != HttpServletResponse.SC_OK) {
+      if (errorLog != null) {
+        LOG.fine("AttachmentServlet.doGet: " + errorLog + (attachmentId != null ? (" id=" + attachmentId) : ""));
+      }
+      response.sendError(status);
+      return;
+    }
     response.setContentType(contentType);
-    response.setContentLength((int)data.getSize());
-    response.setHeader("Content-Disposition", "attachment; filename=\"" + metadata.getFileName() + "\"");
+    response.setContentLength((int) data.getSize());
+    String cd;
+    if ("hashed".equalsIgnoreCase(contentDispositionMode)) {
+      cd = HttpSanitizers.buildHashedContentDispositionAttachment(metadata.getFileName());
+    } else {
+      cd = HttpSanitizers
+          .buildContentDispositionAttachment(metadata.getFileName());
+    }
+    response.setHeader("Content-Disposition", cd);
     response.setStatus(HttpServletResponse.SC_OK);
     response.setDateHeader("Last-Modified", Calendar.getInstance().getTimeInMillis());
     AttachmentUtil.writeTo(data.getInputStream(), response.getOutputStream());
-
     LOG.info("Fetched attachment with id '" + attachmentId + "'");
   }
 
@@ -239,40 +353,128 @@ public class AttachmentServlet extends HttpServlet {
   }
 
   private static AttachmentId getAttachmentIdFromRequest(HttpServletRequest request) {
-    if (request.getPathInfo().length() == 0) {
-      return null;
-    }
     String id = getAttachmentIdStringFromRequest(request);
+    if (id == null) { return null; }
     try {
       return AttachmentId.deserialise(id);
     } catch (InvalidIdException ex) {
-      LOG.log(Level.SEVERE, "Deserialize attachment Id " + id, ex);
+      LOG.log(Level.FINE, "Invalid attachment id format", ex);
       return null;
     }
   }
 
   private static String getAttachmentIdStringFromRequest(HttpServletRequest request) {
-    // Discard the leading '/' in the pathinfo.
-    return request.getPathInfo().substring(1);
+    String pathInfo = request.getPathInfo();
+    if (pathInfo == null || pathInfo.isEmpty()) { LOG.fine("Rejecting attachment path: reason=emptyPath"); return null; }
+    if (pathInfo.charAt(0) != '/') { LOG.fine("Rejecting attachment path: reason=noLeadingSlash path=" + mask(pathInfo)); return null; }
+    String raw = pathInfo.substring(1);
+    // Reject encoded traversal in the original URI (defense in depth against double-encoding)
+    try {
+      String uri = String.valueOf(request.getRequestURI()).toLowerCase();
+      if (uri.contains("%2f") || uri.contains("%5c") || uri.contains("%2e%2e") || uri.contains("%2e/")) {
+        LOG.fine("Rejecting attachment path: reason=encodedTraversal uri=" + mask(uri));
+        return null;
+      }
+    } catch (Throwable ignore) {}
+    if (raw.length() == 0) { LOG.fine("Rejecting attachment path: reason=emptyId"); return null; }
+    if (raw.length() > 512) { LOG.fine("Rejecting attachment path: reason=tooLong len=" + raw.length()); return null; }
+    if (raw.indexOf('\\') >= 0 || raw.indexOf('\0') >= 0 || raw.indexOf('\n') >= 0 || raw.indexOf('\r') >= 0
+        || raw.indexOf(':') >= 0 || raw.indexOf('?') >= 0 || raw.indexOf('#') >= 0 || raw.indexOf('%') >= 0) { LOG.fine("Rejecting attachment path: reason=illegalChars path=" + mask(raw)); return null; }
+    if (!raw.equals(raw.trim())) { LOG.fine("Rejecting attachment path: reason=surroundingWhitespace path=" + mask(raw)); return null; }
+    int firstSlash = raw.indexOf('/');
+    if (firstSlash >= 0) {
+      if (raw.indexOf('/', firstSlash + 1) >= 0) { LOG.fine("Rejecting attachment path: reason=extraSegments path=" + mask(raw)); return null; }
+      String domain = raw.substring(0, firstSlash);
+      String rid = raw.substring(firstSlash + 1);
+      if (".".equals(domain) || "..".equals(domain) || ".".equals(rid) || "..".equals(rid)) { LOG.fine("Rejecting attachment path: reason=dotSegment path=" + mask(raw)); return null; }
+      if (!isLikelyDomain(domain)) { LOG.fine("Rejecting attachment path: reason=invalidDomain domain=" + mask(domain)); return null; }
+      if (rid.isEmpty()) { LOG.fine("Rejecting attachment path: reason=emptyResourceId path=" + mask(raw)); return null; }
+    } else {
+      if (".".equals(raw) || "..".equals(raw)) { LOG.fine("Rejecting attachment path: reason=dotOnly path=" + mask(raw)); return null; }
+    }
+    return raw;
+  }
+
+  private static boolean isLikelyDomain(String domain) {
+    if (domain == null || domain.isEmpty() || domain.length() > 253) return false;
+    if (domain.startsWith(".") || domain.endsWith(".") || domain.contains("..")) return false;
+    String[] labels = domain.split("\\.");
+    for (String label : labels) {
+      if (label.isEmpty() || label.length() > 63) return false;
+      for (int i = 0; i < label.length(); i++) {
+        char c = label.charAt(i);
+        boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
+        if (!ok) return false;
+      }
+      if (label.charAt(0) == '-' || label.charAt(label.length()-1) == '-') return false;
+    }
+    return true;
+  }
+
+  private static String mask(String s) {
+    if (s == null) return "null";
+    int len = s.length();
+    if (len <= 6) return "***";
+    return s.substring(0, 3) + "***" + s.substring(len - 2);
   }
 
   private AttachmentData getThumbnailByContentType(String contentType) throws IOException {
-    File file = new File(thumbnailPattternsDirectory, contentType.replaceAll("/", "_"));
-    if (!file.exists()) {
-      file = new File(thumbnailPattternsDirectory, THUMBNAIL_PATTERN_DEFAULT);
+    try {
+      String safe = safeFileNameForContentType(contentType);
+      if (thumbnailPatternsDir != null) {
+        File file = new File(thumbnailPatternsDir, safe);
+        if (!file.exists() || !file.isFile() || !file.canRead()) {
+          file = new File(thumbnailPatternsDir, THUMBNAIL_PATTERN_DEFAULT);
+        }
+        if (file.exists() && file.isFile() && file.canRead()) {
+          final File thumbFile = file;
+          return new AttachmentData() {
+            @Override public InputStream getInputStream() throws IOException { return new FileInputStream(thumbFile); }
+            @Override public long getSize() { return thumbFile.length(); }
+          };
+        } else {
+          LOG.fine("Thumbnail pattern file not found; generating fallback image");
+        }
+      } else {
+        LOG.fine("Thumbnail patterns directory not configured/usable; generating fallback image");
+      }
+    } catch (Throwable t) {
+      LOG.fine("Thumbnail selection encountered an error; generating fallback image", t);
     }
-    final File thumbFile = file;
+    return generatedPatternPng();
+  }
+
+  private static String safeFileNameForContentType(String contentType) {
+    if (contentType == null) return THUMBNAIL_PATTERN_DEFAULT;
+    String s = contentType.trim().toLowerCase();
+    if (s.isEmpty()) return THUMBNAIL_PATTERN_DEFAULT;
+    StringBuilder sb = new StringBuilder(Math.min(s.length(), 100));
+    for (int i = 0; i < s.length() && sb.length() < 100; i++) {
+      char c = s.charAt(i);
+      boolean safe = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '+' || c == '_';
+      sb.append(safe ? c : '_');
+    }
+    String out = sb.toString();
+    return out.isEmpty() ? THUMBNAIL_PATTERN_DEFAULT : out;
+  }
+
+  private static AttachmentData generatedPatternPng() throws IOException {
+    int w = org.waveprotocol.box.server.attachment.AttachmentService.THUMBNAIL_PATTERN_WIDTH;
+    int h = org.waveprotocol.box.server.attachment.AttachmentService.THUMBNAIL_PATTERN_HEIGHT;
+    BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+    java.awt.Graphics2D g = img.createGraphics();
+    try {
+      g.setColor(new Color(230,230,230));
+      g.fillRect(0,0,w,h);
+      g.setColor(new Color(200,200,200));
+      for (int y = 0; y < h; y += 6) { g.fillRect(0, y, w, 3); }
+    } finally { g.dispose(); }
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    ImageIO.write(img, THUMBNAIL_PATTERN_FORMAT_NAME, baos);
+    byte[] bytes = baos.toByteArray();
     return new AttachmentData() {
-
-      @Override
-      public InputStream getInputStream() throws IOException {
-        return new FileInputStream(thumbFile);
-      }
-
-      @Override
-      public long getSize() {
-        return thumbFile.length();
-      }
+      @Override public InputStream getInputStream() { return new ByteArrayInputStream(bytes); }
+      @Override public long getSize() { return bytes.length; }
     };
   }
 

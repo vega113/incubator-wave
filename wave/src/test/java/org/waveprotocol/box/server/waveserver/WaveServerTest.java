@@ -18,7 +18,7 @@
  */
 package org.waveprotocol.box.server.waveserver;
 
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +31,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import junit.framework.TestCase;
 
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.waveprotocol.box.common.ExceptionalIterator;
@@ -99,15 +99,15 @@ public class WaveServerTest extends TestCase {
 
     when(localSigner.getDomain()).thenReturn(DOMAIN);
     when(localSigner.getSignerInfo()).thenReturn(null);
-    when(localSigner.sign(Matchers.<ByteStringMessage<ProtocolWaveletDelta>>any()))
+    when(localSigner.sign(ArgumentMatchers.<ByteStringMessage<ProtocolWaveletDelta>>any()))
         .thenReturn(ImmutableList.<ProtocolSignature>of());
 
     when(config.getBoolean("federation.waveserver_disable_verification")).thenReturn(true);
     certificateManager = new CertificateManagerImpl(config, localSigner, null, null);
     final DeltaStore deltaStore = new MemoryDeltaStore();
-    final Executor waveletLoadExecutor = MoreExecutors.sameThreadExecutor();
-    final Executor persistExecutor = MoreExecutors.sameThreadExecutor();
-    final Executor storageContinuationExecutor = MoreExecutors.sameThreadExecutor();
+    final Executor waveletLoadExecutor = MoreExecutors.directExecutor();
+    final Executor persistExecutor = MoreExecutors.directExecutor();
+    final Executor storageContinuationExecutor = MoreExecutors.directExecutor();
     Factory localWaveletContainerFactory = new LocalWaveletContainer.Factory() {
       @Override
       public LocalWaveletContainer create(WaveletNotificationSubscriber notifiee,
@@ -119,7 +119,7 @@ public class WaveServerTest extends TestCase {
     };
 
     waveletStore = new DeltaStoreBasedSnapshotStore(deltaStore);
-    Executor lookupExecutor = MoreExecutors.sameThreadExecutor();
+    Executor lookupExecutor = MoreExecutors.directExecutor();
     Config config = ConfigFactory.parseMap(ImmutableMap.<String, Object>of(
       "core.wave_cache_size", 1000,
       "core.wave_cache_expire", "60m")
@@ -128,7 +128,7 @@ public class WaveServerTest extends TestCase {
         new WaveMap(waveletStore, notifiee, localWaveletContainerFactory,
             remoteWaveletContainerFactory, "example.com", config, lookupExecutor);
     waveServer =
-        new WaveServerImpl(MoreExecutors.sameThreadExecutor(), certificateManager,
+        new WaveServerImpl(MoreExecutors.directExecutor(), certificateManager,
             federationRemote, waveMap);
     waveServer.initialize();
   }
@@ -143,9 +143,9 @@ public class WaveServerTest extends TestCase {
   public void testWaveletNotification() {
     submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER2));
 
-    verify(notifiee).waveletUpdate(Matchers.<ReadableWaveletData>any(),
-        Matchers.<ImmutableList<WaveletDeltaRecord>>any(), eq(ImmutableSet.of(DOMAIN)));
-    verify(notifiee).waveletCommitted(eq(WAVELET_NAME), Matchers.<HashedVersion>any(),
+    verify(notifiee).waveletUpdate(ArgumentMatchers.<ReadableWaveletData>any(),
+        ArgumentMatchers.<ImmutableList<WaveletDeltaRecord>>any(), eq(ImmutableSet.of(DOMAIN)));
+    verify(notifiee).waveletCommitted(eq(WAVELET_NAME), ArgumentMatchers.<HashedVersion>any(),
         eq(ImmutableSet.of(DOMAIN)));
   }
 

@@ -19,8 +19,8 @@
 
 package org.waveprotocol.box.server.rpc;
 
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -38,15 +38,14 @@ import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.authentication.PasswordDigest;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryStore;
-import org.waveprotocol.box.server.robots.agent.welcome.WelcomeRobot;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Locale;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * @author josephg@gmail.com (Joseph Gentle)
@@ -58,8 +57,6 @@ public class UserRegistrationServletTest extends TestCase {
 
   @Mock private HttpServletRequest req;
   @Mock private HttpServletResponse resp;
-
-  @Mock private WelcomeRobot welcomeBot;
 
   @Override
   protected void setUp() throws Exception {
@@ -77,7 +74,6 @@ public class UserRegistrationServletTest extends TestCase {
     AccountData account = store.getAccount(participantId);
     assertNotNull(account);
     assertTrue(account.asHuman().getPasswordDigest().verify("internet".toCharArray()));
-    verify(welcomeBot).greet(eq(participantId));
   }
 
   public void testRegisterNewUserDisabled() throws Exception {
@@ -137,14 +133,14 @@ public class UserRegistrationServletTest extends TestCase {
       "administration.analytics_account", "UA-someid")
     );
     UserRegistrationServlet enabledServlet =
-        new UserRegistrationServlet(store, "example.com", config1, welcomeBot);
+        new UserRegistrationServlet(store, "example.com", config1);
 
     Config config2 = ConfigFactory.parseMap(ImmutableMap.<String, Object>of(
       "administration.disable_registration", true,
       "administration.analytics_account", "UA-someid")
     );
     UserRegistrationServlet disabledServlet =
-        new UserRegistrationServlet(store, "example.com", config2, welcomeBot);
+        new UserRegistrationServlet(store, "example.com", config2);
 
     when(req.getParameter("address")).thenReturn(address);
     when(req.getParameter("password")).thenReturn(password);

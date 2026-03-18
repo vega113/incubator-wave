@@ -1,0 +1,125 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master, 'release/**', 'hotfix/**' ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+
+jobs:
+  server-jdk17:
+    name: Server Build (JDK 17)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Gradle build
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-disabled: false
+      
+      - name: Build PST and Wave (no tests)
+        run: ./gradlew --no-daemon --warning-mode all :pst:build :wave:assemble
+
+      - name: Smoke UI (server startup + probes)
+        run: ./gradlew --no-daemon --warning-mode all :wave:smokeUi
+
+      - name: Smoke Installed Dist
+        run: ./gradlew --no-daemon --warning-mode all :wave:smokeInstalled
+
+      - name: Compile Jakarta POC (non-blocking)
+        continue-on-error: true
+        run: ./gradlew --no-daemon --warning-mode all :wave:compileJakarta
+
+  server-jakarta:
+    name: Jakarta Profile (Jetty 12, non-blocking)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-disabled: false
+
+      - name: Compile Jakarta sources (PR-blocking)
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: ./gradlew --no-daemon --warning-mode all -PjettyFamily=jakarta :wave:classes :wave:jakartaTestClasses
+
+      - name: Run jakartaTest (PR-blocking)
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: ./gradlew --no-daemon --warning-mode all -PjettyFamily=jakarta :wave:testJakarta
+
+      - name: Run jakarta ITs (PR-blocking)
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: ./gradlew --no-daemon --warning-mode all -PjettyFamily=jakarta :wave:testJakartaIT
+
+      - name: Publish jakartaTest reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-jakarta
+          path: |
+            wave/build/test-results/testJakarta/**
+            wave/build/reports/tests/testJakarta/**
+
+      - name: Publish jakarta IT reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-jakarta-it
+          path: |
+            wave/build/test-results/testJakartaIT/**
+            wave/build/reports/tests/testJakartaIT/**
+
+      - name: Guard experimental flags for release (tags/releases/release branches)
+        if: ${{ github.ref_type == 'tag' || (github.event_name == 'release' && github.event.action == 'published') || (github.ref_type == 'branch' && (startsWith(github.ref_name, 'release/') || startsWith(github.ref_name, 'hotfix/'))) }}
+        run: |
+          ./scripts/ci-guard-experimental-flags.sh
+
+      - name: Publish test results (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/test-results/**/*
+            **/build/reports/tests/**/*
+
+  client-gwt:
+    if: ${{ false }} # enable after Phase 4 (GWT modernization)
+    name: Client (GWT) Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK toolchains
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Gradle build (GWT)
+        run: ./gradlew --no-daemon --warning-mode all :wave:compileGwt

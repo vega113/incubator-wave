@@ -24,6 +24,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,18 +35,27 @@ import javax.annotation.Nullable;
 import javax.servlet.DispatcherType;
 import javax.servlet.Filter;
 import javax.servlet.ServletContextListener;
+import javax.servlet.Servlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpSession;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.proxy.ProxyServlet;
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.session.HashSessionManager;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
+import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.server.ForwardedRequestCustomizer;
+import org.eclipse.jetty.server.handler.gzip.GzipHandler;
+import org.eclipse.jetty.server.CustomRequestLog;
+import org.eclipse.jetty.server.RequestLogWriter;
+import org.eclipse.jetty.alpn.server.ALPNServerConnectionFactory;
+import org.eclipse.jetty.http2.server.HTTP2ServerConnectionFactory;
 import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.eclipse.jetty.servlets.GzipFilter;
+import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.util.resource.ResourceCollection;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.webapp.WebAppContext;
@@ -54,6 +64,7 @@ import org.eclipse.jetty.websocket.servlet.ServletUpgradeResponse;
 import org.eclipse.jetty.websocket.servlet.WebSocketCreator;
 import org.eclipse.jetty.websocket.servlet.WebSocketServlet;
 import org.eclipse.jetty.websocket.servlet.WebSocketServletFactory;
+import org.eclipse.jetty.server.session.SessionHandler;
 import org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolAuthenticate;
 import org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolAuthenticationResult;
 import org.waveprotocol.box.server.authentication.SessionManager;
@@ -100,7 +111,7 @@ public class ServerRpcProvider {
   private final InetSocketAddress[] httpAddresses;
   private final Executor threadPool;
   private final SessionManager sessionManager;
-  private final org.eclipse.jetty.server.SessionManager jettySessionManager;
+  private final SessionHandler sessionHandler;
   private Server httpServer = null;
   private final boolean sslEnabled;
   private final String sslKeystorePath;
@@ -114,6 +125,8 @@ public class ServerRpcProvider {
   private final String[] resourceBases;
 
   private final String sessionStoreDir;
+  private final boolean enableForwardedHeaders;
+  // Removed experimental flags: nativeServletRegistration, enableProgrammaticPoc
 
   /**
    * Internal, static container class for any specific registered service
@@ -271,17 +284,19 @@ public class ServerRpcProvider {
    */
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
       String[] resourceBases, Executor threadPool, SessionManager sessionManager,
-      org.eclipse.jetty.server.SessionManager jettySessionManager, String sessionStoreDir,
-      boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword) {
+      SessionHandler sessionHandler, String sessionStoreDir,
+      boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword,
+      boolean enableForwardedHeaders) {
     this.httpAddresses = httpAddresses;
     this.resourceBases = resourceBases;
     this.threadPool = threadPool;
     this.sessionManager = sessionManager;
-    this.jettySessionManager = jettySessionManager;
+    this.sessionHandler = sessionHandler;
     this.sessionStoreDir = sessionStoreDir;
     this.sslEnabled = sslEnabled;
     this.sslKeystorePath = sslKeystorePath;
     this.sslKeystorePassword = sslKeystorePassword;
+    this.enableForwardedHeaders = enableForwardedHeaders;
   }
 
   /**
@@ -289,32 +304,49 @@ public class ServerRpcProvider {
    */
   public ServerRpcProvider(InetSocketAddress[] httpAddresses,
       String[] resourceBases, SessionManager sessionManager,
-      org.eclipse.jetty.server.SessionManager jettySessionManager, String sessionStoreDir,
+      SessionHandler sessionHandler, String sessionStoreDir,
       boolean sslEnabled, String sslKeystorePath, String sslKeystorePassword,
       Executor executor) {
     this(httpAddresses, resourceBases, executor,
-        sessionManager, jettySessionManager, sessionStoreDir, sslEnabled, sslKeystorePath,
-        sslKeystorePassword);
+        sessionManager, sessionHandler, sessionStoreDir, sslEnabled, sslKeystorePath,
+        sslKeystorePassword, false);
   }
 
   @Inject
   public ServerRpcProvider(Config config,
-                           SessionManager sessionManager, org.eclipse.jetty.server.SessionManager jettySessionManager,
+                           SessionManager sessionManager, SessionHandler sessionHandler,
                            @ClientServerExecutor Executor executorService) {
     this(parseAddressList(config.getStringList("core.http_frontend_addresses"),
                     config.getString("core.http_websocket_public_address")),
             config.getStringList("core.resource_bases").toArray(new String[0]),
+            executorService,
             sessionManager,
-            jettySessionManager,
+            sessionHandler,
             config.getString("core.sessions_store_directory"),
             config.getBoolean("security.enable_ssl"),
             config.getString("security.ssl_keystore_path"),
             config.getString("security.ssl_keystore_password"),
-            executorService);
+            config.hasPath("network.enable_forwarded_headers") &&
+                config.getBoolean("network.enable_forwarded_headers"));
   }
 
   public void startWebSocketServer(final Injector injector) {
     httpServer = new Server();
+
+    // Configure access logging (NCSA) to logs/access.yyyy_mm_dd.log
+    try {
+      java.io.File logDir = new java.io.File("logs");
+      if (!logDir.exists()) {
+        logDir.mkdirs();
+      }
+      RequestLogWriter logWriter = new RequestLogWriter(new java.io.File(logDir, "access.yyyy_mm_dd.log").getPath());
+      logWriter.setAppend(true);
+      logWriter.setRetainDays(7);
+      CustomRequestLog requestLog = new CustomRequestLog(logWriter, CustomRequestLog.NCSA_FORMAT);
+      httpServer.setRequestLog(requestLog);
+    } catch (Throwable t) {
+      LOG.warning("Failed to initialize access logging", t);
+    }
 
     List<Connector> connectors = getSelectChannelConnectors(httpAddresses);
     if (connectors.isEmpty()) {
@@ -327,13 +359,8 @@ public class ServerRpcProvider {
 
     context.setParentLoaderPriority(true);
 
-    if (jettySessionManager != null) {
-      // This disables JSessionIDs in URLs redirects
-      // see: http://stackoverflow.com/questions/7727534/how-do-you-disable-jsessionid-for-jetty-running-with-the-eclipse-jetty-maven-plu
-      // and: http://jira.codehaus.org/browse/JETTY-467?focusedCommentId=114884&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-114884
-      jettySessionManager.setSessionIdPathParameterName(null);
-
-      context.getSessionHandler().setSessionManager(jettySessionManager);
+    if (sessionHandler != null) {
+      context.setSessionHandler(sessionHandler);
     }
     final ResourceCollection resources = new ResourceCollection(resourceBases);
     context.setBaseResource(resources);
@@ -343,24 +370,26 @@ public class ServerRpcProvider {
     try {
 
       final ServletModule servletModule = getServletModule();
-
       ServletContextListener contextListener = new GuiceServletContextListener() {
-
         private final Injector childInjector = injector.createChildInjector(servletModule);
-
         @Override
         protected Injector getInjector() {
           return childInjector;
         }
       };
-
       context.addEventListener(contextListener);
       context.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
-      context.addFilter(GzipFilter.class, "/webclient/*", EnumSet.allOf(DispatcherType.class));
-      httpServer.setHandler(context);
+
+      // Prefer server-side gzip handler over legacy filter
+      GzipHandler gzip = new GzipHandler();
+      gzip.setMinGzipSize(1024);
+      gzip.setIncludedMethods("GET", "POST");
+      gzip.setInflateBufferSize(8 * 1024);
+      gzip.setHandler(context);
+
+      httpServer.setHandler(gzip);
 
       httpServer.start();
-      restoreSessions();
 
     } catch (Exception e) { // yes, .start() throws "Exception"
       LOG.severe("Fatal error starting http server.", e);
@@ -369,17 +398,6 @@ public class ServerRpcProvider {
     LOG.fine("WebSocket server running.");
   }
 
-  private void restoreSessions() {
-    try {
-      HashSessionManager hashSessionManager = (HashSessionManager) jettySessionManager;
-      hashSessionManager.setStoreDirectory(FileUtils.createDirIfNotExists(sessionStoreDir,
-          "Session persistence"));
-      hashSessionManager.setSavePeriod(60);
-      hashSessionManager.restoreSessions();
-    } catch (Exception e) {
-      LOG.warning("Cannot restore sessions");
-    }
-  }
   public void addWebSocketServlets() {
     // Servlet where the websocket connection is served from.
     ServletHolder wsholder = addServlet("/socket", WaveWebSocketServlet.class);
@@ -388,8 +406,15 @@ public class ServerRpcProvider {
 
     // Serve the static content and GWT web client with the default servlet
     // (acts like a standard file-based web server).
-    addServlet("/static/*", DefaultServlet.class);
-    addServlet("/webclient/*", DefaultServlet.class);
+    Map<String, String> staticParams = new HashMap<>();
+    staticParams.put("etags", "true");
+    staticParams.put("cacheControl", "public, max-age=31536000, immutable");
+    addServlet("/static/*", DefaultServlet.class, staticParams);
+
+    Map<String, String> webclientParams = new HashMap<>();
+    webclientParams.put("etags", "true");
+    webclientParams.put("cacheControl", "no-cache, no-store, must-revalidate");
+    addServlet("/webclient/*", DefaultServlet.class, webclientParams);
   }
 
   public ServletModule getServletModule() {
@@ -455,11 +480,21 @@ public class ServerRpcProvider {
   private List<Connector> getSelectChannelConnectors(
       InetSocketAddress[] httpAddresses) {
     List<Connector> list = Lists.newArrayList();
+
+    // Base HTTP configuration
+    HttpConfiguration httpConfig = new HttpConfiguration();
+    httpConfig.setSendServerVersion(false);
+    if (enableForwardedHeaders) {
+      httpConfig.addCustomizer(new ForwardedRequestCustomizer());
+    }
+
     String[] excludeCiphers = {"SSL_RSA_EXPORT_WITH_RC4_40_MD5", "SSL_RSA_EXPORT_WITH_DES40_CBC_SHA",
                                "SSL_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA", "SSL_RSA_WITH_DES_CBC_SHA",
                                "SSL_DHE_RSA_WITH_DES_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA",
                                "SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA", "TLS_DHE_RSA_WITH_AES_256_CBC_SHA"};
-    SslContextFactory sslContextFactory = null;
+
+    SslContextFactory.Server sslContextFactory = null;
+    HttpConfiguration httpsConfig = null;
 
     if (sslEnabled) {
       Preconditions.checkState(sslKeystorePath != null && !sslKeystorePath.isEmpty(),
@@ -467,23 +502,40 @@ public class ServerRpcProvider {
       Preconditions.checkState(sslKeystorePassword != null && !sslKeystorePassword.isEmpty(),
           "SSL Keystore password left blank");
 
-      sslContextFactory = new SslContextFactory(sslKeystorePath);
+      sslContextFactory = new SslContextFactory.Server();
+      sslContextFactory.setKeyStorePath(sslKeystorePath);
       sslContextFactory.setKeyStorePassword(sslKeystorePassword);
       sslContextFactory.setRenegotiationAllowed(false);
       sslContextFactory.setExcludeCipherSuites(excludeCiphers);
+      // Prefer modern protocols only
+      sslContextFactory.setIncludeProtocols("TLSv1.2", "TLSv1.3");
 
       // Note: we only actually needed client auth for AuthenticationServlet.
-      // Using Need instead of Want prevents web-sockets from working on
-      // Chrome.
+      // Using Need instead of Want prevents web-sockets from working on Chrome.
       sslContextFactory.setWantClientAuth(true);
+
+      httpsConfig = new HttpConfiguration(httpConfig);
+      httpsConfig.addCustomizer(new org.eclipse.jetty.server.SecureRequestCustomizer());
+      if (enableForwardedHeaders) {
+        httpsConfig.addCustomizer(new ForwardedRequestCustomizer());
+      }
     }
 
     for (InetSocketAddress address : httpAddresses) {
       ServerConnector connector;
       if (sslEnabled) {
-        connector = new ServerConnector(httpServer, sslContextFactory);
+        // Enable HTTP/2 over TLS via ALPN, with HTTP/1.1 fallback
+        ALPNServerConnectionFactory alpn = new ALPNServerConnectionFactory();
+        alpn.setDefaultProtocol("http/1.1");
+        HTTP2ServerConnectionFactory h2 = new HTTP2ServerConnectionFactory(httpsConfig);
+        connector = new ServerConnector(
+            httpServer,
+            new SslConnectionFactory(sslContextFactory, alpn.getProtocol()),
+            alpn,
+            h2,
+            new HttpConnectionFactory(httpsConfig));
       } else {
-        connector = new ServerConnector(httpServer);
+        connector = new ServerConnector(httpServer, new HttpConnectionFactory(httpConfig));
       }
       connector.setHost(address.getAddress().getHostAddress());
       connector.setPort(address.getPort());

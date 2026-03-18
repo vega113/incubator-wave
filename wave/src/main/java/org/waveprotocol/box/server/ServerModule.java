@@ -28,7 +28,9 @@ import com.google.inject.name.Named;
 import com.google.inject.name.Names;
 
 import com.typesafe.config.Config;
-import org.eclipse.jetty.server.session.HashSessionManager;
+import org.eclipse.jetty.server.session.DefaultSessionCache;
+import org.eclipse.jetty.server.session.FileSessionDataStore;
+import org.eclipse.jetty.server.session.SessionHandler;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.SessionManagerImpl;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
@@ -127,9 +129,54 @@ public class ServerModule extends AbstractModule {
 
   @Provides
   @Singleton
-  public org.eclipse.jetty.server.SessionManager provideSessionManager(Config config) {
-    HashSessionManager sessionManager = new HashSessionManager();
-    sessionManager.getSessionCookieConfig().setMaxAge(config.getInt("network.session_cookie_max_age"));
-    return sessionManager;
+  public SessionHandler provideSessionHandler(Config config) {
+    SessionHandler sessionHandler = new SessionHandler();
+    // Configure cookie attributes
+    try {
+      sessionHandler.getSessionCookieConfig().setMaxAge(config.getInt("network.session_cookie_max_age"));
+    } catch (Exception ignore) {}
+    try {
+      boolean httpOnly = true;
+      try {
+        if (config.hasPath("network.session_cookie_http_only")) {
+          httpOnly = config.getBoolean("network.session_cookie_http_only");
+        }
+      } catch (Exception ignored) {}
+      sessionHandler.getSessionCookieConfig().setHttpOnly(httpOnly);
+
+      boolean enableSsl = false;
+      try { enableSsl = config.getBoolean("security.enable_ssl"); } catch (Exception ignored) {}
+      if (enableSsl) {
+        sessionHandler.getSessionCookieConfig().setSecure(true);
+      }
+      // Attempt to set SameSite=LAX if supported by this Jetty
+      try {
+        Class<?> sameSiteClass = Class.forName("org.eclipse.jetty.http.HttpCookie$SameSite");
+        if (sameSiteClass.isEnum()) {
+          Object lax = null;
+          Object[] consts = sameSiteClass.getEnumConstants();
+          if (consts != null) {
+            for (Object c : consts) {
+              if ("LAX".equals(String.valueOf(c))) { lax = c; break; }
+            }
+          }
+          if (lax != null) {
+            SessionHandler.class.getMethod("setSameSite", sameSiteClass).invoke(sessionHandler, lax);
+          }
+        }
+      } catch (Throwable ignored) {}
+    } catch (Exception ignore) {}
+
+    // File-backed session data store for persistence
+    DefaultSessionCache cache = new DefaultSessionCache(sessionHandler);
+    FileSessionDataStore dataStore = new FileSessionDataStore();
+    java.io.File storeDir = new java.io.File(config.getString("core.sessions_store_directory"));
+    if (!storeDir.exists()) {
+      storeDir.mkdirs();
+    }
+    dataStore.setStoreDir(storeDir);
+    cache.setSessionDataStore(dataStore);
+    sessionHandler.setSessionCache(cache);
+    return sessionHandler;
   }
 }

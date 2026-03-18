@@ -41,17 +41,17 @@ public final class SessionManagerImpl implements SessionManager {
   private static final String USER_FIELD = "user";
 
   private final AccountStore accountStore;
-  private final org.eclipse.jetty.server.SessionManager jettySessionManager;
+  private final org.eclipse.jetty.server.session.SessionHandler sessionHandler;
 
   private static final Log LOG = Log.get(SessionManagerImpl.class);
 
   @Inject
   public SessionManagerImpl(
-      AccountStore accountStore, org.eclipse.jetty.server.SessionManager jettySessionManager) {
+      AccountStore accountStore, org.eclipse.jetty.server.session.SessionHandler sessionHandler) {
     Preconditions.checkNotNull(accountStore, "Null account store");
-    Preconditions.checkNotNull(jettySessionManager, "Null jetty session manager");
+    Preconditions.checkNotNull(sessionHandler, "Null session handler");
     this.accountStore = accountStore;
-    this.jettySessionManager = jettySessionManager;
+    this.sessionHandler = sessionHandler;
   }
 
   @Override
@@ -110,6 +110,17 @@ public final class SessionManagerImpl implements SessionManager {
   @Override
   public HttpSession getSessionFromToken(String token) {
     Preconditions.checkNotNull(token);
-    return jettySessionManager.getHttpSession(token);
+    try {
+      // Normalize potential nodeId-suffixed tokens (e.g., "abc123.node0") to the clusterId ("abc123").
+      String sessionId = token;
+      int dot = sessionId.indexOf('.');
+      if (dot > 0) {
+        sessionId = sessionId.substring(0, dot);
+      }
+      org.eclipse.jetty.server.session.Session s = sessionHandler.getSession(sessionId);
+      return (s != null) ? s.getSession() : null;
+    } catch (Throwable t) {
+      return null;
+    }
   }
 }
