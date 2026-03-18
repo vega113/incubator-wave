@@ -87,6 +87,35 @@ public final class WaveClientServletFragmentDefaultsTest {
     assertTrue(flags.getBoolean(FlagConstants.ENABLE_DYNAMIC_RENDERING));
   }
 
+  @Test
+  public void objectDefaultsBeatDerivedFragmentDefaults() throws Exception {
+    Config config = ConfigFactory.parseString(
+        "core.http_frontend_addresses=[\"127.0.0.1:9898\"]\n" +
+        "core.http_websocket_public_address=\"\"\n" +
+        "core.http_websocket_presented_address=\"\"\n" +
+        "administration.analytics_account=\"\"\n" +
+        "server.fragments.transport=\"stream\"\n" +
+        "client.flags.defaults.fragmentFetchMode=\"off\"");
+
+    JSONObject flags = getClientFlags(config);
+
+    assertEquals("off", flags.getString(FlagConstants.FRAGMENT_FETCH_MODE));
+  }
+
+  @Test
+  public void csvDefaultsStillApplyWhenObjectDefaultsAreAbsent() throws Exception {
+    Config config = ConfigFactory.parseString(
+        "core.http_frontend_addresses=[\"127.0.0.1:9898\"]\n" +
+        "core.http_websocket_public_address=\"\"\n" +
+        "core.http_websocket_presented_address=\"\"\n" +
+        "administration.analytics_account=\"\"\n" +
+        "client.flags.defaults=\"enableDynamicRendering=true\"");
+
+    JSONObject flags = getClientFlags(config);
+
+    assertTrue(flags.getBoolean(FlagConstants.ENABLE_DYNAMIC_RENDERING));
+  }
+
   private static JSONObject getClientFlags(Config config) throws Exception {
     WaveClientServlet servlet = new WaveClientServlet(
         "example.com", config, mock(SessionManager.class));
