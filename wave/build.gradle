@@ -1354,6 +1354,10 @@ tasks.register('itTest', Test) {
         }
 
         def effective = overrideHost ?: (envHost ?: 'default')
+        if (effective.contains('/.colima/') && !System.getenv('TESTCONTAINERS_RYUK_DISABLED')) {
+            environment 'TESTCONTAINERS_RYUK_DISABLED', 'true'
+            println 'itTest: TESTCONTAINERS_RYUK_DISABLED=true for Colima compatibility'
+        }
         println "itTest: Effective DOCKER_HOST=${effective}"
     }
 }

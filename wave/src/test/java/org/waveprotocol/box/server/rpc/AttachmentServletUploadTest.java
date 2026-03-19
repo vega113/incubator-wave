@@ -23,16 +23,17 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.waveprotocol.box.server.attachment.AttachmentService;
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.persistence.AttachmentUtil;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.wave.media.model.AttachmentId;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.id.WaveletName;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import javax.servlet.http.Part;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.Part;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.PrintWriter;
@@ -76,7 +77,7 @@ public class AttachmentServletUploadTest {
     when(request.getSession(false)).thenReturn(session);
     when(request.getContentType()).thenReturn("multipart/form-data; boundary=ignored");
     when(request.getParts()).thenReturn(List.of(attachmentPart, waveRefPart, filePart));
-    when(sessionManager.getLoggedInUser(session)).thenReturn(user);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(user);
     when(waveletProvider.checkAccessPermission(expectedWavelet, user)).thenReturn(true);
     when(response.getWriter()).thenReturn(new PrintWriter(responseBody));
     Mockito.doAnswer(invocation -> {
