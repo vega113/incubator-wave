@@ -364,6 +364,7 @@ dependencies {
             [group: "com.google.gxp", name: "google-gxp", version: "0.2.4-beta"],
             [group: "com.typesafe", name: "config", version: "1.4.3"],
             [group: "commons-codec", name: "commons-codec", version: "1.16.1"],
+            [group: "commons-cli", name: "commons-cli", version: "1.11.0"],
             [group: "commons-io", name: "commons-io", version: "2.16.1"],
             // Migrated from commons-httpclient 3.x to HttpClient 4.5.x
             [group: "org.apache.httpcomponents", name: "httpclient", version: "4.5.14"],
@@ -399,14 +400,15 @@ dependencies {
             [group: "org.slf4j", name: "jul-to-slf4j", version: "2.0.13"],
             [group: "org.slf4j", name: "log4j-over-slf4j", version: "2.0.13"],
             [group: "javax.inject", name: "javax.inject", version: "1"],
-            [group: "javax.jdo", name: "jdo2-api", version: "2.1"],
-            // Legacy OAuth libraries (evaluate and replace under P6-T6). Use -PexcludeLegacyOAuth=true to omit.
-            *([:]).with { project.hasProperty('excludeLegacyOAuth') ? [] : [
+            [group: "javax.jdo", name: "jdo2-api", version: "2.1"]
+    )
+    if (!project.hasProperty('excludeLegacyOAuth')) {
+        implementation (
                 [group: "net.oauth.core", name: "oauth-provider", version: "20100601-atlassian-2"],
                 [group: "net.oauth.core", name: "oauth", version: "20100601-atlassian-2"],
                 [group: "net.oauth.core", name: "oauth-consumer", version: "20100601-atlassian-2"]
-            ] }
-    )
+        )
+    }
     implementation fileTree(dir: '../pst/build/libs', include: '**/*.jar')
     // High-performance in-memory cache for manifest ordering
     implementation ([group: "com.github.ben-manes.caffeine", name: "caffeine", version: "3.1.8"])

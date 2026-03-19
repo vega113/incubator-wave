@@ -66,7 +66,11 @@ Read these files first when resuming work:
   the modernization ledger.
 - Jakarta / Jetty 12 is the default server profile.
 - The legacy `javax` / Jetty 9.4 path still exists as a fallback for bisects.
-- The additive SBT build skeleton exists and can compile the server-only subset.
+- The additive SBT build now has stable artifact naming and `wave/config`-backed
+  bootstrap defaults, but it remains an additive server-only path with
+  remaining Java-compilation follow-up work.
+- Phase 6 protobuf and server-side Guava work are already closed on the Gradle
+  path.
 - The Phase 8 planning artifacts now exist:
   - `docs/j2cl-gwt3-inventory.md`
   - `docs/j2cl-gwt3-decision-memo.md`
@@ -99,11 +103,14 @@ Read these files first when resuming work:
    `dynamicRendering(...)` methods.
 3. The HTTP fragment requester still treats successful responses as metrics-only
    success and does not parse or apply returned fragment payloads.
-4. Config hygiene is incomplete: fragment and segment settings still have
-   partially duplicated `System.getProperty(...)` paths in server code.
+4. Remaining library-upgrade debt is now narrowed to Commons multipart cleanup,
+   explicit `commons-cli` ownership in `wave`, MongoDB 2.x removal, legacy OAuth
+   ownership, and SBT bootstrap/library-input cleanup.
 5. `Mongo4DeltaStore` is still missing, so the MongoDB v4 migration is not
    complete.
-6. SBT is still additive and server-only. Gradle remains the canonical build.
+6. SBT is still additive and server-only. Bootstrap/protobuf parity is fixed,
+   but later Java-compilation work is still open and the proto include path now
+   points at the PST-owned descriptor proto tree.
 7. Packaging and DX verification still need a post-Jakarta pass.
 8. Phase 8 now has a measured inventory and a no-go-for-now decision memo, but
    the prerequisite reduction tasks for any future J2CL work are still open.
