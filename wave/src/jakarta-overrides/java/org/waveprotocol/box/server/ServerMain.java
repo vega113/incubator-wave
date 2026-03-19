@@ -148,7 +148,6 @@ public class ServerMain {
     server.addServlet("/profile/*", FetchProfilesServlet.class);
     server.addServlet("/iniavatars/*", org.apache.wave.box.server.rpc.InitialsAvatarsServlet.class);
     server.addServlet("/waveref/*", WaveRefServlet.class);
-    server.addServlet("/robot/register/*", RobotRegistrationServlet.class);
     server.addServlet("/", WaveClientServlet.class);
   }
 
@@ -184,4 +183,3 @@ public class ServerMain {
     }, ServerMain.class.getSimpleName(), ShutdownPriority.Server);
   }
 }
-

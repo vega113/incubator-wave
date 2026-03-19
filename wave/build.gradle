@@ -217,6 +217,8 @@ sourceSets {
         resources { srcDir 'src/jakarta-test/resources' }
         // Exclude endpoint guard test until EE10 endpoint is enabled
         java.exclude 'org/waveprotocol/box/server/jakarta/WaveWebSocketEndpointInitGuardTest.java'
+        // Legacy OAuth Jakarta IT is intentionally retired on this branch with the OAuth runtime.
+        java.exclude 'org/waveprotocol/box/server/robots/dataapi/DataApiOAuthServletJakartaIT.java'
         compileClasspath += sourceSets.main.output + configurations.testCompileClasspath
         runtimeClasspath += output + compileClasspath + configurations.testRuntimeClasspath
     }
@@ -295,6 +297,10 @@ sourceSets.main.java {
                 'org/waveprotocol/box/server/rpc/WebSocketClientRpcChannel.java',
                 'com/google/wave/api/AbstractRobot.java',
                 'com/google/wave/api/WaveService.java',
+                'org/waveprotocol/box/expimp/Console.java',
+                'org/waveprotocol/box/expimp/DeltaParser.java',
+                'org/waveprotocol/box/expimp/DomainConverter.java',
+                'org/waveprotocol/box/expimp/FileNames.java',
                 'org/waveprotocol/box/expimp/OAuth.java',
                 'org/waveprotocol/box/expimp/WaveImport.java',
                 'org/waveprotocol/box/expimp/WaveExport.java',
@@ -305,7 +311,6 @@ sourceSets.main.java {
             ]
             if (mainExactExcludes.any { matches(it) }) return true
             if (sourcePath.contains('/com/google/wave/api/oauth/')) return true
-            if (sourcePath.contains('/org/waveprotocol/box/expimp/')) return true
             if (sourcePath.contains('/org/waveprotocol/box/server/robots/agent/')) return true
             if (sourcePath.contains('/org/waveprotocol/examples/robots/')) return true
             if (sourcePath.contains('/org/apache/wave/box/server/rpc/')) return true
