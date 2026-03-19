@@ -79,6 +79,7 @@ journal/
 /pst/bin/
 target/
 .coursier-cache/
+/.claude/
 
 ### SBT
 .ivy2/
