@@ -12,7 +12,7 @@ blue-green deployment.
 
 ## Current Defaults
 
-The current default config in [reference.conf](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/config/reference.conf) still points the main mutable stores at local disk:
+The current default config in [reference.conf](../wave/config/reference.conf) still points the main mutable stores at local disk:
 
 - `core.signer_info_store_type : file`
 - `core.attachment_store_type : disk`
@@ -32,11 +32,11 @@ local mutable state.
 The file-backed path is already a specialized append-oriented store, especially
 for deltas:
 
-- [FileDeltaStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileDeltaStore.java)
-- [FileDeltaCollection.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileDeltaCollection.java)
-- [FileAccountStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileAccountStore.java)
-- [FileAttachmentStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileAttachmentStore.java)
-- [FileSignerInfoStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileSignerInfoStore.java)
+- [FileDeltaStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileDeltaStore.java)
+- [FileDeltaCollection.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileDeltaCollection.java)
+- [FileAccountStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileAccountStore.java)
+- [FileAttachmentStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileAttachmentStore.java)
+- [FileSignerInfoStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/file/FileSignerInfoStore.java)
 
 Observations:
 
@@ -51,14 +51,14 @@ Observations:
 
 The repo already has Mongo-backed equivalents for the core mutable stores:
 
-- [Mongo4DeltaStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4DeltaStore.java)
-- [Mongo4DeltaCollection.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4DeltaCollection.java)
-- [Mongo4AccountStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4AccountStore.java)
-- [Mongo4AttachmentStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4AttachmentStore.java)
-- [Mongo4SignerInfoStore.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4SignerInfoStore.java)
-- [Mongo4DbProvider.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4DbProvider.java)
+- [Mongo4DeltaStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4DeltaStore.java)
+- [Mongo4DeltaCollection.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4DeltaCollection.java)
+- [Mongo4AccountStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4AccountStore.java)
+- [Mongo4AttachmentStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4AttachmentStore.java)
+- [Mongo4SignerInfoStore.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4SignerInfoStore.java)
+- [Mongo4DbProvider.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/mongodb4/Mongo4DbProvider.java)
 
-The binding points already exist in [PersistenceModule.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/PersistenceModule.java).
+The binding points already exist in [PersistenceModule.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/PersistenceModule.java).
 
 Observations:
 
@@ -73,11 +73,11 @@ Observations:
 
 The legacy server module builds a file-backed Jetty session data store:
 
-- [ServerModule.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/ServerModule.java)
+- [ServerModule.java](../wave/src/main/java/org/waveprotocol/box/server/ServerModule.java)
 
 The active Jakarta server module does not:
 
-- [ServerModule.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/jakarta-overrides/java/org/waveprotocol/box/server/ServerModule.java)
+- [ServerModule.java](../wave/src/jakarta-overrides/java/org/waveprotocol/box/server/ServerModule.java)
 
 Observations:
 
@@ -96,13 +96,13 @@ Conclusion:
 
 The default search mode is `memory`:
 
-- [SearchModule.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/SearchModule.java)
-- [MemoryPerUserWaveViewHandlerImpl.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/waveserver/MemoryPerUserWaveViewHandlerImpl.java)
+- [SearchModule.java](../wave/src/main/java/org/waveprotocol/box/server/SearchModule.java)
+- [MemoryPerUserWaveViewHandlerImpl.java](../wave/src/main/java/org/waveprotocol/box/server/waveserver/MemoryPerUserWaveViewHandlerImpl.java)
 
 Alternative search mode is Lucene on local disk:
 
-- [LucenePerUserWaveViewHandlerImpl.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/waveserver/LucenePerUserWaveViewHandlerImpl.java)
-- [FSIndexDirectory.java](/Users/vega/devroot/worktrees/incubator-wave/persistence-audit/wave/src/main/java/org/waveprotocol/box/server/persistence/lucene/FSIndexDirectory.java)
+- [LucenePerUserWaveViewHandlerImpl.java](../wave/src/main/java/org/waveprotocol/box/server/waveserver/LucenePerUserWaveViewHandlerImpl.java)
+- [FSIndexDirectory.java](../wave/src/main/java/org/waveprotocol/box/server/persistence/lucene/FSIndexDirectory.java)
 
 Conclusion:
 
