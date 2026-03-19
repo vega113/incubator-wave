@@ -57,7 +57,7 @@
 ## Out Of Scope
 
 - J2CL or GWT 3 migration, `guava-gwt` replacement, or any broader client rewrite.
-- Removing the `-PjettyFamily=javax` fallback profile.
+- Reintroducing or depending on the retired `jettyFamily` fallback profile.
 - Lucene, JDOM, JDO, BouncyCastle, or other deep library refreshes that are not required to close the concrete debt above.
 - Feature work unrelated to dependency ownership, runtime parity, or build reproducibility.
 
@@ -169,8 +169,8 @@ git commit -m "build: reconcile remaining library upgrade debt"
 - Create: `wave/src/test/java/org/waveprotocol/box/server/rpc/AttachmentServletUploadTest.java`
 
 **Tests:**
-- `./gradlew -q -PjettyFamily=jakarta :wave:testJakartaIT --tests org.waveprotocol.box.server.jakarta.AttachmentServletJakartaIT`
-- `./gradlew -q -PjettyFamily=javax :wave:test --tests org.waveprotocol.box.server.rpc.AttachmentServletUploadTest`
+- `./gradlew -q :wave:testJakartaIT --tests org.waveprotocol.box.server.jakarta.AttachmentServletJakartaIT`
+- `./gradlew -q :wave:test --tests org.waveprotocol.box.server.rpc.AttachmentServletUploadTest`
 - `./gradlew -q :wave:dependencyInsight --dependency commons-fileupload --configuration runtimeClasspath`
 
 - [ ] **Step 1: Add a failing Jakarta upload test**
@@ -205,8 +205,8 @@ Update `wave/build.gradle` to remove `commons-fileupload`.
 Run:
 
 ```bash
-./gradlew -q -PjettyFamily=jakarta :wave:testJakartaIT --tests org.waveprotocol.box.server.jakarta.AttachmentServletJakartaIT
-./gradlew -q -PjettyFamily=javax :wave:test --tests org.waveprotocol.box.server.rpc.AttachmentServletUploadTest
+./gradlew -q :wave:testJakartaIT --tests org.waveprotocol.box.server.jakarta.AttachmentServletJakartaIT
+./gradlew -q :wave:test --tests org.waveprotocol.box.server.rpc.AttachmentServletUploadTest
 ./gradlew -q :wave:dependencyInsight --dependency commons-fileupload --configuration runtimeClasspath
 ```
 
