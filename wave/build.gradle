@@ -333,12 +333,6 @@ sourceSets.main.java {
 //=============================================================================
 repositories {
     mavenCentral()
-    maven {
-        url 'https://oauth.googlecode.com/svn/code/maven/'
-    }
-    maven {
-        url 'https://maven.atlassian.com/3rdparty/'
-    }
 }
 
 // Ensure a single SLF4J binding (Logback) and evict legacy binders
@@ -395,13 +389,6 @@ dependencies {
             [group: "javax.inject", name: "javax.inject", version: "1"],
             [group: "javax.jdo", name: "jdo2-api", version: "2.1"]
     )
-    if (!project.hasProperty('excludeLegacyOAuth')) {
-        implementation (
-                [group: "net.oauth.core", name: "oauth-provider", version: "20100601-atlassian-2"],
-                [group: "net.oauth.core", name: "oauth", version: "20100601-atlassian-2"],
-                [group: "net.oauth.core", name: "oauth-consumer", version: "20100601-atlassian-2"]
-        )
-    }
     implementation fileTree(dir: '../pst/build/libs', include: '**/*.jar')
     // High-performance in-memory cache for manifest ordering
     implementation ([group: "com.github.ben-manes.caffeine", name: "caffeine", version: "3.1.8"])

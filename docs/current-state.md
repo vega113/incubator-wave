@@ -121,7 +121,7 @@ Read these files first when resuming work:
    debt, so it is not yet a reliable smoke gate.
 5. Remaining library-upgrade debt is now narrowed to Commons multipart cleanup,
    explicit `commons-cli` ownership in `wave`, MongoDB 2.x removal, legacy OAuth
-   ownership, and SBT bootstrap/library-input cleanup.
+   removal, and SBT bootstrap/library-input cleanup.
 6. Config hygiene is incomplete: fragment and segment settings still have
    partially duplicated `System.getProperty(...)` paths in server code.
 7. `Mongo4DeltaStore` is still missing, so the MongoDB v4 migration is not

@@ -52,8 +52,8 @@
   - Default implementation path: finish the existing sync-driver seam on 4.11.x first, because the repo already contains `mongodb4` adapters and tests.
   - Only bump all the way to the current 5.x line in the same task if infra confirms the supported MongoDB server floor is at least 4.2.
 - OAuth product scope:
-  - Default assumption: robot OAuth flows and import or export tooling remain supported.
-  - If product explicitly approves removal of robot OAuth and import or export entrypoints, the worker may replace the internalization track with endpoint removal and dependency deletion.
+  - Approved path for this lane: retire robot OAuth flows and import/export tooling from the default build.
+  - Use endpoint removal and dependency deletion rather than internalization, and record the resulting breakage as expected for this slice.
 
 ## Out Of Scope
 
@@ -124,23 +124,23 @@ Implement these build changes:
 - Add a direct `commons-cli` dependency to `wave`.
 - Upgrade `pst/build.gradle` from `commons-cli:1.3.1` to `commons-cli:1.11.0`.
 - Remove any reliance on PST shadow jars for `commons-cli` classes in the `wave` compile path.
-- Do not remove the stale OAuth repository URLs yet; defer that cleanup to Chunk 4 once the chosen OAuth ownership path is implemented.
+- Remove the stale OAuth repository URLs as part of the deletion path.
 
-- [ ] **Step 4: Verify and, if needed, fix the advertised OAuth exclusion switch**
+- [ ] **Step 4: Remove the advertised OAuth exclusion switch and legacy dependencies**
 
-Use the Step 1 baseline to decide whether a code change is needed. If the switch already works on both classpaths, keep the build logic as-is and record that finding in the task notes. If it does not, update `wave/build.gradle` so `-PexcludeLegacyOAuth=true` actually removes the three `net.oauth.core` coordinates from compile and runtime classpaths.
+Use the Step 1 baseline to confirm the removal path. Update `wave/build.gradle` so the legacy OAuth repositories and `net.oauth.core` coordinates are gone from the default build, then record the remaining compile fallout as the expected result of retiring robot/Data API/import-export OAuth ownership.
 
 Run:
 
 ```bash
-./gradlew -q -PexcludeLegacyOAuth=true :wave:dependencyInsight --dependency oauth --configuration compileClasspath
-./gradlew -q -PexcludeLegacyOAuth=true :wave:dependencyInsight --dependency oauth --configuration runtimeClasspath
+./gradlew -q :wave:dependencyInsight --dependency oauth --configuration compileClasspath
+./gradlew -q :wave:dependencyInsight --dependency oauth --configuration runtimeClasspath
 ```
 
 Expected after the fix:
-- No `net.oauth` artifacts remain when the switch is enabled, or the baseline proves that no build change was needed.
+- No `net.oauth` artifacts remain on either classpath.
 
-- [ ] **Step 5: Verify the build still compiles after the ownership cleanup**
+- [ ] **Step 5: Verify the build outcome after the ownership cleanup**
 
 Run:
 
@@ -150,9 +150,9 @@ sbt compile
 ```
 
 Expected:
-- Both Gradle and SBT compile.
-- `commons-cli` is explicit in the build graph.
-- Docs and build outputs no longer disagree about what is still open.
+- `net.oauth` no longer appears in the Gradle classpath reports.
+- `:wave:compileJava` fails in the OAuth-owned sources until those call sites are removed or quarantined.
+- Docs, Beads, and the build now agree that legacy OAuth is intentionally retired from this slice.
 
 - [ ] **Step 6: Commit**
 
