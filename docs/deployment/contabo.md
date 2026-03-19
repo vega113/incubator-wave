@@ -6,6 +6,8 @@ The Contabo deployment for Wave uses a Docker Compose stack on the host at
 ## Topology
 
 - `wave` runs from the repository `Dockerfile` image.
+- `mongo` runs as an internal sidecar on the compose network and stores the
+  Wave persistence data for supported stores.
 - `caddy` terminates public traffic and reverse proxies to the internal Wave
   container.
 - Wave binds to `127.0.0.1:9898` on the host and is not exposed directly.
@@ -36,6 +38,7 @@ Wave data directories:
 - `shared/attachments`
 - `shared/certificates`
 - `shared/deltas`
+- `shared/mongo/db`
 - `shared/indexes`
 - `shared/sessions`
 
@@ -127,5 +130,7 @@ re-runs the same smoke checks.
 
 - This slice owns deployment automation only.
 - DNS record creation for `supawave.ai` remains a separate Cloudflare task.
-- The app config in `deploy/contabo/application.conf` only overrides the host
-  binding and canonical domain.
+- The app config in `deploy/contabo/application.conf` now also pins the
+  supported persistence stores to MongoDB v4. Sessions and search remain on
+  their existing config paths; this deployment slice does not claim those are
+  solved.
