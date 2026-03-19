@@ -84,21 +84,36 @@ Read these files first when resuming work:
   - `ViewChannelFragmentRequester`
   - `RealRawFragmentsApplier`
 
+### Smoke verification on core-smoke
+
+- `./gradlew -q :wave:compileJava` passes on this branch.
+- `./gradlew -q :wave:smokeUi` passes on this branch and reports
+  `ROOT=302 WEBCLIENT=200` followed by `UI smoke OK`.
+- `./gradlew -q :wave:test` still fails at `:wave:compileTestJava` with legacy
+  test debt in the server tree. The current failures include Jetty session API
+  drift in `FragmentsHttpGatingTest`, stale
+  `ServerMain.applyFragmentsConfig(...)` references in
+  `ServerMainApplierConfigValidationTest` and `ServerMainConfigValidationTest`,
+  javax/jakarta servlet mismatches in `FragmentsServletViewportTest`, and
+  WebSession/HttpSession generic drift in `DataApiOAuthServletTest`.
+
 ### Highest-value gaps that still remain
 
-1. End-to-end verification of the merged renderer + quasi-deletion + fragments
-   path has not been completed on the current branch.
+1. The full browser variant sweep for the merged renderer + quasi-deletion +
+   fragments path has not been completed in this lane yet.
 2. `DynamicRendererImpl` still has TODO entrypoints for the public
    `dynamicRendering(...)` methods.
 3. The HTTP fragment requester still treats successful responses as metrics-only
    success and does not parse or apply returned fragment payloads.
-4. Config hygiene is incomplete: fragment and segment settings still have
+4. The default `:wave:test` path is blocked at `compileTestJava` by legacy test
+   debt, so it is not yet a reliable smoke gate.
+5. Config hygiene is incomplete: fragment and segment settings still have
    partially duplicated `System.getProperty(...)` paths in server code.
-5. `Mongo4DeltaStore` is still missing, so the MongoDB v4 migration is not
+6. `Mongo4DeltaStore` is still missing, so the MongoDB v4 migration is not
    complete.
-6. SBT is still additive and server-only. Gradle remains the canonical build.
-7. Packaging and DX verification still need a post-Jakarta pass.
-8. The documentation surface is now intentionally split between one canonical
+7. SBT is still additive and server-only. Gradle remains the canonical build.
+8. Packaging and DX verification still need a post-Jakarta pass.
+9. The documentation surface is now intentionally split between one canonical
    resume guide, a few live ledgers, and Beads tasks; do not re-open one-off
    plan docs when the live backlog already captures the work.
 
