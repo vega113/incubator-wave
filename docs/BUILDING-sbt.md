@@ -34,8 +34,9 @@ reuses vendored jars under `third_party/`, and is kept aligned with the checked-
 - Compile Java sources:
   - `sbt compile`
   - Current state: protobuf staging now succeeds and `compile` gets through
-    `protoc`, then fails later in Java compilation on other missing SBT parity
-    gaps.
+    `protoc`, then fails later in Java compilation on remaining library-upgrade
+    debt plus a smaller set of SBT-only source and codegen gaps tracked outside
+    the original descriptor/bootstrap fix.
 
 - Run the server (from repo root):
   - First-time setup: `sbt prepareServerConfig`

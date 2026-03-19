@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Closure note (2026-03-19):** The bootstrap, protobuf staging, stable artifact naming, and truthful SBT documentation work from this plan is complete. `sbt compile` now gets through `protoc` and stops later in Java compilation on remaining library-upgrade debt plus a smaller SBT-only source/codegen follow-up scope. That residual work was handed off instead of being left as implicit unfinished parity work in this plan.
+
 **Goal:** Bring the additive SBT port back into line with the current Gradle-backed server build by fixing the broken SBT bootstrap/compile path and rewriting the SBT docs to describe the behavior that actually exists.
 
 **Architecture:** Treat this as a build-and-doc parity task, not a product feature task. First make the SBT entry points (`compile`, `prepareServerConfig`, artifact naming, default mode) reflect the current repository layout and the Jakarta-first server baseline. Then update the SBT docs and top-level references so they describe the verified commands rather than historical Phase 1 assumptions.
