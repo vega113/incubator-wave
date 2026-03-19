@@ -97,17 +97,14 @@ public class WaveDigester {
     Digest digest;
 
     // Note: the indexing infrastructure only supports single-conversation
-    // snippeting, but unread state must reflect all conversational wavelets.
+    // waves, and requires raw wavelet access for snippeting.
     ObservableWaveletData root = null;
     ObservableWaveletData other = null;
-    List<ObservableWaveletData> conversationalWavelets = new ArrayList<ObservableWaveletData>();
     for (ObservableWaveletData waveletData : wave.getWavelets()) {
       WaveletId waveletId = waveletData.getWaveletId();
       if (IdUtil.isConversationRootWaveletId(waveletId)) {
         root = waveletData;
-        conversationalWavelets.add(waveletData);
       } else if (IdUtil.isConversationalId(waveletId)) {
-        conversationalWavelets.add(waveletData);
         other = waveletData;
       }
     }
@@ -125,7 +122,7 @@ public class WaveDigester {
     }
     if (conversations != null) {
       // This is a conversational wave. Produce a conversational digest.
-      digest = generateDigest(conversations, supplement, convWavelet, conversationalWavelets);
+      digest = generateDigest(conversations, supplement, convWavelet);
     } else {
       // It is unknown how to present this wave.
       digest = generateEmptyorUnknownDigest(wave);
@@ -160,8 +157,8 @@ public class WaveDigester {
    * @return the server representation of the digest for the query.
    */
   Digest generateDigest(ObservableConversationView conversations, SupplementedWave supplement,
-      WaveletData rawWaveletData, Iterable<? extends ObservableWaveletData> conversationalWavelets) {
-    ObservableConversation rootConversation = chooseDigestConversation(conversations);
+      WaveletData rawWaveletData) {
+    ObservableConversation rootConversation = conversations.getRoot();
     ObservableConversationBlip firstBlip = null;
     if ((rootConversation != null) && (rootConversation.getRootThread() != null)
         && (rootConversation.getRootThread().getFirstBlip() != null)) {
@@ -192,45 +189,15 @@ public class WaveDigester {
     int unreadCount = 0;
     int blipCount = 0;
     long lastModified = -1;
-    for (ObservableWaveletData conversationalWavelet : conversationalWavelets) {
-      ObservableConversation conversation;
-      if (conversationalWavelet == rawWaveletData) {
-        conversation = rootConversation;
-      } else {
-        OpBasedWavelet wavelet = OpBasedWavelet.createReadOnly(conversationalWavelet);
-        if (!WaveletBasedConversation.waveletHasConversation(wavelet)) {
-          continue;
-        }
-        conversation = chooseDigestConversation(conversationUtil.buildConversation(wavelet));
+    for (ConversationBlip blip : BlipIterators.breadthFirst(rootConversation)) {
+      if (supplement.isUnread(blip)) {
+        unreadCount++;
       }
-      if (conversation == null) {
-        continue;
-      }
-      for (ConversationBlip blip : BlipIterators.breadthFirst(conversation)) {
-        if (supplement.isUnread(blip)) {
-          unreadCount++;
-        }
-        lastModified = Math.max(blip.getLastModifiedTime(), lastModified);
-        blipCount++;
-      }
+      lastModified = Math.max(blip.getLastModifiedTime(), lastModified);
+      blipCount++;
     }
     return new Digest(title, snippet, waveId, participants, lastModified,
         rawWaveletData.getCreationTime(), unreadCount, blipCount);
-  }
-
-  private ObservableConversation chooseDigestConversation(ObservableConversationView conversations) {
-    if (conversations == null) {
-      return null;
-    }
-    ObservableConversation rootConversation = conversations.getRoot();
-    if (rootConversation != null) {
-      return rootConversation;
-    }
-    Collection<? extends ObservableConversation> allConversations = conversations.getConversations();
-    if (allConversations.isEmpty()) {
-      return null;
-    }
-    return allConversations.iterator().next();
   }
 
   /** @return a digest for an empty wave. */
