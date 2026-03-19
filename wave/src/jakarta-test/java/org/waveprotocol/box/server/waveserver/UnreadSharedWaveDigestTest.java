@@ -45,6 +45,8 @@ public final class UnreadSharedWaveDigestTest extends TestCase {
   private static final WaveId WAVE_ID = WaveId.of("local.net", "w+shared");
   private static final WaveletId CONVERSATION_WAVELET_ID =
       WaveletId.of("local.net", "conv+root");
+  private static final WaveletId SECONDARY_CONVERSATION_WAVELET_ID =
+      WaveletId.of("local.net", "conv+child");
   private static final ParticipantId VIEWER = ParticipantId.ofUnsafe("test10@local.net");
   private static final ParticipantId OTHER_USER = ParticipantId.ofUnsafe("vega@local.net");
 
@@ -104,6 +106,48 @@ public final class UnreadSharedWaveDigestTest extends TestCase {
     Digest digest = new WaveDigester(conversationUtil).build(VIEWER, wave);
 
     assertEquals(0, digest.getUnreadCount());
+  }
+
+  public void testWaveDigesterBuildCountsUnreadBlipsFromSecondaryConversationWavelets() {
+    ObservableWaveletData rootConversationWavelet =
+        createWritableWaveletData(CONVERSATION_WAVELET_ID, OTHER_USER);
+    ObservableWaveletData secondaryConversationWavelet =
+        createWritableWaveletData(SECONDARY_CONVERSATION_WAVELET_ID, OTHER_USER);
+    ConversationUtil conversationUtil =
+        new ConversationUtil(new IdGeneratorImpl("local.net", () -> "shared-unread-secondary"));
+    OpBasedWavelet rootConversationModel =
+        createWritableWavelet(rootConversationWavelet, OTHER_USER);
+    OpBasedWavelet secondaryConversationModel =
+        createWritableWavelet(secondaryConversationWavelet, OTHER_USER);
+
+    org.waveprotocol.wave.model.conversation.WaveletBasedConversation.makeWaveletConversational(
+        rootConversationModel);
+    org.waveprotocol.wave.model.conversation.WaveletBasedConversation.makeWaveletConversational(
+        secondaryConversationModel);
+    org.waveprotocol.wave.model.conversation.ObservableConversation rootConversation =
+        conversationUtil.buildConversation(rootConversationModel).getRoot();
+    rootConversation.addParticipant(VIEWER);
+    org.waveprotocol.wave.model.conversation.ConversationBlip rootBlip =
+        rootConversation.getRootThread().appendBlip();
+    org.waveprotocol.wave.model.conversation.ObservableConversation secondaryConversation =
+        conversationUtil
+            .buildConversation(secondaryConversationModel)
+            .getConversations()
+            .iterator()
+            .next();
+    secondaryConversation.addParticipant(VIEWER);
+    secondaryConversation.getRootThread().appendBlip();
+
+    WaveViewData wave =
+        WaveViewDataImpl.create(
+            WAVE_ID,
+            java.util.Arrays.asList(
+                WaveletDataUtil.copyWavelet(rootConversationWavelet),
+                WaveletDataUtil.copyWavelet(secondaryConversationWavelet)));
+    Digest digest = new WaveDigester(conversationUtil).build(VIEWER, wave);
+
+    assertEquals(2, digest.getUnreadCount());
+    assertEquals(2, digest.getBlipCount());
   }
 
   private static ObservableWaveletData createWavelet(WaveletId waveletId, ParticipantId creator) {
