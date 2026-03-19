@@ -80,7 +80,7 @@
 - `./gradlew -q :wave:testJakartaIT`
 - `./gradlew -q :wave:smokeInstalled`
 - `./gradlew :wave:run`
-- `rg -n 'jettyFamily=javax|Jetty 9\\.4|legacy `javax`|fallback for bisects|wave/src/test/java' README.md docs .github wave/build.gradle sonar-project.properties .`
+- `rg -n 'jettyFamily=javax|Jetty 9\\.4|legacy javax|fallback for bisects|wave/src/test/java' README.md docs .github wave/build.gradle sonar-project.properties .`
 - optional compatibility check: `./gradlew -PjettyFamily=javax :wave:compileJava` should fail explicitly once the fallback is retired, rather than silently selecting another profile
 
 - [ ] Prove the repo builds and runs cleanly on the Jakarta-only path.

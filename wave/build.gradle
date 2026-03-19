@@ -42,6 +42,9 @@ tasks.withType(ProcessResources) {
 def title = 'Apache Wave Server'
 def vendor = 'The Apache Software Foundation'
 version = "0.4.2"
+if (findProperty('jettyFamily') != null) {
+    throw new GradleException("The jettyFamily project property was removed. The server/runtime path is Jakarta-only; remove -PjettyFamily and use the Jakarta defaults.")
+}
 ext {
     // Allow overriding from the command line: ./gradlew -PgwtVersion=2.12.2
     gwtVersion = findProperty('gwtVersion') ?: '2.10.0'
@@ -248,11 +251,12 @@ sourceSets {
 sourceSets.main.java {
     // Bring in Jakarta override sources
     srcDir 'src/jakarta-overrides/java'
+    def mainJavaRoot = projectDir.toPath().resolve('src').resolve('main').resolve('java').toAbsolutePath().normalize()
     // Exclude specific javax-era sources only from src/main/java, not from overrides
     exclude { details ->
-            def p = details.file.toPath().normalize().toString()
-            if (!p.contains("${projectDir}/src/main/java/")) return false
-            def rel = p.substring(p.indexOf('/src/main/java/') + '/src/main/java/'.length())
+            def path = details.file.toPath().toAbsolutePath().normalize()
+            if (!path.startsWith(mainJavaRoot)) return false
+            def rel = mainJavaRoot.relativize(path).toString().replace(File.separator, '/')
             // Explicit guard: never exclude robots sources on Jakarta builds; other code depends on types
             if (rel.startsWith('org/waveprotocol/box/server/robots/')) {
                 def excludeFiles = [
@@ -286,7 +290,7 @@ sourceSets.main.java {
                 'org/waveprotocol/box/server/robots/RobotRegistrationServlet.java',
                 'org/waveprotocol/box/server/robots/operations/NotifyOperationService.java',
                 'org/waveprotocol/box/server/rpc/UserRegistrationServlet.java',
-                // Keep ServerMain.java from main on Jakarta path; Jakarta provider skips incompatible registrations at runtime
+                // ServerMain and servlet/bootstrap classes come from Jakarta overrides on this path.
                 'org/waveprotocol/box/server/rpc/AuthenticationServlet.java',
                 'org/waveprotocol/box/server/rpc/SignOutServlet.java',
                 // Keep HttpRequestBasedCallbackHandler available for Jakarta auth servlet

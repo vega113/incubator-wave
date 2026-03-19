@@ -102,8 +102,8 @@ Read these files first when resuming work:
    partially duplicated `System.getProperty(...)` paths in server code.
 5. `Mongo4DeltaStore` is still missing, so the MongoDB v4 migration is not
    complete.
-6. The legacy `javax` fallback retirement is in progress so the repo can
-   converge on one Jakarta-only server/runtime path.
+6. The repo now runs on a Jakarta-only server/runtime path, but dead
+   compatibility branches and stale history references still need cleanup.
 7. SBT is still additive and server-only. Gradle remains the canonical build.
 8. Packaging and DX verification still need a post-Jakarta pass.
 9. Phase 8 now has a measured inventory and a no-go-for-now decision memo, but

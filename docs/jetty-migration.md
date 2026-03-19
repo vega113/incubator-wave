@@ -8,13 +8,13 @@ Status note (2026-03-18)
 - Detailed Jetty / Jakarta migration ledger kept for implementation history.
 - Canonical current-state tracking lives in `docs/current-state.md` and
   `.beads/issues.jsonl` under `incubator-wave-modernization`.
-- The legacy `-PjettyFamily=javax` fallback is now on the retirement path; new
-  work should assume the Jakarta runtime as the only supported server profile.
+- The legacy `-PjettyFamily=javax` fallback is retired; new work should assume
+  the Jakarta runtime as the only supported server profile.
 
 Status Summary
 - Completed: Stage 1 — Jetty 9.4 baseline upgrade and server hardening validated on JDK 17.
 - Decision (2025-09-02): Target Jetty 12 (EE10). For Jakarta, use programmatic servlet/filter registration and a programmatic WebSocket endpoint. Retire guice-servlet on the Jakarta path (it is javax-only).
-- Stage 2 — Jakarta (Jetty 12) (completed): Core HTTP/static/WebSocket parity implemented; robot APIs and observability endpoints now run on Jakarta by default. Servlet/filter import sweep of shared libraries and expanded tests landed. Gradle defaults to `-PjettyFamily=jakarta` with Jetty 9.4 fallback.
+- Stage 2 — Jakarta (Jetty 12) (completed): Core HTTP/static/WebSocket parity implemented; robot APIs and observability endpoints now run on Jakarta by default. Servlet/filter import sweep of shared libraries and expanded tests landed. Gradle now builds and runs Jakarta only.
   - EE10 server bootstrap: ServletContextHandler, DefaultServlet, GzipHandler.
   - Static resources: ResourceCollection with cache/no-cache splits for /static and /webclient.
   - WebSockets: Programmatic @ServerEndpoint("/socket") with per-connection dispatch; no echo fallback; DI via ServerEndpointConfig.Configurator with validation.
@@ -51,7 +51,7 @@ Recent changes (2025-09-18)
   - SearchServletJakartaIT: invalid parameter 400s, out-of-range clamping, injection-safe serialization, and serializer failure → 500.
 - TestSupport added (public, test-only) to centralize EE10 availability checks and consistent skip policy.
 - CI: added non-blocking :wave:testJakartaIT step and artifact publishing. Plan to flip to blocking after a burn-in window.
-- Compatibility note (updated 2026‑03‑19): The Jakarta build’s compile and runtime classpaths now contain only Jakarta APIs. The old `-PjettyFamily=javax` fallback is being retired rather than maintained as an active bisect path.
+- Compatibility note (updated 2026‑03‑19): The Jakarta build’s compile and runtime classpaths now contain only Jakarta APIs. The old `-PjettyFamily=javax` fallback is retired rather than maintained as an active bisect path.
 
 Security & correctness hardening
 - AttachmentServlet (both javax and Jakarta):

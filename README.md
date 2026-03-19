@@ -220,8 +220,8 @@ Use `scripts/wave-smoke.sh start|status|stop` against the installed dist.
   - Build an installable distribution: `./gradlew :wave:installDist`
 
 **Docker builds:**
-- Build the Jakarta image: `docker build -t wave:jakarta .`
-- Run the container: `docker run --rm -p 9898:9898 wave:jakarta`
+- Build the development image: `docker build -t wave:dev .`
+- Run the container: `docker run --rm -p 9898:9898 wave:dev`
 
 ### Enabling SSL and handling sensitive data
 
