@@ -1,5 +1,11 @@
 # Building with SBT (Additive Server-Only Port)
 
+> Status: WIP contributor handoff, not a supported end-user build. `sbt compile`
+> still fails after `protoc` on remaining library-upgrade debt tracked under
+> `incubator-wave-modernization.3` plus smaller SBT-only gaps. Keep using Gradle
+> for normal development and treat this document as the current state of the
+> additive port rather than a promise of parity.
+
 This is the additive SBT port for compiling and running the server on modern
 JDKs. Gradle remains the canonical build. The SBT build stays server-only,
 reuses vendored jars under `third_party/`, and is kept aligned with the checked-in
@@ -33,10 +39,12 @@ reuses vendored jars under `third_party/`, and is kept aligned with the checked-
 
 - Compile Java sources:
   - `sbt compile`
-  - Current state: protobuf staging now succeeds and `compile` gets through
+  - Current state: WIP. Protobuf staging now succeeds and `compile` gets through
     `protoc`, then fails later in Java compilation on remaining library-upgrade
     debt plus a smaller set of SBT-only source and codegen gaps tracked outside
-    the original descriptor/bootstrap fix.
+    the original descriptor/bootstrap fix. Until `incubator-wave-modernization.3`
+    and the follow-on SBT-only cleanup close, this path is not a working build
+    for end users.
 
 - Run the server (from repo root):
   - First-time setup: `sbt prepareServerConfig`
@@ -69,8 +77,13 @@ reuses vendored jars under `third_party/`, and is kept aligned with the checked-
     - Current project name: `incubator-wave`, so the generated jar is
       `target/scala-*/incubator-wave-server-<version>.jar`
     - Run: `java -jar target/scala-*/incubator-wave-server-<version>.jar`
-      (when running outside `sbt`, also pass the required `-D...` flags such as
-      the logging and JAAS config paths above)
+      (when running outside `sbt`, also pass the required system properties):
+      ```
+      java -Dwave.server.config=wave/config/application.conf \
+           -Djava.util.logging.config.file=wave/config/wiab-logging.conf \
+           -Djava.security.auth.login.config=wave/config/jaas.config \
+           -jar target/scala-*/incubator-wave-server-<version>.jar
+      ```
 
 ## Backend tests
 
@@ -95,7 +108,7 @@ reuses vendored jars under `third_party/`, and is kept aligned with the checked-
 - Stable project naming now produces `incubator-wave-server-0.1.0-SNAPSHOT.jar`
   instead of varying with the worktree directory.
 - `prepareServerConfig` now bootstraps the root `config/` directory from
-  `wave/config/` instead of requiring a missing `server.config.example`.
+  `wave/config/` instead of expecting a `server.config.example` file.
 
 ## Jakarta Mode
 
