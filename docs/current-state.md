@@ -65,7 +65,10 @@ Read these files first when resuming work:
 - GWT 2.x on JDK 17 is already wired well enough to be tracked as completed in
   the modernization ledger.
 - Jakarta / Jetty 12 is the supported server profile.
-- The additive SBT build skeleton exists and can compile the server-only subset.
+- The legacy `javax` / Jetty 9.4 fallback has been retired; the live
+  server/runtime path is Jakarta-only.
+- The additive SBT build now uses stable jar naming and `wave/config/`-backed
+  runtime defaults, but it remains a server-only additive path.
 - The Phase 8 planning artifacts now exist:
   - `docs/j2cl-gwt3-inventory.md`
   - `docs/j2cl-gwt3-decision-memo.md`
@@ -104,7 +107,9 @@ Read these files first when resuming work:
    complete.
 6. The repo now runs on a Jakarta-only server/runtime path, but dead
    compatibility branches and stale history references still need cleanup.
-7. SBT is still additive and server-only. Gradle remains the canonical build.
+7. SBT is still additive and server-only. Its bootstrap/runtime path now tracks
+   `wave/config/`, the jar name is stable, and Gradle remains the canonical
+   build.
 8. Packaging and DX verification still need a post-Jakarta pass.
 9. Phase 8 now has a measured inventory and a no-go-for-now decision memo, but
    the prerequisite reduction tasks for any future J2CL work are still open.
