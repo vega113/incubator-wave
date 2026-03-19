@@ -113,7 +113,7 @@ Conclusion:
 ### 3. Default configuration still points to local stores
 
 Even though Mongo implementations exist, the default runtime remains file/disk
-or memory based. That means switching to Mongo is not just a code-exists claim.
+or memory-based. That means switching to Mongo is not just a code-exists claim.
 It still needs an explicit production configuration decision and validation pass.
 
 ## Evaluation Of The Two Directions
