@@ -20,7 +20,7 @@ set -euo pipefail
 
 cmd=${1:-deploy}
 script_dir=$(cd "$(dirname "$0")" && pwd)
-release_dir=$(dirname "$script_dir")
+release_dir="$script_dir"
 deploy_root=$(dirname "$(dirname "$release_dir")")
 project_name=${PROJECT_NAME:-supawave}
 canonical_host=${CANONICAL_HOST:-wave.supawave.ai}
