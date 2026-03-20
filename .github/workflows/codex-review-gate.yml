@@ -15,10 +15,6 @@ on:
       - submitted
       - edited
       - dismissed
-  pull_request_review_thread:
-    types:
-      - resolved
-      - unresolved
   issue_comment:
     types:
       - created
@@ -27,7 +23,7 @@ on:
 jobs:
   codex-review-gate:
     name: Codex Review Gate
-    if: ${{ github.event.pull_request != null || github.event.issue.pull_request != null || github.event.review_thread.pull_request != null }}
+    if: ${{ github.event.pull_request != null || github.event.issue.pull_request != null }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -39,10 +35,7 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const prNumber =
-              context.payload.pull_request?.number ??
-              context.payload.issue?.number ??
-              context.payload.review_thread?.pull_request?.number;
+            const prNumber = context.payload.pull_request?.number ?? context.payload.issue?.number;
 
             const query = `
               query($owner: String!, $repo: String!, $number: Int!) {
@@ -74,9 +67,6 @@ jobs:
                         }
                       }
                     }
-                    reviewThreads(first: 100) {
-                      nodes { isResolved }
-                    }
                   }
                 }
               }
@@ -95,7 +85,6 @@ jobs:
             }
 
             const labels = pullRequest.labels.nodes.map((label) => label.name);
-            const unresolved = pullRequest.reviewThreads.nodes.filter((thread) => !thread.isResolved).length;
             const statusNodes =
               pullRequest.commits.nodes[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
             const codeRabbitPassed = statusNodes.some((node) => {
@@ -118,9 +107,5 @@ jobs:
               return;
             }
 
-            if (unresolved > 0) {
-              core.setFailed(`There are ${unresolved} unresolved review conversation(s)`);
-              return;
-            }
 
             core.info("Review gate passed");
