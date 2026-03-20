@@ -12,8 +12,9 @@
 
 ## Naming Task
 
-This implementation also owns `incubator-wave-deployment.7`, the explicit provider-neutral naming sweep.
-Any canonical user-facing or automation-facing deployment path/name should move away from provider-specific `contabo` naming unless it is intentionally preserved as a labeled compatibility or provider-overlay surface.
+Task `incubator-wave-deployment.7` is a follow-on provider-neutral naming sweep that is blocked by this implementation task.
+This plan (`incubator-wave-deployment.6`) establishes the new canonical provider-neutral assets under `deploy/caddy/` and the new deployment documentation structure.
+Any new or rewritten assets in this task must use generic Linux-host/Caddy naming from the start, while task `.7` handles the broader codebase-wide cleanup of canonical `contabo` references that remain outside the new canonical surfaces.
 
 ## Chunk 1: Establish Provider-Neutral Deployment Assets
 
@@ -71,7 +72,7 @@ Implementation decision:
 - update `.github/workflows/deploy-contabo.yml` to package from `deploy/caddy/*`
 - update the workflow and docs to read from `deploy/caddy/*` directly, and add a short `deploy/contabo/README.md` note explaining that the provider-specific path has been superseded by the canonical provider-neutral asset path
 
-The workflow update must account for all four currently bundled files:
+The GitHub workflow update must account for all four currently bundled files:
 - `deploy/contabo/compose.yml`
 - `deploy/contabo/Caddyfile`
 - `deploy/contabo/application.conf`
