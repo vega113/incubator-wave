@@ -30,6 +30,7 @@ internal_port=${WAVE_INTERNAL_PORT:-9898}
 smoke_image=${SMOKE_IMAGE:-curlimages/curl:8.10.1}
 registry_host=${GHCR_REGISTRY_HOST:-ghcr.io}
 deploy_env_file="$deploy_root/shared/deploy.env"
+lock_file="$deploy_root/deploy.lock"
 
 require_docker() {
   command -v docker >/dev/null 2>&1 || {
@@ -54,6 +55,18 @@ load_deploy_env() {
     source "$deploy_env_file"
     set +a
   fi
+}
+
+acquire_lock() {
+  exec 9>"$lock_file"
+  if ! flock -w 30 9; then
+    echo "Could not acquire deployment lock at $lock_file" >&2
+    exit 1
+  fi
+}
+
+release_lock() {
+  flock -u 9 || true
 }
 
 activate_release() {
@@ -143,7 +156,11 @@ deploy_release() {
   login_registry_if_needed
   pull_image
   activate_release
-  compose_up
+  if ! compose_up; then
+    echo "Compose startup failed, rolling back" >&2
+    rollback_release
+    exit 1
+  fi
 
   if wait_for_ready && check_proxy; then
     echo "Deployed $(basename "$release_dir")"
@@ -158,6 +175,8 @@ deploy_release() {
 require_docker
 ensure_layout
 load_deploy_env
+acquire_lock
+trap release_lock EXIT INT TERM
 
 case "$cmd" in
   deploy)

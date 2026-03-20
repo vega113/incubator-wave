@@ -11,7 +11,7 @@ run() {
     printf '[dry-run] %s\n' "$*"
     return 0
   fi
-  eval "$@"
+  "$@"
 }
 
 need_cmd() {
@@ -24,7 +24,7 @@ install_pkg() {
     printf 'already installed: %s\n' "$pkg"
     return 0
   fi
-  run "sudo apt-get install -y $pkg"
+  run sudo apt-get install -y "$pkg"
 }
 
 main() {
@@ -33,7 +33,7 @@ main() {
     exit 1
   fi
 
-  run "sudo apt-get update"
+  run sudo apt-get update
   install_pkg curl
   install_pkg tar
   install_pkg openssl
@@ -41,14 +41,13 @@ main() {
 
   if need_cmd docker; then
     echo 'docker already installed'
+    if docker compose version >/dev/null 2>&1; then
+      echo 'docker compose already available'
+    else
+      echo 'docker compose plugin is not available; install it before using the Docker/Caddy deployment path.'
+    fi
   else
     echo 'docker is not installed; install Docker Engine before using the Docker/Caddy deployment path.'
-  fi
-
-  if docker compose version >/dev/null 2>&1; then
-    echo 'docker compose already available'
-  else
-    echo 'docker compose plugin is not available; install it before using the Docker/Caddy deployment path.'
   fi
 }
 

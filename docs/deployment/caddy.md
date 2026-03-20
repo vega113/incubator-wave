@@ -40,6 +40,9 @@ At runtime, confirm:
 - Wave is reachable only on the internal port
 - redirects point to the canonical host as intended
 
+Note:
+- The shipped Compose example is a provider-neutral baseline, not a final production-hardening guide. Mongo authentication and backup hardening remain explicit follow-up work.
+
 ## Non-Docker path
 
 Example systemd units live under:
