@@ -197,6 +197,6 @@ This task should not include:
 - The docs clearly explain what Caddy is and why operators may prefer it.
 - Official Caddy deployment assets are present in the repo and referenced from the docs.
 - Official standalone and caddy-fronted non-Docker systemd examples are present in the repo and referenced from the docs.
-- The repo documents a provider-neutral Linux host baseline and includes either a reference setup script or an explicit prerequisites checklist for that baseline.
+- The repo documents a provider-neutral Linux host baseline, includes an explicit prerequisites checklist, and includes a reference setup/bootstrap script for that baseline.
 - The docs include a decision matrix, migration guidance, and validation steps.
 - The docs clearly state that Caddy is supported but not required and not embedded into Wave.
