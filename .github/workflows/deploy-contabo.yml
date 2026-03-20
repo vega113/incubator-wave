@@ -38,8 +38,8 @@ jobs:
     env:
       RELEASE_ID: ${{ github.sha }}
       IMAGE_REF: ghcr.io/${{ github.repository }}:${{ github.sha }}
-      CANONICAL_HOST: wave.supawave.ai
-      ROOT_HOST: supawave.ai
+      CANONICAL_HOST: supawave.ai
+      ROOT_HOST: wave.supawave.ai
       WWW_HOST: www.supawave.ai
     steps:
       - name: Checkout

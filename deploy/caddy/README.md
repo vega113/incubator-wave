@@ -11,7 +11,7 @@ Use these files when:
 Files:
 - `Caddyfile`: public TLS and reverse-proxy rules
 - `compose.yml`: Docker Compose topology for `wave + caddy`
-- `application.conf`: Wave runtime config for the Caddy-fronted example
+- `application.conf`: Wave runtime config for the Caddy-fronted deployment
 - `deploy.sh`: host-side deploy and rollback helper
 - `deploy.env.example`: example registry/deploy environment variables
 
