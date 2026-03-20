@@ -660,10 +660,13 @@ tasks.named('generateProtoProto') {
         dependsOn(":pst:jar")
     }
 }
-["compileJava", "startScripts", "distZip", "distTar"].each { t ->
+["compileJava", "startScripts", "distZip", "distTar", "installDist"].each { t ->
     tasks.matching { it.name == t }.configureEach {
         dependsOn(":pst:jar")
     }
+}
+tasks.named("installDist") {
+    dependsOn("compileGwt")
 }
 // Aggregate GWT tasks for manual invocation
 tasks.register("gwtBuild") {
