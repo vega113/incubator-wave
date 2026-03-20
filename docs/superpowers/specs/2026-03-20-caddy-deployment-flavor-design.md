@@ -18,13 +18,13 @@ The project should remain standalone-capable, while making Caddy easy and explic
 - The canonical deployment docs should be provider-neutral and assume a generic Linux host, not a specific VPS vendor.
 - The baseline supported host should be a systemd-based x86_64 Linux machine, with Ubuntu LTS used as the reference environment for package names and examples.
 - Other Linux distributions may work if they provide equivalent packages, service management, and network behavior.
-- The docs should explicitly list required host prerequisites and should also provide a setup/bootstrap script for the reference Linux baseline when practical.
+- The docs should explicitly list required host prerequisites and should also provide a setup/bootstrap script for the reference Linux baseline.
 
 Minimum host-prerequisite topics to document:
 - public DNS pointed at the host and ports `80`/`443` reachable
 - systemd available for the non-Docker service examples
 - common bootstrap tools such as `curl`, `tar`, and `openssl`
-- Java 17 available for standalone Wave deployment
+- Java 17 or later available for standalone Wave deployment
 - Docker Engine and `docker compose` available for the Docker-based Caddy deployment path
 
 ## Why Support Caddy
