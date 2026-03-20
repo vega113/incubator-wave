@@ -10,6 +10,11 @@
 
 ---
 
+## Naming Task
+
+This implementation also owns `incubator-wave-deployment.7`, the explicit provider-neutral naming sweep.
+Any canonical user-facing or automation-facing deployment path/name should move away from provider-specific `contabo` naming unless it is intentionally preserved as a labeled compatibility or provider-overlay surface.
+
 ## Chunk 1: Establish Provider-Neutral Deployment Assets
 
 ### Task 1: Create the new provider-neutral asset layout
