@@ -54,6 +54,7 @@ Create these canonical assets from the current working `deploy/contabo/*` versio
 - `deploy/caddy/compose.yml`
 - `deploy/caddy/application.conf`
 - `deploy/caddy/deploy.sh`
+- `deploy/caddy/deploy.env.example`
 
 Expected content rules:
 - same runtime topology as today (`wave + caddy [+ mongo only if still needed by the chosen example]`)
@@ -62,6 +63,7 @@ Expected content rules:
 - `application.conf` no longer hardcodes `wave.supawave.ai` as if it were the only supported deployment target
 - `deploy.sh` error messages and comments no longer say `Contabo host`; use generic Linux host wording instead
 - `deploy.env.example` is copied into the canonical path and generalized so it documents registry/deploy variables without vendor-specific wording
+- the copied env example matches the expectations of `deploy/caddy/deploy.sh` and becomes the canonical env file referenced by the docs
 
 - [ ] **Step 3: Decide and implement the compatibility strategy for current automation**
 
@@ -114,15 +116,6 @@ At minimum handle:
 - `curl`, `tar`, `openssl`
 - Java 17 for standalone guidance
 - Docker Engine and `docker compose` for Docker/Caddy path
-
-- [ ] **Step 2a: Create the canonical deploy env example**
-
-Create `deploy/caddy/deploy.env.example` from `deploy/contabo/deploy.env.example`.
-
-Required outcome:
-- variable names and comments are provider-neutral
-- the file matches the expectations of `deploy/caddy/deploy.sh`
-- docs can reference the canonical env example instead of the legacy provider-specific path
 
 - [ ] **Step 6: Verify config and script syntax**
 
