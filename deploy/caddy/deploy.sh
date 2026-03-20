@@ -23,8 +23,8 @@ script_dir=$(cd "$(dirname "$0")" && pwd)
 release_dir="$script_dir"
 deploy_root=$(dirname "$(dirname "$release_dir")")
 project_name=${PROJECT_NAME:-supawave}
-canonical_host=${CANONICAL_HOST:-wave.supawave.ai}
-root_host=${ROOT_HOST:-supawave.ai}
+canonical_host=${CANONICAL_HOST:-supawave.ai}
+root_host=${ROOT_HOST:-wave.supawave.ai}
 www_host=${WWW_HOST:-www.supawave.ai}
 internal_port=${WAVE_INTERNAL_PORT:-9898}
 smoke_image=${SMOKE_IMAGE:-curlimages/curl:8.10.1}
@@ -88,6 +88,13 @@ login_registry_if_needed() {
 pull_image() {
   local image_ref="${WAVE_IMAGE:-supawave-wave:$(basename "$release_dir")}"
   docker pull "$image_ref" >/dev/null
+}
+
+render_application_config() {
+  local app_config="$release_dir/application.conf"
+  if [[ -f "$app_config" ]]; then
+    perl -0pi -e 's/wave\.example\.test/'"$canonical_host"'/g' "$app_config"
+  fi
 }
 
 compose_up() {
@@ -155,6 +162,7 @@ deploy_release() {
   remember_previous_release
   login_registry_if_needed
   pull_image
+  render_application_config
   activate_release
   if ! compose_up; then
     echo "Compose startup failed, rolling back" >&2
