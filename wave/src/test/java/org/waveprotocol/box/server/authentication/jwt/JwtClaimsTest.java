@@ -43,6 +43,25 @@ public final class JwtClaimsTest {
   }
 
   @Test
+  public void trimsWhitespaceFromScopesWhenConstructed() {
+    JwtClaims claims = new JwtClaims(
+        JwtTokenType.BROWSER_SESSION,
+        "https://auth.example",
+        "user@example.com",
+        "token-123",
+        "key-1",
+        EnumSet.of(JwtAudience.BROWSER),
+        new HashSet<>(Arrays.asList(" wave:read ", "wave:write")),
+        10L,
+        11L,
+        20L,
+        7L);
+
+    assertEquals(new HashSet<>(Arrays.asList("wave:read", "wave:write")), claims.scopes());
+    assertTrue(claims.hasScope("wave:read"));
+  }
+
+  @Test
   public void rejectsInvalidTemporalOrdering() {
     try {
       new JwtClaims(

@@ -11,7 +11,7 @@ public final class RsaJwtIssuer implements JwtIssuer {
 
   @Override
   public String issue(JwtClaims claims) {
-    JwtClaims value = Objects.requireNonNull(claims, "claims");
-    return JwtWireFormat.issue(value, keyRing.signingMaterial(value.keyId()));
+    Objects.requireNonNull(claims, "claims");
+    return JwtWireFormat.issue(claims, keyRing.keyMaterial(claims.keyId()));
   }
 }

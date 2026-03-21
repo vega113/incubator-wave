@@ -61,7 +61,15 @@ public final class RsaJwtIssuerValidatorTest {
         4L);
 
     String token = keyRing.issuer().issue(claims);
-    String tampered = token.substring(0, token.length() - 1) + (token.endsWith("A") ? "B" : "A");
+    int lastDot = token.lastIndexOf('.');
+    String signature = token.substring(lastDot + 1);
+    int tamperIndex = signature.length() / 2;
+    char original = signature.charAt(tamperIndex);
+    char replacement = original == 'A' ? 'B' : 'A';
+    String tampered = token.substring(0, lastDot + 1)
+        + signature.substring(0, tamperIndex)
+        + replacement
+        + signature.substring(tamperIndex + 1);
 
     try {
       keyRing.validator(Clock.fixed(Instant.ofEpochSecond(150L), ZoneOffset.UTC))

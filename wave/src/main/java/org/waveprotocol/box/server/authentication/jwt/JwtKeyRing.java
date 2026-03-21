@@ -76,10 +76,6 @@ public final class JwtKeyRing {
     return JwtWireFormat.jwksJson(keyMaterials.values());
   }
 
-  JwtKeyMaterial signingMaterial(String keyId) {
-    return keyMaterial(keyId);
-  }
-
   private static JwtKeyMaterial generateKeyMaterial(String keyId, int keySize) {
     try {
       KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");

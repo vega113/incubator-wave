@@ -2,6 +2,7 @@ package org.waveprotocol.box.server.authentication.jwt;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public record JwtClaims(
     JwtTokenType tokenType,
@@ -23,12 +24,11 @@ public record JwtClaims(
     tokenId = requireText(tokenId, "tokenId");
     keyId = requireText(keyId, "keyId");
     audiences = Set.copyOf(Objects.requireNonNull(audiences, "audiences"));
-    scopes = Set.copyOf(Objects.requireNonNull(scopes, "scopes"));
+    scopes = normalizeScopes(scopes);
     if (audiences.isEmpty()) {
       throw new IllegalArgumentException("audiences must not be empty");
     }
     validateEntries(audiences, "audience");
-    validateEntries(scopes, "scope");
     if (issuedAtEpochSeconds < 0) {
       throw new IllegalArgumentException("issuedAtEpochSeconds must be non-negative");
     }
@@ -81,5 +81,12 @@ public record JwtClaims(
         throw new IllegalArgumentException(name + " entries must not be blank");
       }
     }
+  }
+
+  private static Set<String> normalizeScopes(Set<String> values) {
+    Objects.requireNonNull(values, "scopes");
+    return values.stream()
+        .map(scope -> requireText(scope, "scope"))
+        .collect(Collectors.toUnmodifiableSet());
   }
 }

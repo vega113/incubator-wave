@@ -40,6 +40,11 @@ final class JwtWireFormat {
   }
 
   static String issue(JwtClaims claims, JwtKeyMaterial keyMaterial) {
+    Objects.requireNonNull(claims, "claims");
+    Objects.requireNonNull(keyMaterial, "keyMaterial");
+    if (!claims.keyId().equals(keyMaterial.keyId())) {
+      throw new IllegalArgumentException("JWT claims key id does not match signing key");
+    }
     JwtHeader header = JwtHeader.fromKeyMaterial(keyMaterial.keyId());
     JwtClaimsPayload payload = JwtClaimsPayload.fromClaims(claims);
     String headerJson = GSON.toJson(header);
@@ -51,22 +56,28 @@ final class JwtWireFormat {
 
   static JwtClaims verify(String token, JwtKeyMaterial keyMaterial) {
     TokenParts parts = split(token);
-    JwtHeader header = parseHeader(parts.headerJson());
-    if (!JWT_ALGORITHM.equals(header.alg)) {
-      throw new JwtValidationException("Unsupported JWT algorithm: " + header.alg);
+    try {
+      JwtHeader header = parseHeader(parts.headerJson());
+      if (!JWT_ALGORITHM.equals(header.alg)) {
+        throw new JwtValidationException("Unsupported JWT algorithm: " + header.alg);
+      }
+      if (!JWT_HEADER_TYPE.equals(header.typ)) {
+        throw new JwtValidationException("Unsupported JWT header type: " + header.typ);
+      }
+      if (!keyMaterial.keyId().equals(header.kid)) {
+        throw new JwtValidationException("JWT kid does not match verification key");
+      }
+      verifySignature(parts.signingInput(), parts.signatureBytes(), keyMaterial.publicKey());
+      JwtClaimsPayload payload = parsePayload(parts.payloadJson());
+      if (!keyMaterial.keyId().equals(payload.kid)) {
+        throw new JwtValidationException("JWT payload kid does not match verification key");
+      }
+      return payload.toClaims();
+    } catch (JwtValidationException e) {
+      throw e;
+    } catch (RuntimeException e) {
+      throw new JwtValidationException("Unable to verify JWT", e);
     }
-    if (!JWT_HEADER_TYPE.equals(header.typ)) {
-      throw new JwtValidationException("Unsupported JWT header type: " + header.typ);
-    }
-    if (!keyMaterial.keyId().equals(header.kid)) {
-      throw new JwtValidationException("JWT kid does not match verification key");
-    }
-    verifySignature(parts.signingInput(), parts.signatureBytes(), keyMaterial.publicKey());
-    JwtClaimsPayload payload = parsePayload(parts.payloadJson());
-    if (!keyMaterial.keyId().equals(payload.kid)) {
-      throw new JwtValidationException("JWT payload kid does not match verification key");
-    }
-    return payload.toClaims();
   }
 
   static String jwksJson(Collection<JwtKeyMaterial> keyMaterials) {
@@ -80,31 +91,43 @@ final class JwtWireFormat {
   }
 
   private static JwtHeader parseHeader(String headerJson) {
-    JwtHeader header = GSON.fromJson(headerJson, JwtHeader.class);
-    if (header == null) {
-      throw new JwtValidationException("JWT header is missing");
+    try {
+      JwtHeader header = GSON.fromJson(headerJson, JwtHeader.class);
+      if (header == null) {
+        throw new JwtValidationException("JWT header is missing");
+      }
+      if (header.kid == null || header.kid.trim().isEmpty()) {
+        throw new JwtValidationException("JWT kid is missing");
+      }
+      if (header.alg == null || header.alg.trim().isEmpty()) {
+        throw new JwtValidationException("JWT alg is missing");
+      }
+      if (header.typ == null || header.typ.trim().isEmpty()) {
+        throw new JwtValidationException("JWT typ is missing");
+      }
+      header.kid = header.kid.trim();
+      header.alg = header.alg.trim();
+      header.typ = header.typ.trim();
+      return header;
+    } catch (JwtValidationException e) {
+      throw e;
+    } catch (RuntimeException e) {
+      throw new JwtValidationException("Unable to parse JWT header", e);
     }
-    if (header.kid == null || header.kid.trim().isEmpty()) {
-      throw new JwtValidationException("JWT kid is missing");
-    }
-    if (header.alg == null || header.alg.trim().isEmpty()) {
-      throw new JwtValidationException("JWT alg is missing");
-    }
-    if (header.typ == null || header.typ.trim().isEmpty()) {
-      throw new JwtValidationException("JWT typ is missing");
-    }
-    header.kid = header.kid.trim();
-    header.alg = header.alg.trim();
-    header.typ = header.typ.trim();
-    return header;
   }
 
   private static JwtClaimsPayload parsePayload(String payloadJson) {
-    JwtClaimsPayload payload = GSON.fromJson(payloadJson, JwtClaimsPayload.class);
-    if (payload == null) {
-      throw new JwtValidationException("JWT payload is missing");
+    try {
+      JwtClaimsPayload payload = GSON.fromJson(payloadJson, JwtClaimsPayload.class);
+      if (payload == null) {
+        throw new JwtValidationException("JWT payload is missing");
+      }
+      return payload;
+    } catch (JwtValidationException e) {
+      throw e;
+    } catch (RuntimeException e) {
+      throw new JwtValidationException("Unable to parse JWT payload", e);
     }
-    return payload;
   }
 
   private static TokenParts split(String token) {
@@ -271,25 +294,31 @@ final class JwtWireFormat {
     }
 
     JwtClaims toClaims() {
-      Set<JwtAudience> audiences = EnumSet.noneOf(JwtAudience.class);
-      if (aud != null) {
-        for (String claimValue : aud) {
-          audiences.add(JwtAudience.fromClaimValue(claimValue));
+      try {
+        Set<JwtAudience> audiences = EnumSet.noneOf(JwtAudience.class);
+        if (aud != null) {
+          for (String claimValue : aud) {
+            audiences.add(JwtAudience.fromClaimValue(claimValue));
+          }
         }
+        Set<String> scopes = scope == null ? Set.of() : Set.copyOf(scope);
+        return new JwtClaims(
+            JwtTokenType.fromClaimValue(typ),
+            iss,
+            sub,
+            jti,
+            kid,
+            audiences,
+            scopes,
+            iat,
+            nbf,
+            exp,
+            ver);
+      } catch (JwtValidationException e) {
+        throw e;
+      } catch (RuntimeException e) {
+        throw new JwtValidationException("Unable to materialize JWT claims", e);
       }
-      Set<String> scopes = scope == null ? Set.of() : Set.copyOf(scope);
-      return new JwtClaims(
-          JwtTokenType.fromClaimValue(typ),
-          iss,
-          sub,
-          jti,
-          kid,
-          audiences,
-          scopes,
-          iat,
-          nbf,
-          exp,
-          ver);
     }
   }
 
