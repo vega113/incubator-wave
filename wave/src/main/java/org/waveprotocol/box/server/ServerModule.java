@@ -28,11 +28,16 @@ import com.google.inject.name.Named;
 import com.google.inject.name.Names;
 
 import com.typesafe.config.Config;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Clock;
 import org.eclipse.jetty.server.session.DefaultSessionCache;
 import org.eclipse.jetty.server.session.FileSessionDataStore;
 import org.eclipse.jetty.server.session.SessionHandler;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.SessionManagerImpl;
+import org.waveprotocol.box.server.authentication.jwt.JwtKeyRingPersistence;
+import org.waveprotocol.box.server.authentication.jwt.JwtKeyRing;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
 import org.waveprotocol.box.server.robots.register.RobotRegistrarImpl;
 import org.waveprotocol.box.server.rpc.ProtoSerializer;
@@ -108,6 +113,19 @@ public class ServerModule extends AbstractModule {
   @Singleton
   public SecureRandom provideSecureRandom() {
     return new SecureRandom();
+  }
+
+  @Provides
+  @Singleton
+  public Clock provideClock() {
+    return Clock.systemUTC();
+  }
+
+  @Provides
+  @Singleton
+  public JwtKeyRing provideJwtKeyRing(Config config) {
+    Path path = Paths.get(config.getString("security.jwt_signing_key_path"));
+    return JwtKeyRingPersistence.loadOrCreate(path, "wave-session");
   }
 
   @Provides
