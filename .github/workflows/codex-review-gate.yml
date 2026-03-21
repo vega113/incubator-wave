@@ -15,10 +15,6 @@ on:
       - submitted
       - edited
       - dismissed
-  pull_request_review_thread:
-    types:
-      - resolved
-      - unresolved
   issue_comment:
     types:
       - created
@@ -94,6 +90,7 @@ jobs:
 
             const labels = pullRequest.labels.nodes.map((label) => label.name);
             const latestCommit = pullRequest.commits.nodes[0]?.commit ?? null;
+            const prUpdatedAt = Date.parse(context.payload.pull_request?.updated_at ?? "");
             const statusNodes =
               latestCommit?.statusCheckRollup?.contexts?.nodes ?? [];
             const codeRabbitPassed = statusNodes.some((node) => {
@@ -115,7 +112,8 @@ jobs:
             }
 
             const latestCommitAt = latestCommit ? Date.parse(latestCommit.committedDate) : NaN;
-            const commitAgeMs = Number.isNaN(latestCommitAt) ? Number.POSITIVE_INFINITY : Date.now() - latestCommitAt;
+            const baselineAt = Number.isNaN(prUpdatedAt) ? latestCommitAt : prUpdatedAt;
+            const commitAgeMs = Number.isNaN(baselineAt) ? Number.POSITIVE_INFINITY : Date.now() - baselineAt;
             const reviewGracePeriodMs = 10 * 60 * 1000;
             const codeRabbitApproved = labels.includes("coderabbitai-reviewed") || codeRabbitPassed;
 
