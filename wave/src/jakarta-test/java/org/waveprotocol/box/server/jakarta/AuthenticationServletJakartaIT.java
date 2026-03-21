@@ -47,6 +47,7 @@ public class AuthenticationServletJakartaIT {
     ctx.setContextPath("/");
 
     var cfg = ConfigFactory.parseString(
+        "security.enable_ssl=false\n" +
         "security.enable_clientauth=false\n" +
         "security.clientauth_cert_domain=example.com\n" +
         "administration.disable_registration=true\n" +

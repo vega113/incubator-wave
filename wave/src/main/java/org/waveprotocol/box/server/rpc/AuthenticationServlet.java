@@ -33,6 +33,7 @@ import org.waveprotocol.box.server.authentication.ParticipantPrincipal;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.gxp.AuthenticationPage;
 import org.waveprotocol.box.server.persistence.AccountStore;
+import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtCookie;
 import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwt;
 import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtIssuer;
 import org.waveprotocol.box.server.util.RegistrationUtil;
@@ -51,7 +52,6 @@ import javax.security.auth.login.Configuration;
 import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 import javax.security.auth.x500.X500Principal;
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -99,6 +99,7 @@ public class AuthenticationServlet extends HttpServlet {
   private final String clientAuthCertDomain;
   private final boolean isRegistrationDisabled;
   private final boolean isLoginPageDisabled;
+  private final boolean secureCookiesByDefault;
   private boolean failedClientAuth = false;
   private final String analyticsAccount;
 
@@ -122,6 +123,7 @@ public class AuthenticationServlet extends HttpServlet {
     this.clientAuthCertDomain = config.getString("security.clientauth_cert_domain").toLowerCase();
     this.isRegistrationDisabled = config.getBoolean("administration.disable_registration");
     this.isLoginPageDisabled = config.getBoolean("administration.disable_loginpage");
+    this.secureCookiesByDefault = config.getBoolean("security.enable_ssl");
     this.welcomeBot = welcomeBot;
     this.analyticsAccount = config.getString("administration.analytics_account");
   }
@@ -248,12 +250,12 @@ public class AuthenticationServlet extends HttpServlet {
                                             HttpServletResponse resp,
                                             ParticipantId subject) {
     String token = browserSessionJwtIssuer.issue(subject);
-    Cookie cookie = new Cookie(BrowserSessionJwt.COOKIE_NAME, token);
-    cookie.setPath("/");
-    cookie.setHttpOnly(true);
-    cookie.setSecure(req.isSecure());
-    cookie.setMaxAge((int) browserSessionJwtIssuer.tokenLifetimeSeconds());
-    resp.addCookie(cookie);
+    boolean secureCookie = BrowserSessionJwtCookie.shouldUseSecureCookie(
+        req.isSecure(),
+        req.getHeader("X-Forwarded-Proto"),
+        secureCookiesByDefault);
+    resp.addHeader("Set-Cookie",
+        BrowserSessionJwtCookie.headerValue(token, browserSessionJwtIssuer.tokenLifetimeSeconds(), secureCookie));
   }
 
   /**

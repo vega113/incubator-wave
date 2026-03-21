@@ -34,6 +34,7 @@ import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
 import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwt;
+import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtCookie;
 import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtIssuer;
 import org.waveprotocol.box.server.gxp.AuthenticationPage;
 import org.waveprotocol.box.server.persistence.AccountStore;
@@ -46,8 +47,6 @@ import org.waveprotocol.wave.util.logging.Log;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.Cookie;
-
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
@@ -99,6 +98,7 @@ public class AuthenticationServlet extends HttpServlet {
   private final String clientAuthCertDomain;
   private final boolean isRegistrationDisabled;
   private final boolean isLoginPageDisabled;
+  private final boolean secureCookiesByDefault;
   private boolean failedClientAuth = false;
   private final String analyticsAccount;
 
@@ -122,6 +122,7 @@ public class AuthenticationServlet extends HttpServlet {
     this.clientAuthCertDomain = config.getString("security.clientauth_cert_domain").toLowerCase();
     this.isRegistrationDisabled = config.getBoolean("administration.disable_registration");
     this.isLoginPageDisabled = config.getBoolean("administration.disable_loginpage");
+    this.secureCookiesByDefault = config.getBoolean("security.enable_ssl");
     this.analyticsAccount = config.hasPath("core.analytics_account") ?
         config.getString("core.analytics_account") : "";
   }
@@ -243,12 +244,12 @@ public class AuthenticationServlet extends HttpServlet {
                                             HttpServletResponse resp,
                                             ParticipantId subject) {
     String token = browserSessionJwtIssuer.issue(subject);
-    Cookie cookie = new Cookie(BrowserSessionJwt.COOKIE_NAME, token);
-    cookie.setPath("/");
-    cookie.setHttpOnly(true);
-    cookie.setSecure(req.isSecure());
-    cookie.setMaxAge((int) browserSessionJwtIssuer.tokenLifetimeSeconds());
-    resp.addCookie(cookie);
+    boolean secureCookie = BrowserSessionJwtCookie.shouldUseSecureCookie(
+        req.isSecure(),
+        req.getHeader("X-Forwarded-Proto"),
+        secureCookiesByDefault);
+    resp.addHeader("Set-Cookie",
+        BrowserSessionJwtCookie.headerValue(token, browserSessionJwtIssuer.tokenLifetimeSeconds(), secureCookie));
   }
 
   private ParticipantId getLoggedInUser(Subject subject) throws InvalidParticipantAddress {

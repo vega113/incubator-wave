@@ -56,7 +56,6 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.Locale;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -187,6 +186,7 @@ public class AuthenticationServletTest extends TestCase {
     when(req.getSession(false)).thenReturn(null);
     when(req.getSession(true)).thenReturn(session);
     when(req.getLocale()).thenReturn(Locale.ENGLISH);
+    when(req.getHeader("X-Forwarded-Proto")).thenReturn("https");
 
     // Servlet control flow forces us to set these return values first and
     // verify the logged in user was set afterwards.
@@ -199,15 +199,15 @@ public class AuthenticationServletTest extends TestCase {
     servlet.doPost(req, resp);
     if (expectSuccess) {
       verify(manager).setLoggedInUser(Mockito.any(WebSession.class), eq(USER));
-      ArgumentCaptor<Cookie> cookieCaptor = ArgumentCaptor.forClass(Cookie.class);
-      verify(resp).addCookie(cookieCaptor.capture());
-      Cookie cookie = cookieCaptor.getValue();
-      assertEquals(BrowserSessionJwt.COOKIE_NAME, cookie.getName());
-      assertEquals("browser-jwt", cookie.getValue());
-      assertEquals("/", cookie.getPath());
-      assertTrue(cookie.isHttpOnly());
-      assertFalse(cookie.getSecure());
-      assertEquals(900, cookie.getMaxAge());
+      ArgumentCaptor<String> cookieCaptor = ArgumentCaptor.forClass(String.class);
+      verify(resp).addHeader(eq("Set-Cookie"), cookieCaptor.capture());
+      String cookie = cookieCaptor.getValue();
+      assertTrue(cookie.contains(BrowserSessionJwt.COOKIE_NAME + "=browser-jwt"));
+      assertTrue(cookie.contains("Path=/"));
+      assertTrue(cookie.contains("HttpOnly"));
+      assertTrue(cookie.contains("SameSite=Lax"));
+      assertTrue(cookie.contains("Secure"));
+      assertTrue(cookie.contains("Max-Age=900"));
     }
   }
 }

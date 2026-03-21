@@ -9,6 +9,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.Signature;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -33,6 +35,44 @@ public final class JwtKeyRingTest {
     assertTrue(jwksJson.contains("\"kid\":\"beta\""));
     assertTrue(jwksJson.contains("\"kty\":\"RSA\""));
     assertTrue(jwksJson.contains("\"alg\":\"RS256\""));
+  }
+
+  @Test
+  public void rejectsNullKeyMaterialsBeforeSorting() throws Exception {
+    try {
+      new JwtKeyRing(List.of(new JwtKeyMaterial("alpha", keyPair()), null));
+      fail("Expected null pointer");
+    } catch (NullPointerException expected) {
+      assertTrue(expected.getMessage().contains("keyMaterial"));
+    }
+  }
+
+  @Test
+  public void rejectsWeakGeneratedKeySizes() {
+    try {
+      JwtKeyRing.generate("alpha", 1024);
+      fail("Expected illegal argument");
+    } catch (IllegalArgumentException expected) {
+      assertTrue(expected.getMessage().contains("2048"));
+    }
+  }
+
+  @Test
+  public void persistsAndReloadsKeyRing() throws Exception {
+    JwtKeyRing original = new JwtKeyRing(List.of(
+        new JwtKeyMaterial("beta", keyPair()),
+        new JwtKeyMaterial("alpha", keyPair())), "beta");
+    Path tempFile = Files.createTempFile("jwt-key-ring", ".properties");
+    try {
+      JwtKeyRingPersistence.save(tempFile, original);
+      JwtKeyRing restored = JwtKeyRingPersistence.load(tempFile);
+      assertTrue(restored.signingKeyId().equals("beta"));
+      assertTrue(restored.keyMaterials().size() == 2);
+      assertTrue(restored.jwksJson().contains("\"kid\":\"alpha\""));
+      assertTrue(restored.jwksJson().contains("\"kid\":\"beta\""));
+    } finally {
+      Files.deleteIfExists(tempFile);
+    }
   }
 
   @Test

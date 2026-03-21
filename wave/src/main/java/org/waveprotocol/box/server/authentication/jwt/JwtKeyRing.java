@@ -18,22 +18,32 @@ public final class JwtKeyRing {
   private final String signingKeyId;
 
   public JwtKeyRing(Collection<JwtKeyMaterial> keyMaterials) {
+    this(keyMaterials, null);
+  }
+
+  public JwtKeyRing(Collection<JwtKeyMaterial> keyMaterials, String signingKeyId) {
     Objects.requireNonNull(keyMaterials, "keyMaterials");
     if (keyMaterials.isEmpty()) {
       throw new IllegalArgumentException("keyMaterials must not be empty");
     }
     LinkedHashMap<String, JwtKeyMaterial> materialMap = new LinkedHashMap<>();
-    List<JwtKeyMaterial> sortedMaterials = new ArrayList<>(keyMaterials);
+    List<JwtKeyMaterial> sortedMaterials = new ArrayList<>(keyMaterials.size());
+    for (JwtKeyMaterial material : keyMaterials) {
+      sortedMaterials.add(Objects.requireNonNull(material, "keyMaterial"));
+    }
     sortedMaterials.sort(Comparator.comparing(JwtKeyMaterial::keyId));
-    for (JwtKeyMaterial material : sortedMaterials) {
-      JwtKeyMaterial value = Objects.requireNonNull(material, "keyMaterial");
+    for (JwtKeyMaterial value : sortedMaterials) {
       JwtKeyMaterial previous = materialMap.put(value.keyId(), value);
       if (previous != null) {
         throw new IllegalArgumentException("Duplicate key id: " + value.keyId());
       }
     }
     this.keyMaterials = Map.copyOf(materialMap);
-    this.signingKeyId = sortedMaterials.get(0).keyId();
+    String resolvedSigningKeyId = signingKeyId == null ? sortedMaterials.get(0).keyId() : requireText(signingKeyId, "signingKeyId");
+    if (!materialMap.containsKey(resolvedSigningKeyId)) {
+      throw new IllegalArgumentException("Unknown signing key id: " + resolvedSigningKeyId);
+    }
+    this.signingKeyId = resolvedSigningKeyId;
   }
 
   public static JwtKeyRing generate(String keyId) {
@@ -41,6 +51,9 @@ public final class JwtKeyRing {
   }
 
   public static JwtKeyRing generate(String keyId, int keySize) {
+    if (keySize < 2048) {
+      throw new IllegalArgumentException("keySize must be >= 2048 bits");
+    }
     return new JwtKeyRing(List.of(generateKeyMaterial(keyId, keySize)));
   }
 
