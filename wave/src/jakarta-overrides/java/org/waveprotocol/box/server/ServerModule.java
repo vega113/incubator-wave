@@ -152,18 +152,30 @@ public class ServerModule extends AbstractModule {
       } catch (Throwable ignored) {}
     } catch (Exception ignore) {}
 
-    // File-backed session data store for persistence across restarts
+    // File-backed session data store for persistence across restarts.
+    // Validate the directory thoroughly BEFORE wiring the cache: once the
+    // cache is set on the SessionHandler, Jetty will attempt to start the
+    // FileSessionDataStore during httpServer.start().  If the store
+    // directory is missing or unwritable at that point, Jetty throws
+    // IllegalStateException which kills the entire server startup.
     try {
-      DefaultSessionCache cache = new DefaultSessionCache(sessionHandler);
-      FileSessionDataStore dataStore = new FileSessionDataStore();
       java.io.File storeDir =
           new java.io.File(config.getString("core.sessions_store_directory"));
       if (!storeDir.exists()) {
         storeDir.mkdirs();
       }
-      dataStore.setStoreDir(storeDir);
-      cache.setSessionDataStore(dataStore);
-      sessionHandler.setSessionCache(cache);
+      if (storeDir.isDirectory() && storeDir.canRead() && storeDir.canWrite()) {
+        DefaultSessionCache cache = new DefaultSessionCache(sessionHandler);
+        FileSessionDataStore dataStore = new FileSessionDataStore();
+        dataStore.setStoreDir(storeDir);
+        cache.setSessionDataStore(dataStore);
+        sessionHandler.setSessionCache(cache);
+      } else {
+        org.waveprotocol.wave.util.logging.Log.get(ServerModule.class)
+            .warning("Session store directory '" + storeDir.getAbsolutePath()
+                + "' is not a readable/writable directory; "
+                + "sessions will not persist across restarts");
+      }
     } catch (Exception e) {
       org.waveprotocol.wave.util.logging.Log.get(ServerModule.class)
           .warning("Failed to configure file-backed session store; sessions will not persist across restarts", e);

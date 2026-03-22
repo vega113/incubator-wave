@@ -679,6 +679,7 @@ public class ServerRpcProvider {
             LOG.info(sb.toString());
         } catch (Exception e) {
             LOG.severe("Fatal error starting Jakarta http server.", e);
+            throw new RuntimeException("Failed to start Jakarta http server", e);
         }
     }
 
