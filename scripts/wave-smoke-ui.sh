@@ -19,7 +19,7 @@ trap cleanup EXIT
 
 rm -f "$RUN_OUT" "$PID_FILE" || true
 
-( cd "$ROOT_DIR" && ./gradlew :wave:run > "$RUN_OUT" 2>&1 & echo $! > "$PID_FILE" )
+( cd "$ROOT_DIR" && sbt run > "$RUN_OUT" 2>&1 & echo $! > "$PID_FILE" )
 
 # Wait up to 90s for server to start
 for i in {1..90}; do
