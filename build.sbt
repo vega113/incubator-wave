@@ -436,7 +436,8 @@ JakartaTest / unmanagedResourceDirectories := Seq(
 JakartaTest / unmanagedSources := (JakartaTest / unmanagedSources).value.filterNot { f =>
   val p = f.getPath.replace('\\', '/')
   p.endsWith("/WaveWebSocketEndpointInitGuardTest.java") ||
-  p.endsWith("/DataApiOAuthServletJakartaIT.java")
+  p.endsWith("/DataApiOAuthServletJakartaIT.java") ||
+  p.endsWith("/WaveWebSocketClientTest.java")  // depends on webclient WaveSocket (excluded from SBT)
 }
 // Runtime filter: exclude *IT classes from this config (unit tests only)
 JakartaTest / testOptions += Tests.Filter { name =>
@@ -466,7 +467,8 @@ JakartaIT / unmanagedResourceDirectories := Seq(
 JakartaIT / unmanagedSources := (JakartaIT / unmanagedSources).value.filterNot { f =>
   val p = f.getPath.replace('\\', '/')
   p.endsWith("/WaveWebSocketEndpointInitGuardTest.java") ||
-  p.endsWith("/DataApiOAuthServletJakartaIT.java")
+  p.endsWith("/DataApiOAuthServletJakartaIT.java") ||
+  p.endsWith("/WaveWebSocketClientTest.java")  // depends on webclient WaveSocket (excluded from SBT)
 }
 // Only run the explicit IT allowlist (Gradle lines 1047-1058)
 JakartaIT / testOptions += Tests.Filter { name =>
