@@ -122,6 +122,8 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
     (isSrc && p.contains("/com/google/gwt/")) ||
     // Exclude stat shims since we have the real source files
     (p.contains("/gen/shims/") && p.contains("/org/waveprotocol/box/stat/")) ||
+    // Model files that depend on GWT client classes
+    (isSrc && p.endsWith("/org/waveprotocol/wave/model/document/WaveContext.java")) ||
     // GXP-dependent server RPC pages
     (isSrc && p.endsWith("/org/waveprotocol/box/server/rpc/ChangePasswordServlet.java")) ||
     (isSrc && p.endsWith("/org/waveprotocol/box/server/rpc/GoogleAuthenticationServlet.java")) ||
