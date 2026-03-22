@@ -822,7 +822,8 @@ ThisBuild / generatePstMessages := {
     "org/waveprotocol/wave/diff/Diff.class"
   ).map(cls)
 
-  val cp = (Seq(pstAssemblyJar.getAbsolutePath, pstProtoClasses.getAbsolutePath) ++ depCp)
+  // Put protobuf-java (from depCp) BEFORE the PST assembly to avoid version conflicts
+  val cp = (Seq(protobufJar, pstProtoClasses.getAbsolutePath, pstAssemblyJar.getAbsolutePath) ++ depCp)
     .distinct
     .mkString(java.io.File.pathSeparator)
 
