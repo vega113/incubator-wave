@@ -452,6 +452,7 @@ JakartaTest / javaOptions ++= Seq(
 JakartaTest / fork := true
 // Include main compile output on classpath
 JakartaTest / dependencyClasspath ++= (Compile / exportedProducts).value
+JakartaTest / dependencyClasspath ++= (Test / dependencyClasspath).value
 
 // --- JakartaIT source directories & allowlist (Gradle lines 1046-1058) ---
 // Same source dir as JakartaTest, but only runs the explicit IT allowlist
@@ -494,6 +495,7 @@ JakartaIT / javaOptions ++= Seq(
 )
 JakartaIT / fork := true
 JakartaIT / dependencyClasspath ++= (Compile / exportedProducts).value
+JakartaIT / dependencyClasspath ++= (Test / dependencyClasspath).value
 
 // --- StacktraceTest source directories ---
 StacktraceTest / unmanagedSourceDirectories := Seq(
