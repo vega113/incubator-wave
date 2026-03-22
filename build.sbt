@@ -537,19 +537,19 @@ libraryDependencies ++= Seq(
 lazy val testMongo = taskKey[Unit]("Run MongoDB persistence tests")
 testMongo := {
   // Use (Test / testOnly) to select only MongoDB tests
-  (Test / testOnly).toTask(" -- -tests *server.persistence.mongodb*").value
+  (Test / testOnly).toTask(" -- --tests=*server.persistence.mongodb*").value
 }
 
 // testLarge: run *LargeTest* from default test source set
 lazy val testLarge = taskKey[Unit]("Run large (slow) tests")
 testLarge := {
-  (Test / testOnly).toTask(" -- -tests *LargeTest*").value
+  (Test / testOnly).toTask(" -- --tests=*LargeTest*").value
 }
 
 // testStress: run *StressTest* from default test source set
 lazy val testStress = taskKey[Unit]("Run stress-style tests")
 testStress := {
-  (Test / testOnly).toTask(" -- -tests *StressTest*").value
+  (Test / testOnly).toTask(" -- --tests=*StressTest*").value
 }
 
 // testAll: run all test suites (Gradle equivalent runs test + testMongo + testLarge +

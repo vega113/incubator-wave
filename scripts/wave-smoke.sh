@@ -14,7 +14,11 @@ set -euo pipefail
 # - If a port conflict persists, you can forcefully clear Java processes (dangerous):
 #     killall java
 
-INSTALL_DIR="${INSTALL_DIR:-wave/build/install/wave}"
+if [[ -d "wave/target/universal/stage" ]]; then
+  INSTALL_DIR="${INSTALL_DIR:-wave/target/universal/stage}"
+else
+  INSTALL_DIR="${INSTALL_DIR:-wave/build/install/wave}"
+fi
 PID_FILE="$INSTALL_DIR/wave_server.pid"
 PORT=9898
 
