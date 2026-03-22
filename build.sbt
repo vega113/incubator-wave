@@ -457,6 +457,8 @@ JakartaTest / fork := true
 // Include main compile output on classpath
 JakartaTest / dependencyClasspath ++= (Compile / exportedProducts).value
 JakartaTest / dependencyClasspath ++= (Test / dependencyClasspath).value
+JakartaTest / dependencyClasspath ++= (Compile / resourceDirectories).value.map(Attributed.blank)
+JakartaTest / dependencyClasspath ++= (Compile / fullClasspath).value
 
 // --- JakartaIT source directories & allowlist (Gradle lines 1046-1058) ---
 // Same source dir as JakartaTest, but only runs the explicit IT allowlist
