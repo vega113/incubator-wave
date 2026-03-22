@@ -25,6 +25,8 @@ Compile / unmanagedSourceDirectories ++= Seq(
 )
 
 Compile / unmanagedSourceDirectories += baseDirectory.value / "wave" / "src" / "jakarta-overrides" / "java"
+// SBT-only stubs for GWT client classes used by server code (no-op implementations)
+Compile / unmanagedSourceDirectories += baseDirectory.value / "wave" / "src" / "sbt-stubs" / "java"
 
 // ─── Per-file exclusion list (replicates wave/build.gradle lines 283-356 exactly) ───
 // The Gradle build is Jakarta-only. The full Gradle exclusion list is applied.
@@ -117,8 +119,9 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
   val isSrc = underMain
   val commonExcludes =
     (isSrc && p.contains("/org/waveprotocol/box/webclient/")) ||
-    // wave/client/ is included in compile (GWT jars are % Provided)
-    // Only exclude JSO overlay types that require GWT dev mode
+    (isSrc && p.contains("/org/waveprotocol/wave/client/") &&
+      !p.endsWith("/wave/client/state/BlipReadStateMonitor.java") &&
+      !p.endsWith("/wave/client/state/ThreadReadStateMonitor.java")) ||
     (isSrc && p.contains("/org/waveprotocol/wave/communication/gwt/")) ||
     (isSrc && p.contains("/com/google/gwt/")) ||
     // Exclude stat shims since we have the real source files
