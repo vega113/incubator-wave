@@ -977,9 +977,9 @@ ThisBuild / generateFlags := {
 generatePstMessages := (generatePstMessages).dependsOn(Compile / PB.generate).value
 
 Compile / compile := (Compile / compile)
-  // .dependsOn(generatePstMessages) // disabled for now - requires JDK; can be run manually with `sbt generatePstMessages`
-  // .dependsOn(generateFlags) // disabled for now - requires JDK; can be run manually with `sbt generateFlags`
-  // .dependsOn(generateGxp) // disabled for now - requires gxpc jar; can be run manually with `sbt generateGxp`
+  .dependsOn(generatePstMessages)
+  .dependsOn(generateFlags)
+  // .dependsOn(generateGxp) // disabled — requires gxpc jar; can be run manually with `sbt generateGxp`
   .value
 
 // Ensure `run` has a config in place

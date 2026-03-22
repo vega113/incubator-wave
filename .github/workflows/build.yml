@@ -76,7 +76,7 @@ jobs:
 
       - name: Compile Jakarta sources (PR-blocking)
         continue-on-error: ${{ github.event_name != 'pull_request' }}
-        run: sbt --batch wave/compile "wave/jakartaTest:compile"
+        run: sbt --batch pst/assembly wave/compile "wave/jakartaTest:compile"
 
       - name: Run jakartaTest (PR-blocking)
         continue-on-error: ${{ github.event_name != 'pull_request' }}
