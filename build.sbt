@@ -982,3 +982,104 @@ Compile / compile := (Compile / compile)
 
 // Ensure `run` has a config in place
 Compile / run := (Compile / run).dependsOn(prepareServerConfig).evaluated
+
+// =============================================================================
+// Phase 6: GWT Compilation Bridge
+// =============================================================================
+// GWT compilation is complex: it requires Jetty 9.4 on the classpath (gwt-dev
+// bundles it), source directories as classpath entries, and the GWT Compiler
+// main class (com.google.gwt.dev.Compiler). There is no maintained SBT GWT
+// plugin, so we use a transitional bridge that delegates to Gradle when
+// available and falls back to a native Fork.java invocation otherwise.
+//
+// GWT tests (testGwt) are disabled in CI and deferred to a future phase.
+// The Gradle build defines them but they are not part of the default test task.
+// =============================================================================
+
+// Dedicated GWT configuration — does NOT extend Compile to avoid pulling
+// Jetty 12 (jakarta) or Jetty 9.4 (javax) from the main compile classpath.
+// GWT ships its own embedded Jetty 9.4 inside gwt-dev.jar.
+lazy val Gwt = config("gwt").hide
+
+ivyConfigurations += Gwt
+
+lazy val GwtVersion = "2.10.0"
+
+libraryDependencies ++= Seq(
+  "org.gwtproject" % "gwt-dev"        % GwtVersion % Gwt,
+  "org.gwtproject" % "gwt-user"       % GwtVersion % Gwt,
+  "org.gwtproject" % "gwt-codeserver" % GwtVersion % Gwt,
+  "com.google.guava" % "guava-gwt"    % "20.0"     % Gwt
+)
+
+// Setting to control whether compileGwt is wired into stage/package tasks.
+// CI can pass -DskipGwt=true to skip GWT compilation entirely.
+lazy val skipGwt = settingKey[Boolean]("Skip GWT compilation (default: false, set -DskipGwt=true to skip)")
+ThisBuild / skipGwt := sys.props.get("skipGwt").exists(_.trim.toLowerCase == "true")
+
+lazy val compileGwt = taskKey[Unit]("Compile GWT client (delegates to Gradle when available, otherwise uses native Fork.java)")
+
+ThisBuild / compileGwt := {
+  val log      = streams.value.log
+  val base     = baseDirectory.value
+  val skip     = (ThisBuild / skipGwt).value
+  // Eagerly resolve these outside any if-branch so SBT's task macro is happy.
+  // They are only used in native mode but must be evaluated statically.
+  val resolved = update.value
+  val compileCp = (Compile / dependencyClasspath).value.map(_.data)
+
+  if (skip) {
+    log.info("[compileGwt] Skipped (skipGwt=true)")
+  } else {
+    val gradlew = base / "gradlew"
+    if (gradlew.exists && gradlew.canExecute) {
+      // --- Bridge mode: delegate to Gradle ---
+      log.info("[compileGwt] Bridge mode — delegating to Gradle")
+      val cmd = Seq(gradlew.getAbsolutePath, "--no-daemon", ":wave:compileGwt")
+      val code = Process(cmd, base).!(ProcessLogger(s => log.info(s), e => log.error(e)))
+      if (code != 0) sys.error("[compileGwt] Gradle delegation failed (exit " + code + ")")
+    } else {
+      // --- Native SBT mode: fork GWT Compiler directly ---
+      log.info("[compileGwt] Native mode — forking com.google.gwt.dev.Compiler")
+
+      // GWT needs Java source directories on the classpath (for translatable source)
+      val javaSrcDirs = Seq(
+        base / "wave" / "src" / "main" / "java",
+        base / "wave" / "generated" / "src" / "main" / "java",
+        base / "proto_src",
+        base / "gen" / "messages",
+        base / "gen" / "gxp",
+        base / "gen" / "flags"
+      ).filter(_.exists)
+
+      // Resolve the isolated Gwt configuration (gwt-dev, gwt-user, gwt-codeserver, guava-gwt)
+      val gwtJars = resolved.select(configurationFilter(Gwt.name))
+
+      // Full classpath: source dirs (first, for GWT source lookup) + GWT jars + compile classpath
+      val fullCp = javaSrcDirs ++ gwtJars ++ compileCp
+
+      val forkOpts = ForkOptions()
+        .withRunJVMOptions(Vector("-Xmx1024M"))
+
+      val gwtArgs = Seq(
+        "-style", "OBFUSCATED",
+        "-XdisableClassMetadata",
+        "-XdisableCastChecking",
+        "-localWorkers", "4",
+        "org.waveprotocol.box.webclient.WebClientProd"
+      )
+
+      log.info("[compileGwt] Classpath has " + fullCp.size + " entries")
+      val cpStr = fullCp.map(_.getAbsolutePath).mkString(java.io.File.pathSeparator)
+
+      val exitCode = Fork.java(
+        forkOpts,
+        Seq("-cp", cpStr, "com.google.gwt.dev.Compiler") ++ gwtArgs
+      )
+      if (exitCode != 0) sys.error("[compileGwt] GWT Compiler failed (exit " + exitCode + ")")
+    }
+  }
+}
+
+// Wire compileGwt to run after compileJava (GWT needs compiled classes)
+compileGwt := (compileGwt).dependsOn(Compile / compile).value

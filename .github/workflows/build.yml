@@ -23,12 +23,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
-
-      - name: Gradle build
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-disabled: false
+          cache: 'sbt'
 
       - name: Validate canonical deployment assets
         run: |
@@ -41,19 +36,15 @@ jobs:
           ROOT_HOST=example.test \
           WWW_HOST=www.example.test \
           docker compose -f deploy/caddy/compose.yml config >/tmp/caddy-compose.out
-      
+
       - name: Build PST and Wave (no tests)
-        run: ./gradlew --no-daemon --warning-mode all :pst:build :wave:assemble
+        run: sbt --batch pst/assembly wave/compile
 
       - name: Smoke UI (server startup + probes)
-        run: ./gradlew --no-daemon --warning-mode all :wave:smokeUi
+        run: sbt --batch wave/smokeUi
 
       - name: Smoke Installed Dist
-        run: ./gradlew --no-daemon --warning-mode all :wave:smokeInstalled
-
-      - name: Compile Jakarta POC (non-blocking)
-        continue-on-error: true
-        run: ./gradlew --no-daemon --warning-mode all :wave:compileJakarta
+        run: sbt --batch wave/smokeInstalled
 
   server-jakarta:
     name: Jakarta Profile (Jetty 12, non-blocking)
@@ -67,24 +58,19 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
-
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-disabled: false
+          cache: 'sbt'
 
       - name: Compile Jakarta sources (PR-blocking)
         continue-on-error: ${{ github.event_name != 'pull_request' }}
-        run: ./gradlew --no-daemon --warning-mode all :wave:classes :wave:jakartaTestClasses
+        run: sbt --batch wave/compile "wave/jakartaTest:compile"
 
       - name: Run jakartaTest (PR-blocking)
         continue-on-error: ${{ github.event_name != 'pull_request' }}
-        run: ./gradlew --no-daemon --warning-mode all :wave:testJakarta
+        run: sbt --batch "wave/jakartaTest:test"
 
       - name: Run jakarta ITs (PR-blocking)
         continue-on-error: ${{ github.event_name != 'pull_request' }}
-        run: ./gradlew --no-daemon --warning-mode all :wave:testJakartaIT
+        run: sbt --batch "wave/jakartaIT:test"
 
       - name: Publish jakartaTest reports
         if: always()
@@ -92,8 +78,8 @@ jobs:
         with:
           name: test-reports-jakarta
           path: |
-            wave/build/test-results/testJakarta/**
-            wave/build/reports/tests/testJakarta/**
+            wave/target/test-reports/jakartaTest/**
+            wave/target/reports/tests/jakartaTest/**
 
       - name: Publish jakarta IT reports
         if: always()
@@ -101,8 +87,8 @@ jobs:
         with:
           name: test-reports-jakarta-it
           path: |
-            wave/build/test-results/testJakartaIT/**
-            wave/build/reports/tests/testJakartaIT/**
+            wave/target/test-reports/jakartaIT/**
+            wave/target/reports/tests/jakartaIT/**
 
       - name: Guard experimental flags for release (tags/releases/release branches)
         if: ${{ github.ref_type == 'tag' || (github.event_name == 'release' && github.event.action == 'published') || (github.ref_type == 'branch' && (startsWith(github.ref_name, 'release/') || startsWith(github.ref_name, 'hotfix/'))) }}
@@ -115,8 +101,8 @@ jobs:
         with:
           name: test-reports
           path: |
-            **/build/test-results/**/*
-            **/build/reports/tests/**/*
+            **/target/test-reports/**/*
+            **/target/reports/tests/**/*
 
   client-gwt:
     if: ${{ false }} # enable after Phase 4 (GWT modernization)
@@ -131,7 +117,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
+          cache: 'sbt'
 
-      - name: Gradle build (GWT)
-        run: ./gradlew --no-daemon --warning-mode all :wave:compileGwt
+      - name: SBT build (GWT)
+        run: sbt --batch wave/compileGwt
