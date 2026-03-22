@@ -117,7 +117,9 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
   val isSrc = underMain
   val commonExcludes =
     (isSrc && p.contains("/org/waveprotocol/box/webclient/")) ||
-    (isSrc && p.contains("/org/waveprotocol/wave/client/") && !p.endsWith("/wave/client/state/BlipReadStateMonitor.java")) ||
+    (isSrc && p.contains("/org/waveprotocol/wave/client/") &&
+      !p.endsWith("/wave/client/state/BlipReadStateMonitor.java") &&
+      !p.endsWith("/wave/client/debug/FragmentsDebugIndicator.java")) ||
     (isSrc && p.contains("/org/waveprotocol/wave/communication/gwt/")) ||
     (isSrc && p.contains("/com/google/gwt/")) ||
     // Exclude stat shims since we have the real source files
