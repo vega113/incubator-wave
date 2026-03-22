@@ -250,6 +250,9 @@ libraryDependencies ++= Seq(
   "com.google.code.findbugs"       % "jsr305"                     % "2.0.1",
   "javax.inject"                   % "javax.inject"               % "1",
 
+  // --- JSON ---
+  "org.json"                       % "json"                       % "20231013",
+
   // --- XML / DOM ---
   "dom4j"                          % "dom4j"                      % "1.6.1",
   "org.jdom"                       % "jdom"                       % "1.1.3",
