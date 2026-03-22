@@ -33,7 +33,9 @@ import org.waveprotocol.box.server.authentication.ParticipantPrincipal;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.gxp.AuthenticationPage;
 import org.waveprotocol.box.server.persistence.AccountStore;
-import org.waveprotocol.box.server.robots.agent.welcome.WelcomeRobot;
+import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtCookie;
+import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwt;
+import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtIssuer;
 import org.waveprotocol.box.server.util.RegistrationUtil;
 import org.waveprotocol.wave.model.id.WaveIdentifiers;
 import org.waveprotocol.wave.model.wave.InvalidParticipantAddress;
@@ -91,13 +93,14 @@ public class AuthenticationServlet extends HttpServlet {
   private final AccountStore accountStore;
   private final Configuration configuration;
   private final SessionManager sessionManager;
+  private final BrowserSessionJwtIssuer browserSessionJwtIssuer;
   private final String domain;
   private final boolean isClientAuthEnabled;
   private final String clientAuthCertDomain;
   private final boolean isRegistrationDisabled;
   private final boolean isLoginPageDisabled;
+  private final boolean secureCookiesByDefault;
   private boolean failedClientAuth = false;
-private final WelcomeRobot welcomeBot;
   private final String analyticsAccount;
 
   @Inject
@@ -106,7 +109,7 @@ private final WelcomeRobot welcomeBot;
                                SessionManager sessionManager,
                                @Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
                                Config config,
-                               WelcomeRobot welcomeBot) {
+                               BrowserSessionJwtIssuer browserSessionJwtIssuer) {
     Preconditions.checkNotNull(accountStore, "AccountStore is null");
     Preconditions.checkNotNull(configuration, "Configuration is null");
     Preconditions.checkNotNull(sessionManager, "Session manager is null");
@@ -114,11 +117,13 @@ private final WelcomeRobot welcomeBot;
     this.accountStore = accountStore;
     this.configuration = configuration;
     this.sessionManager = sessionManager;
+    this.browserSessionJwtIssuer = browserSessionJwtIssuer;
     this.domain = domain.toLowerCase();
     this.isClientAuthEnabled = config.getBoolean("security.enable_clientauth");
     this.clientAuthCertDomain = config.getString("security.clientauth_cert_domain").toLowerCase();
     this.isRegistrationDisabled = config.getBoolean("administration.disable_registration");
     this.isLoginPageDisabled = config.getBoolean("administration.disable_loginpage");
+    this.secureCookiesByDefault = config.getBoolean("security.enable_ssl");
     this.welcomeBot = welcomeBot;
     this.analyticsAccount = config.getString("administration.analytics_account");
   }
@@ -235,9 +240,22 @@ private final WelcomeRobot welcomeBot;
 
     HttpSession session = req.getSession(true);
     sessionManager.setLoggedInUser(session, loggedInAddress);
+    issueBrowserSessionJwtCookie(req, resp, loggedInAddress);
     LOG.info("Authenticated user " + loggedInAddress);
 
     redirectLoggedInUser(req, resp);
+  }
+
+  private void issueBrowserSessionJwtCookie(HttpServletRequest req,
+                                            HttpServletResponse resp,
+                                            ParticipantId subject) {
+    String token = browserSessionJwtIssuer.issue(subject);
+    boolean secureCookie = BrowserSessionJwtCookie.shouldUseSecureCookie(
+        req.isSecure(),
+        req.getHeader("X-Forwarded-Proto"),
+        secureCookiesByDefault);
+    resp.addHeader("Set-Cookie",
+        BrowserSessionJwtCookie.headerValue(token, browserSessionJwtIssuer.tokenLifetimeSeconds(), secureCookie));
   }
 
   /**
