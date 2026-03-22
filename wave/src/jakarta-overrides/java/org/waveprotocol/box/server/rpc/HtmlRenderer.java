@@ -163,7 +163,7 @@ public final class HtmlRenderer {
     sb.append("  if (!lbl) return;\n");
     sb.append("  if (rt == RESPONSE_STATUS_NONE) { lbl.style.display = \"none\"; }\n");
     sb.append("  else if (rt == RESPONSE_STATUS_FAILED) {\n");
-    sb.append("    lbl.style.display = \"block\"; lbl.className = \"msg error\"; lbl.innerHTML = msg;\n");
+    sb.append("    lbl.style.display = \"block\"; lbl.className = \"msg error\"; lbl.textContent = msg;\n");
     sb.append("  }\n");
     sb.append("}\n");
     sb.append("</script>\n");
@@ -237,10 +237,10 @@ public final class HtmlRenderer {
     sb.append("  var lbl = document.getElementById(\"messageLbl\");\n");
     sb.append("  if (!lbl) return;\n");
     sb.append("  if (rt == RESPONSE_STATUS_SUCCESS) {\n");
-    sb.append("    lbl.style.display = \"block\"; lbl.className = \"msg success\"; lbl.innerHTML = msg;\n");
+    sb.append("    lbl.style.display = \"block\"; lbl.className = \"msg success\"; lbl.textContent = msg;\n");
     sb.append("    document.getElementById(\"loginLink\").style.display = \"inline\";\n");
     sb.append("  } else if (rt == RESPONSE_STATUS_FAILED) {\n");
-    sb.append("    lbl.style.display = \"block\"; lbl.className = \"msg error\"; lbl.innerHTML = msg;\n");
+    sb.append("    lbl.style.display = \"block\"; lbl.className = \"msg error\"; lbl.textContent = msg;\n");
     sb.append("  }\n");
     sb.append("}\n");
     sb.append("function validate() {\n");

@@ -185,10 +185,11 @@ public final class DataApiOAuthServlet extends HttpServlet {
   private void doAuthorizeTokenGet(HttpServletRequest req, HttpServletResponse resp, ParticipantId user)
       throws IOException {
     Preconditions.checkNotNull(user, "User must be supplied");
+    resp.setCharacterEncoding("UTF-8");
+    resp.setContentType(HTML_CONTENT_TYPE + ";charset=UTF-8");
+    resp.setStatus(HttpServletResponse.SC_OK);
     resp.getWriter().write(HtmlRenderer.renderOAuthAuthorizeTokenPage(
         user.getAddress(), getOrGenerateXsrfToken(user)));
-    resp.setContentType(HTML_CONTENT_TYPE);
-    resp.setStatus(HttpServletResponse.SC_OK);
   }
 
   private void doAuthorizeTokenPost(HttpServletRequest req, HttpServletResponse resp,
@@ -305,9 +306,10 @@ public final class DataApiOAuthServlet extends HttpServlet {
       String authorizationCode = authorizedAccessor.requestToken + " "
           + authorizedAccessor.accessToken + " " + authorizedAccessor.tokenSecret;
       String base64AuthCode = CharBase64.encode(authorizationCode.getBytes());
-      resp.getWriter().write(HtmlRenderer.renderOAuthAuthorizationCodePage(base64AuthCode));
-      resp.setContentType(HTML_CONTENT_TYPE);
+      resp.setCharacterEncoding("UTF-8");
+      resp.setContentType(HTML_CONTENT_TYPE + ";charset=UTF-8");
       resp.setStatus(HttpServletResponse.SC_OK);
+      resp.getWriter().write(HtmlRenderer.renderOAuthAuthorizationCodePage(base64AuthCode));
     }
   }
 

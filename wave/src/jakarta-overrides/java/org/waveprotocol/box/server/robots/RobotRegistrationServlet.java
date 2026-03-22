@@ -76,9 +76,10 @@ public final class RobotRegistrationServlet extends HttpServlet {
 
   private void renderRegistrationPage(HttpServletRequest req, HttpServletResponse resp, String message)
       throws IOException {
-    resp.getWriter().write(HtmlRenderer.renderRobotRegistrationPage(domain, message, analyticsAccount));
-    resp.setContentType("text/html");
+    resp.setCharacterEncoding("UTF-8");
+    resp.setContentType("text/html; charset=UTF-8");
     resp.setStatus(HttpServletResponse.SC_OK);
+    resp.getWriter().write(HtmlRenderer.renderRobotRegistrationPage(domain, message, analyticsAccount));
   }
 
   private void handleRegistration(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -110,9 +111,10 @@ public final class RobotRegistrationServlet extends HttpServlet {
       return;
     }
 
+    resp.setCharacterEncoding("UTF-8");
+    resp.setContentType("text/html; charset=UTF-8");
+    resp.setStatus(HttpServletResponse.SC_OK);
     resp.getWriter().write(HtmlRenderer.renderRobotRegistrationSuccessPage(
         robotAccount.getId().getAddress(), robotAccount.getConsumerSecret(), analyticsAccount));
-    resp.setContentType("text/html");
-    resp.setStatus(HttpServletResponse.SC_OK);
   }
 }
