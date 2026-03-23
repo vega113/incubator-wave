@@ -38,6 +38,8 @@ import org.waveprotocol.wave.util.logging.Log;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Clock;
 import java.util.EnumSet;
 import java.util.Set;
@@ -150,7 +152,9 @@ public final class DataApiTokenServlet extends HttpServlet {
 
     RobotAccountData robotAccount = account.asRobot();
 
-    if (!clientSecret.equals(robotAccount.getConsumerSecret())) {
+    if (!MessageDigest.isEqual(
+        robotAccount.getConsumerSecret().getBytes(StandardCharsets.UTF_8),
+        clientSecret.getBytes(StandardCharsets.UTF_8))) {
       sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "invalid_client",
           "Invalid client_secret");
       return;
@@ -203,12 +207,39 @@ public final class DataApiTokenServlet extends HttpServlet {
     resp.setContentType(JSON_CONTENT_TYPE);
     try (PrintWriter writer = resp.getWriter()) {
       StringBuilder sb = new StringBuilder();
-      sb.append("{\"error\": \"").append(error).append("\"");
+      sb.append("{\"error\": \"").append(escapeJson(error)).append("\"");
       if (description != null) {
-        sb.append(", \"error_description\": \"").append(description).append("\"");
+        sb.append(", \"error_description\": \"").append(escapeJson(description)).append("\"");
       }
       sb.append("}");
       writer.write(sb.toString());
     }
+  }
+
+  /** Escapes special characters for safe inclusion inside a JSON string value. */
+  private static String escapeJson(String value) {
+    if (value == null) {
+      return "";
+    }
+    StringBuilder sb = new StringBuilder(value.length());
+    for (int i = 0; i < value.length(); i++) {
+      char ch = value.charAt(i);
+      switch (ch) {
+        case '"':  sb.append("\\\""); break;
+        case '\\': sb.append("\\\\"); break;
+        case '\b': sb.append("\\b");  break;
+        case '\f': sb.append("\\f");  break;
+        case '\n': sb.append("\\n");  break;
+        case '\r': sb.append("\\r");  break;
+        case '\t': sb.append("\\t");  break;
+        default:
+          if (ch < 0x20) {
+            sb.append(String.format("\\u%04x", (int) ch));
+          } else {
+            sb.append(ch);
+          }
+      }
+    }
+    return sb.toString();
   }
 }
