@@ -22,12 +22,10 @@ import com.google.wave.api.RobotSerializer;
 import com.google.wave.api.data.converter.EventDataConverterManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import net.oauth.OAuth;
-import net.oauth.OAuthAccessor;
-import net.oauth.OAuthMessage;
-import net.oauth.OAuthProblemException;
-import net.oauth.OAuthValidator;
-import org.waveprotocol.box.server.robots.util.JakartaHttpRequestMessage;
+import org.waveprotocol.box.server.authentication.jwt.JwtAudience;
+import org.waveprotocol.box.server.authentication.jwt.JwtRequestAuthenticator;
+import org.waveprotocol.box.server.authentication.jwt.JwtTokenType;
+import org.waveprotocol.box.server.authentication.jwt.JwtValidationException;
 import org.waveprotocol.box.server.robots.OperationServiceRegistry;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
@@ -38,13 +36,16 @@ import java.io.IOException;
 
 import jakarta.inject.Singleton;
 
-/** Jakarta variant of the Data API servlet. */
+/**
+ * Jakarta variant of the Data API servlet.
+ * Authenticates callers via JWT Bearer tokens instead of OAuth.
+ */
 @SuppressWarnings("serial")
 @Singleton
 public final class DataApiServlet extends BaseApiServlet {
   private static final Log LOG = Log.get(DataApiServlet.class);
 
-  private final DataApiTokenContainer tokenContainer;
+  private final JwtRequestAuthenticator jwtAuthenticator;
 
   @Inject
   public DataApiServlet(RobotSerializer robotSerializer,
@@ -52,28 +53,23 @@ public final class DataApiServlet extends BaseApiServlet {
                         WaveletProvider waveletProvider,
                         @Named("DataApiRegistry") OperationServiceRegistry operationRegistry,
                         ConversationUtil conversationUtil,
-                        OAuthValidator validator,
-                        DataApiTokenContainer tokenContainer) {
-    super(robotSerializer, converterManager, waveletProvider, operationRegistry, conversationUtil, validator);
-    this.tokenContainer = tokenContainer;
+                        JwtRequestAuthenticator jwtAuthenticator) {
+    super(robotSerializer, converterManager, waveletProvider, operationRegistry, conversationUtil);
+    this.jwtAuthenticator = jwtAuthenticator;
   }
 
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    OAuthMessage message = new JakartaHttpRequestMessage(req, req.getRequestURL().toString());
-
-    OAuthAccessor accessor;
+    ParticipantId participant;
     try {
-      message.requireParameters(OAuth.OAUTH_TOKEN);
-      accessor = tokenContainer.getAccessTokenAccessor(message.getParameter(OAuth.OAUTH_TOKEN));
-    } catch (OAuthProblemException e) {
-      LOG.info("No valid OAuth token present", e);
-      resp.sendError(HttpServletResponse.SC_UNAUTHORIZED, e.getMessage());
+      participant = jwtAuthenticator.authenticate(
+          req.getHeader("Authorization"), JwtTokenType.DATA_API_ACCESS, JwtAudience.DATA_API);
+    } catch (JwtValidationException e) {
+      LOG.info("JWT authentication failed for Data API", e);
+      resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       return;
     }
-    ParticipantId participant =
-        (ParticipantId) accessor.getProperty(DataApiTokenContainer.USER_PROPERTY_NAME);
 
-    processOpsRequest(req, resp, message, accessor, participant);
+    processOpsRequest(req, resp, participant);
   }
 }

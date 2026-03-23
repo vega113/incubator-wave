@@ -9,11 +9,15 @@ import com.google.inject.name.Named;
 import com.google.wave.api.data.converter.EventDataConverterModule;
 import org.waveprotocol.box.server.robots.active.ActiveApiOperationServiceRegistry;
 import org.waveprotocol.box.server.robots.dataapi.DataApiOperationServiceRegistry;
+import org.waveprotocol.box.server.robots.register.RobotRegistrar;
+import org.waveprotocol.box.server.robots.register.RobotRegistrarImpl;
 
 public final class JakartaRobotApiBindingsModule extends AbstractModule {
   @Override
   protected void configure() {
     install(new EventDataConverterModule());
+    install(new RobotSerializerModule());
+    bind(RobotRegistrar.class).to(RobotRegistrarImpl.class).in(Singleton.class);
   }
 
   @Provides
