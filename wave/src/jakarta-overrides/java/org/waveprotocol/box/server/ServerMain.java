@@ -248,25 +248,25 @@ public class ServerMain {
       injector.getInstance(WelcomeRobot.class);
       LOG.info("Initialized WelcomeRobot agent");
     } catch (Exception e) {
-      LOG.warning("Failed to initialize WelcomeRobot: " + e.getMessage());
+      LOG.warning("Failed to initialize WelcomeRobot", e);
     }
     try {
       injector.getInstance(PasswordRobot.class);
       LOG.info("Initialized PasswordRobot agent");
     } catch (Exception e) {
-      LOG.warning("Failed to initialize PasswordRobot: " + e.getMessage());
+      LOG.warning("Failed to initialize PasswordRobot", e);
     }
     try {
       injector.getInstance(PasswordAdminRobot.class);
       LOG.info("Initialized PasswordAdminRobot agent");
     } catch (Exception e) {
-      LOG.warning("Failed to initialize PasswordAdminRobot: " + e.getMessage());
+      LOG.warning("Failed to initialize PasswordAdminRobot", e);
     }
     try {
       injector.getInstance(RegistrationRobot.class);
       LOG.info("Initialized RegistrationRobot agent");
     } catch (Exception e) {
-      LOG.warning("Failed to initialize RegistrationRobot: " + e.getMessage());
+      LOG.warning("Failed to initialize RegistrationRobot", e);
     }
   }
 
