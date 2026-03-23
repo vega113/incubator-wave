@@ -50,7 +50,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: sbt
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
 
       - name: Start SSH agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -58,7 +61,7 @@ jobs:
           ssh-private-key: ${{ secrets.CONTABO_SSH_KEY }}
 
       - name: Verify installDist and smoke checks
-        run: sbt --batch pst/assembly wave/smokeInstalled
+        run: ./gradlew --no-daemon --warning-mode all :pst:build :wave:smokeInstalled
 
       - name: Log in to GitHub Container Registry
         run: |
