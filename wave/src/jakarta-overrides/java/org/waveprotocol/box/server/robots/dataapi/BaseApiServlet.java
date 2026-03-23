@@ -29,10 +29,6 @@ import com.google.wave.api.impl.GsonFactory;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import net.oauth.OAuthAccessor;
-import net.oauth.OAuthException;
-import net.oauth.OAuthMessage;
-import net.oauth.OAuthValidator;
 import org.waveprotocol.box.server.robots.OperationContext;
 import org.waveprotocol.box.server.robots.OperationContextImpl;
 import org.waveprotocol.box.server.robots.OperationResults;
@@ -47,13 +43,14 @@ import org.waveprotocol.wave.util.logging.Log;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.net.URISyntaxException;
 import java.util.LinkedList;
 import java.util.List;
 
 /**
  * The base {@link HttpServlet} for {@link DataApiServlet} and
  * {@link org.waveprotocol.box.server.robots.active.ActiveApiServlet}.
+ *
+ * <p>Jakarta variant with JWT authentication (OAuth removed).
  */
 @SuppressWarnings("serial")
 public abstract class BaseApiServlet extends HttpServlet {
@@ -67,7 +64,6 @@ public abstract class BaseApiServlet extends HttpServlet {
   private final WaveletProvider waveletProvider;
   private final OperationServiceRegistry operationRegistry;
   private final ConversationUtil conversationUtil;
-  private final OAuthValidator validator;
 
   /** Holds incoming operation requests. */
   private List<OperationRequest> operations;
@@ -76,34 +72,21 @@ public abstract class BaseApiServlet extends HttpServlet {
                         EventDataConverterManager converterManager,
                         WaveletProvider waveletProvider,
                         OperationServiceRegistry operationRegistry,
-                        ConversationUtil conversationUtil,
-                        OAuthValidator validator) {
+                        ConversationUtil conversationUtil) {
     this.robotSerializer = robotSerializer;
     this.converterManager = converterManager;
     this.waveletProvider = waveletProvider;
     this.conversationUtil = conversationUtil;
     this.operationRegistry = operationRegistry;
-    this.validator = validator;
   }
 
   /**
-   * Validates OAuth and executes operations.
+   * Reads the JSON-RPC request body, deserializes operations, executes them,
+   * and writes the JSON response. The caller is responsible for authenticating
+   * the request and providing the verified {@link ParticipantId}.
    */
   protected final void processOpsRequest(HttpServletRequest req, HttpServletResponse resp,
-                                         OAuthMessage message, OAuthAccessor accessor,
                                          ParticipantId participant) throws IOException {
-    try {
-      validator.validateMessage(message, accessor);
-    } catch (OAuthException e) {
-      LOG.info("The message does not conform to OAuth", e);
-      resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-      return;
-    } catch (URISyntaxException e) {
-      LOG.info("The message URL is invalid", e);
-      resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-      return;
-    }
-
     String apiRequest;
     try {
       BufferedReader reader = req.getReader();

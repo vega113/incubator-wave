@@ -28,6 +28,9 @@ import org.waveprotocol.box.server.rpc.*;
 import org.waveprotocol.box.server.robots.ProfileFetcherModule;
 import org.waveprotocol.box.server.robots.JakartaRobotApiBindingsModule;
 import org.waveprotocol.box.server.robots.RobotRegistrationServlet;
+import org.waveprotocol.box.server.robots.active.ActiveApiServlet;
+import org.waveprotocol.box.server.robots.dataapi.DataApiServlet;
+import org.waveprotocol.box.server.robots.dataapi.DataApiTokenServlet;
 import org.waveprotocol.box.server.shutdown.ShutdownManager;
 import org.waveprotocol.box.server.shutdown.ShutdownPriority;
 import org.waveprotocol.box.server.shutdown.Shutdownable;
@@ -152,6 +155,11 @@ public class ServerMain {
     server.addServlet("/profile/*", FetchProfilesServlet.class);
     server.addServlet("/iniavatars/*", org.apache.wave.box.server.rpc.InitialsAvatarsServlet.class);
     server.addServlet("/waveref/*", WaveRefServlet.class);
+    server.addServlet("/robot/register/*", RobotRegistrationServlet.class);
+    server.addServlet("/robot/rpc", ActiveApiServlet.class);
+    server.addServlet("/robot/dataapi", DataApiServlet.class);
+    server.addServlet("/robot/dataapi/rpc", DataApiServlet.class);
+    server.addServlet("/robot/dataapi/token", DataApiTokenServlet.class);
     server.addServlet("/", WaveClientServlet.class);
   }
 
