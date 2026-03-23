@@ -87,8 +87,7 @@ public final class PasswordRobot extends AbstractCliRobotAgent {
         verifyCredentials(oldPassword, participantId);
         changeUserPassword(newPassword, participantId, getAccountStore());
         robotMessage =
-            String.format("Changed password for user %s, the new password is: %s", modifiedBy,
-                newPassword);
+            String.format("Password changed successfully for user %s.", modifiedBy);
         LOG.info(modifiedBy + " changed  password for user: " + modifiedBy);
       } catch (IllegalArgumentException e) {
         robotMessage = e.getMessage();

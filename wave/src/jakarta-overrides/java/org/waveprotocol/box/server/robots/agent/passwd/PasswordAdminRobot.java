@@ -76,8 +76,7 @@ public final class PasswordAdminRobot extends AbstractCliRobotAgent {
         ParticipantId participantId = ParticipantId.of(userId);
         changeUserPassword(newPassword, participantId, accountStore);
         robotMessage =
-            String.format("Changed password for user %s, the new password is: %s\n", userId,
-                newPassword);
+            String.format("Password changed successfully for user %s.\n", userId);
         LOG.log(Level.INFO, "Password changed for user " + userId + " by " + modifiedBy);
       } catch (IllegalArgumentException e) {
         LOG.log(Level.SEVERE, userId, e);

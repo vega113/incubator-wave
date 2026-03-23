@@ -47,6 +47,7 @@ import org.waveprotocol.wave.model.id.WaveletId;
 import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -265,13 +266,41 @@ public abstract class AbstractRobot implements EventHandler, Serializable {
   }
 
   /**
+   * Public entrypoint for the robots gateway to push event bundles into this
+   * robot. Replaces the former servlet {@code doPost()} path: the gateway
+   * calls this method directly instead of making an HTTP round-trip.
+   *
+   * <p>After dispatching all events to the appropriate handlers, the pending
+   * operations are submitted via {@link LocalWaveService} and the operation
+   * queue is cleared.
+   *
+   * @param events the incoming event bundle.
+   * @return the pending operations that were queued by the event handlers,
+   *     already submitted to the wave server.
+   * @throws IOException if operation submission fails.
+   */
+  public List<OperationRequest> acceptEventBundle(EventMessageBundle events) throws IOException {
+    OperationQueue opQueue = events.getWavelet().getOperationQueue();
+    opQueue.notifyRobotInformation(LocalWaveService.PROTOCOL_VERSION, version);
+
+    processEvents(events);
+
+    List<OperationRequest> ops = new ArrayList<>(opQueue.getPendingOperations());
+    if (localWaveService != null) {
+      submit(events.getWavelet(), null);
+    }
+    opQueue.clear();
+    return ops;
+  }
+
+  /**
    * Processes the incoming event bundle. This method iterates over the event
    * bundle and dispatch the individual event to its own handler, based on the
    * event type.
    *
    * @param events the incoming event bundle.
    */
-  protected void processEvents(EventMessageBundle events) {
+  public void processEvents(EventMessageBundle events) {
     for (Event event : events.getEvents()) {
       switch (event.getType()) {
         case ANNOTATED_TEXT_CHANGED:

@@ -136,7 +136,7 @@ public abstract class AbstractCliRobotAgent extends AbstractBaseRobotAgent {
         throw new IllegalArgumentException(e);
       }
       String[] args = commandLine.getArgs();
-      if (!args[0].equals(getCommandName())) {
+      if (args.length == 0 || !args[0].equals(getCommandName())) {
         return null;
       }
       int argsNum = args.length - commandLine.getOptions().length - 1;

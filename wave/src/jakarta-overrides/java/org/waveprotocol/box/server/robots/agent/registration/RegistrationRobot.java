@@ -74,8 +74,15 @@ public final class RegistrationRobot extends AbstractCliRobotAgent {
         String password = args[2];
         userId = userId + (userId.contains("@") ? "" : "@" + getWaveDomain());
         ParticipantId participantId = ParticipantId.of(userId);
+        // Reject registrations for non-local domains.
+        if (!participantId.getAddress().endsWith("@" + getWaveDomain())) {
+          robotMessage = String.format(
+              "Cannot register user %s: only accounts on the local domain @%s are allowed.\n",
+              userId, getWaveDomain());
+          return robotMessage;
+        }
         createUser(accountStore, participantId, password);
-        robotMessage = String.format("Created user %s, the password is: %s\n", userId, password);
+        robotMessage = String.format("Created user %s.\n", userId);
         LOG.log(Level.INFO, "Created user " + userId + " by " + modifiedBy);
       } catch (IllegalArgumentException e) {
         LOG.log(Level.SEVERE, userId, e);

@@ -167,8 +167,13 @@ public class LocalWaveService {
     Wavelet newWavelet = opQueue.createWavelet(domain, participants, msg);
 
     if (rpcServerUrl != null && !rpcServerUrl.isEmpty()) {
-      // Submit and get the response for the wavelet creation operation (second op after notify).
-      JsonRpcResponse response = this.submit(newWavelet, rpcServerUrl).get(1);
+      // submit() already strips the prepended robot.notify response, so the
+      // wavelet.create result is at index 0 in the returned list.
+      List<JsonRpcResponse> responses = this.submit(newWavelet, rpcServerUrl);
+      if (responses.isEmpty()) {
+        throw new IOException("No response received for wavelet creation");
+      }
+      JsonRpcResponse response = responses.get(0);
       if (response.isError()) {
         throw new IOException(response.getErrorMessage());
       }
