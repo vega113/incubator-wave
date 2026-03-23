@@ -62,13 +62,15 @@ public final class UserRegistrationServlet extends HttpServlet {
   private final boolean emailConfirmationEnabled;
   private final EmailTokenIssuer emailTokenIssuer;
   private final MailProvider mailProvider;
+  private final WelcomeWaveCreator welcomeWaveCreator;
 
   @Inject
   public UserRegistrationServlet(AccountStore accountStore,
                                  @Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
                                  Config config,
                                  EmailTokenIssuer emailTokenIssuer,
-                                 MailProvider mailProvider) {
+                                 MailProvider mailProvider,
+                                 WelcomeWaveCreator welcomeWaveCreator) {
     this.accountStore = accountStore;
     this.domain = domain;
     this.registrationDisabled = config.getBoolean("administration.disable_registration");
@@ -79,6 +81,7 @@ public final class UserRegistrationServlet extends HttpServlet {
         && config.getBoolean("core.email_confirmation_enabled");
     this.emailTokenIssuer = emailTokenIssuer;
     this.mailProvider = mailProvider;
+    this.welcomeWaveCreator = welcomeWaveCreator;
   }
 
   @Override
@@ -169,6 +172,13 @@ public final class UserRegistrationServlet extends HttpServlet {
       if (!RegistrationSupport.createAccount(accountStore, id, digest)) {
         return "An unexpected error occurred while trying to create the account";
       }
+
+      try {
+        welcomeWaveCreator.createWelcomeWave(id);
+      } catch (Exception e) {
+        // Welcome wave failure must not block registration.
+      }
+
       return null;
     }
   }
