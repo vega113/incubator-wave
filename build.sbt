@@ -103,9 +103,6 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
   val jakartaExactExcludes: Set[String] = Set(
     "com/google/wave/api/AbstractRobot.java",
     "org/waveprotocol/box/server/robots/RobotApiModule.java",
-    "org/waveprotocol/box/server/robots/active/ActiveApiServlet.java",
-    "org/waveprotocol/box/server/robots/dataapi/BaseApiServlet.java",
-    "org/waveprotocol/box/server/robots/dataapi/DataApiServlet.java",
     "org/waveprotocol/box/server/robots/dataapi/DataApiOAuthServlet.java",
     "org/waveprotocol/box/server/robots/dataapi/DataApiTokenContainer.java",
     "org/waveprotocol/box/server/robots/util/JakartaHttpRequestMessage.java"
