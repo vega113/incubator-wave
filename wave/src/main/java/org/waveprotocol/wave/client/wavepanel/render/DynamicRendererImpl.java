@@ -91,6 +91,7 @@ public final class DynamicRendererImpl implements ObservableDynamicRenderer<Elem
   private int totalBlips = 0;
   private double startMs = -1;
 
+  private boolean bootstrapFlushPending = false;
   private boolean updateQueued = false;
   private double lastUpdateMs = 0;
   private int lastTopSeen = 0;
@@ -194,8 +195,12 @@ public final class DynamicRendererImpl implements ObservableDynamicRenderer<Elem
     fireBeforeRenderingStarted();
     fireBeforePhaseStarted();
     updateWindow();
-    firePhaseFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
-    fireRenderingFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+    if (!bootstrapFlushPending) {
+      firePhaseFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+      fireRenderingFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+    }
+    // When bootstrapFlushPending is true, COMPLETE will be fired after the
+    // deferred flush completes inside enqueueBootstrapWindow().
   }
 
   @Override
@@ -232,8 +237,12 @@ public final class DynamicRendererImpl implements ObservableDynamicRenderer<Elem
 
     // Update the window around the new scroll position so surrounding blips are paged in.
     updateWindow();
-    firePhaseFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
-    fireRenderingFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+    if (!bootstrapFlushPending) {
+      firePhaseFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+      fireRenderingFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+    }
+    // When bootstrapFlushPending is true, COMPLETE will be fired after the
+    // deferred flush completes inside enqueueBootstrapWindow().
   }
 
   @Override
@@ -664,6 +673,9 @@ public final class DynamicRendererImpl implements ObservableDynamicRenderer<Elem
         return true;
       }
     }, view);
+    // Mark that the bootstrap flush is pending so callers don't emit COMPLETE
+    // before the queued blips have actually been flushed.
+    bootstrapFlushPending = true;
     // Defer flush so we don't block the current UI turn.
     Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
       @Override public void execute() {
@@ -671,6 +683,11 @@ public final class DynamicRendererImpl implements ObservableDynamicRenderer<Elem
           queue.flush();
         } catch (Throwable t) {
           GWT.log("DynamicRenderer: bootstrap flush failed", t);
+        } finally {
+          bootstrapFlushPending = false;
+          // Now that the bootstrap render has flushed, notify listeners.
+          firePhaseFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+          fireRenderingFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
         }
       }
     });
