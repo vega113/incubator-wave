@@ -313,6 +313,14 @@ public final class HtmlRenderer {
     sb.append(".online { color: green; }\n");
     sb.append(".connecting { color: #ff7f00; font-weight: bold; }\n");
     sb.append(".offline { color: red; font-weight: bold; }\n");
+    sb.append(".user-menu { position: relative; display: inline-block; cursor: pointer; }\n");
+    sb.append(".user-menu-toggle { background: none; border: none; color: inherit; cursor: pointer; font: inherit; padding: 4px 8px; border-radius: 4px; }\n");
+    sb.append(".user-menu-toggle:hover { background: rgba(255,255,255,0.15); }\n");
+    sb.append(".user-menu-dropdown { display: none; position: absolute; right: 0; top: 100%; background: #fff; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); min-width: 200px; z-index: 1000; padding: 4px 0; margin-top: 4px; }\n");
+    sb.append(".user-menu-dropdown.open { display: block; }\n");
+    sb.append(".user-menu-dropdown a { display: block; padding: 8px 16px; color: #333; text-decoration: none; font-size: 13px; }\n");
+    sb.append(".user-menu-dropdown a:hover { background: #f0f4f8; }\n");
+    sb.append(".user-menu-dropdown .divider { border-top: 1px solid #e2e8f0; margin: 4px 0; }\n");
     sb.append("</style>\n");
     // GWT stats + nocache JS
     sb.append("<script type=\"text/javascript\">\n");
@@ -340,6 +348,21 @@ public final class HtmlRenderer {
     sb.append("Your web browser must have JavaScript enabled in order for this application to display correctly.\n");
     sb.append("</div>\n");
     sb.append("</noscript>\n");
+    sb.append("<script>\n");
+    sb.append("(function() {\n");
+    sb.append("  var toggle = document.querySelector('.user-menu-toggle');\n");
+    sb.append("  if (toggle) {\n");
+    sb.append("    toggle.addEventListener('click', function(e) {\n");
+    sb.append("      e.stopPropagation();\n");
+    sb.append("      document.querySelector('.user-menu-dropdown').classList.toggle('open');\n");
+    sb.append("    });\n");
+    sb.append("  }\n");
+    sb.append("  document.addEventListener('click', function() {\n");
+    sb.append("    var d = document.querySelector('.user-menu-dropdown');\n");
+    sb.append("    if (d) d.classList.remove('open');\n");
+    sb.append("  });\n");
+    sb.append("})();\n");
+    sb.append("</script>\n");
     sb.append("</body>\n</html>\n");
     return sb.toString();
   }
@@ -355,7 +378,7 @@ public final class HtmlRenderer {
    * @param domain   the wave server domain
    */
   public static String renderTopBar(String username, String domain) {
-    StringBuilder sb = new StringBuilder(512);
+    StringBuilder sb = new StringBuilder(2048);
     sb.append("<div class=\"topbar\">\n");
     sb.append("  <a href=\"/\"><img src=\"/static/logo.png\" alt=\"logo\" class=\"logo\"></a>\n");
     sb.append("  <div class=\"title\">Wave in a box</div>\n");
@@ -367,11 +390,21 @@ public final class HtmlRenderer {
       sb.append("    <a href=\"/auth/signin?r=/\">Sign In</a>\n");
     } else {
       sb.append("    <select id=\"lang\" class=\"lang\" size=\"1\"></select> |\n");
-      sb.append("    ").append(escapeHtml(username));
-      sb.append("<span class=\"domain\">@").append(escapeHtml(domain)).append("</span> |\n");
       sb.append("    <span id=\"unsavedStateContainer\" style=\"width:60px\">Saved</span> |\n");
       sb.append("    <span id=\"netstatus\" class=\"offline\">Offline</span> |\n");
-      sb.append("    <a id=\"signout\" href=\"/auth/signout?r=/\">Sign out</a>\n");
+      sb.append("    <div class=\"user-menu\">\n");
+      sb.append("      <button class=\"user-menu-toggle\">\n");
+      sb.append("        ").append(escapeHtml(username));
+      sb.append("<span class=\"domain\">@").append(escapeHtml(domain)).append("</span>");
+      sb.append(" &#9662;\n");
+      sb.append("      </button>\n");
+      sb.append("      <div class=\"user-menu-dropdown\">\n");
+      sb.append("        <a href=\"/robot/register/create\">Robot Registration</a>\n");
+      sb.append("        <a href=\"/robot/dataapi/token\">API Token</a>\n");
+      sb.append("        <div class=\"divider\"></div>\n");
+      sb.append("        <a id=\"signout\" href=\"/auth/signout?r=/\">Sign Out</a>\n");
+      sb.append("      </div>\n");
+      sb.append("    </div>\n");
     }
     sb.append("  </div>\n");
     sb.append("</div>");
@@ -414,6 +447,9 @@ public final class HtmlRenderer {
     sb.append("    <input type=\"text\" name=\"location\" id=\"location\">\n");
     sb.append("    <input type=\"submit\" class=\"btn-primary\" value=\"Register\">\n");
     sb.append("  </form>\n");
+    sb.append("  <div class=\"footer-link\">\n");
+    sb.append("    <a href=\"/\">&larr; Back to Wave</a>\n");
+    sb.append("  </div>\n");
     sb.append("</div>\n");
     sb.append("</body>\n</html>\n");
     return sb.toString();
@@ -448,6 +484,9 @@ public final class HtmlRenderer {
     sb.append("    <tr><td><b>Consumer Token</b></td><td>").append(escapeHtml(token)).append("</td></tr>\n");
     sb.append("    <tr><td><b>Consumer Token Secret</b></td><td>").append(escapeHtml(tokenSecret)).append("</td></tr>\n");
     sb.append("  </table>\n");
+    sb.append("  <div class=\"footer-link\">\n");
+    sb.append("    <a href=\"/\">&larr; Back to Wave</a>\n");
+    sb.append("  </div>\n");
     sb.append("</div>\n");
     sb.append("</body>\n</html>\n");
     return sb.toString();
