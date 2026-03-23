@@ -191,17 +191,60 @@ public final class DynamicRendererImpl implements ObservableDynamicRenderer<Elem
 
   @Override
   public void dynamicRendering() {
-    // TODO: Implement dynamic rendering from current position
+    fireBeforeRenderingStarted();
+    fireBeforePhaseStarted();
+    updateWindow();
+    firePhaseFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+    fireRenderingFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
   }
 
   @Override
   public void dynamicRendering(ConversationBlip startBlip) {
-    // TODO: Implement dynamic rendering from start blip
+    if (startBlip == null) {
+      dynamicRendering();
+      return;
+    }
+    fireBeforeRenderingStarted();
+    fireBeforePhaseStarted();
+
+    // Ensure the target blip is paged in.
+    if (!pagedIn.contains(startBlip)) {
+      queue.add(startBlip);
+      pagedIn.add(startBlip);
+      queue.flush();
+    }
+    fireBlipRendered(startBlip);
+    fireBlipReady(startBlip);
+
+    // Scroll to the blip element so the viewport centers on it.
+    Element blipElement = getElementByBlip(startBlip);
+    if (blipElement != null) {
+      int blipTop = getAbsoluteTop(blipElement);
+      int viewportHeight = screen.getViewportHeight();
+      // Position the blip near the top third of the viewport.
+      int targetScroll = Math.max(0, blipTop - viewportHeight / 3);
+      screen.setScrollTop(targetScroll, true);
+    }
+
+    // Update the window around the new scroll position so surrounding blips are paged in.
+    updateWindow();
+    firePhaseFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
+    fireRenderingFinished(ObservableDynamicRenderer.RenderResult.COMPLETE);
   }
 
   @Override
   public void dynamicRendering(String startBlipId) {
-    // TODO: Implement dynamic rendering from start blip id
+    if (startBlipId == null || startBlipId.isEmpty()) {
+      dynamicRendering();
+      return;
+    }
+    ConversationBlip blip = findBlipById(startBlipId);
+    if (blip != null) {
+      dynamicRendering(blip);
+    } else {
+      // Blip not found; fall back to rendering from the current position.
+      dynamicRendering();
+    }
   }
 
   @Override
@@ -746,5 +789,98 @@ public final class DynamicRendererImpl implements ObservableDynamicRenderer<Elem
     }
     lastFetchMs = now;
     doFragmentFetch(request);
+  }
+
+  /**
+   * Searches all conversations in the view for a blip with the given id.
+   *
+   * @param blipId the blip id to find
+   * @return the blip, or null if not found
+   */
+  private ConversationBlip findBlipById(String blipId) {
+    if (blipId == null || blipId.isEmpty()) {
+      return null;
+    }
+    for (Conversation conversation : view.getConversations()) {
+      ConversationBlip blip = conversation.getBlip(blipId);
+      if (blip != null) {
+        return blip;
+      }
+    }
+    return null;
+  }
+
+  // ---- Listener notification helpers ----
+
+  private void fireBeforeRenderingStarted() {
+    for (ObservableDynamicRenderer.Listener l : rendererListeners) {
+      try {
+        l.onBeforeRenderingStarted();
+      } catch (Throwable t) {
+        if (logStats) {
+          GWT.log("DynamicRenderer: listener.onBeforeRenderingStarted failed", t);
+        }
+      }
+    }
+  }
+
+  private void fireBeforePhaseStarted() {
+    for (ObservableDynamicRenderer.Listener l : rendererListeners) {
+      try {
+        l.onBeforePhaseStarted();
+      } catch (Throwable t) {
+        if (logStats) {
+          GWT.log("DynamicRenderer: listener.onBeforePhaseStarted failed", t);
+        }
+      }
+    }
+  }
+
+  private void fireBlipRendered(ConversationBlip blip) {
+    for (ObservableDynamicRenderer.Listener l : rendererListeners) {
+      try {
+        l.onBlipRendered(blip);
+      } catch (Throwable t) {
+        if (logStats) {
+          GWT.log("DynamicRenderer: listener.onBlipRendered failed", t);
+        }
+      }
+    }
+  }
+
+  private void fireBlipReady(ConversationBlip blip) {
+    for (ObservableDynamicRenderer.Listener l : rendererListeners) {
+      try {
+        l.onBlipReady(blip);
+      } catch (Throwable t) {
+        if (logStats) {
+          GWT.log("DynamicRenderer: listener.onBlipReady failed", t);
+        }
+      }
+    }
+  }
+
+  private void firePhaseFinished(ObservableDynamicRenderer.RenderResult result) {
+    for (ObservableDynamicRenderer.Listener l : rendererListeners) {
+      try {
+        l.onPhaseFinished(result);
+      } catch (Throwable t) {
+        if (logStats) {
+          GWT.log("DynamicRenderer: listener.onPhaseFinished failed", t);
+        }
+      }
+    }
+  }
+
+  private void fireRenderingFinished(ObservableDynamicRenderer.RenderResult result) {
+    for (ObservableDynamicRenderer.Listener l : rendererListeners) {
+      try {
+        l.onRenderingFinished(result);
+      } catch (Throwable t) {
+        if (logStats) {
+          GWT.log("DynamicRenderer: listener.onRenderingFinished failed", t);
+        }
+      }
+    }
   }
 }
