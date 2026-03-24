@@ -421,7 +421,7 @@ _snapshots/
 ```
 
 - `getLatestSnapshot()`: list files in directory, parse version from filename, return highest.
-- `storeSnapshot()`: write protobuf bytes to new file, then optionally prune old snapshots (keep last 2).
+- `storeSnapshot()`: write protobuf bytes to new file, then optionally prune old snapshots (keep last 3).
 - `deleteSnapshots()`: delete the wavelet's snapshot directory.
 
 ### Phase 4: MongoDB Backend
