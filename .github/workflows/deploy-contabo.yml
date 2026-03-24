@@ -140,7 +140,7 @@ jobs:
               labels: 'deploy-failure',
               state: 'open'
             });
-            for (const issue of issues) {
+            for (const issue of issues.filter(i => !i.pull_request)) {
               await github.rest.issues.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -157,7 +157,7 @@ jobs:
             }
 
       - name: Create GitHub issue on deploy failure
-        if: steps.deploy.outcome == 'failure'
+        if: ${{ failure() && steps.deploy.outcome == 'failure' }}
         uses: actions/github-script@v7
         with:
           script: |
@@ -168,15 +168,16 @@ jobs:
               labels: 'deploy-failure',
               state: 'open'
             });
-            if (existing.length > 0) {
+            const existingIssues = existing.filter(i => !i.pull_request);
+            if (existingIssues.length > 0) {
               const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: existing[0].number,
+                issue_number: existingIssues[0].number,
                 body: `Another deploy failure occurred.\n\n**Commit:** \`${context.sha.substring(0, 8)}\`\n**Run:** [${context.runId}](${runUrl})\n**Time:** ${new Date().toISOString()}`
               });
-              core.info(`Commented on existing issue #${existing[0].number}`);
+              core.info(`Commented on existing issue #${existingIssues[0].number}`);
               return;
             }
 
@@ -196,6 +197,8 @@ jobs:
                   color: 'e11d48',
                   description: 'Automated: deploy to Contabo failed'
                 });
+              } else {
+                throw e;
               }
             }
 
