@@ -41,6 +41,7 @@ import org.waveprotocol.wave.util.logging.Log;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * Jakarta-compatible user registration servlet. Mirrors the legacy behavior
@@ -140,8 +141,8 @@ public final class UserRegistrationServlet extends HttpServlet {
       return "Account already exists";
     }
 
-    // Normalize and validate email
-    String normalizedEmail = (email == null) ? "" : email.trim();
+    // Normalize and validate email (lowercase for consistent lookups)
+    String normalizedEmail = (email == null) ? "" : email.trim().toLowerCase(Locale.ROOT);
     if (emailRequired && normalizedEmail.isEmpty()) {
       return "Email address is required";
     }
@@ -182,9 +183,9 @@ public final class UserRegistrationServlet extends HttpServlet {
         String confirmUrl = buildConfirmUrl(req, token);
         String emailBody = renderConfirmEmail(id.getAddress(), confirmUrl);
         mailProvider.sendEmail(sendTo, "Confirm your Wave account", emailBody);
-        LOG.info("Confirmation email sent to " + sendTo);
+        LOG.info("Confirmation email sent for user " + id.getAddress());
       } catch (MailException e) {
-        LOG.severe("Failed to send confirmation email to " + sendTo, e);
+        LOG.severe("Failed to send confirmation email for user " + id.getAddress(), e);
       }
 
       return "CONFIRM_PENDING:Registration successful! Please check your email to confirm your account.";

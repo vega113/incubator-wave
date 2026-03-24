@@ -149,9 +149,8 @@ public final class PasswordResetServlet extends HttpServlet {
     try {
       AccountData account = null;
 
-      // If it looks like an external email (contains @ and is not a wave address),
-      // try looking up by email first.
-      if (normalized.contains("@") && !normalized.endsWith("@" + domain)) {
+      // If it looks like an email, try looking up by stored email first.
+      if (normalized.contains("@")) {
         account = accountStore.getAccountByEmail(normalized);
       }
 
@@ -171,7 +170,7 @@ public final class PasswordResetServlet extends HttpServlet {
         String resetUrl = buildResetUrl(req, jwtToken);
         String emailBody = renderResetEmail(account.getId().getAddress(), resetUrl);
         mailProvider.sendEmail(sendTo, "Password Reset - Wave", emailBody);
-        LOG.info("Password reset email sent to " + sendTo);
+        LOG.info("Password reset email sent for user " + account.getId().getAddress());
       } else {
         LOG.info("Password reset requested for non-existent account: " + normalized);
       }

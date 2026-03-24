@@ -140,9 +140,8 @@ public final class MagicLinkServlet extends HttpServlet {
     try {
       AccountData account = null;
 
-      // If it looks like an external email (contains @ and is not a wave address),
-      // try looking up by email first.
-      if (normalized.contains("@") && !normalized.endsWith("@" + domain)) {
+      // If it looks like an email, try looking up by stored email first.
+      if (normalized.contains("@")) {
         account = accountStore.getAccountByEmail(normalized);
       }
 
@@ -166,7 +165,7 @@ public final class MagicLinkServlet extends HttpServlet {
           String loginUrl = buildLoginUrl(req, jwtToken);
           String emailBody = renderMagicLinkEmail(account.getId().getAddress(), loginUrl);
           mailProvider.sendEmail(sendTo, "Login Link - Wave", emailBody);
-          LOG.info("Magic link email sent to " + sendTo);
+          LOG.info("Magic link email sent for user " + account.getId().getAddress());
         }
       } else {
         LOG.info("Magic link requested for non-existent account: " + normalized);
