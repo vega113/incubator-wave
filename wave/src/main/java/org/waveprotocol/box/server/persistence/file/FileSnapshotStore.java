@@ -123,13 +123,14 @@ public class FileSnapshotStore implements SnapshotStore {
         fos.write(snapshotData);
         fos.getFD().sync();
       }
-      // Rename temp file to target (atomic on most filesystems)
-      if (!tempFile.renameTo(targetFile)) {
-        // Fallback: delete target and retry rename
-        targetFile.delete();
-        if (!tempFile.renameTo(targetFile)) {
-          throw new IOException("Failed to rename temp snapshot file to " + targetFile);
-        }
+      // Atomic move with replace — prefer ATOMIC_MOVE, fall back to REPLACE_EXISTING
+      try {
+        Files.move(tempFile.toPath(), targetFile.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+      } catch (java.nio.file.AtomicMoveNotSupportedException amex) {
+        Files.move(tempFile.toPath(), targetFile.toPath(),
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
       }
     } catch (IOException e) {
       tempFile.delete();
