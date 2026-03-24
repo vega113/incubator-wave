@@ -19,6 +19,7 @@
 
 package org.waveprotocol.wave.client.wavepanel.view.impl;
 
+import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.NativeEvent;
 import com.google.gwt.event.dom.client.KeyCodes;
@@ -30,6 +31,7 @@ import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.SimplePanel;
 
 import org.waveprotocol.wave.client.wavepanel.view.BlipMetaView;
+import org.waveprotocol.wave.client.wavepanel.view.dom.full.i18n.DraftModeControlsMessages;
 
 /**
  * GWT widget providing compact, icon-based draft-mode controls:
@@ -104,6 +106,9 @@ public class DraftModeControlsWidget extends SimplePanel
     }
   }
 
+  private static final DraftModeControlsMessages messages =
+      GWT.create(DraftModeControlsMessages.class);
+
   private Listener listener;
   private boolean draftActive = false;
   private final Element draftBtn;
@@ -123,13 +128,13 @@ public class DraftModeControlsWidget extends SimplePanel
 
     HTML toolbar = new HTML(
         "<span class='blip-controls'>"
-        + "<span class='blip-action blip-action-done' title='Done (Ctrl+Enter)'>"
+        + "<span class='blip-action blip-action-done' title='" + escapeAttr(messages.doneHint()) + "'>"
         + DONE_SVG + "</span>"
-        + "<span class='blip-action blip-action-cancel' title='Cancel (Esc)'>"
+        + "<span class='blip-action blip-action-cancel' title='" + escapeAttr(messages.cancelHint()) + "'>"
         + CANCEL_SVG + "</span>"
-        + "<span class='blip-action blip-action-draft' title='Draft mode (Ctrl+D)'>"
+        + "<span class='blip-action blip-action-draft' title='" + escapeAttr(messages.draftHint()) + "'>"
         + DRAFT_SVG + "</span>"
-        + "<span class='draft-info'>Draft</span>"
+        + "<span class='draft-info'>" + escapeHtml(messages.draft()) + "</span>"
         + "</span>");
 
     setWidget(toolbar);
@@ -210,6 +215,21 @@ public class DraftModeControlsWidget extends SimplePanel
     }
   }
 
+  /**
+   * Returns true if the given element is a descendant of (or equal to) the
+   * ancestor element. Used to scope keyboard shortcuts to the active editor.
+   */
+  private static boolean isDescendantOf(Element element, Element ancestor) {
+    Element el = element;
+    while (el != null) {
+      if (el == ancestor) {
+        return true;
+      }
+      el = el.getParentElement();
+    }
+    return false;
+  }
+
   private void registerKeyboardShortcuts() {
     keyHandler = Event.addNativePreviewHandler(new NativePreviewHandler() {
       @Override
@@ -218,6 +238,17 @@ public class DraftModeControlsWidget extends SimplePanel
           return;
         }
         NativeEvent ne = preview.getNativeEvent();
+
+        // Scope shortcuts to the blip that owns this controls widget:
+        // only handle events whose target is inside the widget's parent
+        // (the blip meta container). This prevents shortcuts from firing
+        // when focus is in unrelated UI such as search fields or popups.
+        Element target = ne.getEventTarget().cast();
+        Element blipContainer = getElement().getParentElement();
+        if (blipContainer != null && !isDescendantOf(target, blipContainer)) {
+          return;
+        }
+
         boolean ctrl = ne.getCtrlKey() || ne.getMetaKey();
 
         if (ctrl && ne.getKeyCode() == KeyCodes.KEY_ENTER) {
@@ -240,6 +271,17 @@ public class DraftModeControlsWidget extends SimplePanel
         }
       }
     });
+  }
+
+  /** Escapes characters that are special in HTML attribute values. */
+  private static String escapeAttr(String s) {
+    return s.replace("&", "&amp;").replace("'", "&#39;").replace("\"", "&quot;")
+        .replace("<", "&lt;").replace(">", "&gt;");
+  }
+
+  /** Escapes characters that are special in HTML text content. */
+  private static String escapeHtml(String s) {
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
   }
 
   @Override
