@@ -349,6 +349,7 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
           if (response.hasHashedVersionAfterApplication()) {
             resultVersion =
                 WaveletOperationSerializer.deserialize(response.getHashedVersionAfterApplication());
+            versions.updateHistory(wavelet, response.getHashedVersionAfterApplication());
           }
           callback.onSuccess(resultVersion, response.getOperationsApplied(),
               response.getErrorMessage(), ResponseCode.INTERNAL_ERROR);
