@@ -307,6 +307,7 @@ sourceSets.main.java {
                 'org/waveprotocol/box/server/rpc/GadgetProviderServlet.java',
                 'org/waveprotocol/box/server/rpc/AttachmentInfoServlet.java',
                 'org/waveprotocol/box/server/rpc/FetchServlet.java',
+                'org/waveprotocol/box/server/rpc/VersionedFetchServlet.java',
                 'org/waveprotocol/box/server/rpc/FetchProfilesServlet.java',
                 'org/waveprotocol/box/server/rpc/LocaleServlet.java',
                 'org/waveprotocol/box/server/rpc/NotificationServlet.java',

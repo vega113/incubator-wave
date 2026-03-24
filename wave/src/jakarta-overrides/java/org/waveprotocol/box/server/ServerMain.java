@@ -160,6 +160,7 @@ public class ServerMain {
     server.addServlet("/auth/magic-link", MagicLinkServlet.class);
     server.addServlet("/locale/*", LocaleServlet.class);
     server.addServlet("/fetch/*", FetchServlet.class);
+    server.addServlet("/fetch/version/*", VersionedFetchServlet.class);
     server.addServlet("/search/*", SearchServlet.class);
     server.addServlet("/dev/client-applier-stats", ClientApplierStatsJakartaServlet.class);
     server.addServlet("/healthz", HealthServlet.class);
