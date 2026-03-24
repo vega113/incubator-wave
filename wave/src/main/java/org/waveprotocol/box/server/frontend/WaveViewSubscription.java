@@ -150,15 +150,16 @@ final class WaveViewSubscription {
     state.hasOutstandingSubmit = false;
 
     if (version == null) {
-      // Submit failed — no version to record.  Release held-back deltas
-      // without filtering (we have no own-delta version to match against).
+      // Submit failed — no version to record for this submit.
       LOG.info("Submit failed (null version) on channel " + channelId);
-      if (!state.heldBackDeltas.isEmpty()) {
-        for (TransformedWaveletDelta delta : state.heldBackDeltas) {
+      List<TransformedWaveletDelta> filteredDeltas =
+          filterOwnDeltas(state.heldBackDeltas, state);
+      if (!filteredDeltas.isEmpty()) {
+        for (TransformedWaveletDelta delta : filteredDeltas) {
           sendUpdate(waveletName, Collections.singletonList(delta), null);
         }
-        state.heldBackDeltas.clear();
       }
+      state.heldBackDeltas.clear();
       return;
     }
 
