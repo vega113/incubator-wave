@@ -117,7 +117,7 @@ public class FetchContactsServiceImpl implements FetchContactsService {
         // the "participant" field).  Without this, calling indexOf() on a
         // non-string produces "b.indexOf is not a function" in GWT-compiled JS.
         String raw = c.getParticipant();
-        String participantAddress = raw == null ? null : String.valueOf(raw);
+        String participantAddress = raw == null ? null : String.valueOf((Object) raw);
         if (participantAddress == null || participantAddress.isEmpty()
             || "undefined".equals(participantAddress) || "null".equals(participantAddress)) {
           LOG.trace().log("Skipping contact entry with missing participant");

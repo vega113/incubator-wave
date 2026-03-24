@@ -153,7 +153,7 @@ public final class ParticipantController {
 
     // Coerce via String.valueOf() to protect against GWT JSNI type confusion
     // where a non-string JS value might be passed as a Java String parameter.
-    String safeAddresses = String.valueOf(addresses);
+    String safeAddresses = String.valueOf((Object) addresses);
     String[] addressList = safeAddresses.split(",");
     ParticipantId[] participants = new ParticipantId[addressList.length];
 

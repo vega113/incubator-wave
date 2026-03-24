@@ -267,7 +267,7 @@ public class ParticipantAddWidget extends Composite {
           }
           // Coerce via String.valueOf() to guard against GWT JSNI returning
           // a non-string JS value from ParticipantId.getAddress().
-          String address = String.valueOf(contact.getAddress());
+          String address = String.valueOf((Object) contact.getAddress());
           if (address == null || address.isEmpty()
               || "null".equals(address) || "undefined".equals(address)) {
             continue;
