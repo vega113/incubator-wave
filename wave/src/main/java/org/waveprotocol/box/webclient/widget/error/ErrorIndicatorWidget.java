@@ -105,8 +105,7 @@ public final class ErrorIndicatorWidget extends Composite implements ErrorIndica
 
   @UiHandler("copyBtn")
   void handleCopyClick(ClickEvent e) {
-    copyToClipboard(stack.getInnerText());
-    copyBtn.setText("Copied!");
+    copyToClipboard(stack.getInnerText(), copyBtn.getElement());
   }
 
   @UiHandler("dismissBtn")
@@ -114,18 +113,29 @@ public final class ErrorIndicatorWidget extends Composite implements ErrorIndica
     overlay.getStyle().setProperty("display", "none");
   }
 
-  private static native void copyToClipboard(String text) /*-{
-    if ($wnd.navigator.clipboard && $wnd.navigator.clipboard.writeText) {
-      $wnd.navigator.clipboard.writeText(text);
-    } else {
+  private static native void copyToClipboard(String text, Element btn) /*-{
+    function onSuccess() {
+      btn.innerText = 'Copied!';
+    }
+    function fallback() {
       var ta = $doc.createElement('textarea');
       ta.value = text;
       ta.style.position = 'fixed';
       ta.style.left = '-9999px';
       $doc.body.appendChild(ta);
       ta.select();
-      $doc.execCommand('copy');
+      try {
+        $doc.execCommand('copy');
+        onSuccess();
+      } catch (e) {
+        btn.innerText = 'Copy failed';
+      }
       $doc.body.removeChild(ta);
+    }
+    if ($wnd.navigator.clipboard && $wnd.navigator.clipboard.writeText) {
+      $wnd.navigator.clipboard.writeText(text).then(onSuccess, fallback);
+    } else {
+      fallback();
     }
   }-*/;
 
