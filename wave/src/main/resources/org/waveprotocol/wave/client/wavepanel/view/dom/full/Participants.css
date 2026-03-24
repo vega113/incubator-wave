@@ -178,6 +178,16 @@ img.participant:hover {
 
 .newWaveWithParticipantsButton {
   margin-left: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #0077b6;
+  color: white;
+  vertical-align: middle;
 }
 
 /*

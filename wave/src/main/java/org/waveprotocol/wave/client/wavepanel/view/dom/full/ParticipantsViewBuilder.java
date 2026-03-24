@@ -32,6 +32,7 @@ import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.resources.client.ImageResource;
 
+import org.waveprotocol.wave.client.common.safehtml.EscapeUtils;
 import org.waveprotocol.wave.client.common.safehtml.SafeHtmlBuilder;
 import org.waveprotocol.wave.client.uibuilder.BuilderHelper.Component;
 import org.waveprotocol.wave.client.uibuilder.HtmlClosureCollection;
@@ -169,14 +170,17 @@ public final class ParticipantsViewBuilder implements UiBuilder {
    * Replaces the former bulky {@code <button>} with an inline SVG "+" icon.
    */
   private static void newWaveIcon(SafeHtmlBuilder output, String clazz, String kind, String title) {
+    String escapedClazz = clazz != null ? EscapeUtils.htmlEscape(clazz) : null;
+    String escapedKind = kind != null ? EscapeUtils.htmlEscape(kind) : null;
+    String escapedTitle = title != null ? EscapeUtils.htmlEscape(title) : null;
     output.appendHtmlConstant(
         "<span"
-        + (clazz != null ? " class='" + clazz + "'" : "")
-        + (kind != null ? " kind='" + kind + "'" : "")
-        + (title != null ? " title='" + title + "'" : "")
-        + " style='cursor:pointer;display:inline-flex;align-items:center;"
-        + "justify-content:center;width:28px;height:28px;border-radius:50%;"
-        + "background:#0077b6;color:white;vertical-align:middle;'>"
+        + (escapedClazz != null ? " class='" + escapedClazz + "'" : "")
+        + (escapedKind != null ? " kind='" + escapedKind + "'" : "")
+        + (escapedTitle != null ? " title='" + escapedTitle + "'" : "")
+        + " role='button' tabindex='0'"
+        + (escapedTitle != null ? " aria-label='" + escapedTitle + "'" : "")
+        + ">"
         + "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' "
         + "stroke='currentColor' stroke-width='2'>"
         + "<line x1='12' y1='5' x2='12' y2='19'/>"
