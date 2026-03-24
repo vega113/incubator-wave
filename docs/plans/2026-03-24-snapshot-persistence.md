@@ -440,7 +440,7 @@ _snapshots/
 
 - Index: `{waveId: 1, waveletId: 1, version: -1}` (unique compound, descending version for fast latest lookup).
 - `getLatestSnapshot()`: `find({waveId, waveletId}).sort({version: -1}).limit(1)`.
-- `storeSnapshot()`: `insertOne()`.
+- `storeSnapshot()`: `replaceOne({waveId, waveletId, version}, snapshotDoc, {upsert: true})`.
 - Prune: keep at most 3 snapshots per wavelet (delete older ones after insert).
 
 ### Phase 5: Tests
@@ -458,7 +458,7 @@ _snapshots/
 
    The solution is to take a **defensive immutable copy** via `WaveletDataUtil.copyWavelet(snapshot)` inside `appendDelta()` (which is called under the container's write lock), and publish it via `pendingSnapshotCopy` (an `AtomicReference<ReadableWaveletData>`). The persist thread atomically consumes it via `getAndSet(null)`, ensuring that a concurrent write from `appendDelta()` cannot be silently dropped. If `appendDelta()` overwrites a not-yet-consumed copy, the newer snapshot subsumes the older one. The live `snapshot` field is never read from the persist thread.
 
-3. **Store-level concurrency**: `FileSnapshotStore` writes are per-wavelet-directory and non-overlapping. `Mongo4SnapshotStore` uses `insertOne()` which is atomic. Neither requires explicit locking beyond what the wavelet state already provides.
+3. **Store-level concurrency**: `FileSnapshotStore` writes are per-wavelet-directory and non-overlapping. `Mongo4SnapshotStore` uses `replaceOne(..., {upsert: true})` which is atomic. Neither requires explicit locking beyond what the wavelet state already provides.
 
 4. **Snapshot version vs. persisted delta version**: The snapshot copy is taken at the moment `appendDelta()` crosses the interval threshold. The persist task may not yet have persisted deltas up to the snapshot's version. However, `persist()` is always called with the version of the last appended delta, so by the time the persist task runs (which writes all deltas up to `latestVersionToPersist`), the deltas will be durably stored before the snapshot is written. The snapshot store write is placed **after** the delta persistence call in `persisterTask`, guaranteeing the ordering invariant: persisted deltas always cover at least up to the snapshot version.
 
