@@ -60,6 +60,7 @@ public class ContactManagerImpl implements ContactManager {
   private static final int WRITE_DELAY_SEC = 20;
 
   private final ContactStore contactStore;
+  private final ScheduledExecutorService executor;
   private final LoadingCache<ParticipantId, Map<ParticipantId, Contact>> contactsCache;
   private final Cache<ParticipantId, Map<ParticipantId, Contact>> contactsToWrite;
 
@@ -69,6 +70,7 @@ public class ContactManagerImpl implements ContactManager {
       @ExecutorAnnotations.ContactExecutor ScheduledExecutorService executor) {
 
     this.contactStore = contactStore;
+    this.executor = executor;
     contactsCache = CacheBuilder.newBuilder()
         .maximumSize(READ_CACHE_MAX_SIZE)
         .build(new CacheLoader<ParticipantId, Map<ParticipantId, Contact>>() {
@@ -106,6 +108,15 @@ public class ContactManagerImpl implements ContactManager {
 
     Runnable task = () -> contactsToWrite.cleanUp();
     executor.scheduleAtFixedRate(task, WRITE_DELAY_SEC, WRITE_DELAY_SEC, TimeUnit.SECONDS);
+  }
+
+  /**
+   * Flushes all pending contact writes to the backing store.
+   * Should be called during server shutdown to avoid data loss.
+   */
+  public void shutdown() {
+    contactsToWrite.invalidateAll();
+    contactsToWrite.cleanUp();
   }
 
   @Override
@@ -196,7 +207,7 @@ public class ContactManagerImpl implements ContactManager {
 
   private static long getScoreBonusAtTime(long lastContactTime, long bonus, long time) {
     Preconditions.checkArgument(time >= lastContactTime);
-    if (bonus > BONUSES_EXPIRATION_MS) {
+    if (bonus >= BONUSES_EXPIRATION_MS) {
       long elapsedTime = time - lastContactTime;
       long newBonus = bonus - (long) (elapsedTime * ((double) bonus / BONUSES_EXPIRATION_MS));
       return newBonus > 0 ? newBonus : 0;
