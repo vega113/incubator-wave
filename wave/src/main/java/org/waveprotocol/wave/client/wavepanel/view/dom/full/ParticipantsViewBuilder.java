@@ -25,7 +25,6 @@ import static org.waveprotocol.wave.client.uibuilder.OutputHelper.closeSpan;
 import static org.waveprotocol.wave.client.uibuilder.OutputHelper.open;
 import static org.waveprotocol.wave.client.uibuilder.OutputHelper.openSpan;
 import static org.waveprotocol.wave.client.uibuilder.OutputHelper.openSpanWith;
-import static org.waveprotocol.wave.client.uibuilder.OutputHelper.button;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gwt.core.client.GWT;
@@ -142,9 +141,9 @@ public final class ParticipantsViewBuilder implements UiBuilder {
             }
             closeSpan(output);
             appendSpan(output, null, css.addButton(), TypeCodes.kind(Type.ADD_PARTICIPANT));
-            button(output, null, css.newWaveWithParticipantsButton(),
+            newWaveIcon(output, css.newWaveWithParticipantsButton(),
                 TypeCodes.kind(Type.NEW_WAVE_WITH_PARTICIPANTS),
-                messages.newWaveWithParticipantsOfCurrentWave(), messages.newWave());
+                messages.newWaveWithParticipantsOfCurrentWave());
           }
           closeSpan(output);
 
@@ -152,9 +151,9 @@ public final class ParticipantsViewBuilder implements UiBuilder {
           openSpan(output, null, css.simple(), null);
           {
             appendSpan(output, null, css.addButton(), TypeCodes.kind(Type.ADD_PARTICIPANT));
-            button(output, null, css.newWaveWithParticipantsButton(),
+            newWaveIcon(output, css.newWaveWithParticipantsButton(),
                 TypeCodes.kind(Type.NEW_WAVE_WITH_PARTICIPANTS),
-                messages.newWaveWithParticipantsOfCurrentWave(), messages.newWave());
+                messages.newWaveWithParticipantsOfCurrentWave());
           }
           closeSpan(output);
         }
@@ -163,6 +162,27 @@ public final class ParticipantsViewBuilder implements UiBuilder {
       close(output);
     }
     close(output);
+  }
+
+  /**
+   * Renders a compact circular icon button for "new wave with participants".
+   * Replaces the former bulky {@code <button>} with an inline SVG "+" icon.
+   */
+  private static void newWaveIcon(SafeHtmlBuilder output, String clazz, String kind, String title) {
+    output.appendHtmlConstant(
+        "<span"
+        + (clazz != null ? " class='" + clazz + "'" : "")
+        + (kind != null ? " kind='" + kind + "'" : "")
+        + (title != null ? " title='" + title + "'" : "")
+        + " style='cursor:pointer;display:inline-flex;align-items:center;"
+        + "justify-content:center;width:28px;height:28px;border-radius:50%;"
+        + "background:#0077b6;color:white;vertical-align:middle;'>"
+        + "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' "
+        + "stroke='currentColor' stroke-width='2'>"
+        + "<line x1='12' y1='5' x2='12' y2='19'/>"
+        + "<line x1='5' y1='12' x2='19' y2='12'/>"
+        + "</svg>"
+        + "</span>");
   }
 
   // Rather than install a regular handler, this is an experiment at injecting
