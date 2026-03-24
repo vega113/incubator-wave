@@ -115,11 +115,11 @@ check() {
     return 1
   fi
 
-  # Webclient check is optional — GWT may not be compiled in SBT builds
   webclient_status=$(curl -sS --max-time 10 -o /dev/null -w "%{http_code}" "http://localhost:$PORT/webclient/webclient.nocache.js" || true)
   echo "WEBCLIENT_STATUS=${webclient_status:-000}"
   if [[ "${webclient_status}" -ne 200 ]]; then
-    echo "Note: webclient asset not found (GWT not compiled). Continuing." >&2
+    echo "Missing compiled webclient asset: /webclient/webclient.nocache.js" >&2
+    return 1
   fi
 }
 
