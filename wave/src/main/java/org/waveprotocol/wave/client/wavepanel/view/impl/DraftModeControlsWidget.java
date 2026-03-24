@@ -25,6 +25,7 @@ import com.google.gwt.event.logical.shared.ValueChangeEvent;
 import com.google.gwt.event.logical.shared.ValueChangeHandler;
 import com.google.gwt.user.client.ui.CheckBox;
 import com.google.gwt.user.client.ui.FlowPanel;
+import com.google.gwt.user.client.ui.InlineLabel;
 import com.google.gwt.user.client.ui.SimplePanel;
 
 import org.waveprotocol.wave.client.wavepanel.view.BlipMetaView;
@@ -60,20 +61,6 @@ public class DraftModeControlsWidget extends SimplePanel
 
     FlowPanel panel = new FlowPanel();
 
-    // Draft-mode checkbox.
-    final CheckBox draftMode = new CheckBox(messages.draft());
-    draftMode.getElement().getStyle().setProperty("fontSize", "8.5pt");
-    draftMode.getElement().getStyle().setProperty("marginRight", "0.5em");
-    draftMode.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
-      @Override
-      public void onValueChange(ValueChangeEvent<Boolean> event) {
-        if (listener != null) {
-          listener.onModeChange(event.getValue());
-        }
-      }
-    });
-    panel.add(draftMode);
-
     // Done button.
     SimplePanel donePanel = new SimplePanel();
     donePanel.getElement().getStyle().setProperty("marginRight", "0.5em");
@@ -93,6 +80,7 @@ public class DraftModeControlsWidget extends SimplePanel
 
     // Cancel button.
     SimplePanel cancelPanel = new SimplePanel();
+    cancelPanel.getElement().getStyle().setProperty("marginRight", "0.5em");
     cancelPanel.getElement().getStyle().setProperty("display", "inline-block");
     ClickButtonWidget cancelButton = ButtonFactory.createTextClickButton(
         messages.cancelTitle(), TextButtonStyle.REGULAR_BUTTON, messages.cancelHint(),
@@ -106,6 +94,30 @@ public class DraftModeControlsWidget extends SimplePanel
         });
     cancelPanel.add(cancelButton);
     panel.add(cancelPanel);
+
+    // Draft-mode info label (hidden until draft checkbox is checked).
+    final InlineLabel infoLabel = new InlineLabel(messages.draftInfo());
+    infoLabel.getElement().getStyle().setProperty("fontSize", "11px");
+    infoLabel.getElement().getStyle().setProperty("color", "#718096");
+    infoLabel.getElement().getStyle().setProperty("marginLeft", "8px");
+    infoLabel.getElement().getStyle().setProperty("fontStyle", "italic");
+    infoLabel.setVisible(false);
+
+    // Draft-mode checkbox.
+    final CheckBox draftMode = new CheckBox(messages.draft());
+    draftMode.getElement().getStyle().setProperty("fontSize", "8.5pt");
+    draftMode.getElement().getStyle().setProperty("marginRight", "0.5em");
+    draftMode.addValueChangeHandler(new ValueChangeHandler<Boolean>() {
+      @Override
+      public void onValueChange(ValueChangeEvent<Boolean> event) {
+        infoLabel.setVisible(event.getValue());
+        if (listener != null) {
+          listener.onModeChange(event.getValue());
+        }
+      }
+    });
+    panel.add(draftMode);
+    panel.add(infoLabel);
 
     setWidget(panel);
   }

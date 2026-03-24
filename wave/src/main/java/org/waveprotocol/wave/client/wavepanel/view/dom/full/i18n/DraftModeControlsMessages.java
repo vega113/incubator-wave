@@ -39,4 +39,7 @@ public interface DraftModeControlsMessages extends Messages {
 
   @DefaultMessage("Finish editing. Discard draft")
   String cancelHint();
+
+  @DefaultMessage("Your edits won\u0027t be sent until you click Done")
+  String draftInfo();
 }
