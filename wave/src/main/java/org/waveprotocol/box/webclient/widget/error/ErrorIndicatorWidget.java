@@ -45,8 +45,14 @@ public final class ErrorIndicatorWidget extends Composite implements ErrorIndica
     String expanded();
 
     // Classes not used by code, but forced to be declared thanks to UiBinder.
+    String overlay();
+    String header();
+    String message();
+    String actions();
+    String btn();
+    String btnPrimary();
+    String alert();
     String detail();
-
     String stack();
   }
 
@@ -62,6 +68,12 @@ public final class ErrorIndicatorWidget extends Composite implements ErrorIndica
   Element stack;
   @UiField
   Element bug;
+  @UiField
+  Element overlay;
+  @UiField
+  Anchor copyBtn;
+  @UiField
+  Anchor dismissBtn;
 
   private Listener listener;
 
@@ -91,6 +103,32 @@ public final class ErrorIndicatorWidget extends Composite implements ErrorIndica
     }
   }
 
+  @UiHandler("copyBtn")
+  void handleCopyClick(ClickEvent e) {
+    copyToClipboard(stack.getInnerText());
+    copyBtn.setText("Copied!");
+  }
+
+  @UiHandler("dismissBtn")
+  void handleDismissClick(ClickEvent e) {
+    overlay.getStyle().setProperty("display", "none");
+  }
+
+  private static native void copyToClipboard(String text) /*-{
+    if ($wnd.navigator.clipboard && $wnd.navigator.clipboard.writeText) {
+      $wnd.navigator.clipboard.writeText(text);
+    } else {
+      var ta = $doc.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      $doc.body.appendChild(ta);
+      ta.select();
+      $doc.execCommand('copy');
+      $doc.body.removeChild(ta);
+    }
+  }-*/;
+
   @Override
   public void setStack(SafeHtml stack) {
     this.stack.setInnerHTML(stack.asString());
@@ -104,6 +142,7 @@ public final class ErrorIndicatorWidget extends Composite implements ErrorIndica
   @Override
   public void showDetailLink() {
     showDetail.setVisible(true);
+    copyBtn.setVisible(true);
   }
 
   @Override
