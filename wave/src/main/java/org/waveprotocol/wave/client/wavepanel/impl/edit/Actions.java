@@ -53,6 +53,26 @@ public interface Actions {
   void stopEditing();
 
   /**
+   * Stops editing a blip, choosing whether to save or discard changes.
+   *
+   * @param save true to save (flush) the draft, false to discard
+   */
+  void stopEditing(boolean save);
+
+  /**
+   * Enters draft mode for the currently-edited blip.
+   * In draft mode, ops are buffered locally rather than sent immediately.
+   */
+  void enterDraftMode();
+
+  /**
+   * Leaves draft mode.
+   *
+   * @param saveChanges true to flush buffered ops, false to discard them
+   */
+  void leaveDraftMode(boolean saveChanges);
+
+  /**
    * Replies to a blip.
    */
   void reply(BlipView blipUi);

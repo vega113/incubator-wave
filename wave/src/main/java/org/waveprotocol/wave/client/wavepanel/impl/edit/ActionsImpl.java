@@ -96,6 +96,22 @@ public final class ActionsImpl implements Actions {
   }
 
   @Override
+  public void stopEditing(boolean save) {
+    // TODO(draft-mode): if !save, revert buffered ops before stopping.
+    edit.stopEditing();
+  }
+
+  @Override
+  public void enterDraftMode() {
+    // TODO(draft-mode): engage op-buffering on the current editor session.
+  }
+
+  @Override
+  public void leaveDraftMode(boolean saveChanges) {
+    // TODO(draft-mode): flush or discard buffered ops accordingly.
+  }
+
+  @Override
   public void reply(BlipView blipUi) {
     boolean allowed = !BlipUiUtil.isQuasiDeleted(blipUi);
     if (allowed) {

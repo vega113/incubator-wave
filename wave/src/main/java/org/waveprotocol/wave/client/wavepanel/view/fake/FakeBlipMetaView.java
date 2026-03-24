@@ -134,6 +134,23 @@ public final class FakeBlipMetaView implements BlipMetaView {
   }
 
   @Override
+  public DraftModeControls attachDraftModeControls() {
+    return null;
+  }
+
+  @Override
+  public void detachDraftModeControls() {
+  }
+
+  @Override
+  public void showDraftModeControls() {
+  }
+
+  @Override
+  public void hideDraftModeControls() {
+  }
+
+  @Override
   public String toString() {
     return "Meta [" //
         + "content: " + content //
