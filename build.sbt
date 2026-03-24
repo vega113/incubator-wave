@@ -157,7 +157,7 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
 
 Test / unmanagedSourceDirectories += baseDirectory.value / "wave" / "src" / "test" / "java"
 
-// Phase 2: all dependencies are now managed via libraryDependencies; third_party/ is no longer on the classpath.
+// All dependencies are managed via libraryDependencies (Coursier).
 // Codegen tasks resolve JARs from managed deps via (Compile / dependencyClasspath).
 
 // Serve static assets from wave/war/ via classpath resources (Jetty will still serve filesystem if desired)
@@ -929,19 +929,12 @@ ThisBuild / prepareServerConfig := {
   }
 }
 
+// Legacy Ant-based test runner.  The vendored third_party/ JARs and root
+// build.xml have been removed; use `sbt test` instead.  This task is kept
+// only as a placeholder so that old documentation references don't break.
 ThisBuild / testBackend := {
-  val log = streams.value.log
-  val base = baseDirectory.value
-  // Ensure junit jar exists in vendored test libs to run Ant-based tests offline
-  val junitDir = base / "third_party" / "test" / "junit"
-  val junitJars = (junitDir * "*.jar").get
-  if (junitJars.isEmpty) {
-    sys.error(s"JUnit jar not found under ${junitDir}. Place e.g. junit-4.13.2.jar there (and hamcrest is already vendored) or enable managed Test deps.")
-  }
-  val antCheck = Process(Seq("bash","-lc","command -v ant >/dev/null 2>&1; echo $?"), base).!!.trim
-  if (antCheck != "0") sys.error("Ant not found; please install Ant to run tests via Ant.")
-  val code = Process(Seq("ant", "-q", "test"), base).!(ProcessLogger(s => log.info(s), e => log.error(e)))
-  if (code != 0) sys.error("Ant test run failed")
+  sys.error("testBackend is no longer available. The legacy Ant test runner " +
+    "and vendored third_party/ JARs have been removed. Use `sbt test` instead.")
 }
 
 // Migration tools wrappers

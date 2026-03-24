@@ -1,8 +1,8 @@
 # Building with SBT
 
 SBT is the sole build system for Apache Wave (Gradle was removed in Phase 8).
-The SBT build compiles the server on JDK 17, reuses vendored jars under
-`third_party/`, and is aligned with the checked-in `wave/config/` layout.
+The SBT build compiles the server on JDK 17 with all dependencies managed via
+Coursier, and is aligned with the checked-in `wave/config/` layout.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ The SBT build compiles the server on JDK 17, reuses vendored jars under
   (Jakarta).
 - SBT 1.10+ installed.
 - `protoc` is provided by `sbt-protoc` (embedded protoc v3.25.x).
-- `ant` is only needed for the legacy `testBackend` fallback.
+- `ant` is no longer needed (the legacy `testBackend` fallback has been removed).
 - `generatePstMessages`, `generateFlags`, and `generateGxp` remain manual tasks.
 
 ## Layout and decisions
@@ -22,7 +22,7 @@ The SBT build compiles the server on JDK 17, reuses vendored jars under
   - `wave/src/proto/` (Protocol Buffer definitions)
   - `proto_src/` (generated Protobuf Java sources)
   - `gen/gxp/`, `gen/messages/`, `gen/flags/` (generated sources)
-- Dependencies: vendored jars in `third_party/**` are added to the classpath.
+- Dependencies: all managed via SBT `libraryDependencies` (Coursier).
 - Resources: `wave/war/` is added to the classpath for static content.
 - Main class: `org.waveprotocol.box.server.ServerMain`.
 - Runtime config lives under `wave/config/`. `prepareServerConfig` seeds the
@@ -88,7 +88,8 @@ The SBT build compiles the server on JDK 17, reuses vendored jars under
     subsystem).
   - Add `-v` for more logging: `sbt -v test`.
 - Offline fallback (legacy): `sbt testBackend`
-  - Uses the legacy Ant runner if you prefer the previous path.
+  - Deprecated. The legacy Ant runner and vendored `third_party/` JARs have been
+    removed. Use `sbt test` instead.
 
 ## Notes
 
@@ -174,11 +175,10 @@ persistence/migration.
 ## Troubleshooting
 
 - If SBT cannot resolve itself or plugins due to network restrictions, note that
-  this build uses both vendored `third_party/` jars and managed dependencies.
-  Running `sbt` typically requires network access on first use unless local
-  Ivy/Maven/coursier caches are already warm; offline options are to pre-populate
-  those caches, vendor the managed jars, or use a local SBT launcher and
-  artifact proxy.
+  all dependencies are now managed via Coursier. Running `sbt` requires network
+  access on first use unless local Ivy/Maven/Coursier caches are already warm;
+  offline options are to pre-populate those caches, vendor the managed jars, or
+  use a local SBT launcher and artifact proxy.
 - If `gen/` directories are missing, initial compile may still pass; features
   depending on generated sources may be unavailable until you run the
   corresponding manual tasks.

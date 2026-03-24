@@ -85,3 +85,6 @@ project/project/
 ### Proto generated sources (not committed)
 proto_src/
 /.env.local
+
+### Legacy vendored JARs (removed; dependencies are managed via SBT/Coursier)
+third_party/
