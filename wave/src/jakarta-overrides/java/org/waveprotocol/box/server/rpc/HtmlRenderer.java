@@ -1404,19 +1404,19 @@ public final class HtmlRenderer {
     sb.append("    reload.textContent = 'Reload';\n");
     sb.append("    reload.style.cssText = 'color:white;font-weight:bold;text-decoration:underline;';\n");
     sb.append("    reload.onclick = function(e) { e.preventDefault(); location.reload(); };\n");
-    sb.append("    var dismiss = document.createElement('span');\n");
+    sb.append("    var dismiss = document.createElement('button');\n");
+    sb.append("    dismiss.type = 'button';\n");
     sb.append("    dismiss.textContent = '\\u2715';\n");
-    sb.append("    dismiss.style.cssText = 'cursor:pointer;margin-left:12px;font-size:16px;';\n");
-    sb.append("    dismiss.setAttribute('role', 'button');\n");
+    sb.append("    dismiss.style.cssText = 'background:none;border:0;color:white;cursor:pointer;font-size:16px;padding:0;line-height:1;';\n");
     sb.append("    dismiss.setAttribute('aria-label', 'Dismiss');\n");
     sb.append("    dismiss.onclick = function() { banner.remove(); };\n");
     sb.append("    banner.appendChild(msg);\n");
     sb.append("    banner.appendChild(reload);\n");
     sb.append("    banner.appendChild(dismiss);\n");
-    sb.append("    banner.style.cssText = 'position:fixed;bottom:20px;right:20px;")
+    sb.append("    banner.style.cssText = 'position:fixed;bottom:20px;right:20px;max-width:420px;")
        .append("background:").append(WAVE_PRIMARY).append(";color:white;padding:12px 20px;")
        .append("border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:9999;")
-       .append("font-family:system-ui,sans-serif;font-size:14px;display:flex;align-items:center;gap:8px;';\n");
+       .append("font-family:system-ui,sans-serif;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';\n");
     sb.append("    document.body.appendChild(banner);\n");
     sb.append("  }\n");
     sb.append("  checkVersion();\n");
