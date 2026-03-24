@@ -126,39 +126,52 @@ public final class MagicLinkServlet extends HttpServlet {
 
   private void handleSendRequest(HttpServletRequest req, HttpServletResponse resp)
       throws IOException {
-    String username = req.getParameter("address");
+    String input = req.getParameter("address");
     String successMessage = "If an account exists with that address, a login link has been sent.";
 
-    if (username == null || username.trim().isEmpty()) {
+    if (input == null || input.trim().isEmpty()) {
       writeRequestPage(resp, successMessage,
           AuthenticationServlet.RESPONSE_STATUS_SUCCESS, HttpServletResponse.SC_OK);
       return;
     }
 
-    String normalized = username.trim().toLowerCase(Locale.ROOT);
-    if (!normalized.contains("@")) {
-      normalized = normalized + "@" + domain;
-    }
+    String normalized = input.trim().toLowerCase(Locale.ROOT);
 
     try {
-      ParticipantId id = ParticipantId.of(normalized);
-      AccountData account = accountStore.getAccount(id);
+      AccountData account = null;
+
+      // Prioritize participant ID lookup to avoid stored-email shadowing a real participant.
+      String participantAddr = normalized.contains("@") ? normalized : normalized + "@" + domain;
+      try {
+        ParticipantId id = ParticipantId.of(participantAddr);
+        account = accountStore.getAccount(id);
+      } catch (InvalidParticipantAddress ignored) {
+        // Not a valid participant address; try email lookup below.
+      }
+
+      // Fall back to email lookup if no participant match found.
+      if (account == null && normalized.contains("@")) {
+        account = accountStore.getAccountByEmail(normalized);
+      }
+
       if (account != null && account.isHuman()) {
         // Check email confirmation if applicable
         if (!account.asHuman().isEmailConfirmed()) {
           LOG.info("Magic link requested for unconfirmed account: " + normalized);
         } else {
-          String jwtToken = emailTokenIssuer.issueMagicLinkToken(id);
+          // Send to stored email if available, otherwise fall back to wave address
+          org.waveprotocol.box.server.account.HumanAccountData human = account.asHuman();
+          String sendTo = (human.getEmail() != null && !human.getEmail().isEmpty())
+              ? human.getEmail() : account.getId().getAddress();
+          String jwtToken = emailTokenIssuer.issueMagicLinkToken(account.getId());
           String loginUrl = buildLoginUrl(req, jwtToken);
-          String emailBody = renderMagicLinkEmail(id.getAddress(), loginUrl);
-          mailProvider.sendEmail(id.getAddress(), "Login Link - Wave", emailBody);
-          LOG.info("Magic link email sent to " + id.getAddress());
+          String emailBody = renderMagicLinkEmail(account.getId().getAddress(), loginUrl);
+          mailProvider.sendEmail(sendTo, "Login Link - Wave", emailBody);
+          LOG.info("Magic link email sent for user " + account.getId().getAddress());
         }
       } else {
         LOG.info("Magic link requested for non-existent account: " + normalized);
       }
-    } catch (InvalidParticipantAddress e) {
-      LOG.info("Invalid address in magic link request: " + normalized);
     } catch (PersistenceException e) {
       LOG.severe("Persistence error during magic link request", e);
     } catch (MailException e) {

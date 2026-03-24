@@ -81,6 +81,47 @@ public class FileAccountStore implements AccountStore {
   }
 
   @Override
+  public AccountData getAccountByEmail(String email) throws PersistenceException {
+    if (email == null || email.isEmpty()) {
+      return null;
+    }
+    synchronized (accounts) {
+      // First check already-cached accounts
+      for (AccountData account : accounts.values()) {
+        if (account.isHuman() && email.equalsIgnoreCase(account.asHuman().getEmail())) {
+          return account;
+        }
+      }
+      // Scan account files on disk that are not yet cached
+      File dir = new File(accountStoreBasePath);
+      File[] files = dir.listFiles((d, name) -> name.endsWith(ACCOUNT_FILE_EXTENSION));
+      if (files != null) {
+        for (File f : files) {
+          String fileName = f.getName();
+          String addr = fileName.substring(0, fileName.length() - ACCOUNT_FILE_EXTENSION.length());
+          ParticipantId pid;
+          try {
+            pid = ParticipantId.of(addr);
+          } catch (Exception e) {
+            continue;
+          }
+          if (accounts.containsKey(pid)) {
+            continue; // already checked above
+          }
+          AccountData account = readAccount(pid);
+          if (account != null) {
+            accounts.put(pid, account);
+            if (account.isHuman() && email.equalsIgnoreCase(account.asHuman().getEmail())) {
+              return account;
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  @Override
   public void removeAccount(ParticipantId id) throws PersistenceException {
     synchronized (accounts) {
       File file = new File(participantIdToFileName(id));
