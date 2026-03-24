@@ -34,12 +34,15 @@ public interface DraftModeControlsMessages extends Messages {
   @DefaultMessage("Cancel")
   String cancelTitle();
 
-  @DefaultMessage("Done with editing. Save draft")
+  @DefaultMessage("Done — save draft (Ctrl+Enter)")
   String doneHint();
 
-  @DefaultMessage("Finish editing. Discard draft")
+  @DefaultMessage("Cancel — discard draft (Esc)")
   String cancelHint();
 
   @DefaultMessage("Your edits are buffered and will be sent when you finish editing or uncheck Draft")
   String draftInfo();
+
+  @DefaultMessage("Toggle draft mode (Ctrl+D)")
+  String draftHint();
 }
