@@ -111,39 +111,6 @@
     justify-content: center;
   }
 
-  /* Show on light background too */
-  .bg-strip {
-    display: flex;
-    gap: 24px;
-    margin-top: 16px;
-  }
-
-  .bg-strip .on-light {
-    background: #f0f4f8;
-    border-radius: 12px;
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .bg-strip .on-dark {
-    background: #0f1117;
-    border-radius: 12px;
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #2a2d3d;
-  }
-
-  .bg-label {
-    font-size: 10px;
-    color: #5a6275;
-    text-align: center;
-    margin-top: 4px;
-  }
-
   .section-divider {
     max-width: 1100px;
     margin: 48px auto;
@@ -197,6 +164,13 @@
   }
 
   .bg-test-cell.dark span { color: #8892a4; }
+
+  @media (prefers-reduced-motion: reduce) {
+    svg animate,
+    svg animateTransform {
+      display: none;
+    }
+  }
 </style>
 </head>
 <body>
@@ -369,7 +343,7 @@
     <p>
       A cresting ocean wave whose curl doubles as a speech bubble tail.
       The wave silhouette contains a subtle "W" in its troughs.
-      Three dots inside suggest an active conversation in progress.
+      The inner wave line suggests active communication in progress.
       Gentle bobbing animation keeps it alive.
     </p>
     <div class="logo-row">
