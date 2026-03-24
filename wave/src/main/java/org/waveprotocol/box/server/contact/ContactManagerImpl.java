@@ -167,7 +167,11 @@ public class ContactManagerImpl implements ContactManager {
     // persistence.
     Map<ParticipantId, Contact> previous = contactsToWrite.getIfPresent(participant);
     if (previous != null && previous != contacts) {
-      contactStore.storeContacts(participant, Lists.newArrayList(previous.values()));
+      try {
+        contactStore.storeContacts(participant, Lists.newArrayList(previous.values()));
+      } catch (Exception e) {
+        LOG.warning("Failed to flush previous contacts for " + participant + ", will re-queue", e);
+      }
     }
     contactsToWrite.put(participant, contacts);
   }
