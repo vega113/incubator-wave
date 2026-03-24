@@ -171,9 +171,7 @@ public final class VersionHistoryServlet extends HttpServlet {
       ReadableWaveletData data = snapshot.snapshot;
       long version = data.getHashedVersion().getVersion();
 
-      resp.setStatus(HttpServletResponse.SC_OK);
-      resp.setContentType("application/json");
-      resp.setHeader("Cache-Control", "no-store");
+      setJsonUtf8(resp);
       try (PrintWriter w = resp.getWriter()) {
         w.append("{\"version\":").append(String.valueOf(version));
         w.append(",\"creator\":").append(jsonStr(data.getCreator().getAddress()));
@@ -225,9 +223,7 @@ public final class VersionHistoryServlet extends HttpServlet {
     }
 
     if (start >= end) {
-      resp.setStatus(HttpServletResponse.SC_OK);
-      resp.setContentType("application/json");
-      resp.setHeader("Cache-Control", "no-store");
+      setJsonUtf8(resp);
       try (PrintWriter w = resp.getWriter()) {
         w.append("[]");
         w.flush();
@@ -259,9 +255,7 @@ public final class VersionHistoryServlet extends HttpServlet {
         }
       });
 
-      resp.setStatus(HttpServletResponse.SC_OK);
-      resp.setContentType("application/json");
-      resp.setHeader("Cache-Control", "no-store");
+      setJsonUtf8(resp);
       try (PrintWriter w = resp.getWriter()) {
         w.append("[");
         for (int i = 0; i < deltas.size(); i++) {
@@ -323,9 +317,7 @@ public final class VersionHistoryServlet extends HttpServlet {
       // Build wavelet state at targetVersion by replaying deltas
       if (targetVersion == 0) {
         // Version 0 is the empty state
-        resp.setStatus(HttpServletResponse.SC_OK);
-        resp.setContentType("application/json");
-        resp.setHeader("Cache-Control", "no-store");
+        setJsonUtf8(resp);
         try (PrintWriter w = resp.getWriter()) {
           w.append("{\"documents\":[],\"participants\":[],\"version\":0}");
           w.flush();
@@ -351,6 +343,17 @@ public final class VersionHistoryServlet extends HttpServlet {
         return;
       }
 
+      // Verify the requested version lands exactly on a delta boundary.
+      // We can only replay whole deltas, so versions between boundaries are not reconstructable.
+      TransformedWaveletDelta lastDelta = deltaList.get(deltaList.size() - 1);
+      long replayedVersion = lastDelta.getResultingVersion().getVersion();
+      if (replayedVersion != targetVersion) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST,
+            "Version " + targetVersion + " falls between delta boundaries; "
+            + "nearest replayable version is " + replayedVersion);
+        return;
+      }
+
       // Build wavelet from deltas
       ReadableWaveletData waveletData =
           org.waveprotocol.box.server.util.WaveletDataUtil.buildWaveletFromDeltas(
@@ -370,9 +373,7 @@ public final class VersionHistoryServlet extends HttpServlet {
   /** Writes a wavelet snapshot as JSON, extracting blip text content. */
   private void writeSnapshotJson(ReadableWaveletData waveletData, HttpServletResponse resp)
       throws IOException {
-    resp.setStatus(HttpServletResponse.SC_OK);
-    resp.setContentType("application/json");
-    resp.setHeader("Cache-Control", "no-store");
+    setJsonUtf8(resp);
     try (PrintWriter w = resp.getWriter()) {
       w.append("{\"version\":").append(String.valueOf(waveletData.getHashedVersion().getVersion()));
       w.append(",\"creator\":").append(jsonStr(waveletData.getCreator().getAddress()));
@@ -443,14 +444,15 @@ public final class VersionHistoryServlet extends HttpServlet {
         sb.append(c);
       }
     }
-    // Decode common XML entities
+    // Decode common XML entities. Decode &amp; LAST to avoid double-decoding
+    // sequences like &amp;lt; -> &lt; -> <
     String result = sb.toString();
-    result = result.replace("&amp;", "&");
     result = result.replace("&lt;", "<");
     result = result.replace("&gt;", ">");
     result = result.replace("&quot;", "\"");
     result = result.replace("&#39;", "'");
-    return result.trim();
+    result = result.replace("&amp;", "&");
+    return result;
   }
 
   // =========================================================================
@@ -537,6 +539,7 @@ public final class VersionHistoryServlet extends HttpServlet {
     sb.append(".vh-timeline { flex: 1; overflow-y: auto; padding: 8px 0; }\n");
     sb.append(".vh-entry { display: flex; align-items: flex-start; padding: 10px 16px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s; gap: 10px; }\n");
     sb.append(".vh-entry:hover { background: #f7fafc; }\n");
+    sb.append(".vh-entry:focus { outline: 2px solid var(--wave-primary); outline-offset: -2px; background: #f7fafc; }\n");
     sb.append(".vh-entry.selected { background: var(--wave-primary-light); border-left-color: var(--wave-primary); }\n");
     sb.append(".vh-avatar { width: 32px; height: 32px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #4a5568; flex-shrink: 0; }\n");
     sb.append(".vh-entry.selected .vh-avatar { background: var(--wave-primary); color: #fff; }\n");
@@ -632,7 +635,8 @@ public final class VersionHistoryServlet extends HttpServlet {
     sb.append("var selectedVersion = null;\n");
     sb.append("var snapshotCache = {};\n");
     sb.append("var deltaList = [];\n");
-    sb.append("var currentMaxVersion = 0;\n\n");
+    sb.append("var currentMaxVersion = 0;\n");
+    sb.append("var requestId = 0;\n\n");
 
     // Utility: escape HTML to prevent XSS from blip content
     sb.append("function esc(s) {\n");
@@ -702,7 +706,7 @@ public final class VersionHistoryServlet extends HttpServlet {
     // Show in reverse chronological order
     sb.append("  for (var i = deltaList.length - 1; i >= 0; i--) {\n");
     sb.append("    var d = deltaList[i];\n");
-    sb.append("    html += '<div class=\"vh-entry\" data-version=\"' + d.resultingVersion + '\" data-idx=\"' + i + '\" onclick=\"window._selectVersion(' + d.resultingVersion + ', ' + i + ')\">';\n");
+    sb.append("    html += '<div class=\"vh-entry\" tabindex=\"0\" role=\"button\" data-version=\"' + d.resultingVersion + '\" data-idx=\"' + i + '\" onclick=\"window._selectVersion(' + d.resultingVersion + ', ' + i + ')\" onkeydown=\"if(event.key===\\\"Enter\\\"||event.key===\\\" \\\"){event.preventDefault();window._selectVersion(' + d.resultingVersion + ', ' + i + ')}\">';\n");
     sb.append("    html += '<div class=\"vh-avatar\">' + esc(initials(d.author)) + '</div>';\n");
     sb.append("    html += '<div class=\"vh-entry-info\">';\n");
     sb.append("    html += '<div class=\"vh-entry-author\">' + esc(shortAuthor(d.author)) + '</div>';\n");
@@ -714,7 +718,7 @@ public final class VersionHistoryServlet extends HttpServlet {
     // Add version 0 (initial empty state) at the bottom of the timeline
     sb.append("  var hasV0 = deltaList.some(function(d) { return d.resultingVersion === 0; });\n");
     sb.append("  if (!hasV0) {\n");
-    sb.append("    html += '<div class=\"vh-entry\" data-version=\"0\" data-idx=\"-1\" onclick=\"window._selectVersion(0, -1)\">';\n");
+    sb.append("    html += '<div class=\"vh-entry\" tabindex=\"0\" role=\"button\" data-version=\"0\" data-idx=\"-1\" onclick=\"window._selectVersion(0, -1)\" onkeydown=\"if(event.key===\\\"Enter\\\"||event.key===\\\" \\\"){event.preventDefault();window._selectVersion(0, -1)}\">';\n");
     sb.append("    html += '<div class=\"vh-avatar\">v0</div>';\n");
     sb.append("    html += '<div class=\"vh-entry-info\">';\n");
     sb.append("    html += '<div class=\"vh-entry-author\">Initial state</div>';\n");
@@ -742,26 +746,27 @@ public final class VersionHistoryServlet extends HttpServlet {
     sb.append("  var area = document.getElementById('content-area');\n");
     sb.append("  var label = document.getElementById('version-label');\n");
     sb.append("  label.textContent = 'Version ' + version;\n");
-    sb.append("  var diffOn = document.getElementById('diff-toggle').checked;\n\n");
+    sb.append("  var diffOn = document.getElementById('diff-toggle').checked;\n");
+    sb.append("  var rid = ++requestId;\n\n");
     sb.append("  if (diffOn && version > 0) {\n");
-    sb.append("    loadDiff(version, area);\n");
+    sb.append("    loadDiff(version, area, rid);\n");
     sb.append("  } else {\n");
-    sb.append("    loadSnapshot(version, area);\n");
+    sb.append("    loadSnapshot(version, area, rid);\n");
     sb.append("  }\n");
     sb.append("}\n\n");
 
     // Load and render a single snapshot
-    sb.append("function loadSnapshot(version, area) {\n");
+    sb.append("function loadSnapshot(version, area, rid) {\n");
     sb.append("  if (snapshotCache[version]) {\n");
-    sb.append("    renderSnapshot(snapshotCache[version], area);\n");
+    sb.append("    if (rid === requestId) renderSnapshot(snapshotCache[version], area);\n");
     sb.append("    return;\n");
     sb.append("  }\n");
     sb.append("  showLoading(area);\n");
     sb.append("  apiFetch('snapshot', { version: version }).then(function(data) {\n");
     sb.append("    snapshotCache[version] = data;\n");
-    sb.append("    if (selectedVersion === version) renderSnapshot(data, area);\n");
+    sb.append("    if (selectedVersion === version && rid === requestId) renderSnapshot(data, area);\n");
     sb.append("  }).catch(function(e) {\n");
-    sb.append("    if (selectedVersion === version) showError(area, 'Failed to load version ' + version + ': ' + e.message);\n");
+    sb.append("    if (selectedVersion === version && rid === requestId) showError(area, 'Failed to load version ' + version + ': ' + e.message);\n");
     sb.append("  });\n");
     sb.append("}\n\n");
 
@@ -786,24 +791,24 @@ public final class VersionHistoryServlet extends HttpServlet {
     sb.append("}\n\n");
 
     // Load diff between version N and N-1
-    sb.append("function loadDiff(version, area) {\n");
+    sb.append("function loadDiff(version, area, rid) {\n");
     sb.append("  var prevVersion = findPrevVersion(version);\n");
     sb.append("  if (prevVersion < 0) {\n");
-    sb.append("    loadSnapshot(version, area);\n");
+    sb.append("    loadSnapshot(version, area, rid);\n");
     sb.append("    return;\n");
     sb.append("  }\n");
     sb.append("  var needed = [];\n");
     sb.append("  if (!snapshotCache[version]) needed.push(apiFetch('snapshot', { version: version }).then(function(d) { snapshotCache[version] = d; }));\n");
     sb.append("  if (!snapshotCache[prevVersion]) needed.push(apiFetch('snapshot', { version: prevVersion }).then(function(d) { snapshotCache[prevVersion] = d; }));\n\n");
     sb.append("  if (needed.length === 0) {\n");
-    sb.append("    renderDiff(snapshotCache[prevVersion], snapshotCache[version], area);\n");
+    sb.append("    if (rid === requestId) renderDiff(snapshotCache[prevVersion], snapshotCache[version], area);\n");
     sb.append("    return;\n");
     sb.append("  }\n");
     sb.append("  showLoading(area);\n");
     sb.append("  Promise.all(needed).then(function() {\n");
-    sb.append("    if (selectedVersion === version) renderDiff(snapshotCache[prevVersion], snapshotCache[version], area);\n");
+    sb.append("    if (selectedVersion === version && rid === requestId) renderDiff(snapshotCache[prevVersion], snapshotCache[version], area);\n");
     sb.append("  }).catch(function(e) {\n");
-    sb.append("    if (selectedVersion === version) showError(area, 'Failed to load diff: ' + e.message);\n");
+    sb.append("    if (selectedVersion === version && rid === requestId) showError(area, 'Failed to load diff: ' + e.message);\n");
     sb.append("  });\n");
     sb.append("}\n\n");
 
@@ -944,6 +949,14 @@ public final class VersionHistoryServlet extends HttpServlet {
 
     sb.append("</body>\n</html>\n");
     return sb.toString();
+  }
+
+  /** Sets standard JSON UTF-8 response headers before writing. */
+  private static void setJsonUtf8(HttpServletResponse resp) {
+    resp.setStatus(HttpServletResponse.SC_OK);
+    resp.setContentType("application/json; charset=UTF-8");
+    resp.setCharacterEncoding("UTF-8");
+    resp.setHeader("Cache-Control", "no-store");
   }
 
   /** JSON string literal helper. */
