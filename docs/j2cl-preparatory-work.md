@@ -156,7 +156,7 @@ that a future task could:
 ## Summary and Next Steps
 
 The module graph has been reduced from 163 to 136 files. The remaining modules
-are all actively used. The client's Guava surface is narrow (mostly
+are intentionally retained and reachable. The client's Guava surface is narrow (mostly
 `Preconditions` and `@VisibleForTesting`) and ready for source-level replacement
 in a follow-on task.
 
