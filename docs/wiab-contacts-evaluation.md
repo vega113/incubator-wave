@@ -24,9 +24,10 @@ frequently and recently contacted users appear first.
 4. **Caching** -- `ContactManagerImpl` keeps a Guava `LoadingCache` of 10 000
    users and uses a write-behind cache that flushes to the store every 20
    seconds.
-5. **Serving** -- `FetchContactsServlet` (GET `/fetchContacts?timestamp=<ms>`)
-   returns contacts updated since the given timestamp as JSON. The response
-   includes each contact's participant address and computed score.
+5. **Serving** -- `FetchContactsServlet` (Wiab.pro: GET `/fetchContacts?timestamp=<ms>`;
+   this PR: GET `/contacts?timestamp=<ms>`) returns contacts updated since the
+   given timestamp as JSON. The response includes each contact's participant
+   address and computed score.
 6. **Client** -- `RemoteContactManagerImpl` (GWT) fetches contacts
    incrementally. `ContactSelectorWidget` renders a popup autocomplete that
    filters by typed prefix, highlights matches, and lets the user pick a
@@ -108,7 +109,7 @@ multi-user deployment this is table-stakes UX.
 
 ### Client-side feasibility
 **Deferred.** The GWT client widgets are tightly coupled to GWT UiBinder and
-the legacy webclient. The React/modern web client replacement work is ongoing.
+the legacy web client. The React/modern web client replacement work is ongoing.
 The servlet provides a clean JSON API that any future client can consume.
 
 ## What Is Ported (This PR)

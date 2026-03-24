@@ -59,6 +59,7 @@ public class ContactManagerImpl implements ContactManager {
   /** How long to delay writes to the backing store (seconds). */
   private static final int WRITE_DELAY_SEC = 20;
 
+  private final ContactStore contactStore;
   private final LoadingCache<ParticipantId, Map<ParticipantId, Contact>> contactsCache;
   private final Cache<ParticipantId, Map<ParticipantId, Contact>> contactsToWrite;
 
@@ -67,6 +68,7 @@ public class ContactManagerImpl implements ContactManager {
       final ContactStore contactStore,
       @ExecutorAnnotations.ContactExecutor ScheduledExecutorService executor) {
 
+    this.contactStore = contactStore;
     contactsCache = CacheBuilder.newBuilder()
         .maximumSize(READ_CACHE_MAX_SIZE)
         .build(new CacheLoader<ParticipantId, Map<ParticipantId, Contact>>() {
@@ -159,6 +161,14 @@ public class ContactManagerImpl implements ContactManager {
         return new ContactImpl(interlocutor, time, bonus);
       }
     });
+    // Flush the old map if the write-behind cache already holds a different instance
+    // (e.g., after a read-cache eviction/reload replaced it). Without this, unsaved
+    // contacts in the old map would be lost because the REPLACED removal cause skips
+    // persistence.
+    Map<ParticipantId, Contact> previous = contactsToWrite.getIfPresent(participant);
+    if (previous != null && previous != contacts) {
+      contactStore.storeContacts(participant, Lists.newArrayList(previous.values()));
+    }
     contactsToWrite.put(participant, contacts);
   }
 
