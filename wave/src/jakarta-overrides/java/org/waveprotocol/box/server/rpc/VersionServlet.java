@@ -51,6 +51,8 @@ public final class VersionServlet extends HttpServlet {
     this.buildTime = System.currentTimeMillis();
   }
 
+  public long getBuildTime() { return buildTime; }
+
   /** Visible-for-testing constructor. */
   public VersionServlet(String version, long buildTime) {
     this.version = version;

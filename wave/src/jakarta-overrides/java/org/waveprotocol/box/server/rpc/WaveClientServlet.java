@@ -74,7 +74,8 @@ public class WaveClientServlet extends HttpServlet {
   public WaveClientServlet(
       @Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
       Config config,
-      SessionManager sessionManager) {
+      SessionManager sessionManager,
+      VersionServlet versionServlet) {
     List<String> httpAddresses = config.getStringList("core.http_frontend_addresses");
     String websocketAddress = config.getString("core.http_websocket_public_address");
     String configuredWebsocketPresentedAddress =
@@ -93,7 +94,7 @@ public class WaveClientServlet extends HttpServlet {
     this.config = config;
     this.serverVersion = config.hasPath("core.server_version")
         ? config.getString("core.server_version") : "dev";
-    this.serverBuildTime = System.currentTimeMillis();
+    this.serverBuildTime = versionServlet.getBuildTime();
   }
 
   @Override
