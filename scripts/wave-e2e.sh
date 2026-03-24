@@ -38,6 +38,11 @@ wait_for_healthz() {
 }
 
 start_server() {
+  if curl -sf -o /dev/null "http://localhost:$PORT/healthz" 2>/dev/null; then
+    echo "[e2e] ERROR: a server is already healthy on port $PORT. Stop it first or set WAVE_E2E_BASE_URL." >&2
+    return 1
+  fi
+
   if [[ ! -x "$INSTALL_DIR/bin/wave" ]]; then
     echo "[e2e] Distribution not found -- building with Gradle ..."
     "$REPO_ROOT/gradlew" --no-daemon --warning-mode all :wave:installDist
@@ -48,6 +53,11 @@ start_server() {
   nohup ./bin/wave > wave_server.out 2>&1 &
   local pid=$!
   echo "$pid" > "$PID_FILE"
+  sleep 1
+  if ! kill -0 "$pid" 2>/dev/null; then
+    echo "[e2e] ERROR: Wave server exited during startup. See $INSTALL_DIR/wave_server.out." >&2
+    return 1
+  fi
   cd "$REPO_ROOT"
   echo "[e2e] Server PID=$pid"
 }
@@ -105,6 +115,7 @@ echo "[e2e] Running pytest against $BASE_URL ..."
 
 PYTHON="${PYTHON:-python3}"
 
+set +e
 WAVE_E2E_BASE_URL="$BASE_URL" \
   "$PYTHON" -m pytest "$E2E_DIR" \
     -v \
@@ -112,8 +123,8 @@ WAVE_E2E_BASE_URL="$BASE_URL" \
     --junitxml="$RESULTS_DIR/e2e-junit.xml" \
     -o "console_output_style=classic" \
   2>&1 | tee "$RESULTS_DIR/e2e-output.txt"
-
 exit_code=${PIPESTATUS[0]}
+set -e
 
 echo "[e2e] Tests finished with exit code $exit_code"
 exit "$exit_code"
