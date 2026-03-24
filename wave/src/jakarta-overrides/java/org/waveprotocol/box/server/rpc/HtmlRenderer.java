@@ -102,8 +102,10 @@ public final class HtmlRenderer {
       + "  box-shadow: 0 0 0 3px rgba(0,119,182,0.10);\n"
       + "}\n"
 
-      // Filter buttons (Shared / All / Inbox)
-      + "#app .gwt-Button {\n"
+      // Filter buttons (Shared / All / Inbox) – scoped to search panel
+      // to avoid breaking fixed-dimension toolbars elsewhere
+      + "#app [kind=\"c\"] .gwt-Button {\n"
+      + "  box-sizing: border-box;\n"
       + "  border: 1.5px solid " + WAVE_BORDER + ";\n"
       + "  border-radius: 16px;\n"
       + "  background: #fff;\n"
@@ -116,7 +118,7 @@ public final class HtmlRenderer {
       + "  transition: all 0.15s ease;\n"
       + "  line-height: 1.4;\n"
       + "}\n"
-      + "#app .gwt-Button:hover {\n"
+      + "#app [kind=\"c\"] .gwt-Button:hover {\n"
       + "  border-color: " + WAVE_PRIMARY + ";\n"
       + "  color: " + WAVE_PRIMARY + ";\n"
       + "  background: rgba(0,119,182,0.04);\n"
@@ -175,7 +177,6 @@ public final class HtmlRenderer {
       + "  background: linear-gradient(180deg, #e8f4f8 0%, #fff 100%) !important;\n"
       + "  border-bottom: 1px solid " + WAVE_BORDER + " !important;\n"
       + "  border-left: none !important;\n"
-      + "  padding-bottom: 6px;\n"
       + "}\n"
       // Participant avatars - round
       + "#app [kind=\"s\"] img[kind=\"p\"],\n"
