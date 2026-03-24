@@ -35,8 +35,11 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq sbt
 
-      - name: Build distribution
-        run: sbt --batch pst/compile wave/compile Universal/stage
+      - name: Compile PST and Wave
+        run: sbt --batch pst/compile wave/compile
+
+      - name: Stage distribution
+        run: sbt --batch Universal/stage
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
