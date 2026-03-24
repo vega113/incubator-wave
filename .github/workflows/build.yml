@@ -58,6 +58,7 @@ jobs:
 
       - name: Smoke Installed Dist
         continue-on-error: true
+        timeout-minutes: 3
         run: sbt --batch smokeInstalled
 
       - name: Guard experimental flags for release (tags/releases/release branches)
