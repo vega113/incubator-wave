@@ -45,6 +45,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -197,6 +198,10 @@ public final class VersionHistoryServlet extends HttpServlet {
     try {
       if (startParam != null) start = Long.parseLong(startParam);
       if (endParam != null) end = Long.parseLong(endParam);
+      if (start < 0 || end < 0) {
+        resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "start/end must be non-negative");
+        return;
+      }
     } catch (NumberFormatException e) {
       resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid start/end");
       return;
@@ -233,7 +238,8 @@ public final class VersionHistoryServlet extends HttpServlet {
     try {
       HashedVersion startVersion = HashedVersion.unsigned(start);
       HashedVersion endVersion = HashedVersion.unsigned(end);
-      List<DeltaInfo> deltas = new ArrayList<>();
+      int MAX_DELTAS = 1000;
+      LinkedList<DeltaInfo> deltas = new LinkedList<>();
 
       waveletProvider.getHistory(waveletName, startVersion, endVersion, new Receiver<TransformedWaveletDelta>() {
         @Override
@@ -245,8 +251,11 @@ public final class VersionHistoryServlet extends HttpServlet {
               delta.getApplicationTimestamp(),
               delta.size()
           ));
-          // Cap at 1000 deltas to prevent memory issues
-          return deltas.size() < 1000;
+          // Keep a rolling window of the newest MAX_DELTAS entries
+          if (deltas.size() > MAX_DELTAS) {
+            deltas.removeFirst();
+          }
+          return true;
         }
       });
 
@@ -702,6 +711,18 @@ public final class VersionHistoryServlet extends HttpServlet {
     sb.append("    html += '<span class=\"vh-entry-version\">v' + d.resultingVersion + '</span>';\n");
     sb.append("    html += '</div>';\n");
     sb.append("  }\n");
+    // Add version 0 (initial empty state) at the bottom of the timeline
+    sb.append("  var hasV0 = deltaList.some(function(d) { return d.resultingVersion === 0; });\n");
+    sb.append("  if (!hasV0) {\n");
+    sb.append("    html += '<div class=\"vh-entry\" data-version=\"0\" data-idx=\"-1\" onclick=\"window._selectVersion(0, -1)\">';\n");
+    sb.append("    html += '<div class=\"vh-avatar\">v0</div>';\n");
+    sb.append("    html += '<div class=\"vh-entry-info\">';\n");
+    sb.append("    html += '<div class=\"vh-entry-author\">Initial state</div>';\n");
+    sb.append("    html += '<div class=\"vh-entry-meta\">Empty wave</div>';\n");
+    sb.append("    html += '</div>';\n");
+    sb.append("    html += '<span class=\"vh-entry-version\">v0</span>';\n");
+    sb.append("    html += '</div>';\n");
+    sb.append("  }\n");
     sb.append("  tl.innerHTML = html;\n");
     sb.append("}\n\n");
 
@@ -866,8 +887,9 @@ public final class VersionHistoryServlet extends HttpServlet {
     // Compute LCS (longest common subsequence)
     sb.append("function computeLCS(a, b) {\n");
     sb.append("  var m = a.length, n = b.length;\n");
-    sb.append("  // For very large inputs, skip diff to avoid freezing\n");
-    sb.append("  if (m > 5000 || n > 5000) return [];\n");
+    sb.append("  // Guard on m*n product to avoid quadratic memory/time explosion\n");
+    sb.append("  var MAX_DP_CELLS = 5000000;\n");
+    sb.append("  if (m * n > MAX_DP_CELLS) return [];\n");
     sb.append("  var dp = new Array(m + 1);\n");
     sb.append("  for (var i = 0; i <= m; i++) {\n");
     sb.append("    dp[i] = new Array(n + 1).fill(0);\n");
