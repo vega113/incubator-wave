@@ -25,12 +25,15 @@ cd /opt
 sudo mkdir apache
 cd apache
 sudo mkdir wave
+# install SBT
+dnf install -y sbt || true
+
 # create the binary
 cd /vagrant
-./gradlew clean :wave:installDist
+sbt --batch Universal/stage
 
 # Get Apache Wave version
-WAVE_INSTALL="wave/build/install/wave"
+WAVE_INSTALL="target/universal/stage"
 sudo cp -R "$WAVE_INSTALL" /opt/apache/wave/
 cd ..
 cp scripts/vagrant/application.conf /opt/apache/wave/wave/config/application.conf

@@ -9,8 +9,8 @@ set -euo pipefail
 #   ./scripts/wave-smoke.sh stop    # stops server listening on port 9898
 #
 # Notes:
-# - Expects the distribution installed at wave/build/install/wave
-# - On Java 17, the application is configured with --add-opens in Gradle to support Guice/cglib
+# - Expects the distribution staged at wave/target/universal/stage (SBT) or wave/build/install/wave (legacy)
+# - On Java 17, the application is configured with --add-opens in SBT to support Guice/cglib
 # - If a port conflict persists, you can forcefully clear Java processes (dangerous):
 #     killall java
 
