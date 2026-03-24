@@ -26,6 +26,7 @@ sudo mkdir apache
 cd apache
 sudo mkdir wave
 # install SBT
+curl -L https://www.scala-sbt.org/sbt-rpm.repo | sudo tee /etc/yum.repos.d/sbt-rpm.repo > /dev/null
 dnf install -y sbt || true
 
 # create the binary

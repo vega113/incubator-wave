@@ -303,6 +303,7 @@ but the build no longer relies on Ant and we do not ship Solr helpers. If you wa
 experiment, point `core.search_type = solr` and set `core.solr_base_url`, then run a
 separate Solr instance yourself. Contributions to re-enable and modernize Solr support
 are welcome.
+
 ## Docker
 
 Build the image (multi-stage, Java 17):
