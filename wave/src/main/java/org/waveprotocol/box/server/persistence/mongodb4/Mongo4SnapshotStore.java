@@ -24,6 +24,7 @@ import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Indexes;
+import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Sorts;
 import org.bson.Document;
 import org.bson.types.Binary;
@@ -104,12 +105,14 @@ public class Mongo4SnapshotStore implements SnapshotStore {
           .append(FIELD_VERSION, version)
           .append(FIELD_DATA, new Binary(snapshotData));
 
-      // Delete any existing snapshot at this version, then insert
-      collection.deleteMany(Filters.and(
-          Filters.eq(FIELD_WAVE_ID, waveId),
-          Filters.eq(FIELD_WAVELET_ID, waveletId),
-          Filters.eq(FIELD_VERSION, version)));
-      collection.insertOne(doc);
+      // Upsert: atomically replace any existing snapshot at this version
+      collection.replaceOne(
+          Filters.and(
+              Filters.eq(FIELD_WAVE_ID, waveId),
+              Filters.eq(FIELD_WAVELET_ID, waveletId),
+              Filters.eq(FIELD_VERSION, version)),
+          doc,
+          new ReplaceOptions().upsert(true));
 
       // Prune old snapshots: keep only the latest MAX_SNAPSHOTS_PER_WAVELET
       pruneOldSnapshots(waveId, waveletId);
