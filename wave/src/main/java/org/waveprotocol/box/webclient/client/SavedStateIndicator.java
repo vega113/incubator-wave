@@ -66,7 +66,7 @@ public class SavedStateIndicator implements UnsavedDataListener {
 
   /** Cloud-check SVG icon for saved state (white for contrast on dark topbar). */
   private static final String SAVED_ICON_SVG =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\""
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#3fb950\" stroke-width=\"1.8\""
           + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
           + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
           + "<path d=\"M9 15l2 2 4-4\" stroke-width=\"2\"/>"
