@@ -145,9 +145,6 @@ public final class ParticipantsViewBuilder implements UiBuilder {
             addParticipantIcon(output, css.addButton(),
                 TypeCodes.kind(Type.ADD_PARTICIPANT),
                 messages.addParticipantToThisWave());
-            newWaveIcon(output, css.newWaveWithParticipantsButton(),
-                TypeCodes.kind(Type.NEW_WAVE_WITH_PARTICIPANTS),
-                messages.newWaveWithParticipantsOfCurrentWave());
           }
           closeSpan(output);
 
