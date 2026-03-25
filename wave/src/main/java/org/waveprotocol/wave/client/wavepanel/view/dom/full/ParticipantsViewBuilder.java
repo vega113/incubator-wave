@@ -257,7 +257,8 @@ public final class ParticipantsViewBuilder implements UiBuilder {
 
   /**
    * Renders a compact circular icon button for toggling wave public/private visibility.
-   * Shows a globe icon when public and a lock icon when private.
+   * Shows an open-lock icon when public and a closed-lock icon when private.
+   * This avoids confusion with the globe icon used in the search panel filters.
    */
   private static void publicToggleIcon(SafeHtmlBuilder output, String clazz, String kind,
       String title, boolean isPublic) {
@@ -267,17 +268,15 @@ public final class ParticipantsViewBuilder implements UiBuilder {
 
     String svgIcon;
     if (isPublic) {
-      // Globe icon for public state
+      // Open-lock icon for public state (unlocked = everyone can see)
       svgIcon = "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' "
           + "stroke='currentColor' stroke-width='2' stroke-linecap='round' "
           + "stroke-linejoin='round'>"
-          + "<circle cx='12' cy='12' r='10'/>"
-          + "<line x1='2' y1='12' x2='22' y2='12'/>"
-          + "<path d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"
-          + " 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/>"
+          + "<rect x='3' y='11' width='18' height='11' rx='2' ry='2'/>"
+          + "<path d='M7 11V7a5 5 0 0 1 9.9-1'/>"
           + "</svg>";
     } else {
-      // Lock icon for private state
+      // Closed-lock icon for private state (locked = only participants)
       svgIcon = "<svg width='16' height='16' viewBox='0 0 24 24' fill='none' "
           + "stroke='currentColor' stroke-width='2' stroke-linecap='round' "
           + "stroke-linejoin='round'>"
