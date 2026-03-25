@@ -80,11 +80,10 @@ public final class SearchPresenter
       + "viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" "
       + "stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">";
 
-  /** New Wave: plus-circle icon. */
+  /** New Wave: pencil-square / compose icon. */
   private static final String ICON_NEW_WAVE = SVG_OPEN
-      + "<circle cx=\"12\" cy=\"12\" r=\"10\"></circle>"
-      + "<line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"16\"></line>"
-      + "<line x1=\"8\" y1=\"12\" x2=\"16\" y2=\"12\"></line></svg>";
+      + "<path d=\"M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7\"></path>"
+      + "<path d=\"M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z\"></path></svg>";
 
   /** Manage Searches: settings/sliders icon. */
   private static final String ICON_MODIFY = SVG_OPEN
@@ -255,8 +254,6 @@ public final class SearchPresenter
           }
         });
     newWaveButton.setVisualElement(createSvgIcon(ICON_NEW_WAVE));
-    // Mark the New Wave button so CSS can style it with a subtle accent.
-    newWaveButton.hackGetWidget().getElement().setAttribute("data-action", "new-wave");
 
     // --- Group 2: Saved Searches ---
     ToolbarView savedSearchesGroup = toolbarUi.addGroup();
