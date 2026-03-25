@@ -177,8 +177,10 @@ public final class SearchPresenter
   private void initToolbarMenu() {
     GroupingToolbar.View toolbarUi = searchUi.getToolbar();
     ToolbarView group = toolbarUi.addGroup();
-    new ToolbarButtonViewBuilder().setText(messages.newWave()).applyTo(
-        group.addClickButton(), new ToolbarClickButton.Listener() {
+    ToolbarClickButton newWaveButton = new ToolbarButtonViewBuilder()
+        .setText(messages.newWave())
+        .setTooltip(messages.newWaveHint())
+        .applyTo(group.addClickButton(), new ToolbarClickButton.Listener() {
           @Override
           public void onClicked() {
             actionHandler.onCreateWave();
@@ -191,10 +193,14 @@ public final class SearchPresenter
             scheduler.scheduleRepeating(searchUpdater, delay, POLLING_INTERVAL_MS);
           }
         });
+    // Mark the New Wave button so CSS can style it prominently.
+    newWaveButton.hackGetWidget().getElement().setAttribute("data-action", "new-wave");
 
-    // Add "Manage Searches" button.
-    new ToolbarButtonViewBuilder().setText(messages.modify()).applyTo(
-        group.addClickButton(), new ToolbarClickButton.Listener() {
+    // Add "Saved Searches" button.
+    new ToolbarButtonViewBuilder()
+        .setText(messages.savedSearches())
+        .setTooltip(messages.savedSearchesHint())
+        .applyTo(group.addClickButton(), new ToolbarClickButton.Listener() {
           @Override
           public void onClicked() {
             openSearchesEditor();
