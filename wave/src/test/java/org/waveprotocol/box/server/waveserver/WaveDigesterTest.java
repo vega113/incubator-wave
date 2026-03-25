@@ -43,6 +43,8 @@ import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
 import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Unit tests for {@link WaveDigester}.
@@ -77,12 +79,17 @@ public class WaveDigesterTest extends TestCase {
     SupplementedWave supplement = mock(SupplementedWave.class);
     when(supplement.isUnread(any(ConversationBlip.class))).thenReturn(true);
 
+    Map<ObservableWaveletData, OpBasedWavelet> waveletCache =
+        new HashMap<ObservableWaveletData, OpBasedWavelet>();
+    waveletCache.put(observableWaveletData, (OpBasedWavelet) wavelet);
+
     Digest digest =
         digester.generateDigest(
             conversation,
             supplement,
             observableWaveletData,
-            Collections.singletonList(observableWaveletData));
+            Collections.singletonList(observableWaveletData),
+            waveletCache);
 
     assertEquals("", digest.getTitle());
     assertEquals(digest.getBlipCount(), 0);
@@ -101,12 +108,17 @@ public class WaveDigesterTest extends TestCase {
     SupplementedWave supplement = mock(SupplementedWave.class);
     when(supplement.isUnread(any(ConversationBlip.class))).thenReturn(true);
 
+    Map<ObservableWaveletData, OpBasedWavelet> waveletCache =
+        new HashMap<ObservableWaveletData, OpBasedWavelet>();
+    waveletCache.put(observableWaveletData, (OpBasedWavelet) wavelet);
+
     Digest digest =
         digester.generateDigest(
             conversation,
             supplement,
             observableWaveletData,
-            Collections.singletonList(observableWaveletData));
+            Collections.singletonList(observableWaveletData),
+            waveletCache);
 
     assertEquals(title, digest.getTitle());
     assertEquals(1, digest.getBlipCount());
@@ -124,12 +136,18 @@ public class WaveDigesterTest extends TestCase {
 
     SupplementedWave supplement = mock(SupplementedWave.class);
     when(supplement.isUnread(any(ConversationBlip.class))).thenReturn(true, true, false);
+
+    Map<ObservableWaveletData, OpBasedWavelet> waveletCache =
+        new HashMap<ObservableWaveletData, OpBasedWavelet>();
+    waveletCache.put(observableWaveletData, (OpBasedWavelet) wavelet);
+
     Digest digest =
         digester.generateDigest(
             conversation,
             supplement,
             observableWaveletData,
-            Collections.singletonList(observableWaveletData));
+            Collections.singletonList(observableWaveletData),
+            waveletCache);
 
     assertEquals(3, digest.getBlipCount());
     assertEquals(2, digest.getUnreadCount());

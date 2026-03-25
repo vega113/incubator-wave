@@ -54,7 +54,9 @@ import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Generates digests for the search service.
@@ -113,11 +115,17 @@ public class WaveDigester {
     }
     ObservableWaveletData udw = findViewerUserDataWavelet(participant, wave.getWavelets());
 
+    // Cache OpBasedWavelet wrappers to prevent double-init of the underlying
+    // PluggableMutableDocument when the same ObservableWaveletData is wrapped
+    // more than once (e.g., in generateDigest for blip counting).
+    Map<ObservableWaveletData, OpBasedWavelet> waveletCache =
+        new HashMap<ObservableWaveletData, OpBasedWavelet>();
+
     ObservableWaveletData convWavelet = root != null ? root : other;
     SupplementedWave supplement = null;
     ObservableConversationView conversations = null;
     if (convWavelet != null) {
-      OpBasedWavelet wavelet = OpBasedWavelet.createReadOnly(convWavelet);
+      OpBasedWavelet wavelet = getOrCreateReadOnlyWavelet(convWavelet, waveletCache);
       if (WaveletBasedConversation.waveletHasConversation(wavelet)) {
         conversations = conversationUtil.buildConversation(wavelet);
         supplement = buildSupplement(participant, conversations, udw, conversationalWavelets);
@@ -125,13 +133,30 @@ public class WaveDigester {
     }
     if (conversations != null) {
       // This is a conversational wave. Produce a conversational digest.
-      digest = generateDigest(conversations, supplement, convWavelet, conversationalWavelets);
+      digest = generateDigest(conversations, supplement, convWavelet,
+          conversationalWavelets, waveletCache);
     } else {
       // It is unknown how to present this wave.
       digest = generateEmptyorUnknownDigest(wave);
     }
 
     return digest;
+  }
+
+  /**
+   * Returns a cached read-only OpBasedWavelet wrapper for the given data,
+   * creating one if it does not already exist. This prevents double-init of
+   * the underlying document output sinks when the same wavelet data needs
+   * to be wrapped in multiple code paths.
+   */
+  private static OpBasedWavelet getOrCreateReadOnlyWavelet(
+      ObservableWaveletData data, Map<ObservableWaveletData, OpBasedWavelet> cache) {
+    OpBasedWavelet wavelet = cache.get(data);
+    if (wavelet == null) {
+      wavelet = OpBasedWavelet.createReadOnly(data);
+      cache.put(data, wavelet);
+    }
+    return wavelet;
   }
 
   static ObservableWaveletData findViewerUserDataWavelet(
@@ -157,10 +182,13 @@ public class WaveDigester {
    *        queries on user related state of the wavelet.
    * @param rawWaveletData the waveletData from which the digest is generated.
    *        This wavelet is a copy.
+   * @param conversationalWavelets all conversational wavelets in the wave.
+   * @param waveletCache cache of OpBasedWavelet wrappers to avoid double-init.
    * @return the server representation of the digest for the query.
    */
   Digest generateDigest(ObservableConversationView conversations, SupplementedWave supplement,
-      WaveletData rawWaveletData, Iterable<? extends ObservableWaveletData> conversationalWavelets) {
+      WaveletData rawWaveletData, Iterable<? extends ObservableWaveletData> conversationalWavelets,
+      Map<ObservableWaveletData, OpBasedWavelet> waveletCache) {
     ObservableConversation rootConversation = chooseDigestConversation(conversations);
     ObservableConversationBlip firstBlip = null;
     if ((rootConversation != null) && (rootConversation.getRootThread() != null)
@@ -201,7 +229,7 @@ public class WaveDigester {
       if (conversationalWavelet == rawWaveletData) {
         conversation = rootConversation;
       } else {
-        OpBasedWavelet wavelet = OpBasedWavelet.createReadOnly(conversationalWavelet);
+        OpBasedWavelet wavelet = getOrCreateReadOnlyWavelet(conversationalWavelet, waveletCache);
         if (!WaveletBasedConversation.waveletHasConversation(wavelet)) {
           continue;
         }

@@ -48,7 +48,7 @@ public interface DocumentOperationSink extends OpaqueDocument, OperationSink<Doc
    * for MutableDocuments.
    *
    * @param outputSink
-   * @throws IllegalStateException if called more than once, or with null.
+   * @throws IllegalArgumentException if called with null.
    */
   void init(SilentOperationSink<? super DocOp> outputSink);
 
