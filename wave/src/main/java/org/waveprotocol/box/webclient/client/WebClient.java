@@ -301,7 +301,7 @@ public class WebClient implements EntryPoint {
     });
   }
 
-  /** WiFi SVG icon for connected state. */
+  /** WiFi SVG icon for connected state (white for contrast on dark topbar). */
   private static final String WIFI_ICON_SVG =
       "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\""
           + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
@@ -311,7 +311,7 @@ public class WebClient implements EntryPoint {
           + "<circle cx=\"12\" cy=\"19.5\" r=\"1\"/>"
           + "</svg>";
 
-  /** WiFi-off SVG icon for disconnected state. */
+  /** WiFi-off SVG icon for disconnected state (white for contrast on dark topbar). */
   private static final String WIFI_OFF_ICON_SVG =
       "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\""
           + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
