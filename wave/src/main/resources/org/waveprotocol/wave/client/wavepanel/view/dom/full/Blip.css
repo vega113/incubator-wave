@@ -183,7 +183,9 @@
 
 /* Draft icon active/selected state (blue tint). */
 .read .menuOptionSelected[data-option="draft"],
-.read .menuOptionSelected[data-option="draft"]:hover {
+.read .menuOptionSelected[data-option="draft"]:hover,
+.unread .menuOptionSelected[data-option="draft"],
+.unread .menuOptionSelected[data-option="draft"]:hover {
   color: #0077b6;
   background-color: #ebf8ff;
 }
