@@ -147,9 +147,8 @@ public class ServerMain {
       ((SignerInfoStore)certPathStore).initializeSignerInfoStore();
     }
 
-    org.waveprotocol.box.server.persistence.ContactMessageStore contactMessageStore =
-        injector.getInstance(org.waveprotocol.box.server.persistence.ContactMessageStore.class);
-    contactMessageStore.initializeContactMessageStore();
+    // Initialize ContactMessageStore asynchronously to avoid blocking if MongoDB is unavailable
+    initializeContactMessageStoreAsync(injector);
 
     WaveletProvider waveServer = injector.getInstance(WaveletProvider.class);
     waveServer.initialize();
@@ -356,5 +355,20 @@ public class ServerMain {
     ShutdownManager.getInstance().register(new Shutdownable() {
       @Override public void shutdown() throws Exception { server.stopServer(); }
     }, ServerMain.class.getSimpleName(), ShutdownPriority.Server);
+  }
+
+  /** Initializes ContactMessageStore asynchronously to avoid blocking if MongoDB is unavailable. */
+  private static void initializeContactMessageStoreAsync(Injector injector) {
+    Thread initThread = new Thread(() -> {
+      try {
+        org.waveprotocol.box.server.persistence.ContactMessageStore contactMessageStore =
+            injector.getInstance(org.waveprotocol.box.server.persistence.ContactMessageStore.class);
+        contactMessageStore.initializeContactMessageStore();
+      } catch (Exception e) {
+        LOG.log(Level.WARNING, "Failed to initialize ContactMessageStore (contact form submissions may not work)", e);
+      }
+    }, "ContactMessageStore-Initializer");
+    initThread.setDaemon(true);
+    initThread.start();
   }
 }
