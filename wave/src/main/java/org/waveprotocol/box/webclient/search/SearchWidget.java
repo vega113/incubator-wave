@@ -23,13 +23,10 @@ import com.google.common.base.Preconditions;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
-import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
-import com.google.gwt.uibinder.client.UiHandler;
-import com.google.gwt.user.client.ui.Button;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.TextBox;
@@ -37,10 +34,10 @@ import com.google.gwt.user.client.ui.TextBox;
 import org.waveprotocol.wave.client.common.util.QuirksConstants;
 
 /**
- * Widget implementation of the search area.
+ * Widget implementation of the search area (search box only).
  * <p>
- * Three filter buttons (Inbox, Public, Archive) use inline SVG icons
- * (Lucide, MIT licensed) so they stay visible in narrow panels and on mobile.
+ * Filter buttons have been moved to the unified toolbar row managed by
+ * {@link SearchPresenter}.
  *
  * @author hearnden@google.com (David Hearnden)
  */
@@ -57,9 +54,6 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     String self();
     String search();
     String query();
-    String searchButton();
-    String searchButtonsPanel();
-    String searchboxContainer();
   }
 
   @UiField(provided = true)
@@ -72,40 +66,8 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
 
   private final static String DEFAULT_QUERY = "";
 
-  // Inline SVG icons (Lucide icon set, MIT) rendered at 18x18 with stroke.
-  // Explicit close tags are used instead of self-closing tags for GWT compatibility.
-  private static final String SVG_OPEN =
-      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"18\" height=\"18\" "
-      + "viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" "
-      + "stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">";
-
-  /** Public: globe icon. */
-  private static final String ICON_PUBLIC = SVG_OPEN
-      + "<circle cx=\"12\" cy=\"12\" r=\"10\"></circle>"
-      + "<line x1=\"2\" y1=\"12\" x2=\"22\" y2=\"12\"></line>"
-      + "<path d=\"M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10"
-      + " 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z\"></path></svg>";
-
-  /** Inbox: inbox tray icon. */
-  private static final String ICON_INBOX = SVG_OPEN
-      + "<polyline points=\"22 12 16 12 14 15 10 15 8 12 2 12\"></polyline>"
-      + "<path d=\"M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89"
-      + "A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z\"></path></svg>";
-
-  /** Archive: archive box icon. */
-  private static final String ICON_ARCHIVE = SVG_OPEN
-      + "<polyline points=\"21 8 21 21 3 21 3 8\"></polyline>"
-      + "<rect x=\"1\" y=\"3\" width=\"22\" height=\"5\"></rect>"
-      + "<line x1=\"10\" y1=\"12\" x2=\"14\" y2=\"12\"></line></svg>";
-
   @UiField
   TextBox query;
-  @UiField
-  Button searchButtonPublic;
-  @UiField
-  Button searchButtonInbox;
-  @UiField
-  Button searchButtonArchive;
 
   private Listener listener;
 
@@ -120,11 +82,6 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
       query.getElement().setAttribute("autosave", "QUERY_AUTO_SAVE");
     }
     query.addChangeHandler(this);
-
-    // Replace placeholder text with SVG icons.
-    searchButtonPublic.getElement().setInnerHTML(ICON_PUBLIC);
-    searchButtonInbox.getElement().setInnerHTML(ICON_INBOX);
-    searchButtonArchive.getElement().setInnerHTML(ICON_ARCHIVE);
   }
 
   @Override
@@ -164,21 +121,4 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     }
   }
   
-  @UiHandler("searchButtonPublic")
-  public void onHandlePublic(ClickEvent event) {
-    setQuery("with:@");
-    onQuery();
-  }
-
-  @UiHandler("searchButtonInbox")
-  public void onHandleInbox(ClickEvent event) {
-    setQuery("in:inbox");
-    onQuery();
-  }
-
-  @UiHandler("searchButtonArchive")
-  public void onHandleArchive(ClickEvent event) {
-    setQuery("in:archive");
-    onQuery();
-  }
 }
