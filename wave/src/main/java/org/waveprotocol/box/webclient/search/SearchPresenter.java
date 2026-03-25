@@ -177,8 +177,12 @@ public final class SearchPresenter
   private void initToolbarMenu() {
     GroupingToolbar.View toolbarUi = searchUi.getToolbar();
     ToolbarView group = toolbarUi.addGroup();
-    new ToolbarButtonViewBuilder().setText(messages.newWave()).applyTo(
-        group.addClickButton(), new ToolbarClickButton.Listener() {
+
+    // "New Wave" action button.
+    new ToolbarButtonViewBuilder()
+        .setText("\u2795 " + messages.newWave())
+        .setTooltip(messages.newWaveHint())
+        .applyTo(group.addClickButton(), new ToolbarClickButton.Listener() {
           @Override
           public void onClicked() {
             actionHandler.onCreateWave();
@@ -192,18 +196,16 @@ public final class SearchPresenter
           }
         });
 
-    // Add "Manage Searches" button.
-    new ToolbarButtonViewBuilder().setText(messages.modify()).applyTo(
-        group.addClickButton(), new ToolbarClickButton.Listener() {
+    // "Saved Searches" button (opens the searches editor).
+    new ToolbarButtonViewBuilder()
+        .setText("\u2630")
+        .setTooltip(messages.modify())
+        .applyTo(group.addClickButton(), new ToolbarClickButton.Listener() {
           @Override
           public void onClicked() {
             openSearchesEditor();
           }
         });
-
-    // Fake group with empty button - to force the separator be displayed.
-    group = toolbarUi.addGroup();
-    new ToolbarButtonViewBuilder().setText("").applyTo(group.addClickButton(), null);
 
     // Load saved searches from server and render them as toolbar buttons.
     loadSavedSearches();
