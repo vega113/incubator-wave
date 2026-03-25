@@ -1602,9 +1602,9 @@ public final class HtmlRenderer {
       // -- Save status indicator: cloud-check icon, updated by GWT --
       sb.append("    <span id=\"unsavedStateContainer\" class=\"topbar-icon\" title=\"All changes saved\">");
       sb.append(ICON_CLOUD_CHECK).append("</span>\n");
-      // -- Connection status: wifi icon, updated by GWT --
+      // -- Connection status: wifi-off icon for initial offline state, updated by GWT --
       sb.append("    <span id=\"netstatus\" class=\"topbar-icon offline\" title=\"Offline\">");
-      sb.append(ICON_WIFI).append("</span>\n");
+      sb.append(ICON_WIFI_OFF).append("</span>\n");
       // -- User menu with avatar --
       sb.append("    <div class=\"user-menu\">\n");
       sb.append("      <button class=\"user-menu-toggle\" title=\"").append(fullAddress).append("\">\n");
