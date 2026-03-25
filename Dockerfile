@@ -22,10 +22,9 @@ COPY build.sbt /workspace/
 COPY project /workspace/project
 COPY .sbtopts /workspace/
 
-# Copy source trees and root docs needed by Universal/stage mappings
+# Copy tracked source trees and root docs needed by Universal/stage mappings
 COPY pst /workspace/pst
 COPY wave /workspace/wave
-COPY gen /workspace/gen
 COPY scripts /workspace/scripts
 COPY THANKS RELEASE-NOTES KEYS DISCLAIMER /workspace/
 
