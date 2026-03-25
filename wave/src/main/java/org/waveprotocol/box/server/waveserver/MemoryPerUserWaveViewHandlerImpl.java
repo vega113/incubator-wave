@@ -23,7 +23,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -77,22 +76,34 @@ public class MemoryPerUserWaveViewHandlerImpl implements PerUserWaveViewHandler 
             Map<WaveId, Wave> waves = waveMap.getWaves();
             for (Map.Entry<WaveId, Wave> entry : waves.entrySet()) {
               WaveId waveId = entry.getKey();
+              Wave wave = entry.getValue();
+
+              // Collect wavelet IDs from both persisted storage and in-memory
+              // containers.  lookupWavelets() returns IDs from the DB snapshot
+              // taken when the Wave was first loaded — this covers wavelets
+              // that exist after a server restart.  wave.iterator() returns
+              // containers that were created during the current session (e.g.
+              // via submitRequest) but may not yet be in the stored lookup.
+              java.util.Set<WaveletId> waveletIds = new java.util.HashSet<>();
               try {
-                // Explicitly look up stored wavelet IDs and load each container
-                ImmutableSet<WaveletId> waveletIds = waveMap.lookupWavelets(waveId);
-                for (WaveletId waveletId : waveletIds) {
-                  WaveletName waveletName = WaveletName.of(waveId, waveletId);
-                  try {
-                    WaveletContainer c = waveMap.getWavelet(waveletName);
-                    if (c != null && c.hasParticipant(user)) {
-                      userView.put(waveId, waveletId);
-                    }
-                  } catch (WaveletStateException e) {
-                    LOG.warning("Failed to access wavelet " + waveletName, e);
-                  }
-                }
+                waveletIds.addAll(waveMap.lookupWavelets(waveId));
               } catch (WaveletStateException e) {
                 LOG.warning("Failed to look up wavelets for wave " + waveId, e);
+              }
+              for (WaveletContainer wc : wave) {
+                waveletIds.add(wc.getWaveletName().waveletId);
+              }
+
+              for (WaveletId waveletId : waveletIds) {
+                WaveletName waveletName = WaveletName.of(waveId, waveletId);
+                try {
+                  WaveletContainer c = waveMap.getWavelet(waveletName);
+                  if (c != null && c.hasParticipant(user)) {
+                    userView.put(waveId, waveletId);
+                  }
+                } catch (WaveletStateException e) {
+                  LOG.warning("Failed to access wavelet " + waveletName, e);
+                }
               }
             }
             LOG.info("Initalized waves view for user: " + user.getAddress()
