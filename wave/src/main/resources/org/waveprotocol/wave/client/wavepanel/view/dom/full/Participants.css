@@ -89,8 +89,8 @@
 }
 
 .flow {
-  /* Expand to floated content. */
-  overflow: auto;
+  /* Expand to floated content – hidden prevents unwanted scrollbars. */
+  overflow: hidden;
   /* Positioned contained for add button. */
   position: relative;
   /* Room for absolutely positioned add and new-wave buttons. */

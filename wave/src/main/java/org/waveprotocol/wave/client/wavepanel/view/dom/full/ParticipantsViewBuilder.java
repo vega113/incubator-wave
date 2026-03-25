@@ -128,7 +128,8 @@ public final class ParticipantsViewBuilder implements UiBuilder {
         {
           participantUis.outputHtml(output);
 
-          // Overflow-mode panel.
+          // Overflow-mode panel (toggle + add, but NO new-wave button to
+          // avoid duplication with the single-line panel).
           openSpan(output, null, css.extra(), null);
           {
             openSpanWith(output, null, css.toggleGroup(), null, "onclick=\"" + onClickJs() + "\"");

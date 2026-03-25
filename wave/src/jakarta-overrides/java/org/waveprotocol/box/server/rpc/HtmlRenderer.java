@@ -565,13 +565,13 @@ public final class HtmlRenderer {
       + ".input-group .domain-suffix {\n"
       + "  margin-left: 8px; font-size: 13px; color: #666; white-space: nowrap;\n"
       + "}\n"
-      + "input[type=text], input[type=password] {\n"
+      + "input[type=text], input[type=email], input[type=password] {\n"
       + "  width: 100%; padding: 10px 12px; font-size: 14px;\n"
       + "  border: 1.5px solid #d0d5dd; border-radius: 8px;\n"
       + "  outline: none; transition: border-color 0.2s, box-shadow 0.2s;\n"
       + "  margin-bottom: 14px; background: #fafbfc;\n"
       + "}\n"
-      + "input[type=text]:focus, input[type=password]:focus {\n"
+      + "input[type=text]:focus, input[type=email]:focus, input[type=password]:focus {\n"
       + "  border-color: " + WAVE_PRIMARY + ";\n"
       + "  box-shadow: 0 0 0 3px rgba(0,119,182,0.12);\n"
       + "  background: #fff;\n"
@@ -1015,11 +1015,7 @@ public final class HtmlRenderer {
     // -- Navigation --
     sb.append("<nav class=\"nav\">\n");
     sb.append("  <div class=\"nav-brand\">\n");
-    sb.append("    <svg width=\"32\" height=\"32\" viewBox=\"0 0 48 48\" fill=\"none\">\n");
-    sb.append("      <circle cx=\"24\" cy=\"24\" r=\"24\" fill=\"").append(WAVE_PRIMARY).append("\"/>\n");
-    sb.append("      <path d=\"M10 28 Q16 16 22 28 Q28 40 34 28 Q38 20 38 20\" ");
-    sb.append("stroke=\"white\" stroke-width=\"3\" stroke-linecap=\"round\" fill=\"none\"/>\n");
-    sb.append("    </svg>\n");
+    sb.append("    ").append(WAVE_LOGO_SVG_SMALL.replace("width=\"28\" height=\"28\"", "width=\"32\" height=\"32\""));
     sb.append("    <span class=\"nav-brand-name\">SupaWave</span>\n");
     sb.append("  </div>\n");
     sb.append("  <div class=\"nav-links\">\n");
