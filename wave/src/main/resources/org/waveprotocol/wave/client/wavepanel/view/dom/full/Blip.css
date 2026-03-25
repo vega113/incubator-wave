@@ -247,8 +247,7 @@
 .draftActive {}
 
 /* Notification banner shown below the metabar when draft mode is on. */
-.meta.draftActive .metabar::after {
-  content: "Draft mode \2014  changes are not visible to other participants";
+.draftActive-notification {
   display: block;
   width: 100%;
   margin: 0.3em 0 0.5em 0;
@@ -270,8 +269,7 @@
 }
 
 /* Small DRAFT badge next to the time element. */
-.meta.draftActive .time::before {
-  content: "DRAFT";
+.draftActive-badge {
   display: inline-block;
   margin-right: 0.4em;
   padding: 0 0.4em;
