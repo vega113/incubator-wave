@@ -83,8 +83,13 @@ public final class NavigationEntry {
     return scrollPosition;
   }
 
-  /** @return the mutable list of DOM ids of siblings that were hidden. */
+  /** Adds a hidden sibling DOM id to this entry. */
+  public void addHiddenSiblingId(String siblingId) {
+    hiddenSiblingIds.add(siblingId);
+  }
+
+  /** @return an unmodifiable view of the hidden sibling DOM ids. */
   public List<String> getHiddenSiblingIds() {
-    return hiddenSiblingIds;
+    return java.util.Collections.unmodifiableList(hiddenSiblingIds);
   }
 }

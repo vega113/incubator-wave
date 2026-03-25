@@ -19,6 +19,8 @@
 
 package org.waveprotocol.wave.client.wavepanel.impl.collapse;
 
+import com.google.gwt.user.client.ui.RootPanel;
+
 import org.waveprotocol.wave.client.wavepanel.impl.WavePanelImpl;
 
 /**
@@ -49,6 +51,9 @@ public final class ThreadNavigationBuilder {
     BreadcrumbWidget breadcrumb = new BreadcrumbWidget();
     breadcrumb.setPresenter(navigator);
     navigator.setBreadcrumb(breadcrumb);
+
+    // Attach the breadcrumb widget to the page
+    RootPanel.get().add(breadcrumb);
 
     // Install the navigation controller that intercepts toggle events
     ThreadNavigationController.install(navigator, collapser, panel);

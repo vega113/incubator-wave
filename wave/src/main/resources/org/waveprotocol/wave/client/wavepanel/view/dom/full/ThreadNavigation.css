@@ -20,7 +20,7 @@
  */
 
 /* --- Breadcrumb bar --- */
-.breadcrumb {
+.thread-nav-breadcrumb {
   position: fixed;
   top: 0;
   left: 0;
@@ -39,7 +39,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.breadcrumbSegment {
+.thread-nav-breadcrumb-segment {
   cursor: pointer;
   color: rgba(255, 255, 255, 0.85);
   text-decoration: none;
@@ -51,14 +51,14 @@
   text-decoration: underline;
 }
 
-.breadcrumbSeparator {
+.thread-nav-breadcrumb-separator {
   color: rgba(255, 255, 255, 0.6);
   margin: 0 2px;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.breadcrumbCurrent {
+.thread-nav-breadcrumb-current {
   color: white;
   font-weight: bold;
 }

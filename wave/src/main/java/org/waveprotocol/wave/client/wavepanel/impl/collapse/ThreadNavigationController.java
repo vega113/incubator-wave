@@ -42,9 +42,10 @@ import org.waveprotocol.wave.client.wavepanel.view.dom.full.TypeCodes;
  * {@link CollapsePresenter} behavior.
  *
  * <p>This controller registers itself for the same TOGGLE mouse-down events
- * as {@link CollapseController}. It is installed with higher priority and
- * returns true (consuming the event) when slide navigation is triggered,
- * preventing the normal CollapseController from also firing.
+ * as {@link CollapseController}. Both handlers will execute for the same event.
+ * This controller returns true (consuming the event) when slide navigation is
+ * triggered, but note that CollapseController executes first (due to registration
+ * order in StageOne) and will have already toggled the thread state.
  */
 public final class ThreadNavigationController implements WaveMouseDownHandler {
 
@@ -90,31 +91,15 @@ public final class ThreadNavigationController implements WaveMouseDownHandler {
       return false;
     }
 
-    // If already navigated into a thread and this is a collapse action
-    // on the current navigated thread, treat it as an exit
-    if (navigator.isNavigated()) {
-      // Check if the thread is already expanded (i.e., this is a collapse click).
-      // If the user is collapsing a thread that was entered via slide nav,
-      // exit the navigation instead.
-      if (!thread.isCollapsed()) {
-        // Thread is expanded, user is collapsing it.
-        // If we have this thread in our navigation stack, exit it.
-        // For now, use normal collapse for already-expanded threads.
-        return false;
-      }
-    }
-
-    // Only intercept expand actions (thread is currently collapsed)
+    // Only intercept expand actions on collapsed threads
     if (!thread.isCollapsed()) {
-      // Thread is already expanded, let normal collapse handle it
       return false;
     }
 
     // Check if this thread's depth warrants slide navigation
     if (navigator.shouldSlideNavigate(thread)) {
-      // First, expand the thread normally
-      collapser.expand(thread);
-      // Then enter slide navigation mode
+      // Note: CollapseController has already expanded the thread via event handler
+      // registration order, so we only need to enter slide navigation mode.
       navigator.enterThread(thread);
       return true; // Consume the event
     }

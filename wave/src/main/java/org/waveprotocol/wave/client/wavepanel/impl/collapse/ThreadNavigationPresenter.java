@@ -426,9 +426,8 @@ public final class ThreadNavigationPresenter {
         if (sibling != anchorParent && sibling != threadElement) {
           String siblingId = sibling.getId();
           if (siblingId != null && !siblingId.isEmpty()) {
-            entry.getHiddenSiblingIds().add(siblingId);
+            entry.addHiddenSiblingId(siblingId);
             sibling.addClassName(SLIDE_HIDDEN_CLASS);
-            sibling.getStyle().setDisplay(Style.Display.NONE);
           }
         }
       }
