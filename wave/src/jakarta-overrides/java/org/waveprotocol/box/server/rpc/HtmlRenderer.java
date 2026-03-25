@@ -2171,6 +2171,75 @@ public final class HtmlRenderer {
     sb.append("    width: 90vw !important; max-width: none !important;\n");
     sb.append("  }\n");
     sb.append("}\n");
+    // -- Skeleton loading placeholder for wave list (shown before GWT renders) --
+    sb.append("@keyframes wave-skeleton-pulse {\n");
+    sb.append("  0% { opacity: 0.4; }\n");
+    sb.append("  50% { opacity: 0.7; }\n");
+    sb.append("  100% { opacity: 0.4; }\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton {\n");
+    sb.append("  position: absolute; top: 0; left: 0; width: 320px; bottom: 0;\n");
+    sb.append("  background: #fff; z-index: 1;\n");
+    sb.append("  padding-top: 0;\n");
+    sb.append("  font-family: ").append(WAVE_FONT).append(";\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-search {\n");
+    sb.append("  height: 51px; display: flex; align-items: center; padding: 0 12px;\n");
+    sb.append("  border-bottom: 1px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-search-input {\n");
+    sb.append("  width: 100%; height: 31px; border-radius: 20px;\n");
+    sb.append("  background: #e2e8f0;\n");
+    sb.append("  animation: wave-skeleton-pulse 1.5s ease-in-out infinite;\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-toolbar {\n");
+    sb.append("  height: 28px; display: flex; align-items: center; gap: 8px;\n");
+    sb.append("  padding: 4px 12px;\n");
+    sb.append("  border-bottom: 1px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-toolbar-btn {\n");
+    sb.append("  width: 72px; height: 20px; border-radius: 4px;\n");
+    sb.append("  background: #e2e8f0;\n");
+    sb.append("  animation: wave-skeleton-pulse 1.5s ease-in-out infinite;\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-digest {\n");
+    sb.append("  display: flex; align-items: center; gap: 10px;\n");
+    sb.append("  padding: 10px 12px;\n");
+    sb.append("  border-bottom: 1px solid #f0f0f0;\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-avatar {\n");
+    sb.append("  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;\n");
+    sb.append("  background: #e2e8f0;\n");
+    sb.append("  animation: wave-skeleton-pulse 1.5s ease-in-out infinite;\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-lines {\n");
+    sb.append("  flex: 1; display: flex; flex-direction: column; gap: 6px;\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-line {\n");
+    sb.append("  height: 10px; border-radius: 4px;\n");
+    sb.append("  background: #e2e8f0;\n");
+    sb.append("  animation: wave-skeleton-pulse 1.5s ease-in-out infinite;\n");
+    sb.append("}\n");
+    sb.append("#wave-list-skeleton .skel-line.title { width: 70%; height: 12px; }\n");
+    sb.append("#wave-list-skeleton .skel-line.snippet { width: 90%; }\n");
+    sb.append("#wave-list-skeleton .skel-time {\n");
+    sb.append("  width: 40px; height: 10px; border-radius: 4px; flex-shrink: 0;\n");
+    sb.append("  background: #e2e8f0;\n");
+    sb.append("  animation: wave-skeleton-pulse 1.5s ease-in-out infinite;\n");
+    sb.append("}\n");
+    // Stagger animation delays for a more natural look
+    sb.append("#wave-list-skeleton .skel-digest:nth-child(2) * { animation-delay: 0.1s; }\n");
+    sb.append("#wave-list-skeleton .skel-digest:nth-child(3) * { animation-delay: 0.2s; }\n");
+    sb.append("#wave-list-skeleton .skel-digest:nth-child(4) * { animation-delay: 0.3s; }\n");
+    sb.append("#wave-list-skeleton .skel-digest:nth-child(5) * { animation-delay: 0.4s; }\n");
+    sb.append("#wave-list-skeleton .skel-digest:nth-child(6) * { animation-delay: 0.5s; }\n");
+    // Responsive: match mobile search panel width
+    sb.append("@media (max-width: 767px) {\n");
+    sb.append("  #wave-list-skeleton { width: 85vw; max-width: 360px; }\n");
+    sb.append("}\n");
+    sb.append("@media (min-width: 768px) and (max-width: 1023px) {\n");
+    sb.append("  #wave-list-skeleton { width: 280px; }\n");
+    sb.append("}\n");
     sb.append("</style>\n");
     // GWT stats + nocache JS
     sb.append("<script type=\"text/javascript\">\n");
@@ -2190,8 +2259,30 @@ public final class HtmlRenderer {
     sb.append("style=\"position:absolute;width:0;height:0;border:0\"></iframe>\n");
     // Top bar
     sb.append(topBarHtml).append("\n");
-    // App container
-    sb.append("<div id=\"app\" style=\"position:absolute; top:41px; right:0px; bottom:0px; left:0px;\"></div>\n");
+    // App container (includes skeleton loading placeholder for the wave list)
+    sb.append("<div id=\"app\" style=\"position:absolute; top:41px; right:0px; bottom:0px; left:0px;\">\n");
+    // Skeleton loading placeholder -- removed by GWT when search results render
+    sb.append("<div id=\"wave-list-skeleton\">\n");
+    // Fake search bar
+    sb.append("  <div class=\"skel-search\"><div class=\"skel-search-input\"></div></div>\n");
+    // Fake toolbar
+    sb.append("  <div class=\"skel-toolbar\">");
+    sb.append("<div class=\"skel-toolbar-btn\"></div>");
+    sb.append("<div class=\"skel-toolbar-btn\" style=\"width:28px\"></div>");
+    sb.append("</div>\n");
+    // Fake digest rows (6 placeholders)
+    for (int i = 0; i < 6; i++) {
+      sb.append("  <div class=\"skel-digest\">");
+      sb.append("<div class=\"skel-avatar\"></div>");
+      sb.append("<div class=\"skel-lines\">");
+      sb.append("<div class=\"skel-line title\"></div>");
+      sb.append("<div class=\"skel-line snippet\"></div>");
+      sb.append("</div>");
+      sb.append("<div class=\"skel-time\"></div>");
+      sb.append("</div>\n");
+    }
+    sb.append("</div>\n");
+    sb.append("</div>\n");
     // Mobile backdrop overlay (for closing slide panel)
     sb.append("<div class=\"mobile-backdrop\" id=\"mobileBackdrop\" role=\"button\" tabindex=\"0\" aria-label=\"Close navigation\"></div>\n");
     sb.append("<noscript>\n");
@@ -2292,6 +2383,9 @@ public final class HtmlRenderer {
     sb.append("    if (searchPanel) searchPanel.setAttribute('data-mobile-role', 'search-panel');\n");
     sb.append("    draggerWrapper.setAttribute('data-mobile-role', 'split-dragger');\n");
     sb.append("    if (wavePanel) wavePanel.setAttribute('data-mobile-role', 'wave-panel');\n");
+    // Remove the skeleton loading placeholder now that the real UI is ready
+    sb.append("    var skel = document.getElementById('wave-list-skeleton');\n");
+    sb.append("    if (skel) skel.parentNode.removeChild(skel);\n");
     sb.append("    return true;\n");
     sb.append("  }\n");
     sb.append("  if (!markPanels()) {\n");
