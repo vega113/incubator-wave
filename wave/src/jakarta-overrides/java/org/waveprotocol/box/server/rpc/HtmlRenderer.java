@@ -226,7 +226,7 @@ public final class HtmlRenderer {
       + "  box-shadow: 0 2px 6px rgba(0,119,182,0.3);\n"
       + "  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;\n"
       + "  vertical-align: middle;\n"
-      + "  margin: 4px 2px !important;\n"
+      + "  margin: 4px 0 4px 6px !important;\n"
       + "  padding: 0 !important;\n"
       + "  font-size: 0;\n"
       + "  line-height: 0;\n"
