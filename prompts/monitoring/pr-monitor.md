@@ -1,42 +1,63 @@
-# PR and Issue Monitor Prompt
+# PR and Issue Monitor — Recurring Prompt
 
-## Overview
-Proactive GitHub PR and Issue monitor that runs every 5 minutes via cron. Checks all open PRs across monitored repos, fixes issues, resolves review threads, and merges PRs when ready.
+> Use with: `/loop 5m <this prompt>` or as a GitHub Actions workflow trigger
 
-## Key Behaviors
+## Quick-exit guard (smart polling)
 
-### Immediate branch cascade on merge
-When a PR merges, immediately update ALL other open PRs that are now BEHIND main. Don't wait for the next cron cycle.
+Before doing anything, check if there's any work:
+```
+count=$(gh search prs --author=@me --state=open --json number --jq length 2>/dev/null)
+issues=$(for repo in vega113/incubator-wave vega113/tube2web vega113/tubescribes vega113/slides-lab; do gh issue list -R "$repo" --state open --json number --jq length 2>/dev/null; done | paste -sd+ | bc)
+if [ "${count:-0}" -eq 0 ] && [ "${issues:-0}" -eq 0 ]; then echo "All clean"; exit 0; fi
+```
 
-### Review thread handling
-- Address all unresolved review threads (inline, out-of-diff, P1/P2)
-- Fix code issues when the review comment is valid
-- Reply with justification and resolve when the suggestion is a P2 enhancement or already addressed
-- Resolve threads via GraphQL: `mutation { resolveReviewThread(input: {threadId: "ID"}) { thread { isResolved } } }`
+## 1. Discover open PRs
 
-### Codex Review Gate
+Search for open PRs authored by me and PRs where review is requested, across all repos updated in the last 7 days.
+
+## 2. For each PR — inspect and act
+
+### a. CI status
+- Failed checks → investigate logs, fix code issues, re-run flaky tests
+- Stuck/pending > 30min → re-run
+
+### b. Review threads
+- Unresolved threads → fix code if valid, reply + resolve via GraphQL if already addressed
+- Resolve ALL threads: inline, out-of-diff, P1/P2, chatgpt-codex-connector, coderabbitai
+- GraphQL resolve: `mutation { resolveReviewThread(input: {threadId: "ID"}) { thread { isResolved } } }`
+
+### c. Merge readiness
+- All checks pass + no conflicts + no unresolved threads + updatedAt > 5min → merge
+- incubator-wave: `--merge`, tube2web/tubescribes/slides-lab: `--squash`
+- Enable auto-merge: `gh pr merge NUM -R repo --merge --auto`
+
+### d. Immediate cascade on merge
+When ANY PR merges, immediately update ALL other BEHIND PRs. Don't wait for next cycle.
+
+## 3. Discover and fix open issues
+
+Check all monitored repos for open issues. Spawn background agents to fix actionable ones.
+
+## 4. Codex Review Gate handling
 - Gate checks CodeRabbit status + grace period window
-- Uses latest commit timestamp as baseline (not PR updatedAt)
-- 5-minute grace period after latest commit
+- Gate uses latest **commit timestamp** as baseline (not prUpdatedAt)
+- 5-minute grace period after latest commit push
+- Comments/thread resolutions do NOT restart the timer
 - Re-run failed gates after window expires
 
-### Merge strategy
-- incubator-wave: `--merge`
-- tube2web/tubescribes: `--squash`
-- slides-lab: `--squash`
-- Always enable auto-merge: `gh pr merge NUM -R repo --merge --auto`
-- Update BEHIND branches immediately after any merge
-
-### Parallel execution
-- Spawn background agents for each PR/issue that needs work
-- One agent per PR fix for maximum parallelism
-- Don't duplicate work between agents
-
-## Monitored Repos
+## Monitored repos
 - vega113/incubator-wave
 - vega113/tube2web
 - vega113/tubescribes
 - vega113/slides-lab
+
+## Merge strategy
+| Repo | Strategy |
+|------|----------|
+| incubator-wave | `--merge` |
+| tube2web | `--squash` |
+| tubescribes | `--squash` |
+| slides-lab | `--squash` |
 
 ## Improvement Roadmap
 1. Gate baseline uses commit SHA (not prUpdatedAt)
