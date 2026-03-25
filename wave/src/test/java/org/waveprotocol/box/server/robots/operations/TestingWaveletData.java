@@ -99,6 +99,15 @@ public class TestingWaveletData {
     TitleHelper.maybeFindAndSetImplicitTitle(blip.getContent());
   }
 
+  /**
+   * Appends a reply blip to the first blip in the root thread.
+   */
+  public void appendReplyToFirstBlip(String text) {
+    ConversationBlip firstBlip = conversation.getRootThread().getFirstBlip();
+    ConversationBlip reply = firstBlip.addReplyThread().appendBlip();
+    LineContainers.appendToLastLine(reply.getContent(), XmlStringBuilder.createText(text));
+  }
+
   public List<ObservableWaveletData> copyWaveletData() {
     // This data object already has an op-based owner on top. Must copy it.
     return ImmutableList.of(WaveletDataUtil.copyWavelet(waveletData),

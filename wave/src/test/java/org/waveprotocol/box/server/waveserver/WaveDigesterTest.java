@@ -112,6 +112,36 @@ public class WaveDigesterTest extends TestCase {
     assertEquals(1, digest.getBlipCount());
   }
 
+  /**
+   * Tests that the wave title is derived from the root blip, not from a reply blip.
+   * This is a regression test for issue #150.
+   */
+  public void testTitleDerivedFromRootBlipNotReply() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    String rootTitle = "Root blip title";
+    data.appendBlipWithText(rootTitle);
+    data.appendReplyToFirstBlip("Reply blip content");
+    ObservableWaveletData observableWaveletData = data.copyWaveletData().get(0);
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(observableWaveletData);
+    ObservableConversationView conversation = conversationUtil.buildConversation(wavelet);
+
+    SupplementedWave supplement = mock(SupplementedWave.class);
+    when(supplement.isUnread(any(ConversationBlip.class))).thenReturn(true);
+
+    Digest digest =
+        digester.generateDigest(
+            conversation,
+            supplement,
+            observableWaveletData,
+            Collections.singletonList(observableWaveletData));
+
+    assertEquals(rootTitle, digest.getTitle());
+    // The snippet should start with the root blip content, not the reply content
+    assertTrue("Snippet should start with root blip text, but was: " + digest.getSnippet(),
+        digest.getSnippet().startsWith("Reply") == false);
+  }
+
   public void testUnreadCount() {
     TestingWaveletData data =
         new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);

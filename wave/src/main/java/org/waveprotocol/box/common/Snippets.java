@@ -20,7 +20,6 @@
 package org.waveprotocol.box.common;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Lists;
 
 import org.waveprotocol.wave.model.document.operation.AnnotationBoundaryMap;
 import org.waveprotocol.wave.model.document.operation.Attributes;
@@ -163,23 +162,22 @@ public final class Snippets {
       final int maxSnippetLength) {
     final StringBuilder sb = new StringBuilder();
     Set<String> docsIds = wavelet.getDocumentIds();
-    long newestLmt = -1;
-    ReadableBlipData newestBlip = null;
-    for (String docId : docsIds) {
-      ReadableBlipData blip = wavelet.getDocument(docId);
-      long currentLmt = blip.getLastModifiedTime();
-      if (currentLmt > newestLmt) {
-        newestLmt = currentLmt;
-        newestBlip = blip;
-      }
+
+    // Always use the conversation manifest to walk blips in thread order.
+    // This ensures the snippet starts with the root blip content, not the
+    // most recently modified blip (which could be a reply).
+    ReadableBlipData manifestDoc = null;
+    if (docsIds.contains(DocumentConstants.MANIFEST_DOCUMENT_ID)) {
+      manifestDoc = wavelet.getDocument(DocumentConstants.MANIFEST_DOCUMENT_ID);
     }
-    if (newestBlip == null) {
-      // Render whatever data we have and hope its good enough
+
+    if (manifestDoc == null) {
+      // No conversation manifest found; fall back to collating all text.
       sb.append(collateTextForWavelet(wavelet));
     } else {
-      DocOp docOp = newestBlip.getContent().asOperation();
-      sb.append(collateTextForOps(Lists.newArrayList(docOp)));
-      sb.append(" ");
+      // Walk the conversation manifest to collect blip text in thread order
+      // (root blip first, then replies).
+      DocOp docOp = manifestDoc.getContent().asOperation();
       docOp.apply(InitializationCursorAdapter.adapt(new DocInitializationCursor() {
         @Override
         public void annotationBoundary(AnnotationBoundaryMap map) {
