@@ -78,6 +78,7 @@ public final class SearchPresenter
 
   // Internal state
   private final IdentityMap<DigestView, Digest> digestUis = CollectionUtils.createIdentityMap();
+  private final List<ToolbarClickButton> savedSearchButtons = new ArrayList<>();
   private final IncrementalTask searchUpdater = new IncrementalTask() {
     @Override
     public boolean execute() {
@@ -260,17 +261,24 @@ public final class SearchPresenter
   private void rebuildSavedSearchButtons() {
     GroupingToolbar.View toolbarUi = searchUi.getToolbar();
 
+    // Remove old buttons from the toolbar
+    for (ToolbarClickButton button : savedSearchButtons) {
+      button.getElement().removeFromParent();
+    }
+    savedSearchButtons.clear();
+
     // Create the saved search group lazily on first use.
     if (savedSearchGroup == null && !savedSearches.isEmpty()) {
       savedSearchGroup = toolbarUi.addGroup();
     }
 
-    // Clear old buttons by recreating the group if it exists.
-    if (savedSearchGroup != null) {
-      savedSearchGroup = toolbarUi.addGroup();
+    // Recreate buttons if group exists and there are searches.
+    if (savedSearchGroup != null && !savedSearches.isEmpty()) {
       for (final SearchesItem item : savedSearches) {
+        ToolbarClickButton button = savedSearchGroup.addClickButton();
+        savedSearchButtons.add(button);
         new ToolbarButtonViewBuilder().setText(item.getName()).applyTo(
-            savedSearchGroup.addClickButton(), new ToolbarClickButton.Listener() {
+            button, new ToolbarClickButton.Listener() {
               @Override
               public void onClicked() {
                 searchUi.getSearch().setQuery(item.getQuery());
@@ -278,6 +286,9 @@ public final class SearchPresenter
               }
             });
       }
+    } else if (savedSearchGroup != null && savedSearches.isEmpty()) {
+      // Clear the group reference if there are no searches
+      savedSearchGroup = null;
     }
   }
 

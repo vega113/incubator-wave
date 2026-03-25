@@ -196,9 +196,9 @@ public final class OutputHelper {
       titleValue = (titleValue != null ? titleValue + " " : "") + "(" + shortcut + ")";
     }
     builder.appendHtmlConstant("<" + tag
-        + (id != null ? " id='" + id + "'" : "")
-        + (clazz != null ? " class='" + clazz + "'" : "")
-        + (kind != null ? " " + BuilderHelper.KIND_ATTRIBUTE + "='" + kind + "'" : "")
+        + (id != null ? " id='" + escapeAttr(id) + "'" : "")
+        + (clazz != null ? " class='" + escapeAttr(clazz) + "'" : "")
+        + (kind != null ? " " + BuilderHelper.KIND_ATTRIBUTE + "='" + escapeAttr(kind) + "'" : "")
         + (titleValue != null ? " title='" + escapeAttr(titleValue) + "'" : "")
         + (extra != null ? " " + extra : "") + ">");
   }
@@ -239,11 +239,11 @@ public final class OutputHelper {
       SafeHtmlBuilder builder, String id, String style, SafeHtml url, SafeHtml info, String kind) {
     String safeUrl = url != null ? EscapeUtils.sanitizeUri(url.asString()) : null;
     SafeHtml img = EscapeUtils.fromSafeConstant("<img " //
-        + "id='" + id + "' " //
-        + "class='" + style + "' " //
+        + "id='" + escapeAttr(id) + "' " //
+        + "class='" + escapeAttr(style) + "' " //
         + (safeUrl != null ? "src='" + safeUrl + "' " : "") //
-        + (info != null ? " alt='" + info.asString() + "' title='" + info.asString() + "' " : "") //
-        + (kind != null ? " " + KIND_ATTRIBUTE + "='" + kind + "'" : "") //
+        + (info != null ? " alt='" + escapeAttr(info.asString()) + "' title='" + escapeAttr(info.asString()) + "' " : "") //
+        + (kind != null ? " " + KIND_ATTRIBUTE + "='" + escapeAttr(kind) + "'" : "") //
         + "></img>");
     builder.append(img);
   }
@@ -255,10 +255,10 @@ public final class OutputHelper {
       String title,
       String caption) {
     builder.appendHtmlConstant("<button " //
-        + (id != null ? " id='" + id + "'" : "") //
-        + (title != null ? " title='" + title + "'" : "") //
-        + (clazz != null ? " class='" + clazz + "'" : "") //
-        + (kind != null ? " " + BuilderHelper.KIND_ATTRIBUTE + "='" + kind + "'" : "") //
+        + (id != null ? " id='" + escapeAttr(id) + "'" : "") //
+        + (title != null ? " title='" + escapeAttr(title) + "'" : "") //
+        + (clazz != null ? " class='" + escapeAttr(clazz) + "'" : "") //
+        + (kind != null ? " " + BuilderHelper.KIND_ATTRIBUTE + "='" + escapeAttr(kind) + "'" : "") //
         + ">"+ caption + "</button>");
   }
 }

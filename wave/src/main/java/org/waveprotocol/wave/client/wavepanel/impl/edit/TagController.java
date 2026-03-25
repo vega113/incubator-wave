@@ -99,9 +99,11 @@ public final class TagController {
     TagView tagView = views.asTag(context);
     if (!TagState.REMOVED.equals(tagView.getState())) {
       final Pair<Conversation, String> tag = models.getTag(tagView);
-      boolean confirmed = Window.confirm(messages.removeTagPrompt(tag.second));
-      if (confirmed) {
-        tag.first.removeTag(tag.second);
+      if (tag != null) {
+        boolean confirmed = Window.confirm(messages.removeTagPrompt(tag.second));
+        if (confirmed) {
+          tag.first.removeTag(tag.second);
+        }
       }
     }
   }
@@ -109,7 +111,13 @@ public final class TagController {
   private void addTagsInner(Element addButton, String input) {
     String[] tags = input.split(",");
     TagsView tagUi = views.tagsFromAddButton(addButton);
+    if (tagUi == null) {
+      return;
+    }
     Conversation conversation = models.getTags(tagUi);
+    if (conversation == null) {
+      return;
+    }
     for (String tag : tags) {
       tag = tag.trim();
       if (!tag.isEmpty()) {
