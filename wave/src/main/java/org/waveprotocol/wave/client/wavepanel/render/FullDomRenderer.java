@@ -38,6 +38,8 @@ import org.waveprotocol.wave.client.wavepanel.view.dom.full.ParticipantAvatarVie
 import org.waveprotocol.wave.client.wavepanel.view.dom.full.ParticipantsViewBuilder;
 import org.waveprotocol.wave.client.wavepanel.view.dom.full.ReplyBoxViewBuilder;
 import org.waveprotocol.wave.client.wavepanel.view.dom.full.RootThreadViewBuilder;
+import org.waveprotocol.wave.client.wavepanel.view.dom.full.TagViewBuilder;
+import org.waveprotocol.wave.client.wavepanel.view.dom.full.TagsViewBuilder;
 import org.waveprotocol.wave.client.wavepanel.view.dom.full.ViewFactory;
 import org.waveprotocol.wave.model.conversation.Conversation;
 import org.waveprotocol.wave.model.conversation.ConversationBlip;
@@ -49,6 +51,7 @@ import org.waveprotocol.wave.model.util.IdentityMap.ProcV;
 import org.waveprotocol.wave.model.util.IdentityMap.Reduce;
 import org.waveprotocol.wave.model.util.StringMap;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -124,18 +127,38 @@ public final class FullDomRenderer implements RenderingRules<UiBuilder> {
   public UiBuilder render(Conversation conversation, UiBuilder participantsUi, UiBuilder threadUi) {
     String id = viewIdMapper.conversationOf(conversation);
     boolean isTop = !conversation.hasAnchor();
-    return isTop ? viewFactory.createTopConversationView(id, threadUi, participantsUi)
-        : viewFactory.createInlineConversationView(id, threadUi, participantsUi);
+    UiBuilder tagsUi = renderTags(conversation);
+    return isTop ? viewFactory.createTopConversationView(id, threadUi, participantsUi, tagsUi)
+        : viewFactory.createInlineConversationView(id, threadUi, participantsUi, tagsUi);
+  }
+
+  /**
+   * Renders the tags section for a conversation.
+   */
+  private UiBuilder renderTags(Conversation conversation) {
+    java.util.Set<String> tags = conversation.getTags();
+    String tagsId = viewIdMapper.tagsOf(conversation);
+    HtmlClosureCollection tagUis = new HtmlClosureCollection();
+    if (tags != null) {
+      for (String tag : tags) {
+        tagUis.add(TagViewBuilder.create(tagsId + "." + tag, tag));
+      }
+    }
+    return TagsViewBuilder.create(tagsId, tagUis);
   }
 
   @Override
   public UiBuilder render(Conversation conversation, StringMap<UiBuilder> participantUis) {
     HtmlClosureCollection participantsUi = new HtmlClosureCollection();
+    boolean isPublic = false;
     for (ParticipantId participant : conversation.getParticipantIds()) {
       participantsUi.add(participantUis.get(participant.getAddress()));
+      if (ParticipantIdUtil.isDomainAddress(participant.getAddress())) {
+        isPublic = true;
+      }
     }
     String id = viewIdMapper.participantsOf(conversation);
-    return ParticipantsViewBuilder.create(id, participantsUi);
+    return ParticipantsViewBuilder.create(id, participantsUi, isPublic);
   }
 
   @Override
