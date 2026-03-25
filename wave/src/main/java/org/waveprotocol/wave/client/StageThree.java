@@ -39,6 +39,7 @@ import org.waveprotocol.wave.client.wavepanel.impl.edit.EditController;
 import org.waveprotocol.wave.client.wavepanel.impl.edit.EditSession;
 import org.waveprotocol.wave.client.wavepanel.impl.edit.KeepFocusInView;
 import org.waveprotocol.wave.client.wavepanel.impl.edit.ParticipantController;
+import org.waveprotocol.wave.client.wavepanel.impl.edit.TagController;
 import org.waveprotocol.wave.client.wavepanel.impl.edit.i18n.ParticipantMessages;
 import org.waveprotocol.wave.client.wavepanel.impl.focus.FocusFramePresenter;
 import org.waveprotocol.wave.client.wavepanel.impl.indicator.ReplyIndicatorController;
@@ -225,6 +226,7 @@ public interface StageThree {
       ParticipantController.install(panel, models, profiles, getLocalDomain(), user,
           participantMessages, getContactManager());
       KeepFocusInView.install(edit, panel);
+      TagController.install(panel, models);
       DraftModeController.install(panel, actions, edit);
       stageTwo.getDiffController().upgrade(edit);
     }

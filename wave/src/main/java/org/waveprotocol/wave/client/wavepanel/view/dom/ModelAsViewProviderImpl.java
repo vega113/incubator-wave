@@ -30,6 +30,8 @@ import org.waveprotocol.wave.client.wavepanel.view.InlineThreadView;
 import org.waveprotocol.wave.client.wavepanel.view.ParticipantView;
 import org.waveprotocol.wave.client.wavepanel.view.ParticipantsView;
 import org.waveprotocol.wave.client.wavepanel.view.RootThreadView;
+import org.waveprotocol.wave.client.wavepanel.view.TagView;
+import org.waveprotocol.wave.client.wavepanel.view.TagsView;
 import org.waveprotocol.wave.client.wavepanel.view.ThreadView;
 import org.waveprotocol.wave.client.wavepanel.view.ViewIdMapper;
 import org.waveprotocol.wave.model.conversation.Conversation;
@@ -126,5 +128,45 @@ public class ModelAsViewProviderImpl implements ModelAsViewProvider {
   @Override
   public Pair<Conversation, ParticipantId> getParticipant(ParticipantView participantUi) {
     return viewIdMapper.participantOf(participantUi.getId());
+  }
+
+  @Override
+  public TagsView getTagsView(Conversation conv) {
+    Element e = Document.get().getElementById(viewIdMapper.tagsOf(conv));
+    return e != null ? viewProvider.asTags(e) : null;
+  }
+
+  @Override
+  public Conversation getTags(TagsView tagsUi) {
+    // Tags share the same conversation ID base as participants.
+    // The tagsOf() DOM id has suffix "G", so strip it to locate the conversation.
+    String domId = tagsUi.getId();
+    if (domId != null && domId.endsWith("G")) {
+      String baseId = domId.substring(0, domId.length() - 1);
+      return viewIdMapper.participantsOf(baseId + "P");
+    }
+    return null;
+  }
+
+  @Override
+  public Pair<Conversation, String> getTag(TagView tagUi) {
+    // Tag DOM IDs are of the form: <tagsId>.<tagName>
+    // where tagsId = convId + "G"
+    String domId = tagUi.getId();
+    if (domId != null) {
+      int dotIdx = domId.lastIndexOf('.');
+      if (dotIdx > 0) {
+        String tagName = domId.substring(dotIdx + 1);
+        String tagsId = domId.substring(0, dotIdx);
+        if (tagsId.endsWith("G")) {
+          String baseId = tagsId.substring(0, tagsId.length() - 1);
+          Conversation conv = viewIdMapper.participantsOf(baseId + "P");
+          if (conv != null) {
+            return Pair.of(conv, tagName);
+          }
+        }
+      }
+    }
+    return null;
   }
 }

@@ -61,6 +61,10 @@ public final class ViewIdMapper {
     return modelMapper.participantId(c, p) + "P";
   }
 
+  public String tagsOf(Conversation c) {
+    return modelMapper.convId(c) + "G";
+  }
+
   public String threadOf(ConversationThread t) {
     return modelMapper.threadId(t) + "T";
   }

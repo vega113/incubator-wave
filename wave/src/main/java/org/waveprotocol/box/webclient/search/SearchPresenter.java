@@ -20,6 +20,7 @@
 package org.waveprotocol.box.webclient.search;
 
 import com.google.gwt.core.client.GWT;
+import org.waveprotocol.box.searches.SearchesItem;
 import org.waveprotocol.box.webclient.search.Search.State;
 import org.waveprotocol.box.webclient.search.i18n.SearchPresenterMessages;
 import org.waveprotocol.wave.client.account.Profile;
@@ -36,6 +37,9 @@ import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.util.CollectionUtils;
 import org.waveprotocol.wave.model.util.IdentityMap;
 import org.waveprotocol.wave.model.wave.SourcesEvents;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Presents a search model into a search view.
@@ -160,6 +164,11 @@ public final class SearchPresenter
     profiles.removeListener(this);
   }
 
+  /** The current user's saved searches. */
+  private final List<SearchesItem> savedSearches = new ArrayList<SearchesItem>();
+  private final SearchesService searchesService = new RemoteSearchesService();
+  private SearchesEditorPopup searchesEditorPopup;
+
   /**
    * Adds custom buttons to the toolbar.
    */
@@ -180,9 +189,89 @@ public final class SearchPresenter
             scheduler.scheduleRepeating(searchUpdater, delay, POLLING_INTERVAL_MS);
           }
         });
+
+    // Add "Manage Searches" button.
+    new ToolbarButtonViewBuilder().setText(messages.modify()).applyTo(
+        group.addClickButton(), new ToolbarClickButton.Listener() {
+          @Override
+          public void onClicked() {
+            openSearchesEditor();
+          }
+        });
+
     // Fake group with empty button - to force the separator be displayed.
     group = toolbarUi.addGroup();
     new ToolbarButtonViewBuilder().setText("").applyTo(group.addClickButton(), null);
+
+    // Load saved searches from server and render them as toolbar buttons.
+    loadSavedSearches();
+  }
+
+  /**
+   * Opens the saved searches editor popup.
+   */
+  private void openSearchesEditor() {
+    if (searchesEditorPopup == null) {
+      searchesEditorPopup = new SearchesEditorPopup();
+    }
+    searchesEditorPopup.init(savedSearches, new SearchesEditorPopup.Listener() {
+      @Override
+      public void onShow() {
+      }
+
+      @Override
+      public void onHide() {
+      }
+
+      @Override
+      public void onDone(List<SearchesItem> newSearches) {
+        savedSearches.clear();
+        savedSearches.addAll(newSearches);
+        // Rebuild toolbar to reflect changes.
+        rebuildSavedSearchButtons();
+      }
+    });
+    searchesEditorPopup.show();
+  }
+
+  /**
+   * Loads saved searches from the server and renders them as toolbar buttons.
+   */
+  private void loadSavedSearches() {
+    searchesService.getSearches(new SearchesService.GetCallback() {
+      @Override
+      public void onFailure(String message) {
+        // Silently ignore - saved searches are optional.
+      }
+
+      @Override
+      public void onSuccess(List<SearchesItem> searches) {
+        savedSearches.clear();
+        savedSearches.addAll(searches);
+        rebuildSavedSearchButtons();
+      }
+    });
+  }
+
+  /**
+   * Adds saved search quick-access buttons to the toolbar.
+   */
+  private void rebuildSavedSearchButtons() {
+    if (savedSearches.isEmpty()) {
+      return;
+    }
+    GroupingToolbar.View toolbarUi = searchUi.getToolbar();
+    ToolbarView savedGroup = toolbarUi.addGroup();
+    for (final SearchesItem item : savedSearches) {
+      new ToolbarButtonViewBuilder().setText(item.getName()).applyTo(
+          savedGroup.addClickButton(), new ToolbarClickButton.Listener() {
+            @Override
+            public void onClicked() {
+              searchUi.getSearch().setQuery(item.getQuery());
+              onQueryEntered();
+            }
+          });
+    }
   }
 
   /**
