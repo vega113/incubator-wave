@@ -30,7 +30,12 @@ import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
+import org.waveprotocol.box.server.mail.MailException;
+import org.waveprotocol.box.server.mail.MailProvider;
 import org.waveprotocol.box.server.persistence.AccountStore;
+import org.waveprotocol.box.server.persistence.ContactMessageStore;
+import org.waveprotocol.box.server.persistence.ContactMessageStore.ContactMessage;
+import org.waveprotocol.box.server.persistence.ContactMessageStore.ContactReply;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
@@ -61,14 +66,20 @@ public final class AdminServlet extends HttpServlet {
 
   private final AccountStore accountStore;
   private final SessionManager sessionManager;
+  private final ContactMessageStore contactMessageStore;
+  private final MailProvider mailProvider;
   private final String domain;
 
   @Inject
   public AdminServlet(AccountStore accountStore,
                       SessionManager sessionManager,
+                      ContactMessageStore contactMessageStore,
+                      MailProvider mailProvider,
                       @Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain) {
     this.accountStore = accountStore;
     this.sessionManager = sessionManager;
+    this.contactMessageStore = contactMessageStore;
+    this.mailProvider = mailProvider;
     this.domain = domain;
   }
 
@@ -80,6 +91,8 @@ public final class AdminServlet extends HttpServlet {
     String pathInfo = req.getPathInfo();
     if (pathInfo != null && pathInfo.startsWith("/api/users")) {
       handleGetUsers(req, resp, caller);
+    } else if (pathInfo != null && pathInfo.startsWith("/api/contacts")) {
+      handleGetContacts(req, resp);
     } else {
       // Serve the admin page HTML
       resp.setContentType("text/html;charset=utf-8");
@@ -100,7 +113,11 @@ public final class AdminServlet extends HttpServlet {
       return;
     }
 
-    if (pathInfo.endsWith("/role")) {
+    if (pathInfo.startsWith("/api/contacts/") && pathInfo.endsWith("/reply")) {
+      handleContactReply(req, resp, caller, pathInfo);
+    } else if (pathInfo.startsWith("/api/contacts/") && pathInfo.endsWith("/status")) {
+      handleContactStatusChange(req, resp, pathInfo);
+    } else if (pathInfo.endsWith("/role")) {
       handleChangeRole(req, resp, caller, pathInfo);
     } else if (pathInfo.endsWith("/status")) {
       handleChangeStatus(req, resp, caller, pathInfo);
@@ -265,6 +282,173 @@ public final class AdminServlet extends HttpServlet {
       LOG.severe("Failed to change status for " + targetId, e);
       resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
+  }
+
+  // =========================================================================
+  // GET /admin/api/contacts
+  // =========================================================================
+
+  private void handleGetContacts(HttpServletRequest req, HttpServletResponse resp)
+      throws IOException {
+    String statusFilter = req.getParameter("status");
+    if (statusFilter != null && statusFilter.isEmpty()) statusFilter = null;
+    int page = parseIntOrDefault(req.getParameter("page"), 0);
+    int pageSize = parseIntOrDefault(req.getParameter("pageSize"), 50);
+    if (pageSize < 1) pageSize = 50;
+    if (pageSize > 200) pageSize = 200;
+
+    try {
+      long total = contactMessageStore.countMessages(statusFilter);
+      // When limit=0, only return the count (for badge polling)
+      int limitParam = parseIntOrDefault(req.getParameter("limit"), -1);
+      if (limitParam == 0) {
+        setJsonUtf8(resp);
+        resp.getWriter().write("{\"total\":" + total + ",\"messages\":[]}");
+        return;
+      }
+      java.util.List<ContactMessage> messages =
+          contactMessageStore.getMessages(statusFilter, page * pageSize, pageSize);
+
+      setJsonUtf8(resp);
+      PrintWriter w = resp.getWriter();
+      w.append("{\"total\":").append(String.valueOf(total));
+      w.append(",\"page\":").append(String.valueOf(page));
+      w.append(",\"pageSize\":").append(String.valueOf(pageSize));
+      w.append(",\"messages\":[");
+      for (int i = 0; i < messages.size(); i++) {
+        if (i > 0) w.append(',');
+        writeContactJson(w, messages.get(i));
+      }
+      w.append("]}");
+      w.flush();
+    } catch (PersistenceException e) {
+      LOG.severe("Failed to list contact messages", e);
+      sendJsonError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+          "Failed to list contact messages");
+    }
+  }
+
+  // =========================================================================
+  // POST /admin/api/contacts/{id}/status
+  // =========================================================================
+
+  private void handleContactStatusChange(HttpServletRequest req, HttpServletResponse resp,
+      String pathInfo) throws IOException {
+    String id = extractContactId(pathInfo, "/status");
+    if (id == null) {
+      sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST, "Missing message ID");
+      return;
+    }
+    String body = readBody(req);
+    String newStatus = extractJsonField(body, "status");
+    if (newStatus == null
+        || (!ContactMessageStore.STATUS_NEW.equals(newStatus)
+        && !ContactMessageStore.STATUS_READ.equals(newStatus)
+        && !ContactMessageStore.STATUS_REPLIED.equals(newStatus)
+        && !ContactMessageStore.STATUS_ARCHIVED.equals(newStatus))) {
+      sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST,
+          "Invalid status. Must be new, read, replied, or archived");
+      return;
+    }
+    try {
+      contactMessageStore.updateStatus(id, newStatus);
+      setJsonUtf8(resp);
+      resp.getWriter().write("{\"ok\":true}");
+    } catch (PersistenceException e) {
+      LOG.severe("Failed to update contact status for " + id, e);
+      sendJsonError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+          "Failed to update status");
+    }
+  }
+
+  // =========================================================================
+  // POST /admin/api/contacts/{id}/reply
+  // =========================================================================
+
+  private void handleContactReply(HttpServletRequest req, HttpServletResponse resp,
+      HumanAccountData caller, String pathInfo) throws IOException {
+    String id = extractContactId(pathInfo, "/reply");
+    if (id == null) {
+      sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST, "Missing message ID");
+      return;
+    }
+    String body = readBody(req);
+    String replyBody = extractJsonField(body, "body");
+    if (replyBody == null || replyBody.trim().isEmpty()) {
+      sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST, "Reply body is required");
+      return;
+    }
+
+    try {
+      ContactMessage msg = contactMessageStore.getMessage(id);
+      if (msg == null) {
+        sendJsonError(resp, HttpServletResponse.SC_NOT_FOUND, "Message not found");
+        return;
+      }
+
+      ContactReply reply = new ContactReply(
+          caller.getId().getAddress(), replyBody.trim(), System.currentTimeMillis());
+      contactMessageStore.addReply(id, reply);
+
+      // Send reply email to the user (best-effort)
+      String recipientEmail = msg.getEmail();
+      if (recipientEmail != null && !recipientEmail.isEmpty()) {
+        try {
+          String subject = "Re: " + msg.getSubject() + " - SupaWave Support";
+          String htmlBody = "<p>Hi " + HtmlRenderer.escapeHtml(msg.getName()) + ",</p>"
+              + "<div style=\"padding:12px;background:#f5f5f5;border-radius:8px;\">"
+              + HtmlRenderer.escapeHtml(replyBody).replace("\n", "<br>")
+              + "</div>"
+              + "<hr style=\"border:none;border-top:1px solid #e2e8f0;margin:16px 0;\">"
+              + "<p style=\"color:#888;font-size:12px;\">This is a reply to your contact message: \""
+              + HtmlRenderer.escapeHtml(msg.getSubject()) + "\"</p>";
+          mailProvider.sendEmail(recipientEmail, subject, htmlBody);
+        } catch (MailException e) {
+          LOG.warning("Failed to send reply email to " + recipientEmail + ": " + e.getMessage());
+        }
+      }
+
+      setJsonUtf8(resp);
+      resp.getWriter().write("{\"ok\":true}");
+    } catch (PersistenceException e) {
+      LOG.severe("Failed to add reply to contact " + id, e);
+      sendJsonError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+          "Failed to store reply");
+    }
+  }
+
+  /**
+   * Extracts the contact message ID from a path like /api/contacts/{id}/reply
+   */
+  private static String extractContactId(String pathInfo, String suffix) {
+    String prefix = "/api/contacts/";
+    if (!pathInfo.startsWith(prefix) || !pathInfo.endsWith(suffix)) return null;
+    String id = pathInfo.substring(prefix.length(), pathInfo.length() - suffix.length());
+    return id.isEmpty() ? null : id;
+  }
+
+  private static void writeContactJson(PrintWriter w, ContactMessage msg) {
+    w.append("{\"id\":").append(jsonStr(msg.getId()));
+    w.append(",\"userId\":").append(jsonStr(msg.getUserId()));
+    w.append(",\"name\":").append(jsonStr(msg.getName()));
+    w.append(",\"email\":").append(jsonStr(msg.getEmail()));
+    w.append(",\"subject\":").append(jsonStr(msg.getSubject()));
+    w.append(",\"message\":").append(jsonStr(msg.getMessage()));
+    w.append(",\"status\":").append(jsonStr(msg.getStatus()));
+    w.append(",\"createdAt\":").append(String.valueOf(msg.getCreatedAt()));
+    w.append(",\"ip\":").append(jsonStr(msg.getIp()));
+    w.append(",\"replies\":[");
+    if (msg.getReplies() != null) {
+      for (int i = 0; i < msg.getReplies().size(); i++) {
+        if (i > 0) w.append(',');
+        ContactReply r = msg.getReplies().get(i);
+        w.append("{\"adminUser\":").append(jsonStr(r.getAdminUser()));
+        w.append(",\"body\":").append(jsonStr(r.getBody()));
+        w.append(",\"sentAt\":").append(String.valueOf(r.getSentAt()));
+        w.append('}');
+      }
+    }
+    w.append("]}");
   }
 
   // =========================================================================
