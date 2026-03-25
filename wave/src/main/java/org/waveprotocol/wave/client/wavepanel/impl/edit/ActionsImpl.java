@@ -171,7 +171,13 @@ public final class ActionsImpl implements Actions {
       }
     }
 
-    views.getBlip(blipUi).delete();
+    // When quasi-deletion UI is enabled, defer the actual delete and show an
+    // undo toast so the user can recover within the grace period.
+    if (UndoableDeleteHelper.isEnabled()) {
+      UndoableDeleteHelper.softDelete(blipUi, views);
+    } else {
+      views.getBlip(blipUi).delete();
+    }
   }
 
   @Override
@@ -181,10 +187,20 @@ public final class ActionsImpl implements Actions {
 
   /**
    * Moves focus to a blip, and starts editing it.
+   * If already editing the target blip and the editor is confirmed to be
+   * in editing mode with a document attached, this is a no-op to avoid
+   * disrupting the current edit session (e.g. resetting cursor position).
+   * If the edit session is stale (e.g. the editor lost its editing context
+   * or document), the session is restarted.
    */
   private void focusAndEdit(BlipView blipUi) {
     boolean allowed = !BlipUiUtil.isQuasiDeleted(blipUi);
     if (allowed) {
+      if (edit.isEditing() && blipUi.equals(edit.getBlip())
+          && edit.getEditor() != null && edit.getEditor().isEditing()
+          && edit.getEditor().hasDocument()) {
+        return;
+      }
       edit.stopEditing();
       focus.focus(blipUi);
       edit.startEditing(blipUi);
