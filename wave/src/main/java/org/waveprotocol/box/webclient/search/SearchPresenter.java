@@ -226,6 +226,23 @@ public final class SearchPresenter
     return wrapper;
   }
 
+  /** Whether saved searches have been loaded from the server yet. */
+  private boolean savedSearchesLoaded = false;
+
+  /**
+   * Creates a composite icon+text element for the New Wave toolbar button.
+   * The wrapper span uses inline-flex layout so the SVG and label sit side by side.
+   */
+  private static Element createNewWaveVisual(String svgHtml, String label) {
+    Element wrapper = DOM.createSpan();
+    wrapper.setAttribute("style",
+        "display:inline-flex;align-items:center;gap:5px;pointer-events:none;");
+    wrapper.setInnerHTML(svgHtml
+        + "<span style=\"font-size:12px;font-weight:400;color:#fff;white-space:nowrap;\">"
+        + label + "</span>");
+    return wrapper;
+  }
+
   /**
    * Adds action and filter buttons to the unified toolbar row.
    * <p>
@@ -238,8 +255,9 @@ public final class SearchPresenter
 
     // --- Group 1: New Wave ---
     ToolbarView newWaveGroup = toolbarUi.addGroup();
+    // "New Wave" action button — compact dark icon+text compose button.
     ToolbarClickButton newWaveButton = new ToolbarButtonViewBuilder()
-        .setTooltip(messages.newWaveHint())
+        .setTooltip(messages.newWaveHint() + " (Shift+Ctrl/Cmd+O)")
         .applyTo(newWaveGroup.addClickButton(), new ToolbarClickButton.Listener() {
           @Override
           public void onClicked() {
@@ -299,8 +317,8 @@ public final class SearchPresenter
           }
         }).setVisualElement(createSvgIcon(ICON_ARCHIVE));
 
-    // Load saved searches from server and render them as toolbar buttons.
-    loadSavedSearches();
+    // Saved searches are loaded lazily after the first search result arrives
+    // (see onStateChanged) to avoid competing with the critical /search request.
   }
 
   /**
@@ -511,6 +529,12 @@ public final class SearchPresenter
     //
     if (search.getState() == State.READY) {
       renderTitle();
+      // Deferred load: fetch saved searches after the first search result
+      // arrives so the /searches request does not block wave list display.
+      if (!savedSearchesLoaded) {
+        savedSearchesLoaded = true;
+        loadSavedSearches();
+      }
     }
   }
 
