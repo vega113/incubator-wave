@@ -96,7 +96,7 @@ public final class RemoteSearchesService implements SearchesService {
     requestBuilder.setCallback(new RequestCallback() {
       @Override
       public void onResponseReceived(Request request, Response response) {
-        LOG.trace().log("Searches response received, status=", response.getStatusCode());
+        LOG.trace().log("Searches was received: ", response.getText());
         if (response.getStatusCode() != Response.SC_OK) {
           callback.onFailure("Got back status code " + response.getStatusCode());
         } else if (response.getHeader("Content-Type") == null
@@ -135,14 +135,12 @@ public final class RemoteSearchesService implements SearchesService {
       obj.put("query", new JSONString(item.getQuery() != null ? item.getQuery() : ""));
       array.set(i, obj);
     }
-    // Server expects a top-level JSON array, not an object wrapper.
     return array.toString();
   }
 
   private static List<SearchesItem> deserializeSearches(String json) {
     List<SearchesItem> searches = new ArrayList<SearchesItem>();
     JSONValue parsed = JSONParser.parseStrict(json);
-    // Server returns a top-level JSON array.
     JSONArray array = parsed.isArray();
     if (array != null) {
       for (int i = 0; i < array.size(); i++) {

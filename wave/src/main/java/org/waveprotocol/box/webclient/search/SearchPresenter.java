@@ -108,8 +108,6 @@ public final class SearchPresenter
   /** The dispatcher of profiles events. */
   SourcesEvents<ProfileListener> profiles;
   private boolean isRenderingInProgress = false;
-  /** Toolbar group for saved-search quick-access buttons (cleared on rebuild). */
-  private ToolbarView savedSearchGroup;
 
   SearchPresenter(TimerService scheduler, Search search, SearchPanelView searchUi,
       WaveActionHandler actionHandler, SourcesEvents<ProfileListener> profiles) {
@@ -170,6 +168,7 @@ public final class SearchPresenter
   private final List<SearchesItem> savedSearches = new ArrayList<SearchesItem>();
   private final SearchesService searchesService = new RemoteSearchesService();
   private SearchesEditorPopup searchesEditorPopup;
+  private ToolbarView savedSearchGroup;
 
   /**
    * Adds custom buttons to the toolbar.
@@ -259,27 +258,26 @@ public final class SearchPresenter
    * Adds saved search quick-access buttons to the toolbar.
    */
   private void rebuildSavedSearchButtons() {
-    // Clear previous saved-search group to avoid accumulating duplicates.
-    if (savedSearchGroup != null) {
-      savedSearchGroup.clearItems();
-    }
-
-    if (savedSearches.isEmpty()) {
-      savedSearchGroup = null;
-      return;
-    }
-
     GroupingToolbar.View toolbarUi = searchUi.getToolbar();
-    savedSearchGroup = toolbarUi.addGroup();
-    for (final SearchesItem item : savedSearches) {
-      new ToolbarButtonViewBuilder().setText(item.getName()).applyTo(
-          savedSearchGroup.addClickButton(), new ToolbarClickButton.Listener() {
-            @Override
-            public void onClicked() {
-              searchUi.getSearch().setQuery(item.getQuery());
-              onQueryEntered();
-            }
-          });
+
+    // Create the saved search group lazily on first use.
+    if (savedSearchGroup == null && !savedSearches.isEmpty()) {
+      savedSearchGroup = toolbarUi.addGroup();
+    }
+
+    // Clear old buttons by recreating the group if it exists.
+    if (savedSearchGroup != null) {
+      savedSearchGroup = toolbarUi.addGroup();
+      for (final SearchesItem item : savedSearches) {
+        new ToolbarButtonViewBuilder().setText(item.getName()).applyTo(
+            savedSearchGroup.addClickButton(), new ToolbarClickButton.Listener() {
+              @Override
+              public void onClicked() {
+                searchUi.getSearch().setQuery(item.getQuery());
+                onQueryEntered();
+              }
+            });
+      }
     }
   }
 
@@ -463,15 +461,15 @@ public final class SearchPresenter
       return;
     }
 
-    DigestView digestUi = findDigestView(digest);
-    if (digestUi == null) {
+    setSelected(null);
+    DigestView digestToRemove = findDigestView(digest);
+    if (digestToRemove == null) {
       return;
     }
-    // Re-render the existing view in-place instead of removing and re-inserting,
-    // which avoids DOM destruction/reconstruction that causes visual blinking.
-    searchUi.renderDigest(digestUi, digest);
-    // Refresh the digestUis map so it points at the updated Digest instance.
-    digestUis.put(digestUi, digest);
+    DigestView insertRef = searchUi.getNext(digestToRemove);
+    digestToRemove.remove();
+    DigestView newDigestUi = insertDigest(insertRef, digest);
+    setSelected(newDigestUi);
   }
 
   @Override

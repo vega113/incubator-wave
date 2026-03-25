@@ -150,23 +150,6 @@ public class ModelAsViewProviderImpl implements ModelAsViewProvider {
 
   @Override
   public Pair<Conversation, String> getTag(TagView tagUi) {
-    // Tag DOM IDs are of the form: <tagsId>.<tagName>
-    // where tagsId = convId + "G"
-    String domId = tagUi.getId();
-    if (domId != null) {
-      int dotIdx = domId.lastIndexOf('.');
-      if (dotIdx > 0) {
-        String tagName = domId.substring(dotIdx + 1);
-        String tagsId = domId.substring(0, dotIdx);
-        if (tagsId.endsWith("G")) {
-          String baseId = tagsId.substring(0, tagsId.length() - 1);
-          Conversation conv = viewIdMapper.participantsOf(baseId + "P");
-          if (conv != null) {
-            return Pair.of(conv, tagName);
-          }
-        }
-      }
-    }
-    return null;
+    return viewIdMapper.tagOf(tagUi.getId());
   }
 }
