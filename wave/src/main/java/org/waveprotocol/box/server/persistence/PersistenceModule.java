@@ -183,8 +183,10 @@ public class PersistenceModule extends AbstractModule {
       if ("v4".equalsIgnoreCase(mongoDriver)) {
         bind(ContactStore.class).toInstance(getMongo4Provider().provideMongoDbContactStore());
       } else {
-        // Legacy v2 driver has no ContactStore implementation; fall back to memory.
-        bind(ContactStore.class).to(MemoryStore.class).in(Singleton.class);
+        throw new IllegalStateException(
+            "contact_store_type is set to 'mongodb' but the legacy v2 MongoDB driver "
+            + "does not support ContactStore. Set core.mongodb_driver to 'v4' or use "
+            + "contact_store_type 'memory'.");
       }
     } else {
       bind(ContactStore.class).to(MemoryStore.class).in(Singleton.class);
