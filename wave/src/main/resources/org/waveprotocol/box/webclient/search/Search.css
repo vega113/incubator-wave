@@ -67,6 +67,7 @@ input.query:focus {
   background: #fff;
 }
 
+/* Icon button panel: compact flex row of action icons beside the search box. */
 .searchButtonsPanel {
   display: flex;
   align-items: center;
@@ -74,6 +75,7 @@ input.query:focus {
   flex-shrink: 0;
 }
 
+/* Each filter/action button is a minimal icon circle with tooltip. */
 .searchButton {
   display: flex;
   align-items: center;
