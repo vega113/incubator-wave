@@ -64,26 +64,24 @@ public class SavedStateIndicator implements UnsavedDataListener {
   private SavedState visibleSavedState = SavedState.SAVED;
   private SavedState currentSavedState = null;
 
-  /** Cloud-upload SVG icon (16x16) for unsaved/saving state — amber #d29922 with pulse animation. */
-  private static final String UNSAVED_HTML =
-      "<span style='display:inline-flex;align-items:center;gap:4px;color:#d29922;' class='saving-pulse'>"
-          + "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' "
-          + "fill='none' stroke='#d29922' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-          + "<path d='M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242'/>"
-          + "<path d='M12 12v9'/>"
-          + "<path d='m16 16-4-4-4 4'/>"
-          + "</svg>"
-          + "<span>" + SavedState.UNSAVED.message + "</span></span>";
+  /** Cloud-check SVG icon for saved state — green #3fb950. */
+  private static final String SAVED_ICON_SVG =
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#3fb950\" stroke-width=\"1.8\""
+          + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
+          + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
+          + "<path d=\"M9 15l2 2 4-4\" stroke-width=\"2\"/>"
+          + "</svg>";
 
-  /** Cloud-check SVG icon (16x16) for saved state — green #3fb950. */
-  private static final String SAVED_HTML =
-      "<span style='display:inline-flex;align-items:center;gap:4px;color:#3fb950;'>"
-          + "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' "
-          + "fill='none' stroke='#3fb950' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-          + "<path d='M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242'/>"
-          + "<path d='m9 12 2 2 4-4'/>"
-          + "</svg>"
-          + "<span>" + SavedState.SAVED.message + "</span></span>";
+  /** Cloud-upload SVG icon for unsaved state — amber #d29922. */
+  private static final String UNSAVED_ICON_SVG =
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#d29922\" stroke-width=\"1.8\""
+          + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
+          + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
+          + "<path d=\"M12 18v-6m-3 3l3-3 3 3\" stroke-width=\"2\"/>"
+          + "</svg>";
+
+  private static final String UNSAVED_HTML = UNSAVED_ICON_SVG;
+  private static final String SAVED_HTML = SAVED_ICON_SVG;
 
   public SavedStateIndicator(Element element) {
     this.element = element;
@@ -123,7 +121,10 @@ public class SavedStateIndicator implements UnsavedDataListener {
   private void updateDisplay() {
     visibleSavedState = currentSavedState;
     String innerHtml = visibleSavedState == SavedState.SAVED ? SAVED_HTML : UNSAVED_HTML;
+    String tooltip = visibleSavedState == SavedState.SAVED
+        ? messages.saved() : messages.unsaved();
     element.setInnerHTML(innerHtml);
+    element.setTitle(tooltip);
   }
 
   @Override

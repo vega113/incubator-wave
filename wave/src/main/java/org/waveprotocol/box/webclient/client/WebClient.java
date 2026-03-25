@@ -301,6 +301,29 @@ public class WebClient implements EntryPoint {
     });
   }
 
+  /** WiFi SVG icon for connected state — green #3fb950. */
+  private static final String WIFI_ICON_SVG =
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#3fb950\" stroke-width=\"1.8\""
+          + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
+          + "<path d=\"M1.42 9a16 16 0 0 1 21.16 0\"/>"
+          + "<path d=\"M5.07 12.5a10 10 0 0 1 13.86 0\"/>"
+          + "<path d=\"M8.72 16a6 6 0 0 1 6.56 0\"/>"
+          + "<circle cx=\"12\" cy=\"19.5\" r=\"1\"/>"
+          + "</svg>";
+
+  /** WiFi-off SVG icon for disconnected state — red #f85149. */
+  private static final String WIFI_OFF_ICON_SVG =
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#f85149\" stroke-width=\"1.8\""
+          + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
+          + "<line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/>"
+          + "<path d=\"M16.72 11.06A10.94 10.94 0 0 1 19 12.55\"/>"
+          + "<path d=\"M5 12.55a10.94 10.94 0 0 1 5.17-2.39\"/>"
+          + "<path d=\"M10.71 5.05A16 16 0 0 1 22.56 9\"/>"
+          + "<path d=\"M1.42 9a15.91 15.91 0 0 1 4.7-2.88\"/>"
+          + "<path d=\"M8.53 16.11a6 6 0 0 1 6.95 0\"/>"
+          + "<circle cx=\"12\" cy=\"19.5\" r=\"1\"/>"
+          + "</svg>";
+
   private void setupConnectionIndicator() {
     ClientEvents.get().addNetworkStatusEventHandler(new NetworkStatusEventHandler() {
 
@@ -313,50 +336,25 @@ public class WebClient implements EntryPoint {
           switch (event.getStatus()) {
             case CONNECTED:
             case RECONNECTED:
-              element.setInnerHTML(
-                  "<span style='display:inline-flex;align-items:center;gap:4px;'>"
-                  + "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' "
-                  + "fill='none' stroke='#3fb950' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-                  + "<path d='M5 13a10 10 0 0 1 14 0'/>"
-                  + "<path d='M8.5 16.5a5 5 0 0 1 7 0'/>"
-                  + "<path d='M2 8.82a15 15 0 0 1 20 0'/>"
-                  + "<line x1='12' y1='20' x2='12.01' y2='20'/>"
-                  + "</svg>"
-                  + "<span>" + messages.online() + "</span></span>");
-              element.setClassName("online");
+              element.setInnerHTML(WIFI_ICON_SVG);
+              element.setClassName("topbar-icon online");
+              element.setTitle(messages.online());
               isTurbulenceDetected = false;
               turbulencePopup.hide();
               break;
             case DISCONNECTED:
-              element.setInnerHTML(
-                  "<span style='display:inline-flex;align-items:center;gap:4px;'>"
-                  + "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' "
-                  + "fill='none' stroke='#f85149' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-                  + "<path d='M2 8.82a15 15 0 0 1 20 0'/>"
-                  + "<path d='M5 13a10 10 0 0 1 14 0'/>"
-                  + "<path d='M8.5 16.5a5 5 0 0 1 7 0'/>"
-                  + "<line x1='12' y1='20' x2='12.01' y2='20'/>"
-                  + "<line x1='2' y1='2' x2='22' y2='22'/>"
-                  + "</svg>"
-                  + "<span>" + messages.offline() + "</span></span>");
-              element.setClassName("offline");
+              element.setInnerHTML(WIFI_OFF_ICON_SVG);
+              element.setClassName("topbar-icon offline");
+              element.setTitle(messages.offline());
               if (!isTurbulenceDetected) {
                 isTurbulenceDetected = true;
                 turbulencePopup.show();
               }
               break;
             case RECONNECTING:
-              element.setInnerHTML(
-                  "<span style='display:inline-flex;align-items:center;gap:4px;' class='connecting-pulse'>"
-                  + "<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' "
-                  + "fill='none' stroke='#d29922' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
-                  + "<path d='M5 13a10 10 0 0 1 14 0'/>"
-                  + "<path d='M8.5 16.5a5 5 0 0 1 7 0'/>"
-                  + "<path d='M2 8.82a15 15 0 0 1 20 0'/>"
-                  + "<line x1='12' y1='20' x2='12.01' y2='20'/>"
-                  + "</svg>"
-                  + "<span>" + messages.connecting() + "</span></span>");
-              element.setClassName("connecting");
+              element.setInnerHTML(WIFI_ICON_SVG);
+              element.setClassName("topbar-icon connecting");
+              element.setTitle(messages.connecting());
               break;
           }
         }
