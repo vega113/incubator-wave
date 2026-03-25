@@ -20,6 +20,7 @@
 package org.waveprotocol.box.webclient.search.i18n;
 
 import com.google.gwt.i18n.client.Messages;
+import com.google.gwt.i18n.client.Messages.DefaultMessage;
 
 /**
  * i18n messages for the searches item editor popup.

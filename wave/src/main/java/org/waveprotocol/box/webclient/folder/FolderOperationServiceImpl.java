@@ -42,7 +42,7 @@ public class FolderOperationServiceImpl implements FolderOperationService {
   public void execute(String url, final Callback callback) {
     LOG.trace().log("Performing a folder operation: ", url);
 
-    RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
+    RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.POST, url);
 
     requestBuilder.setCallback(new RequestCallback() {
       @Override

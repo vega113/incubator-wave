@@ -171,6 +171,18 @@ public final class OutputHelper {
    * @param title value for the title attribute (or {@code null} for none)
    * @param shortcut shortcut key hint text (or {@code null} for none)
    */
+  /**
+   * Escapes a string for safe inclusion in a single-quoted HTML attribute value.
+   */
+  private static String escapeAttr(String value) {
+    return value == null ? null
+        : value.replace("&", "&amp;")
+            .replace("'", "&#39;")
+            .replace("\"", "&quot;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;");
+  }
+
   private static void openWithAllParameters(SafeHtmlBuilder builder,
       String tag,
       String id,
@@ -187,7 +199,7 @@ public final class OutputHelper {
         + (id != null ? " id='" + id + "'" : "")
         + (clazz != null ? " class='" + clazz + "'" : "")
         + (kind != null ? " " + BuilderHelper.KIND_ATTRIBUTE + "='" + kind + "'" : "")
-        + (titleValue != null ? " title='" + titleValue + "'" : "")
+        + (titleValue != null ? " title='" + escapeAttr(titleValue) + "'" : "")
         + (extra != null ? " " + extra : "") + ">");
   }
 

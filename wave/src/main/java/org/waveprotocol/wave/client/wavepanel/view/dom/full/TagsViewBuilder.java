@@ -174,18 +174,29 @@ public final class TagsViewBuilder implements UiBuilder {
    * @return a JS click handler for toggling expanded and collapsed modes.
    */
   private String onClickJs() {
+    String escapedId = escapeJsSingleQuoted(id);
+    String more = escapeJsSingleQuoted(messages.more());
+    String less = escapeJsSingleQuoted(messages.less());
     StringBuilder sb = new StringBuilder();
-    sb.append("var p=document.getElementById('").append(id).append("');")
+    sb.append("var p=document.getElementById('").append(escapedId).append("');")
         .append("var x=p.getAttribute('s')=='e';")
         .append("p.style.height=x?'':'auto';")
         .append("p.setAttribute('s',x?'':'e');")
-        .append("lastChild.innerHTML=x?'").append(messages.more())
-        .append("':'").append(messages.less()).append("';")
+        .append("lastChild.innerHTML=x?'").append(more)
+        .append("':'").append(less).append("';")
         .append("firstChild.className=x?'").append(css.expandButton())
         .append("':'").append(css.collapseButton()).append("';")
         .append("parentNode.nextSibling.style.display=x?'':'none';");
     String js = sb.toString();
     assert !js.contains("\"");
     return js;
+  }
+
+  private static String escapeJsSingleQuoted(String value) {
+    return value
+        .replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n");
   }
 }

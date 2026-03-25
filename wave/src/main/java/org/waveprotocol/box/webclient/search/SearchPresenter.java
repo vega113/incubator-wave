@@ -108,6 +108,8 @@ public final class SearchPresenter
   /** The dispatcher of profiles events. */
   SourcesEvents<ProfileListener> profiles;
   private boolean isRenderingInProgress = false;
+  /** Toolbar group for saved-search quick-access buttons (cleared on rebuild). */
+  private ToolbarView savedSearchGroup;
 
   SearchPresenter(TimerService scheduler, Search search, SearchPanelView searchUi,
       WaveActionHandler actionHandler, SourcesEvents<ProfileListener> profiles) {
@@ -257,14 +259,21 @@ public final class SearchPresenter
    * Adds saved search quick-access buttons to the toolbar.
    */
   private void rebuildSavedSearchButtons() {
+    // Clear previous saved-search group to avoid accumulating duplicates.
+    if (savedSearchGroup != null) {
+      savedSearchGroup.clearItems();
+    }
+
     if (savedSearches.isEmpty()) {
+      savedSearchGroup = null;
       return;
     }
+
     GroupingToolbar.View toolbarUi = searchUi.getToolbar();
-    ToolbarView savedGroup = toolbarUi.addGroup();
+    savedSearchGroup = toolbarUi.addGroup();
     for (final SearchesItem item : savedSearches) {
       new ToolbarButtonViewBuilder().setText(item.getName()).applyTo(
-          savedGroup.addClickButton(), new ToolbarClickButton.Listener() {
+          savedSearchGroup.addClickButton(), new ToolbarClickButton.Listener() {
             @Override
             public void onClicked() {
               searchUi.getSearch().setQuery(item.getQuery());

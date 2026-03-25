@@ -221,21 +221,28 @@ public final class SearchesEditorPopup extends Composite {
     DialogBox.DialogButton buttonOk = new DialogBox.DialogButton(messages.ok(), new Command() {
       @Override
       public void execute() {
-        if (modified) {
-          searchesService.storeSearches(searches, new SearchesService.StoreCallback() {
-            @Override
-            public void onFailure(String message) {
-            }
+        if (!modified) {
+          popup.hide();
+          if (listener != null) {
+            listener.onDone(searches);
+          }
+          return;
+        }
 
-            @Override
-            public void onSuccess() {
+        searchesService.storeSearches(searches, new SearchesService.StoreCallback() {
+          @Override
+          public void onFailure(String message) {
+            // Keep popup open so user can retry or cancel explicitly.
+          }
+
+          @Override
+          public void onSuccess() {
+            popup.hide();
+            if (listener != null) {
+              listener.onDone(searches);
             }
-          });
-        }
-        popup.hide();
-        if (listener != null) {
-          listener.onDone(searches);
-        }
+          }
+        });
       }
     });
 

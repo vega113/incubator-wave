@@ -920,6 +920,10 @@ public class FullStructure implements UpgradeableDomAsViewProvider {
   @Override
   public TagsView tagsFromAddButton(Element e) {
     Preconditions.checkArgument(e == null || typeOf(e) == Type.ADD_TAG);
+    // ADD_TAG is a known type, so skip past it to start the ancestor walk.
+    if (e != null) {
+      e = e.getParentElement();
+    }
     while (e != null && !hasKnownType(e)) {
       e = e.getParentElement();
     }
