@@ -53,6 +53,9 @@ public final class ViewToolbar {
   private final WaveId waveId;
   private final FolderOperationService folderService;
 
+  /** Listener for the history toolbar button. */
+  private ToolbarClickButton.Listener historyButtonListener;
+
   private ViewToolbar(ToplevelToolbarWidget toolbarUi, FocusFramePresenter focusFrame,
       ModelAsViewProvider views, ConversationView wave, Reader reader, WaveId waveId) {
     this.toolbarUi = toolbarUi;
@@ -130,6 +133,20 @@ public final class ViewToolbar {
           });
     }
 
+    // History button group
+    ToolbarView historyGroup = toolbarUi.addGroup();
+    new ToolbarButtonViewBuilder()
+        .setText(messages.history())
+        .setTooltip(messages.historyTooltip())
+        .applyTo(historyGroup.addClickButton(), new ToolbarClickButton.Listener() {
+          @Override
+          public void onClicked() {
+            if (historyButtonListener != null) {
+              historyButtonListener.onClicked();
+            }
+          }
+        });
+
     // Fake group
     group = toolbarUi.addGroup();
     new ToolbarButtonViewBuilder().setText("").applyTo(group.addClickButton(), null);
@@ -155,6 +172,14 @@ public final class ViewToolbar {
         // Log failure; nothing else to do in the toolbar.
       }
     });
+  }
+
+  /**
+   * Sets a listener that is called when the History toolbar button is clicked.
+   * The caller should use this to toggle the {@code HistoryModeController}.
+   */
+  public void setHistoryButtonListener(ToolbarClickButton.Listener listener) {
+    this.historyButtonListener = listener;
   }
 
   /**
