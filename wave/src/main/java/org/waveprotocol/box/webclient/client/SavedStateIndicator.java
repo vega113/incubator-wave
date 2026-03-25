@@ -74,7 +74,7 @@ public class SavedStateIndicator implements UnsavedDataListener {
 
   /** Cloud-upload SVG icon for unsaved state. */
   private static final String UNSAVED_ICON_SVG =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fbd38d\" stroke-width=\"1.8\""
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\""
           + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
           + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
           + "<path d=\"M12 18v-6m-3 3l3-3 3 3\" stroke-width=\"2\"/>"
@@ -125,6 +125,12 @@ public class SavedStateIndicator implements UnsavedDataListener {
         ? messages.saved() : messages.unsaved();
     element.setInnerHTML(innerHtml);
     element.setTitle(tooltip);
+    // Toggle CSS class for the colored ::after indicator dot
+    if (visibleSavedState == SavedState.SAVED) {
+      element.setClassName("topbar-icon saved");
+    } else {
+      element.setClassName("topbar-icon saving");
+    }
   }
 
   @Override

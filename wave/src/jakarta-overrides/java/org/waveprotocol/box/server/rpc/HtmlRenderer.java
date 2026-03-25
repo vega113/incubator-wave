@@ -1183,9 +1183,24 @@ public final class HtmlRenderer {
     sb.append("  display: inline-flex; align-items: center; justify-content: center;\n");
     sb.append("}\n");
     sb.append("#netstatus svg { width: 20px; height: 20px; }\n");
-    sb.append(".online svg { color: #68d391; }\n");
-    sb.append(".connecting svg { color: #fbd38d; }\n");
-    sb.append(".offline svg { color: #fc8181; }\n");
+    // Icon color is always white; state is shown by a small colored dot via ::after
+    sb.append(".topbar-icon svg { stroke: white !important; color: white !important; }\n");
+    sb.append(".online::after, .offline::after, .connecting::after {\n");
+    sb.append("  content: ''; position: absolute; bottom: 2px; right: 2px;\n");
+    sb.append("  width: 8px; height: 8px; border-radius: 50%;\n");
+    sb.append("  border: 1.5px solid rgba(0,0,0,0.25);\n");
+    sb.append("}\n");
+    sb.append(".online::after { background: #3fb950; }\n");
+    sb.append(".connecting::after { background: #fbd38d; }\n");
+    sb.append(".offline::after { background: #fc8181; }\n");
+    // Save state indicator dots
+    sb.append(".saved::after, .saving::after {\n");
+    sb.append("  content: ''; position: absolute; bottom: 2px; right: 2px;\n");
+    sb.append("  width: 8px; height: 8px; border-radius: 50%;\n");
+    sb.append("  border: 1.5px solid rgba(0,0,0,0.25);\n");
+    sb.append("}\n");
+    sb.append(".saved::after { background: #3fb950; }\n");
+    sb.append(".saving::after { background: #fbd38d; }\n");
     // Info bar
     sb.append(".info { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.9); }\n");
     sb.append(".info a { color: #fff; text-decoration: none; font-weight: 500; }\n");
@@ -1600,7 +1615,7 @@ public final class HtmlRenderer {
       sb.append("      <select id=\"lang\" size=\"1\"></select>\n");
       sb.append("    </div>\n");
       // -- Save status indicator: cloud-check icon, updated by GWT --
-      sb.append("    <span id=\"unsavedStateContainer\" class=\"topbar-icon\" title=\"All changes saved\">");
+      sb.append("    <span id=\"unsavedStateContainer\" class=\"topbar-icon saved\" title=\"All changes saved\">");
       sb.append(ICON_CLOUD_CHECK).append("</span>\n");
       // -- Connection status: wifi-off icon for initial offline state, updated by GWT --
       sb.append("    <span id=\"netstatus\" class=\"topbar-icon offline\" title=\"Offline\">");
@@ -1647,7 +1662,7 @@ public final class HtmlRenderer {
       + "</svg>";
   /** WiFi/signal icon for connection status. */
   private static final String ICON_WIFI =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
       + "<path d=\"M1.42 9a16 16 0 0 1 21.16 0\"/>"
       + "<path d=\"M5.07 12.5a10 10 0 0 1 13.86 0\"/>"
       + "<path d=\"M8.72 16a6 6 0 0 1 6.56 0\"/>"
@@ -1656,7 +1671,7 @@ public final class HtmlRenderer {
 
   /** WiFi-off icon for disconnected state. */
   private static final String ICON_WIFI_OFF =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
       + "<line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/>"
       + "<path d=\"M16.72 11.06A10.94 10.94 0 0 1 19 12.55\"/>"
       + "<path d=\"M5 12.55a10.94 10.94 0 0 1 5.17-2.39\"/>"
