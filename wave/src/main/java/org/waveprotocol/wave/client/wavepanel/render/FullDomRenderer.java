@@ -28,6 +28,7 @@ import org.waveprotocol.wave.client.state.ThreadReadStateMonitor;
 import org.waveprotocol.wave.client.uibuilder.HtmlClosure;
 import org.waveprotocol.wave.client.uibuilder.HtmlClosureCollection;
 import org.waveprotocol.wave.client.uibuilder.UiBuilder;
+import org.waveprotocol.wave.client.wavepanel.view.IntrinsicTagView;
 import org.waveprotocol.wave.client.wavepanel.view.ViewIdMapper;
 import org.waveprotocol.wave.client.wavepanel.view.dom.full.AnchorViewBuilder;
 import org.waveprotocol.wave.client.wavepanel.view.dom.full.BlipMetaViewBuilder;
@@ -51,6 +52,7 @@ import org.waveprotocol.wave.model.util.IdentityMap.ProcV;
 import org.waveprotocol.wave.model.util.IdentityMap.Reduce;
 import org.waveprotocol.wave.model.util.StringMap;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -140,7 +142,8 @@ public final class FullDomRenderer implements RenderingRules<UiBuilder> {
     HtmlClosureCollection tagUis = new HtmlClosureCollection();
     if (tags != null) {
       for (String tag : tags) {
-        tagUis.add(TagViewBuilder.create(tagsId + "." + tag, tag));
+        tagUis.add(TagViewBuilder.create(
+            tagsId + "." + tag, tag, IntrinsicTagView.TagState.NORMAL, null));
       }
     }
     return TagsViewBuilder.create(tagsId, tagUis);
@@ -149,11 +152,15 @@ public final class FullDomRenderer implements RenderingRules<UiBuilder> {
   @Override
   public UiBuilder render(Conversation conversation, StringMap<UiBuilder> participantUis) {
     HtmlClosureCollection participantsUi = new HtmlClosureCollection();
+    boolean isPublic = false;
     for (ParticipantId participant : conversation.getParticipantIds()) {
       participantsUi.add(participantUis.get(participant.getAddress()));
+      if (ParticipantIdUtil.isDomainAddress(participant.getAddress())) {
+        isPublic = true;
+      }
     }
     String id = viewIdMapper.participantsOf(conversation);
-    return ParticipantsViewBuilder.create(id, participantsUi);
+    return ParticipantsViewBuilder.create(id, participantsUi, isPublic);
   }
 
   @Override

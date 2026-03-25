@@ -104,6 +104,7 @@
 .metabar {
   /* Flex layout aligns metaline, time and menu icons on one row. */
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   border-radius: 6px;
   -moz-border-radius: 6px;
@@ -217,25 +218,103 @@
 
 .contentContainer, .replies, .privateReplies{word-wrap: break-word;}
 
-/* Quasi-deleted state (client-side visual only). */
+/* Quasi-deleted / soft-delete state (client-side visual only).
+ * When a blip is soft-deleted, the content collapses, the metabar turns
+ * red-ish, and text is struck through. An undo toast is shown separately. */
 .blip.deleted {
-  opacity: 0.7;
+  opacity: 0.55;
   cursor: not-allowed;
+  transition: opacity 300ms ease;
 }
-.blip.deleted .contentContainer,
-.blip.deleted .menu,
-.blip.deleted .replies,
-.blip.deleted .privateReplies {
+/* Collapse content, menu, and reply areas during soft-delete. */
+.blip.deleted .contentContainer {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 300ms ease, opacity 200ms ease;
   pointer-events: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
 }
+.blip.deleted .menu,
+.blip.deleted .replies,
+.blip.deleted .privateReplies {
+  display: none;
+}
 .blip.deleted .metabar {
   background-color: #fde8e8;
   color: #9b2c2c;
+  border-left: 3px solid #e53e3e;
+  margin-bottom: 0;
+}
+.blip.deleted .metaline {
+  text-decoration: line-through;
 }
 
 /* Marker class to ensure CssResource maps 'deleted' */
 .deleted {}
+
+/* Edit-mode keyboard hint shown alongside menu icons.
+   @external prevents GWT CssResource from obfuscating this name,
+   since it is referenced as a literal class in BlipMetaViewBuilder. */
+@external .editHint;
+.editHint {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  color: #a0aec0;
+  padding: 0 6px;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+/* ---- Draft-mode active indicator ---- */
+
+/* Marker class to ensure CssResource maps 'draftActive' */
+.draftActive {}
+
+/* These hyphenated classes are built by string concatenation in
+   BlipMetaDomImpl (css.draftActive() + "-notification"/"-badge"),
+   so they must stay un-obfuscated. */
+@external .draftActive-notification;
+@external .draftActive-badge;
+
+/* Notification banner shown below the metabar when draft mode is on. */
+.draftActive-notification {
+  display: block;
+  width: 100%;
+  margin: 0.3em 0 0.5em 0;
+  padding: 0.35em 0.6em;
+  font-size: 0.8em;
+  line-height: 1.4;
+  color: #92400e;
+  background-color: #fef3c7;
+  border: 1px dashed #f59e0b;
+  border-radius: 4px;
+  -moz-border-radius: 4px;
+  -webkit-border-radius: 4px;
+}
+
+/* Dashed amber border on the metabar while in draft mode. */
+.meta.draftActive .metabar {
+  border: 1px dashed #f59e0b;
+  background-color: #fffbeb;
+}
+
+/* Small DRAFT badge next to the time element. */
+.draftActive-badge {
+  display: inline-block;
+  margin-right: 0.4em;
+  padding: 0 0.4em;
+  font-size: 0.7em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #92400e;
+  background-color: #fde68a;
+  border-radius: 3px;
+  -moz-border-radius: 3px;
+  -webkit-border-radius: 3px;
+  vertical-align: middle;
+}
