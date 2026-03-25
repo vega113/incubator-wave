@@ -371,6 +371,7 @@ public final class ParticipantController {
     profileUi.addControl(EscapeUtils.fromSafeConstant(messages.remove()), new ClickHandler() {
       @Override
       public void onClick(ClickEvent event) {
+<<<<<<< HEAD
         // Enforce creator-only rule for removing the shared-domain participant
         // (i.e., toggling wave visibility). This prevents non-creators from
         // making a public wave private via the participant remove action.
@@ -387,6 +388,7 @@ public final class ParticipantController {
             }
           }
         }
+
         participation.first.removeParticipant(participation.second);
         // The presenter is configured to destroy itself on view hide.
         profileView.hide();
