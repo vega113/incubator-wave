@@ -2893,6 +2893,7 @@ public final class HtmlRenderer {
       sb.append("        <a href=\"/robot/register/create\">Robot Registration</a>\n");
       sb.append("        <a href=\"/robot/dataapi/token\">API Token</a>\n");
       sb.append("        <a href=\"#\" onclick=\"window.openVersionHistory(); return false;\">Version History</a>\n");
+      sb.append("        <a href=\"/contact\">Contact Us</a>\n");
       if ("owner".equals(userRole) || "admin".equals(userRole)) {
         sb.append("        <a href=\"/admin\">Admin</a>\n");
       }
@@ -3549,6 +3550,53 @@ public final class HtmlRenderer {
     sb.append(".confirm-dialog .btn-danger { background: #dc2626; color: #fff; }\n");
     sb.append(".confirm-dialog .btn-danger:hover { background: #b91c1c; }\n");
 
+    // Tabs
+    sb.append(".admin-tabs {\n");
+    sb.append("  display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("}\n");
+    sb.append(".admin-tab {\n");
+    sb.append("  padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer;\n");
+    sb.append("  border: none; background: none; color: ").append(WAVE_TEXT_MUTED).append(";\n");
+    sb.append("  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s;\n");
+    sb.append("  display: flex; align-items: center; gap: 8px; font-family: inherit;\n");
+    sb.append("}\n");
+    sb.append(".admin-tab:hover { color: ").append(WAVE_PRIMARY).append("; }\n");
+    sb.append(".admin-tab.active { color: ").append(WAVE_PRIMARY).append("; border-bottom-color: ").append(WAVE_PRIMARY).append("; }\n");
+    sb.append(".tab-badge {\n");
+    sb.append("  display: inline-flex; align-items: center; justify-content: center;\n");
+    sb.append("  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;\n");
+    sb.append("  background: #dc2626; color: #fff; font-size: 11px; font-weight: 700;\n");
+    sb.append("}\n");
+    sb.append(".tab-badge.hidden { display: none; }\n");
+    sb.append(".tab-panel { display: none; }\n");
+    sb.append(".tab-panel.active { display: block; }\n");
+
+    // Status filter bar for contacts
+    sb.append(".filter-bar {\n");
+    sb.append("  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;\n");
+    sb.append("}\n");
+    sb.append(".filter-btn {\n");
+    sb.append("  padding: 5px 14px; border: 1px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("  border-radius: 6px; font-size: 12px; cursor: pointer;\n");
+    sb.append("  background: #fff; color: ").append(WAVE_TEXT).append(";\n");
+    sb.append("  transition: all 0.15s; font-family: inherit;\n");
+    sb.append("}\n");
+    sb.append(".filter-btn:hover { border-color: ").append(WAVE_PRIMARY).append("; color: ").append(WAVE_PRIMARY).append("; }\n");
+    sb.append(".filter-btn.active { background: ").append(WAVE_PRIMARY).append("; color: #fff; border-color: ").append(WAVE_PRIMARY).append("; }\n");
+
+    // Contact detail expand
+    sb.append(".msg-expand { cursor: pointer; }\n");
+    sb.append(".msg-expand:hover td { background: rgba(0,119,182,0.04); }\n");
+    sb.append(".msg-detail { display: none; }\n");
+    sb.append(".msg-detail td { background: #fafbfc; padding: 16px 24px !important; }\n");
+    sb.append(".msg-detail .msg-body { white-space: pre-wrap; font-size: 13px; line-height: 1.6; margin: 8px 0; padding: 12px; background: #fff; border-radius: 8px; border: 1px solid ").append(WAVE_BORDER).append("; }\n");
+    sb.append(".msg-detail .reply-box { margin-top: 12px; }\n");
+    sb.append(".msg-detail .reply-box textarea { width: 100%; min-height: 80px; padding: 10px; border: 1.5px solid ").append(WAVE_BORDER).append("; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; }\n");
+    sb.append(".msg-detail .reply-box textarea:focus { border-color: ").append(WAVE_PRIMARY).append("; outline: none; box-shadow: 0 0 0 3px rgba(0,119,182,0.12); }\n");
+    sb.append(".msg-detail .replies-list { margin-top: 12px; }\n");
+    sb.append(".msg-detail .reply-item { padding: 8px 12px; background: #e8f4f8; border-radius: 6px; margin-bottom: 6px; font-size: 12px; }\n");
+    sb.append(".msg-detail .reply-item .meta { color: ").append(WAVE_TEXT_MUTED).append("; font-size: 11px; margin-bottom: 4px; }\n");
+
     sb.append("@media (max-width: 768px) {\n");
     sb.append("  .admin-container { padding: 0 12px; }\n");
     sb.append("  .admin-card-header { padding: 16px; }\n");
@@ -3571,6 +3619,15 @@ public final class HtmlRenderer {
 
     // Main content
     sb.append("<div class=\"admin-container\">\n");
+
+    // Tabs
+    sb.append("  <div class=\"admin-tabs\">\n");
+    sb.append("    <button class=\"admin-tab active\" data-tab=\"users\">Users</button>\n");
+    sb.append("    <button class=\"admin-tab\" data-tab=\"contacts\">Contact Messages <span class=\"tab-badge hidden\" id=\"contactBadge\">0</span></button>\n");
+    sb.append("  </div>\n");
+
+    // Users tab panel
+    sb.append("  <div class=\"tab-panel active\" id=\"panel-users\">\n");
     sb.append("  <div class=\"admin-card\">\n");
     sb.append("    <div class=\"admin-card-header\">\n");
     sb.append("      <h2>Users</h2>\n");
@@ -3596,6 +3653,41 @@ public final class HtmlRenderer {
     sb.append("    </div>\n");
     sb.append("    <div class=\"stats-bar\" id=\"statsBar\"></div>\n");
     sb.append("  </div>\n");
+    sb.append("  </div>\n"); // end panel-users
+
+    // Contacts tab panel
+    sb.append("  <div class=\"tab-panel\" id=\"panel-contacts\">\n");
+    sb.append("  <div class=\"admin-card\">\n");
+    sb.append("    <div class=\"admin-card-header\">\n");
+    sb.append("      <h2>Contact Submissions</h2>\n");
+    sb.append("      <div class=\"filter-bar\">\n");
+    sb.append("        <button class=\"filter-btn active\" data-status=\"\">All</button>\n");
+    sb.append("        <button class=\"filter-btn\" data-status=\"new\">New</button>\n");
+    sb.append("        <button class=\"filter-btn\" data-status=\"read\">Read</button>\n");
+    sb.append("        <button class=\"filter-btn\" data-status=\"replied\">Replied</button>\n");
+    sb.append("        <button class=\"filter-btn\" data-status=\"archived\">Archived</button>\n");
+    sb.append("      </div>\n");
+    sb.append("    </div>\n");
+    sb.append("    <div class=\"admin-table-wrap\">\n");
+    sb.append("      <table class=\"admin-table\" id=\"contactsTable\">\n");
+    sb.append("        <thead><tr>\n");
+    sb.append("          <th>Date</th>\n");
+    sb.append("          <th>Name</th>\n");
+    sb.append("          <th>Email</th>\n");
+    sb.append("          <th>Subject</th>\n");
+    sb.append("          <th>Message</th>\n");
+    sb.append("          <th>Status</th>\n");
+    sb.append("          <th>Actions</th>\n");
+    sb.append("        </tr></thead>\n");
+    sb.append("        <tbody id=\"contactsTableBody\">\n");
+    sb.append("          <tr class=\"loading-row\"><td colspan=\"7\">Loading...</td></tr>\n");
+    sb.append("        </tbody>\n");
+    sb.append("      </table>\n");
+    sb.append("    </div>\n");
+    sb.append("    <div class=\"stats-bar\" id=\"contactsStatsBar\"></div>\n");
+    sb.append("  </div>\n");
+    sb.append("  </div>\n"); // end panel-contacts
+
     sb.append("</div>\n");
 
     // Toast
@@ -3794,6 +3886,139 @@ public final class HtmlRenderer {
 
     // Initial load
     sb.append("  fetchUsers(false);\n");
+
+    // ---- Tab switching logic ----
+    sb.append("  var tabs = document.querySelectorAll('.admin-tab');\n");
+    sb.append("  var panels = document.querySelectorAll('.tab-panel');\n");
+    sb.append("  tabs.forEach(function(tab) {\n");
+    sb.append("    tab.addEventListener('click', function() {\n");
+    sb.append("      tabs.forEach(function(t) { t.classList.remove('active'); });\n");
+    sb.append("      panels.forEach(function(p) { p.classList.remove('active'); });\n");
+    sb.append("      tab.classList.add('active');\n");
+    sb.append("      document.getElementById('panel-' + tab.dataset.tab).classList.add('active');\n");
+    sb.append("      if (tab.dataset.tab === 'contacts' && !contactsLoaded) { fetchContacts(); }\n");
+    sb.append("    });\n");
+    sb.append("  });\n");
+
+    // ---- Contact Messages tab logic ----
+    sb.append("  var contactsLoaded = false;\n");
+    sb.append("  var contactState = { status: '', messages: [], total: 0, page: 0, pageSize: 50, loading: false };\n");
+    sb.append("  var cTbody = document.getElementById('contactsTableBody');\n");
+    sb.append("  var cStatsBar = document.getElementById('contactsStatsBar');\n");
+    sb.append("  var contactBadge = document.getElementById('contactBadge');\n");
+
+    // Fetch unread count for badge
+    sb.append("  fetch('/admin/api/contacts?status=new&limit=0').then(function(r){return r.json();}).then(function(data){\n");
+    sb.append("    if(data.total>0){contactBadge.textContent=data.total;contactBadge.classList.remove('hidden');}\n");
+    sb.append("  }).catch(function(){});\n");
+
+    // Fetch contacts
+    sb.append("  function fetchContacts() {\n");
+    sb.append("    contactState.loading = true;\n");
+    sb.append("    contactsLoaded = true;\n");
+    sb.append("    var url = '/admin/api/contacts?page=' + contactState.page + '&pageSize=' + contactState.pageSize;\n");
+    sb.append("    if (contactState.status) url += '&status=' + contactState.status;\n");
+    sb.append("    fetch(url).then(function(r){return r.json();}).then(function(data){\n");
+    sb.append("      contactState.messages = data.messages || [];\n");
+    sb.append("      contactState.total = data.total || 0;\n");
+    sb.append("      renderContacts();\n");
+    sb.append("      contactState.loading = false;\n");
+    sb.append("    }).catch(function(e){\n");
+    sb.append("      showToast('Failed to load contacts: ' + e.message, 'error');\n");
+    sb.append("      contactState.loading = false;\n");
+    sb.append("    });\n");
+    sb.append("  }\n");
+
+    // Render contacts table
+    sb.append("  function renderContacts() {\n");
+    sb.append("    var html = '';\n");
+    sb.append("    if (contactState.messages.length === 0) {\n");
+    sb.append("      html = '<tr class=\"loading-row\"><td colspan=\"7\">' + (contactState.loading ? 'Loading...' : 'No messages found') + '</td></tr>';\n");
+    sb.append("    } else {\n");
+    sb.append("      for (var i = 0; i < contactState.messages.length; i++) {\n");
+    sb.append("        var m = contactState.messages[i];\n");
+    sb.append("        var statusCls = m.status === 'new' ? 'badge-active' : m.status === 'replied' ? 'badge-admin' : m.status === 'archived' ? 'badge-user' : 'badge-free';\n");
+    sb.append("        html += '<tr class=\"msg-expand\" data-idx=\"' + i + '\">';\n");
+    sb.append("        html += '<td>' + fmtTime(m.createdAt) + '</td>';\n");
+    sb.append("        html += '<td>' + esc(m.name) + '</td>';\n");
+    sb.append("        html += '<td>' + esc(m.email || m.userId) + '</td>';\n");
+    sb.append("        html += '<td>' + esc(m.subject) + '</td>';\n");
+    sb.append("        html += '<td>' + esc((m.message||'').substring(0,80)) + (m.message && m.message.length>80 ? '...' : '') + '</td>';\n");
+    sb.append("        html += '<td><span class=\"badge ' + statusCls + '\">' + esc(m.status) + '</span></td>';\n");
+    sb.append("        html += '<td>';\n");
+    sb.append("        if (m.status !== 'archived') html += '<button class=\"action-btn\" onclick=\"event.stopPropagation();contactAction(\\'archive\\',\\'' + m.id + '\\')\" title=\"Archive\">Archive</button>';\n");
+    sb.append("        if (m.status === 'new') html += '<button class=\"action-btn\" onclick=\"event.stopPropagation();contactAction(\\'read\\',\\'' + m.id + '\\')\" title=\"Mark Read\">Mark Read</button>';\n");
+    sb.append("        html += '</td></tr>';\n");
+    // Detail row (hidden)
+    sb.append("        html += '<tr class=\"msg-detail\" id=\"detail-' + i + '\"><td colspan=\"7\">';\n");
+    sb.append("        html += '<strong>From:</strong> ' + esc(m.name) + ' &lt;' + esc(m.email || m.userId) + '&gt;<br>';\n");
+    sb.append("        html += '<strong>Subject:</strong> ' + esc(m.subject) + '<br>';\n");
+    sb.append("        html += '<strong>IP:</strong> ' + esc(m.ip || '--') + '<br>';\n");
+    sb.append("        html += '<div class=\"msg-body\">' + esc(m.message) + '</div>';\n");
+    // Existing replies
+    sb.append("        if (m.replies && m.replies.length > 0) {\n");
+    sb.append("          html += '<div class=\"replies-list\"><strong>Replies:</strong>';\n");
+    sb.append("          for (var r = 0; r < m.replies.length; r++) {\n");
+    sb.append("            html += '<div class=\"reply-item\"><div class=\"meta\">' + esc(m.replies[r].adminUser) + ' at ' + fmtTime(m.replies[r].sentAt) + '</div>' + esc(m.replies[r].body) + '</div>';\n");
+    sb.append("          }\n");
+    sb.append("          html += '</div>';\n");
+    sb.append("        }\n");
+    // Reply box
+    sb.append("        html += '<div class=\"reply-box\">';\n");
+    sb.append("        html += '<textarea id=\"reply-' + m.id + '\" placeholder=\"Type your reply...\"></textarea><br>';\n");
+    sb.append("        html += '<button class=\"action-btn\" style=\"margin-top:6px\" onclick=\"sendReply(\\'' + m.id + '\\')\">");
+    sb.append("Send Reply</button>';\n");
+    sb.append("        html += '</div>';\n");
+    sb.append("        html += '</td></tr>';\n");
+    sb.append("      }\n");
+    sb.append("    }\n");
+    sb.append("    cTbody.innerHTML = html;\n");
+    sb.append("    cStatsBar.textContent = 'Showing ' + contactState.messages.length + ' of ' + contactState.total + ' messages';\n");
+    // Attach expand click handlers
+    sb.append("    cTbody.querySelectorAll('.msg-expand').forEach(function(row) {\n");
+    sb.append("      row.addEventListener('click', function() {\n");
+    sb.append("        var detail = document.getElementById('detail-' + row.dataset.idx);\n");
+    sb.append("        detail.style.display = detail.style.display === 'table-row' ? 'none' : 'table-row';\n");
+    sb.append("      });\n");
+    sb.append("    });\n");
+    sb.append("  }\n");
+
+    // Contact status action
+    sb.append("  window.contactAction = function(action, id) {\n");
+    sb.append("    var newStatus = action === 'archive' ? 'archived' : action;\n");
+    sb.append("    fetch('/admin/api/contacts/' + id + '/status', {\n");
+    sb.append("      method: 'POST', headers: {'Content-Type':'application/json'},\n");
+    sb.append("      body: JSON.stringify({status: newStatus})\n");
+    sb.append("    }).then(function(r){return r.json();}).then(function(data){\n");
+    sb.append("      if(data.ok) { showToast('Status updated', 'success'); fetchContacts(); }\n");
+    sb.append("      else showToast(data.error || 'Failed', 'error');\n");
+    sb.append("    }).catch(function(e){ showToast('Error: '+e.message,'error'); });\n");
+    sb.append("  };\n");
+
+    // Send reply
+    sb.append("  window.sendReply = function(id) {\n");
+    sb.append("    var ta = document.getElementById('reply-' + id);\n");
+    sb.append("    if (!ta || !ta.value.trim()) { alert('Please enter a reply'); return; }\n");
+    sb.append("    fetch('/admin/api/contacts/' + id + '/reply', {\n");
+    sb.append("      method: 'POST', headers: {'Content-Type':'application/json'},\n");
+    sb.append("      body: JSON.stringify({body: ta.value.trim()})\n");
+    sb.append("    }).then(function(r){return r.json();}).then(function(data){\n");
+    sb.append("      if(data.ok) { showToast('Reply sent', 'success'); fetchContacts(); }\n");
+    sb.append("      else showToast(data.error || 'Failed to send reply', 'error');\n");
+    sb.append("    }).catch(function(e){ showToast('Error: '+e.message,'error'); });\n");
+    sb.append("  };\n");
+
+    // Filter buttons
+    sb.append("  document.querySelectorAll('.filter-btn').forEach(function(btn) {\n");
+    sb.append("    btn.addEventListener('click', function() {\n");
+    sb.append("      document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});\n");
+    sb.append("      btn.classList.add('active');\n");
+    sb.append("      contactState.status = btn.dataset.status;\n");
+    sb.append("      contactState.page = 0;\n");
+    sb.append("      fetchContacts();\n");
+    sb.append("    });\n");
+    sb.append("  });\n");
+
     sb.append("})();\n");
     sb.append("</script>\n");
     sb.append("</body>\n</html>\n");
@@ -3874,6 +4099,334 @@ public final class HtmlRenderer {
     sb.append("  </div>\n"); // .card
     sb.append("</div>\n"); // .page-wrapper
 
+    sb.append("</body>\n</html>\n");
+    return sb.toString();
+  }
+
+  // =========================================================================
+  // Contact Page
+  // =========================================================================
+
+  /**
+   * Renders the Contact Us page with form on left, info cards on right.
+   *
+   * @param email  user's email (pre-filled, read-only)
+   * @param name   user's display name (pre-filled)
+   * @param domain the wave server domain
+   */
+  public static String renderContactPage(String email, String name, String domain) {
+    StringBuilder sb = new StringBuilder(16384);
+    sb.append("<!DOCTYPE html>\n<html dir=\"ltr\">\n<head>\n");
+    sb.append("<meta charset=\"UTF-8\">\n");
+    sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">\n");
+    sb.append("<link rel=\"alternate icon\" href=\"/static/favicon.ico\">\n");
+    sb.append("<title>Contact Us - SupaWave</title>\n");
+
+    // CSS
+    sb.append("<style>\n");
+    sb.append("*, *::before, *::after { box-sizing: border-box; }\n");
+    sb.append("body {\n");
+    sb.append("  margin: 0; padding: 0;\n");
+    sb.append("  font-family: ").append(WAVE_FONT).append(";\n");
+    sb.append("  background: ").append(WAVE_BG).append(";\n");
+    sb.append("  color: ").append(WAVE_TEXT).append(";\n");
+    sb.append("  min-height: 100vh;\n");
+    sb.append("}\n");
+
+    // Header bar
+    sb.append(".contact-header {\n");
+    sb.append("  background: ").append(WAVE_GRADIENT).append(";\n");
+    sb.append("  color: #fff; padding: 16px 24px;\n");
+    sb.append("  display: flex; align-items: center; justify-content: space-between;\n");
+    sb.append("  box-shadow: 0 2px 8px rgba(0,0,0,0.1);\n");
+    sb.append("}\n");
+    sb.append(".contact-header .brand { display: flex; align-items: center; gap: 10px; }\n");
+    sb.append(".contact-header .brand span { font-size: 20px; font-weight: 700; }\n");
+    sb.append(".contact-header a { color: #fff; text-decoration: none; font-size: 13px; opacity: 0.85; }\n");
+    sb.append(".contact-header a:hover { opacity: 1; text-decoration: underline; }\n");
+
+    // Container
+    sb.append(".contact-container {\n");
+    sb.append("  max-width: 1100px; margin: 32px auto; padding: 0 24px;\n");
+    sb.append("  display: grid; grid-template-columns: 1fr 340px; gap: 32px;\n");
+    sb.append("}\n");
+
+    // Page title
+    sb.append(".page-title { grid-column: 1 / -1; margin: 0 0 8px; }\n");
+    sb.append(".page-title h1 { margin: 0; font-size: 28px; font-weight: 700; }\n");
+    sb.append(".page-title p { margin: 6px 0 0; color: ").append(WAVE_TEXT_MUTED).append("; font-size: 15px; }\n");
+
+    // Card
+    sb.append(".contact-card {\n");
+    sb.append("  background: #fff; border-radius: 12px;\n");
+    sb.append("  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);\n");
+    sb.append("  padding: 28px;\n");
+    sb.append("}\n");
+
+    // Form styles
+    sb.append(".form-group { margin-bottom: 20px; }\n");
+    sb.append(".form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: ").append(WAVE_TEXT).append("; }\n");
+    sb.append(".form-group input, .form-group select, .form-group textarea {\n");
+    sb.append("  width: 100%; padding: 10px 14px; border: 1.5px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("  border-radius: 8px; font-size: 14px; font-family: inherit;\n");
+    sb.append("  outline: none; transition: border-color 0.2s, box-shadow 0.2s; background: #fafbfc;\n");
+    sb.append("}\n");
+    sb.append(".form-group input:focus, .form-group select:focus, .form-group textarea:focus {\n");
+    sb.append("  border-color: ").append(WAVE_PRIMARY).append(";\n");
+    sb.append("  box-shadow: 0 0 0 3px rgba(0,119,182,0.12); background: #fff;\n");
+    sb.append("}\n");
+    sb.append(".form-group input[readonly] { background: #f3f4f6; color: ").append(WAVE_TEXT_MUTED).append("; cursor: not-allowed; }\n");
+    sb.append(".form-group textarea { resize: vertical; min-height: 140px; }\n");
+
+    // File drop zone
+    sb.append(".drop-zone {\n");
+    sb.append("  border: 2px dashed ").append(WAVE_BORDER).append(";\n");
+    sb.append("  border-radius: 8px; padding: 24px; text-align: center;\n");
+    sb.append("  cursor: pointer; transition: border-color 0.2s, background 0.2s;\n");
+    sb.append("  color: ").append(WAVE_TEXT_MUTED).append("; font-size: 13px;\n");
+    sb.append("}\n");
+    sb.append(".drop-zone:hover, .drop-zone.dragover { border-color: ").append(WAVE_PRIMARY).append("; background: rgba(0,119,182,0.04); }\n");
+    sb.append(".drop-zone input[type=file] { display: none; }\n");
+    sb.append(".drop-zone .icon { font-size: 32px; margin-bottom: 8px; }\n");
+    sb.append(".file-list { margin-top: 10px; }\n");
+    sb.append(".file-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #f8fafc; border-radius: 6px; margin-bottom: 4px; font-size: 13px; }\n");
+    sb.append(".file-item .remove { cursor: pointer; color: #dc2626; font-weight: 600; }\n");
+
+    // Submit button
+    sb.append(".btn-submit {\n");
+    sb.append("  display: inline-block; padding: 12px 32px;\n");
+    sb.append("  background: ").append(WAVE_PRIMARY).append("; color: #fff;\n");
+    sb.append("  border: none; border-radius: 8px; font-size: 15px; font-weight: 600;\n");
+    sb.append("  cursor: pointer; transition: background 0.2s, transform 0.1s;\n");
+    sb.append("  font-family: inherit;\n");
+    sb.append("}\n");
+    sb.append(".btn-submit:hover { background: #005f8f; }\n");
+    sb.append(".btn-submit:active { transform: scale(0.98); }\n");
+    sb.append(".btn-submit:disabled { background: #a0c4d8; cursor: not-allowed; }\n");
+
+    // Info cards (right sidebar)
+    sb.append(".info-cards { display: flex; flex-direction: column; gap: 16px; }\n");
+    sb.append(".info-card {\n");
+    sb.append("  background: #fff; border-radius: 12px; padding: 20px;\n");
+    sb.append("  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);\n");
+    sb.append("}\n");
+    sb.append(".info-card h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }\n");
+    sb.append(".info-card p { margin: 0; font-size: 13px; color: ").append(WAVE_TEXT_MUTED).append("; line-height: 1.5; }\n");
+    sb.append(".info-card .email-link { color: ").append(WAVE_PRIMARY).append("; text-decoration: none; font-weight: 500; }\n");
+    sb.append(".info-card .email-link:hover { text-decoration: underline; }\n");
+    sb.append(".info-card ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: ").append(WAVE_TEXT_MUTED).append("; line-height: 1.8; }\n");
+    sb.append(".icon-circle {\n");
+    sb.append("  display: inline-flex; align-items: center; justify-content: center;\n");
+    sb.append("  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;\n");
+    sb.append("}\n");
+    sb.append(".icon-circle.blue { background: rgba(0,119,182,0.1); color: ").append(WAVE_PRIMARY).append("; }\n");
+    sb.append(".icon-circle.green { background: rgba(16,185,129,0.1); color: #10b981; }\n");
+    sb.append(".icon-circle.purple { background: rgba(139,92,246,0.1); color: #8b5cf6; }\n");
+
+    // Success message
+    sb.append(".success-msg {\n");
+    sb.append("  display: none; text-align: center; padding: 40px 20px;\n");
+    sb.append("}\n");
+    sb.append(".success-msg .checkmark { font-size: 64px; margin-bottom: 16px; color: #10b981; }\n");
+    sb.append(".success-msg h2 { margin: 0 0 8px; font-size: 22px; }\n");
+    sb.append(".success-msg p { color: ").append(WAVE_TEXT_MUTED).append("; font-size: 15px; }\n");
+
+    // Responsive
+    sb.append("@media (max-width: 768px) {\n");
+    sb.append("  .contact-container { grid-template-columns: 1fr; padding: 0 16px; margin: 20px auto; gap: 20px; }\n");
+    sb.append("  .contact-card { padding: 20px; }\n");
+    sb.append("}\n");
+    sb.append("</style>\n");
+    sb.append("</head>\n<body>\n");
+
+    // Header
+    sb.append("<div class=\"contact-header\">\n");
+    sb.append("  <div class=\"brand\">").append(WAVE_LOGO_SVG_SMALL);
+    sb.append("<span>Contact Us</span></div>\n");
+    sb.append("  <div><a href=\"/\">Back to SupaWave</a></div>\n");
+    sb.append("</div>\n");
+
+    // Main content
+    sb.append("<div class=\"contact-container\">\n");
+
+    // Page title
+    sb.append("  <div class=\"page-title\">\n");
+    sb.append("    <h1>Get in Touch</h1>\n");
+    sb.append("    <p>Have a question or feedback? We would love to hear from you.</p>\n");
+    sb.append("  </div>\n");
+
+    // Form card (left)
+    sb.append("  <div class=\"contact-card\">\n");
+    sb.append("    <form id=\"contactForm\">\n");
+
+    // Sending as (read-only email)
+    sb.append("      <div class=\"form-group\">\n");
+    sb.append("        <label>Sending as</label>\n");
+    sb.append("        <input type=\"email\" value=\"").append(escapeHtml(email)).append("\" readonly>\n");
+    sb.append("      </div>\n");
+
+    // Name
+    sb.append("      <div class=\"form-group\">\n");
+    sb.append("        <label>Name <span style=\"color:#dc2626\">*</span></label>\n");
+    sb.append("        <input type=\"text\" id=\"contactName\" value=\"").append(escapeHtml(name)).append("\" required placeholder=\"Your name\">\n");
+    sb.append("      </div>\n");
+
+    // Subject dropdown
+    sb.append("      <div class=\"form-group\">\n");
+    sb.append("        <label>Subject</label>\n");
+    sb.append("        <select id=\"contactSubject\">\n");
+    sb.append("          <option value=\"General Inquiry\">General Inquiry</option>\n");
+    sb.append("          <option value=\"Technical Support\">Technical Support</option>\n");
+    sb.append("          <option value=\"Feature Request\">Feature Request</option>\n");
+    sb.append("          <option value=\"Privacy &amp; Data Request\">Privacy &amp; Data Request</option>\n");
+    sb.append("          <option value=\"Legal\">Legal</option>\n");
+    sb.append("          <option value=\"Partnership\">Partnership</option>\n");
+    sb.append("          <option value=\"Other\">Other</option>\n");
+    sb.append("        </select>\n");
+    sb.append("      </div>\n");
+
+    // Message
+    sb.append("      <div class=\"form-group\">\n");
+    sb.append("        <label>Message <span style=\"color:#dc2626\">*</span></label>\n");
+    sb.append("        <textarea id=\"contactMessage\" required placeholder=\"How can we help you?\"></textarea>\n");
+    sb.append("      </div>\n");
+
+    // File attachments
+    sb.append("      <div class=\"form-group\">\n");
+    sb.append("        <label>Attachments <span style=\"font-weight:400;color:").append(WAVE_TEXT_MUTED).append("\">(optional, max 3 files, 10MB each)</span></label>\n");
+    sb.append("        <div class=\"drop-zone\" id=\"dropZone\">\n");
+    sb.append("          <div class=\"icon\">&#128206;</div>\n");
+    sb.append("          <div>Drag & drop files here or <span style=\"color:").append(WAVE_PRIMARY).append(";font-weight:600;text-decoration:underline\">browse</span></div>\n");
+    sb.append("          <input type=\"file\" id=\"fileInput\" multiple>\n");
+    sb.append("        </div>\n");
+    sb.append("        <div class=\"file-list\" id=\"fileList\"></div>\n");
+    sb.append("      </div>\n");
+
+    // Submit
+    sb.append("      <button type=\"submit\" class=\"btn-submit\" id=\"submitBtn\">Send Message</button>\n");
+    sb.append("    </form>\n");
+
+    // Success message (shown after submit)
+    sb.append("    <div class=\"success-msg\" id=\"successMsg\">\n");
+    sb.append("      <div class=\"checkmark\">&#10004;</div>\n");
+    sb.append("      <h2>Message Sent!</h2>\n");
+    sb.append("      <p>We will get back to you soon. Thank you for reaching out.</p>\n");
+    sb.append("      <a href=\"/\" style=\"display:inline-block;margin-top:20px;color:").append(WAVE_PRIMARY).append(";font-weight:600;text-decoration:none;\">Back to SupaWave</a>\n");
+    sb.append("    </div>\n");
+
+    sb.append("  </div>\n"); // .contact-card
+
+    // Info cards (right)
+    sb.append("  <div class=\"info-cards\">\n");
+
+    // Email support
+    sb.append("    <div class=\"info-card\">\n");
+    sb.append("      <h3><span class=\"icon-circle blue\">&#9993;</span> Email Support</h3>\n");
+    sb.append("      <p>Reach us directly at<br><a class=\"email-link\" href=\"mailto:support@").append(escapeHtml(domain)).append("\">support@").append(escapeHtml(domain)).append("</a></p>\n");
+    sb.append("    </div>\n");
+
+    // Response time
+    sb.append("    <div class=\"info-card\">\n");
+    sb.append("      <h3><span class=\"icon-circle green\">&#9201;</span> Response Time</h3>\n");
+    sb.append("      <p>We typically respond within <strong>24 hours</strong> during business days.</p>\n");
+    sb.append("    </div>\n");
+
+    // Common topics
+    sb.append("    <div class=\"info-card\">\n");
+    sb.append("      <h3><span class=\"icon-circle purple\">&#128161;</span> Common Topics</h3>\n");
+    sb.append("      <ul>\n");
+    sb.append("        <li>Account and login issues</li>\n");
+    sb.append("        <li>Wave sharing and permissions</li>\n");
+    sb.append("        <li>Feature requests and feedback</li>\n");
+    sb.append("        <li>Data export and privacy</li>\n");
+    sb.append("        <li>API and robot integration</li>\n");
+    sb.append("      </ul>\n");
+    sb.append("    </div>\n");
+
+    sb.append("  </div>\n"); // .info-cards
+
+    sb.append("</div>\n"); // .contact-container
+
+    // JavaScript
+    sb.append("<script>\n");
+    sb.append("(function() {\n");
+    sb.append("  'use strict';\n");
+    sb.append("  var form = document.getElementById('contactForm');\n");
+    sb.append("  var submitBtn = document.getElementById('submitBtn');\n");
+    sb.append("  var successMsg = document.getElementById('successMsg');\n");
+    sb.append("  var dropZone = document.getElementById('dropZone');\n");
+    sb.append("  var fileInput = document.getElementById('fileInput');\n");
+    sb.append("  var fileList = document.getElementById('fileList');\n");
+    sb.append("  var files = [];\n");
+    sb.append("  var MAX_FILES = 3;\n");
+    sb.append("  var MAX_SIZE = 10 * 1024 * 1024;\n");
+
+    // File drag-drop handlers
+    sb.append("  dropZone.addEventListener('click', function() { fileInput.click(); });\n");
+    sb.append("  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });\n");
+    sb.append("  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });\n");
+    sb.append("  dropZone.addEventListener('drop', function(e) {\n");
+    sb.append("    e.preventDefault(); dropZone.classList.remove('dragover');\n");
+    sb.append("    addFiles(e.dataTransfer.files);\n");
+    sb.append("  });\n");
+    sb.append("  fileInput.addEventListener('change', function() { addFiles(fileInput.files); fileInput.value = ''; });\n");
+
+    sb.append("  function addFiles(newFiles) {\n");
+    sb.append("    for (var i = 0; i < newFiles.length; i++) {\n");
+    sb.append("      if (files.length >= MAX_FILES) { alert('Maximum ' + MAX_FILES + ' files allowed'); break; }\n");
+    sb.append("      if (newFiles[i].size > MAX_SIZE) { alert(newFiles[i].name + ' exceeds 10MB limit'); continue; }\n");
+    sb.append("      files.push(newFiles[i]);\n");
+    sb.append("    }\n");
+    sb.append("    renderFiles();\n");
+    sb.append("  }\n");
+
+    sb.append("  function renderFiles() {\n");
+    sb.append("    var html = '';\n");
+    sb.append("    for (var i = 0; i < files.length; i++) {\n");
+    sb.append("      var sz = files[i].size < 1024 ? files[i].size + ' B' : (files[i].size / 1024).toFixed(1) + ' KB';\n");
+    sb.append("      html += '<div class=\"file-item\"><span>' + esc(files[i].name) + ' (' + sz + ')</span>';\n");
+    sb.append("      html += '<span class=\"remove\" data-idx=\"' + i + '\">&times;</span></div>';\n");
+    sb.append("    }\n");
+    sb.append("    fileList.innerHTML = html;\n");
+    sb.append("    fileList.querySelectorAll('.remove').forEach(function(el) {\n");
+    sb.append("      el.addEventListener('click', function() { files.splice(parseInt(this.dataset.idx), 1); renderFiles(); });\n");
+    sb.append("    });\n");
+    sb.append("  }\n");
+
+    sb.append("  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }\n");
+
+    // Form submit
+    sb.append("  form.addEventListener('submit', function(e) {\n");
+    sb.append("    e.preventDefault();\n");
+    sb.append("    var name = document.getElementById('contactName').value.trim();\n");
+    sb.append("    var subject = document.getElementById('contactSubject').value;\n");
+    sb.append("    var message = document.getElementById('contactMessage').value.trim();\n");
+    sb.append("    if (!name || !message) { alert('Name and message are required.'); return; }\n");
+    sb.append("    submitBtn.disabled = true;\n");
+    sb.append("    submitBtn.textContent = 'Sending...';\n");
+    sb.append("    fetch('/contact', {\n");
+    sb.append("      method: 'POST',\n");
+    sb.append("      headers: {'Content-Type': 'application/json'},\n");
+    sb.append("      body: JSON.stringify({name: name, subject: subject, message: message})\n");
+    sb.append("    }).then(function(r) { return r.json(); }).then(function(data) {\n");
+    sb.append("      if (data.ok) {\n");
+    sb.append("        form.style.display = 'none';\n");
+    sb.append("        successMsg.style.display = 'block';\n");
+    sb.append("      } else {\n");
+    sb.append("        alert(data.error || 'Failed to send message');\n");
+    sb.append("        submitBtn.disabled = false;\n");
+    sb.append("        submitBtn.textContent = 'Send Message';\n");
+    sb.append("      }\n");
+    sb.append("    }).catch(function(err) {\n");
+    sb.append("      alert('Network error: ' + err.message);\n");
+    sb.append("      submitBtn.disabled = false;\n");
+    sb.append("      submitBtn.textContent = 'Send Message';\n");
+    sb.append("    });\n");
+    sb.append("  });\n");
+
+    sb.append("})();\n");
+    sb.append("</script>\n");
     sb.append("</body>\n</html>\n");
     return sb.toString();
   }
