@@ -104,6 +104,7 @@
 .metabar {
   /* Flex layout aligns metaline, time and menu icons on one row. */
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   border-radius: 6px;
   -moz-border-radius: 6px;
@@ -249,6 +250,7 @@
 .meta.draftActive .metabar::after {
   content: "Draft mode \2014  changes are not visible to other participants";
   display: block;
+  width: 100%;
   margin: 0.3em 0 0.5em 0;
   padding: 0.35em 0.6em;
   font-size: 0.8em;
