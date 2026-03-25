@@ -1645,14 +1645,6 @@ public final class HtmlRenderer {
       + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
       + "<path d=\"M9 15l2 2 4-4\" stroke-width=\"2\"/>"
       + "</svg>";
-
-  /** Cloud with up-arrow icon for saving/unsaved state. */
-  private static final String ICON_CLOUD_SAVING =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fbd38d\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
-      + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
-      + "<path d=\"M12 18v-6m-3 3l3-3 3 3\" stroke-width=\"2\"/>"
-      + "</svg>";
-
   /** WiFi/signal icon for connection status. */
   private static final String ICON_WIFI =
       "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
