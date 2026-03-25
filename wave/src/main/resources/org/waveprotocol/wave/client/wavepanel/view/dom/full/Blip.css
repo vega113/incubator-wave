@@ -246,7 +246,7 @@
 .draftActive {}
 
 /* Notification banner shown below the metabar when draft mode is on. */
-.meta.draftActive::after {
+.meta.draftActive .metabar::after {
   content: "Draft mode \2014  changes are not visible to other participants";
   display: block;
   margin: 0.3em 0 0.5em 0;
