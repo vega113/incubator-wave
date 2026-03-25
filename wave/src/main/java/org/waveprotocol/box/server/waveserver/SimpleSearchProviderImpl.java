@@ -40,6 +40,7 @@ import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.model.wave.data.WaveViewData;
 import org.waveprotocol.wave.util.logging.Log;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -229,13 +230,17 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     while (it.hasNext()) {
       WaveViewData wave = it.next();
       try {
-        // Find the conversational wavelet and the user data wavelet.
+        // Find the conversational wavelet, the user data wavelet, and all conversational wavelets.
         ObservableWaveletData convWavelet = null;
         ObservableWaveletData udw = null;
+        List<ObservableWaveletData> conversationalWavelets = new ArrayList<ObservableWaveletData>();
         for (ObservableWaveletData wd : wave.getWavelets()) {
           WaveletId wid = wd.getWaveletId();
           if (org.waveprotocol.wave.model.id.IdUtil.isConversationRootWaveletId(wid)) {
             convWavelet = wd;
+            conversationalWavelets.add(wd);
+          } else if (org.waveprotocol.wave.model.id.IdUtil.isConversationalId(wid)) {
+            conversationalWavelets.add(wd);
           }
           if (org.waveprotocol.wave.model.id.IdUtil.isUserDataWavelet(user.getAddress(), wid)) {
             udw = wd;
@@ -256,7 +261,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
         }
         org.waveprotocol.wave.model.conversation.ObservableConversationView conversations =
             digester.getConversationUtil().buildConversation(opWavelet);
-        SupplementedWave supplement = digester.buildSupplement(user, conversations, udw);
+        SupplementedWave supplement = digester.buildSupplement(user, conversations, udw, conversationalWavelets);
         boolean isInbox = supplement.isInbox();
         if (wantInbox && !isInbox) {
           it.remove();
