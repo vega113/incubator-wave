@@ -1925,8 +1925,9 @@ public final class HtmlRenderer {
    *
    * @param username user part of the address (before @), or null if not logged in
    * @param domain   the wave server domain
+   * @param userRole the user's role ("owner", "admin", "user"), or null
    */
-  public static String renderTopBar(String username, String domain) {
+  public static String renderTopBar(String username, String domain, String userRole) {
     StringBuilder sb = new StringBuilder(4096);
     String fullAddress = (username != null && domain != null)
         ? escapeHtml(username) + "@" + escapeHtml(domain) : "";
@@ -1966,7 +1967,9 @@ public final class HtmlRenderer {
       sb.append("        <a href=\"/robot/register/create\">Robot Registration</a>\n");
       sb.append("        <a href=\"/robot/dataapi/token\">API Token</a>\n");
       sb.append("        <a href=\"#\" onclick=\"window.openVersionHistory(); return false;\">Version History</a>\n");
-      sb.append("        <a href=\"/admin\">Admin</a>\n");
+      if ("owner".equals(userRole) || "admin".equals(userRole)) {
+        sb.append("        <a href=\"/admin\">Admin</a>\n");
+      }
       sb.append("        <div class=\"divider\"></div>\n");
       sb.append("        <a id=\"signout\" href=\"/auth/signout?r=/\">Sign Out</a>\n");
       sb.append("      </div>\n");
