@@ -32,13 +32,16 @@ import org.waveprotocol.box.server.waveserver.QueryHelper.InvalidQueryException;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
+import org.waveprotocol.wave.model.supplement.SupplementedWave;
 import org.waveprotocol.wave.model.wave.InvalidParticipantAddress;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
 import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.model.wave.data.WaveViewData;
 import org.waveprotocol.wave.util.logging.Log;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -73,9 +76,19 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       LOG.warning("Invalid Query. " + e1.getMessage());
       return digester.generateSearchResult(user, query, null);
     }
-    // Maybe should be changed in case other folders in addition to 'inbox' are
-    // added.
     final boolean isAllQuery = !queryParams.containsKey(TokenQueryType.IN);
+
+    // Determine whether we need to filter by inbox or archive state.
+    final boolean isInboxQuery;
+    final boolean isArchiveQuery;
+    Set<String> inValues = queryParams.get(TokenQueryType.IN);
+    if (inValues != null) {
+      isInboxQuery = inValues.contains("inbox");
+      isArchiveQuery = inValues.contains("archive");
+    } else {
+      isInboxQuery = false;
+      isArchiveQuery = false;
+    }
 
     final List<ParticipantId> withParticipantIds;
     final List<ParticipantId> creatorParticipantIds;
@@ -104,6 +117,12 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     List<WaveViewData> results =
         Lists.newArrayList(filterWavesViewBySearchCriteria(filterWaveletsFunction,
             currentUserWavesView).values());
+
+    // Filter by inbox/archive supplement state when the query specifies a folder.
+    if (isInboxQuery || isArchiveQuery) {
+      filterByFolderState(results, user, isInboxQuery);
+    }
+
     List<WaveViewData> sortedResults = sort(queryParams, results);
 
     Collection<WaveViewData> searchResult =
@@ -189,6 +208,62 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       }
     }
     return matches;
+  }
+
+  /**
+   * Filters wave results by inbox or archive state using the user's supplement data.
+   * Waves whose supplement indicates they are archived are excluded from inbox queries,
+   * and waves that are in the inbox are excluded from archive queries.
+   *
+   * @param results the mutable list of wave views to filter in place.
+   * @param user the participant whose supplement state to check.
+   * @param wantInbox if true, keep only inbox waves; if false, keep only archived waves.
+   */
+  private void filterByFolderState(List<WaveViewData> results, ParticipantId user,
+      boolean wantInbox) {
+    Iterator<WaveViewData> it = results.iterator();
+    while (it.hasNext()) {
+      WaveViewData wave = it.next();
+      try {
+        // Find the conversational wavelet and the user data wavelet.
+        ObservableWaveletData convWavelet = null;
+        ObservableWaveletData udw = null;
+        for (ObservableWaveletData wd : wave.getWavelets()) {
+          WaveletId wid = wd.getWaveletId();
+          if (org.waveprotocol.wave.model.id.IdUtil.isConversationRootWaveletId(wid)) {
+            convWavelet = wd;
+          }
+          if (org.waveprotocol.wave.model.id.IdUtil.isUserDataWavelet(user.getAddress(), wid)) {
+            udw = wd;
+          }
+        }
+        if (convWavelet == null) {
+          // Non-conversational wave - skip from folder-filtered results.
+          it.remove();
+          continue;
+        }
+        // Build the supplement to determine inbox/archive state.
+        org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet opWavelet =
+            org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet.createReadOnly(convWavelet);
+        if (!org.waveprotocol.wave.model.conversation.WaveletBasedConversation
+            .waveletHasConversation(opWavelet)) {
+          it.remove();
+          continue;
+        }
+        org.waveprotocol.wave.model.conversation.ObservableConversationView conversations =
+            digester.getConversationUtil().buildConversation(opWavelet);
+        SupplementedWave supplement = digester.buildSupplement(user, conversations, udw);
+        boolean isInbox = supplement.isInbox();
+        if (wantInbox && !isInbox) {
+          it.remove();
+        } else if (!wantInbox && isInbox) {
+          it.remove();
+        }
+      } catch (Exception e) {
+        LOG.warning("Failed to check folder state for wave " + wave.getWaveId(), e);
+        // If we can't determine the state, keep the result for safety.
+      }
+    }
   }
 
   private List<WaveViewData> sort(Map<TokenQueryType, Set<String>> queryParams,
