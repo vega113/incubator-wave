@@ -102,26 +102,45 @@ public final class HtmlRenderer {
       + "  box-shadow: 0 0 0 3px rgba(0,119,182,0.10);\n"
       + "}\n"
 
-      // Filter buttons (Shared / All / Inbox) – scoped to search panel
-      // to avoid breaking fixed-dimension toolbars elsewhere
+      // Filter icon buttons (Shared / All / Inbox / Archive) – scoped
+      // to the search panel.  Now icon-only circles with SVG content.
       + "#app [kind=\"c\"] .gwt-Button {\n"
       + "  box-sizing: border-box;\n"
-      + "  border: 1.5px solid " + WAVE_BORDER + ";\n"
-      + "  border-radius: 16px;\n"
-      + "  background: #fff;\n"
+      + "  display: inline-flex;\n"
+      + "  align-items: center;\n"
+      + "  justify-content: center;\n"
+      + "  width: 32px;\n"
+      + "  height: 32px;\n"
+      + "  min-width: 32px;\n"
+      + "  padding: 0;\n"
+      + "  border: 1.5px solid transparent;\n"
+      + "  border-radius: 50%;\n"
+      + "  background: transparent;\n"
       + "  color: " + WAVE_TEXT_MUTED + ";\n"
-      + "  font-family: " + WAVE_FONT + ";\n"
-      + "  font-size: 12px;\n"
-      + "  font-weight: 500;\n"
-      + "  padding: 4px 14px;\n"
+      + "  font-size: 0;\n"          // hide any remaining text
       + "  cursor: pointer;\n"
-      + "  transition: all 0.15s ease;\n"
-      + "  line-height: 1.4;\n"
+      + "  transition: all 0.18s ease;\n"
       + "}\n"
       + "#app [kind=\"c\"] .gwt-Button:hover {\n"
       + "  border-color: " + WAVE_PRIMARY + ";\n"
       + "  color: " + WAVE_PRIMARY + ";\n"
-      + "  background: rgba(0,119,182,0.04);\n"
+      + "  background: rgba(0,119,182,0.08);\n"
+      + "}\n"
+      + "#app [kind=\"c\"] .gwt-Button:active {\n"
+      + "  background: rgba(0,119,182,0.18);\n"
+      + "  transform: scale(0.92);\n"
+      + "}\n"
+      + "#app [kind=\"c\"] .gwt-Button svg {\n"
+      + "  display: block;\n"
+      + "}\n"
+
+      // Mobile: enlarge touch targets on narrow screens
+      + "@media (max-width: 480px) {\n"
+      + "  #app [kind=\"c\"] .gwt-Button {\n"
+      + "    width: 36px;\n"
+      + "    height: 36px;\n"
+      + "    min-width: 36px;\n"
+      + "  }\n"
       + "}\n"
 
       // --- Digest list items (wave inbox) ---
@@ -194,8 +213,9 @@ public final class HtmlRenderer {
       + "  display: inline-flex !important;\n"
       + "  align-items: center;\n"
       + "  justify-content: center;\n"
-      + "  width: 32px !important;\n"
-      + "  height: 32px !important;\n"
+      + "  width: 26px !important;\n"
+      + "  height: 26px !important;\n"
+      + "  flex-shrink: 0;\n"
       + "  border-radius: 50% !important;\n"
       + "  background: linear-gradient(135deg, #48cae4, #00b4d8) !important;\n"
       + "  color: #fff !important;\n"
@@ -203,7 +223,7 @@ public final class HtmlRenderer {
       + "  box-shadow: 0 2px 6px rgba(0,180,216,0.3);\n"
       + "  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;\n"
       + "  vertical-align: middle;\n"
-      + "  margin: 4px 2px !important;\n"
+      + "  margin: 0 !important;\n"
       + "}\n"
       + "#app [kind=\"a\"]:hover {\n"
       + "  transform: scale(1.12);\n"
@@ -216,8 +236,9 @@ public final class HtmlRenderer {
       + "  display: inline-flex !important;\n"
       + "  align-items: center;\n"
       + "  justify-content: center;\n"
-      + "  width: 32px !important;\n"
-      + "  height: 32px !important;\n"
+      + "  width: 26px !important;\n"
+      + "  height: 26px !important;\n"
+      + "  flex-shrink: 0;\n"
       + "  border-radius: 50% !important;\n"
       + "  background: linear-gradient(135deg, #00b4d8, " + WAVE_PRIMARY + ") !important;\n"
       + "  color: #fff !important;\n"
@@ -226,7 +247,7 @@ public final class HtmlRenderer {
       + "  box-shadow: 0 2px 6px rgba(0,119,182,0.3);\n"
       + "  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;\n"
       + "  vertical-align: middle;\n"
-      + "  margin: 4px 0 4px 6px !important;\n"
+      + "  margin: 0 !important;\n"
       + "  padding: 0 !important;\n"
       + "  font-size: 0;\n"
       + "  line-height: 0;\n"
@@ -235,6 +256,29 @@ public final class HtmlRenderer {
       + "  transform: scale(1.12);\n"
       + "  box-shadow: 0 4px 12px rgba(0,119,182,0.4);\n"
       + "  background: linear-gradient(135deg, #0096c7, #005f8f) !important;\n"
+      + "}\n"
+
+      // --- Public/Private toggle button ---
+      + "#app [kind=\"tp\"] {\n"
+      + "  display: inline-flex !important;\n"
+      + "  align-items: center;\n"
+      + "  justify-content: center;\n"
+      + "  width: 24px !important;\n"
+      + "  height: 24px !important;\n"
+      + "  flex-shrink: 0;\n"
+      + "  border-radius: 50% !important;\n"
+      + "  background: #0077b6 !important;\n"
+      + "  color: #fff !important;\n"
+      + "  cursor: pointer;\n"
+      + "  box-shadow: 0 2px 6px rgba(0,119,182,0.3);\n"
+      + "  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;\n"
+      + "  vertical-align: middle;\n"
+      + "  margin: 0 !important;\n"
+      + "}\n"
+      + "#app [kind=\"tp\"]:hover {\n"
+      + "  transform: scale(1.12);\n"
+      + "  box-shadow: 0 4px 12px rgba(0,119,182,0.4);\n"
+      + "  background: #005f8a !important;\n"
       + "}\n"
 
       // --- Blips ---
@@ -1412,13 +1456,39 @@ public final class HtmlRenderer {
     sb.append("  display: inline-flex; align-items: center; justify-content: center;\n");
     sb.append("}\n");
     sb.append("#netstatus svg { width: 20px; height: 20px; }\n");
-    sb.append(".online svg { color: #68d391; }\n");
-    sb.append(".connecting svg { color: #fbd38d; }\n");
-    sb.append(".offline svg { color: #fc8181; }\n");
+    // Icon color is always white; state is shown by a small colored dot via ::after
+    sb.append(".topbar-icon svg { stroke: white !important; color: white !important; }\n");
+    // -- Status indicator dots (::after pseudo-element badges) --
+    sb.append(".topbar-icon::after {\n");
+    sb.append("  content: ''; position: absolute; bottom: 2px; right: 2px;\n");
+    sb.append("  width: 8px; height: 8px; border-radius: 50%;\n");
+    sb.append("  border: 1.5px solid rgba(0,50,100,0.6);\n");
+    sb.append("  display: none;\n");
+    sb.append("}\n");
+    sb.append(".lang-icon-btn::after { display: none !important; }\n");
+    // Saved state: small green dot
+    sb.append(".topbar-icon.saved::after { display: block; background: #48bb78; box-shadow: 0 0 4px #48bb78; }\n");
+    // Saving state: pulsing amber dot
+    sb.append(".topbar-icon.saving::after { display: block; background: #ecc94b; box-shadow: 0 0 4px #ecc94b; animation: indicator-pulse 1.2s ease-in-out infinite; }\n");
+    // Online: small green dot
+    sb.append(".topbar-icon.online::after { display: block; background: #48bb78; box-shadow: 0 0 4px #48bb78; }\n");
+    // Connecting: pulsing amber dot
+    sb.append(".topbar-icon.connecting::after { display: block; background: #ecc94b; box-shadow: 0 0 4px #ecc94b; animation: indicator-pulse 1.2s ease-in-out infinite; }\n");
+    // Offline: red dot
+    sb.append(".topbar-icon.offline::after { display: block; background: #fc8181; box-shadow: 0 0 4px #fc8181; }\n");
+    sb.append("@keyframes indicator-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }\n");
     // Info bar
     sb.append(".info { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.9); }\n");
     sb.append(".info a { color: #fff; text-decoration: none; font-weight: 500; }\n");
     sb.append(".info a:hover { text-decoration: underline; }\n");
+    sb.append(".online svg { color: #3fb950; stroke: #3fb950; }\n");
+    sb.append(".connecting svg { color: #d29922; stroke: #d29922; }\n");
+    sb.append(".offline svg { color: #f85149; stroke: #f85149; }\n");
+    sb.append("@keyframes status-pulse {\n");
+    sb.append("  0%, 100% { opacity: 1; }\n");
+    sb.append("  50% { opacity: 0.5; }\n");
+    sb.append("}\n");
+    sb.append(".saving-pulse, .connecting-pulse { animation: status-pulse 1.5s ease-in-out infinite; }\n");
     // -- Avatar circle --
     sb.append(".user-avatar {\n");
     sb.append("  display: inline-flex; align-items: center; justify-content: center;\n");
@@ -1829,7 +1899,7 @@ public final class HtmlRenderer {
       sb.append("      <select id=\"lang\" size=\"1\"></select>\n");
       sb.append("    </div>\n");
       // -- Save status indicator: cloud-check icon, updated by GWT --
-      sb.append("    <span id=\"unsavedStateContainer\" class=\"topbar-icon\" title=\"All changes saved\">");
+      sb.append("    <span id=\"unsavedStateContainer\" class=\"topbar-icon saved\" title=\"All changes saved\">");
       sb.append(ICON_CLOUD_CHECK).append("</span>\n");
       // -- Connection status: wifi-off icon for initial offline state, updated by GWT --
       sb.append("    <span id=\"netstatus\" class=\"topbar-icon offline\" title=\"Offline\">");
@@ -1868,24 +1938,24 @@ public final class HtmlRenderer {
       + "<path d=\"M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10\"/>"
       + "</svg>";
 
-  /** Cloud with checkmark icon for saved state. */
+  /** Cloud with checkmark icon for saved state — green #3fb950. */
   private static final String ICON_CLOUD_CHECK =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#3fb950\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
       + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
       + "<path d=\"M9 15l2 2 4-4\" stroke-width=\"2\"/>"
       + "</svg>";
-  /** WiFi/signal icon for connection status. */
+  /** WiFi/signal icon for connection status (white for contrast on dark topbar). */
   private static final String ICON_WIFI =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
       + "<path d=\"M1.42 9a16 16 0 0 1 21.16 0\"/>"
       + "<path d=\"M5.07 12.5a10 10 0 0 1 13.86 0\"/>"
       + "<path d=\"M8.72 16a6 6 0 0 1 6.56 0\"/>"
       + "<circle cx=\"12\" cy=\"19.5\" r=\"1\"/>"
       + "</svg>";
 
-  /** WiFi-off icon for disconnected state. */
+  /** WiFi-off icon for disconnected state (white for contrast on dark topbar). */
   private static final String ICON_WIFI_OFF =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\">"
       + "<line x1=\"1\" y1=\"1\" x2=\"23\" y2=\"23\"/>"
       + "<path d=\"M16.72 11.06A10.94 10.94 0 0 1 19 12.55\"/>"
       + "<path d=\"M5 12.55a10.94 10.94 0 0 1 5.17-2.39\"/>"
