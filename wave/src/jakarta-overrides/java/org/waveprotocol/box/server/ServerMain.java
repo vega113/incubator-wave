@@ -147,6 +147,10 @@ public class ServerMain {
       ((SignerInfoStore)certPathStore).initializeSignerInfoStore();
     }
 
+    org.waveprotocol.box.server.persistence.ContactMessageStore contactMessageStore =
+        injector.getInstance(org.waveprotocol.box.server.persistence.ContactMessageStore.class);
+    contactMessageStore.initializeContactMessageStore();
+
     WaveletProvider waveServer = injector.getInstance(WaveletProvider.class);
     waveServer.initialize();
   }
@@ -219,6 +223,7 @@ public class ServerMain {
     server.addServlet("/history/*", VersionHistoryServlet.class);
     server.addServlet("/admin", AdminServlet.class);
     server.addServlet("/admin/*", AdminServlet.class);
+    server.addServlet("/contact", ContactServlet.class);
     server.addServlet("/folder/*", FolderServlet.class);
     server.addServlet("/searches", SearchesServlet.class);
     server.addServlet("/robot/register/*", RobotRegistrationServlet.class);

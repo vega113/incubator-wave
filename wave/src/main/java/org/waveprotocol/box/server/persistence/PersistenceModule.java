@@ -31,6 +31,7 @@ import org.waveprotocol.box.server.persistence.file.FileAttachmentStore;
 import org.waveprotocol.box.server.persistence.file.FileDeltaStore;
 import org.waveprotocol.box.server.persistence.file.FileSignerInfoStore;
 import org.waveprotocol.box.server.persistence.file.FileSnapshotStore;
+import org.waveprotocol.box.server.persistence.memory.MemoryContactMessageStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryDeltaStore;
 import org.waveprotocol.box.server.persistence.memory.MemorySnapshotStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryStore;
@@ -119,6 +120,7 @@ public class PersistenceModule extends AbstractModule {
     bindDeltaStore();
     bindSnapshotStore();
     bindContactStore();
+    bindContactMessageStore();
   }
 
   /**
@@ -235,6 +237,20 @@ public class PersistenceModule extends AbstractModule {
       }
     } else {
       throw new RuntimeException("Invalid delta store type: '" + deltaStoreType + "'");
+    }
+  }
+
+  /**
+   * Binds the ContactMessageStore for contact form submissions.
+   * Uses the same backend type as the account store (mongodb or memory).
+   */
+  private void bindContactMessageStore() {
+    if (accountStoreType.equalsIgnoreCase("mongodb") && "v4".equalsIgnoreCase(mongoDriver)) {
+      bind(ContactMessageStore.class)
+          .toInstance(getMongo4Provider().provideMongoDbContactMessageStore());
+    } else {
+      bind(ContactMessageStore.class)
+          .to(MemoryContactMessageStore.class).in(Singleton.class);
     }
   }
 }

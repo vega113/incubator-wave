@@ -9,6 +9,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import org.waveprotocol.box.server.persistence.AttachmentStore;
 import org.waveprotocol.box.server.persistence.AccountStore;
+import org.waveprotocol.box.server.persistence.ContactMessageStore;
 import org.waveprotocol.box.server.persistence.ContactStore;
 import org.waveprotocol.box.server.persistence.SnapshotStore;
 import org.waveprotocol.box.server.waveserver.DeltaStore;
@@ -89,4 +90,6 @@ public class Mongo4DbProvider implements AutoCloseable {
   public SnapshotStore provideMongoDbSnapshotStore() { ensure(); return new Mongo4SnapshotStore(db); }
 
   public ContactStore provideMongoDbContactStore() { ensure(); return new Mongo4ContactStore(db); }
+
+  public ContactMessageStore provideMongoDbContactMessageStore() { ensure(); return new Mongo4ContactMessageStore(db); }
 }
