@@ -33,6 +33,7 @@ import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.Command;
+import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.History;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.Window;
@@ -422,6 +423,31 @@ public class WebClient implements EntryPoint {
     setupWavePanel();
 
     FocusManager.init();
+    setupGlobalShortcuts();
+  }
+
+  /**
+   * Registers global keyboard shortcuts that work from anywhere in the app.
+   * Shift+Cmd+O (Mac) / Shift+Ctrl+O (Windows/Linux) triggers New Wave.
+   */
+  private void setupGlobalShortcuts() {
+    Event.addNativePreviewHandler(new Event.NativePreviewHandler() {
+      @Override
+      public void onPreviewNativeEvent(Event.NativePreviewEvent preview) {
+        if (preview.getTypeInt() != Event.ONKEYDOWN) {
+          return;
+        }
+        com.google.gwt.dom.client.NativeEvent event = preview.getNativeEvent();
+        // 'O' key = keyCode 79.  Shift must be held. Ctrl or Meta (Cmd) must be held.
+        if (event.getKeyCode() == 'O'
+            && event.getShiftKey()
+            && (event.getMetaKey() || event.getCtrlKey())) {
+          event.preventDefault();
+          preview.cancel();
+          ClientEvents.get().fireEvent(new WaveCreationEvent());
+        }
+      }
+    });
   }
 
   private void setupSearchPanel() {
