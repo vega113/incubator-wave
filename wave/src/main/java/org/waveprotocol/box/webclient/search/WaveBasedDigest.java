@@ -157,7 +157,6 @@ public final class WaveBasedDigest
     }
   }
 
-  @SuppressWarnings("unused")
   private void invalidateLmt() {
     lastModified = NO_TIME;
   }
@@ -275,6 +274,7 @@ public final class WaveBasedDigest
   @Override
   public void onLastModifiedTimeChanged(ObservableWavelet wavelet, long oldTime, long newTime) {
     if (newTime != oldTime) {
+      invalidateLmt();
       fireOnChanged();
     }
   }
