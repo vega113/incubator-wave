@@ -257,19 +257,25 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
             udw = wd;
           }
         }
+        // Waves without a conversation root wavelet or without conversation
+        // structure cannot carry archive state. Treat them as inbox waves:
+        // keep them for inbox queries, remove them for archive queries.
         if (convWavelet == null) {
-          // Non-conversational wave - skip from folder-filtered results.
-          it.remove();
+          if (!wantInbox) {
+            it.remove();
+          }
           continue;
         }
-        // Build the supplement to determine inbox/archive state.
         org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet opWavelet =
             org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet.createReadOnly(convWavelet);
         if (!org.waveprotocol.wave.model.conversation.WaveletBasedConversation
             .waveletHasConversation(opWavelet)) {
-          it.remove();
+          if (!wantInbox) {
+            it.remove();
+          }
           continue;
         }
+        // Build the supplement to determine inbox/archive state.
         org.waveprotocol.wave.model.conversation.ObservableConversationView conversations =
             digester.getConversationUtil().buildConversation(opWavelet);
         SupplementedWave supplement = digester.buildSupplement(user, conversations, udw, conversationalWavelets);
