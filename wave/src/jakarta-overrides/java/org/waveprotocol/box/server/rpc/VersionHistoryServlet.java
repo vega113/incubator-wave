@@ -673,7 +673,7 @@ public final class VersionHistoryServlet extends HttpServlet {
         return;
       }
 
-      // 5. Return success
+      // Return success response
       LOG.info("Restored " + waveletName + " to version " + targetVersion
           + " (" + appliedOps[0] + " ops applied) by " + user.getAddress());
       setJsonUtf8(resp);
