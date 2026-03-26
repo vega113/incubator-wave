@@ -365,7 +365,8 @@ public class WaveServerImpl implements WaveletProvider, ReadableWaveletDataProvi
   @Override
   public ReadableWaveletData getReadableWaveletData(WaveletName waveletName)
       throws WaveServerException {
-    return getSnapshot(waveletName).snapshot;
+    CommittedWaveletSnapshot committedSnapshot = getSnapshot(waveletName);
+    return committedSnapshot != null ? committedSnapshot.snapshot : null;
   }
 
   public boolean isWriteLockHeldByCurrentThread(WaveletName waveletName) throws WaveServerException {
