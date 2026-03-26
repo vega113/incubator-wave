@@ -62,7 +62,7 @@ public class ContactSearchServiceImpl implements ContactSearchService {
   @Override
   public void search(String query, int limit, final Callback callback) {
     String url = SEARCH_URL_BASE + "?q=" + URL.encodeQueryString(query) + "&limit=" + limit;
-    LOG.trace().log("Searching contacts, query=" + query + ", limit=" + limit);
+    LOG.trace().log("Searching contacts, limit=" + limit);
 
     RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
     requestBuilder.setCallback(new RequestCallback() {
@@ -80,13 +80,17 @@ public class ContactSearchServiceImpl implements ContactSearchService {
         try {
           parseAndDeliver(response.getText(), callback);
         } catch (Exception e) {
-          callback.onFailure("Failed to parse contact search response: " + e.getMessage());
+          String msg = (e.getMessage() == null || e.getMessage().isEmpty())
+              ? e.getClass().getName() : e.getMessage();
+          callback.onFailure("Failed to parse contact search response: " + msg);
         }
       }
 
       @Override
       public void onError(Request request, Throwable e) {
-        callback.onFailure(e.getMessage());
+        String msg = (e.getMessage() == null || e.getMessage().isEmpty())
+            ? e.getClass().getName() : e.getMessage();
+        callback.onFailure(msg);
       }
     });
 
