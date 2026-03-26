@@ -152,9 +152,12 @@ public final class ContactSearchServlet extends HttpServlet {
       }
     }
 
-    // 4. Add all registered accounts that are not already in the result set.
+    // 4. Add all registered human accounts that are not already in the result set.
     //    These get a base score of 0 (appear after known contacts).
     for (AccountData acct : allAccounts) {
+      if (!acct.isHuman()) {
+        continue;
+      }
       String address = acct.getId().getAddress();
       // Skip the requesting user, shared domain participants, and duplicates.
       if (address.equals(participant.getAddress())
