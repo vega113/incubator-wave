@@ -256,6 +256,11 @@ public class ServerMain {
     server.addServlet("/terms", LegalServlet.class);
     server.addServlet("/privacy", LegalServlet.class);
 
+    // SEO endpoints
+    server.addServlet("/robots.txt", RobotsServlet.class);
+    server.addServlet("/sitemap.xml", SitemapServlet.class);
+    server.addServlet("/wave/*", PublicWaveServlet.class);
+
     server.addServlet("/", WaveClientServlet.class);
   }
 
