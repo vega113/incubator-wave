@@ -54,6 +54,9 @@ jobs:
       - name: Compile PST and Wave
         run: sbt --batch pst/compile wave/compile
 
+      - name: GWT compilation check
+        run: sbt --batch compileGwt
+
       - name: Stage distribution
         run: sbt --batch Universal/stage
 
@@ -61,6 +64,24 @@ jobs:
         continue-on-error: true
         timeout-minutes: 3
         run: sbt --batch smokeInstalled
+
+      - name: Startup smoke test
+        timeout-minutes: 2
+        run: |
+          cd target/universal/stage
+          ./bin/wave &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9898/healthz > /dev/null 2>&1; then
+              echo "Server started successfully"
+              kill $SERVER_PID
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server failed to start within 60 seconds"
+          kill $SERVER_PID 2>/dev/null
+          exit 1
 
       - name: Guard experimental flags for release (tags/releases/release branches)
         if: ${{ github.ref_type == 'tag' || (github.event_name == 'release' && github.event.action == 'published') || (github.ref_type == 'branch' && (startsWith(github.ref_name, 'release/') || startsWith(github.ref_name, 'hotfix/'))) }}
