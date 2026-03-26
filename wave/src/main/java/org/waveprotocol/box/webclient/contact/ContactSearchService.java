@@ -23,11 +23,14 @@ import java.util.List;
 
 /**
  * Interface for searching contacts on the server via the
- * {@code GET /contacts/search?q=<prefix>&limit=<n>} endpoint.
+ * {@code GET /contacts/search} endpoint.
+ *
+ * <p>This is the GWT client-side counterpart of
+ * {@code ContactSearchServlet} (server-side).
  */
 public interface ContactSearchService {
 
-  /** Holds a single search result entry. */
+  /** Holds a single search result. */
   public static class SearchResult {
     private final String participant;
     private final double score;
@@ -60,15 +63,15 @@ public interface ContactSearchService {
      * Notifies this callback of a successful search.
      *
      * @param results the list of matching contacts
-     * @param total the total number of matches before truncation
+     * @param total the total number of matching contacts (before limit)
      */
     void onSuccess(List<SearchResult> results, int total);
   }
 
   /**
-   * Searches contacts on the server by prefix.
+   * Searches contacts on the server by address prefix.
    *
-   * @param prefix the prefix to match against contact addresses
+   * @param prefix the prefix to match (case-insensitive); empty string returns all
    * @param limit the maximum number of results to return
    * @param callback the callback to receive results
    */

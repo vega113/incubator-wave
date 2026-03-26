@@ -41,7 +41,7 @@ import java.util.List;
  * <p>The response format is:
  * <pre>{
  *   "results": [
- *     {"participant": "alice@example.com", "score": 1711234567890.0, "lastContact": 1711234567890},
+ *     {"participant": "alice@example.com", "score": 42.0, "lastContact": 1711234567890},
  *     ...
  *   ],
  *   "total": 42
@@ -62,7 +62,7 @@ public class ContactSearchServiceImpl implements ContactSearchService {
   public void search(String prefix, int limit, final Callback callback) {
     String encodedPrefix = (prefix != null) ? URL.encodeQueryString(prefix) : "";
     String url = SEARCH_URL_BASE + "?q=" + encodedPrefix + "&limit=" + limit;
-    LOG.trace().log("Searching contacts, prefix=" + prefix + ", limit=" + limit);
+    LOG.trace().log("Searching contacts, limit=" + limit);
 
     RequestBuilder requestBuilder = new RequestBuilder(RequestBuilder.GET, url);
     requestBuilder.setCallback(new RequestCallback() {
@@ -80,13 +80,17 @@ public class ContactSearchServiceImpl implements ContactSearchService {
         try {
           parseAndDeliver(response.getText(), callback);
         } catch (Exception e) {
-          callback.onFailure("Failed to parse search response: " + e.getMessage());
+          String msg = (e.getMessage() == null || e.getMessage().isEmpty())
+              ? e.getClass().getName() : e.getMessage();
+          callback.onFailure("Failed to parse contact search response: " + msg);
         }
       }
 
       @Override
       public void onError(Request request, Throwable e) {
-        callback.onFailure(e.getMessage());
+        String msg = (e.getMessage() == null || e.getMessage().isEmpty())
+            ? e.getClass().getName() : e.getMessage();
+        callback.onFailure(msg);
       }
     });
 
@@ -94,7 +98,9 @@ public class ContactSearchServiceImpl implements ContactSearchService {
       requestBuilder.send();
     } catch (RequestException e) {
       LOG.error().log("Failed to send contact search request: " + e.getMessage());
-      callback.onFailure(e.getMessage());
+      String msg = (e.getMessage() == null || e.getMessage().isEmpty())
+          ? e.getClass().getName() : e.getMessage();
+      callback.onFailure(msg);
     }
   }
 
