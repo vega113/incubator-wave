@@ -35,6 +35,7 @@ import org.waveprotocol.wave.client.wavepanel.view.dom.ModelAsViewProvider;
 import org.waveprotocol.wave.client.widget.toolbar.ToolbarButtonViewBuilder;
 import org.waveprotocol.wave.client.widget.toolbar.ToolbarView;
 import org.waveprotocol.wave.client.widget.toolbar.ToplevelToolbarWidget;
+import org.waveprotocol.wave.client.widget.toolbar.buttons.ToolbarButtonView;
 import org.waveprotocol.wave.client.widget.toolbar.buttons.ToolbarClickButton;
 import org.waveprotocol.wave.common.logging.LoggerBundle;
 import org.waveprotocol.wave.model.conversation.ConversationView;
@@ -67,6 +68,9 @@ public final class ViewToolbar {
 
   /** Listener for folder action completion. */
   private FolderActionListener folderActionListener;
+
+  /** Reference to the history button for visibility control. */
+  private ToolbarClickButton historyButton;
 
   private ViewToolbar(ToplevelToolbarWidget toolbarUi, FocusFramePresenter focusFrame,
       ModelAsViewProvider views, ConversationView wave, Reader reader, WaveId waveId) {
@@ -159,7 +163,7 @@ public final class ViewToolbar {
 
     // History button group
     ToolbarView historyGroup = toolbarUi.addGroup();
-    new ToolbarButtonViewBuilder()
+    historyButton = new ToolbarButtonViewBuilder()
         .setText(messages.history())
         .setTooltip(messages.historyTooltip())
         .applyTo(historyGroup.addClickButton(), new ToolbarClickButton.Listener() {
@@ -216,6 +220,17 @@ public final class ViewToolbar {
    */
   public void setHistoryButtonListener(ToolbarClickButton.Listener listener) {
     this.historyButtonListener = listener;
+  }
+
+  /**
+   * Controls visibility of the History button. When set to false, the button
+   * becomes invisible (used to hide history from non-owners).
+   */
+  public void setHistoryButtonVisible(boolean visible) {
+    if (historyButton != null) {
+      historyButton.setState(
+          visible ? ToolbarButtonView.State.ENABLED : ToolbarButtonView.State.INVISIBLE);
+    }
   }
 
   /**
