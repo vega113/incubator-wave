@@ -134,6 +134,11 @@ public final class SearchPresenter
       + "<path d=\"M5 17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6h1a2 2 0 000-4H8"
       + "a2 2 0 000 4h1v4.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24z\"></path></svg>";
 
+  /** Refresh: rotate-cw icon. */
+  private static final String ICON_REFRESH = SVG_OPEN
+      + "<polyline points=\"23 4 23 10 17 10\"></polyline>"
+      + "<path d=\"M20.49 15a9 9 0 11-2.12-9.36L23 10\"></path></svg>";
+
   // External references
   private final TimerService scheduler;
   private final Search search;
@@ -415,6 +420,15 @@ public final class SearchPresenter
           }
         }).setVisualElement(createSvgIcon(ICON_PIN));
 
+    new ToolbarButtonViewBuilder()
+        .setTooltip("Refresh search results")
+        .applyTo(filterGroup.addClickButton(), new ToolbarClickButton.Listener() {
+          @Override
+          public void onClicked() {
+            forceRefresh();
+          }
+        }).setVisualElement(createSvgIcon(ICON_REFRESH));
+
     // Saved searches are loaded lazily after the first search result arrives
     // (see onStateChanged) to avoid competing with the critical /search request.
   }
@@ -645,9 +659,20 @@ public final class SearchPresenter
   @Override
   public void onQueryEntered() {
     queryText = searchUi.getSearch().getQuery();
+    forceRefresh();
+  }
+
+  /**
+   * Forces an immediate search refresh and resets the polling timer so the
+   * user sees updated results right away (e.g. after pin/unpin or Enter on
+   * the same query).
+   */
+  private void forceRefresh() {
     querySize = getPageSize();
     searchUi.setTitleText(messages.searching());
+    search.cancel();
     doSearch();
+    scheduler.scheduleRepeating(searchUpdater, POLLING_INTERVAL_MS, POLLING_INTERVAL_MS);
   }
 
   @Override
