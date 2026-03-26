@@ -29,6 +29,11 @@ package org.waveprotocol.wave.client.wavepanel.impl.collapse;
  * deeply nested threads use slide navigation instead of normal
  * collapse/expand.
  *
+ * <p>Phase 3 additions: installs a {@link SlideNavigationKeyHandler} for
+ * Esc / Alt+Left keyboard shortcuts (using {@code NativePreviewHandler}
+ * to avoid KeySignalRouter conflicts), and enables browser history
+ * integration so the browser Back button works with slide navigation.
+ *
  * <p>The navigation logic is handled inside {@link CollapseController}
  * (which checks the navigator before performing a standard toggle),
  * avoiding the need for a separate mouse-down handler registration that
@@ -40,6 +45,14 @@ public final class ThreadNavigationBuilder {
 
   /**
    * Builds and installs the thread navigation feature.
+   *
+   * <p>This installs:
+   * <ul>
+   *   <li>The breadcrumb widget for visual navigation</li>
+   *   <li>The navigator wired into the collapse presenter</li>
+   *   <li>Keyboard shortcuts (Esc, Alt+Left) via NativePreviewHandler</li>
+   *   <li>Browser history integration for the Back button</li>
+   * </ul>
    *
    * @param collapser the existing collapse presenter (which also owns
    *                  the single TOGGLE mouse-down handler)
@@ -57,6 +70,17 @@ public final class ThreadNavigationBuilder {
     // Wire the navigator into the collapse presenter so that
     // CollapseController can delegate to it for deep threads.
     collapser.setNavigator(navigator);
+
+    // Install keyboard shortcuts (Esc, Alt+Left) via NativePreviewHandler.
+    // We use NativePreviewHandler instead of KeySignalRouter.register() to
+    // avoid "Feature conflict" errors, since ESC is already handled by
+    // EditSession when in editing mode.
+    SlideNavigationKeyHandler keyHandler = new SlideNavigationKeyHandler(navigator);
+    keyHandler.install();
+
+    // Enable browser history integration so the browser Back button
+    // can be used to navigate back through slide navigation levels.
+    navigator.enableHistoryIntegration();
 
     return navigator;
   }
