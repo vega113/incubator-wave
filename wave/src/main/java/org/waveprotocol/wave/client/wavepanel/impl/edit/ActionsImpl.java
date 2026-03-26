@@ -195,21 +195,32 @@ public final class ActionsImpl implements Actions {
   public void addContinuation(ThreadView threadUi) {
     ConversationThread thread = views.getThread(threadUi);
 
+    if (thread == null) {
+      EditorStaticDeps.logger.trace().log("addContinuation: thread is null, ignoring.");
+      ToastNotification.showWarning(messages.cannotReplyEmptyWave());
+      return;
+    }
+
     // Check if continuations are blocked by wave lock.
-    if (thread != null) {
-      ConversationBlip firstBlip = thread.getFirstBlip();
-      if (firstBlip != null) {
-        WaveLockState lockState = firstBlip.getConversation().getLockState();
-        if (lockState == WaveLockState.ALL_LOCKED) {
-          ToastNotification.showWarning(messages.waveIsLockedNoReply());
-          return;
-        }
+    ConversationBlip firstBlip = thread.getFirstBlip();
+    if (firstBlip != null) {
+      WaveLockState lockState = firstBlip.getConversation().getLockState();
+      if (lockState == WaveLockState.ALL_LOCKED) {
+        ToastNotification.showWarning(messages.waveIsLockedNoReply());
+        return;
       }
     }
 
     ConversationBlip continuation = thread.appendBlip();
     blipQueue.flush();
-    focusAndEdit(views.getBlipView(continuation));
+    BlipView continuationUi = views.getBlipView(continuation);
+    if (continuationUi == null) {
+      EditorStaticDeps.logger.trace().log(
+          "addContinuation: blip view not available after flush, ignoring.");
+      ToastNotification.showWarning(messages.cannotReplyEmptyWave());
+      return;
+    }
+    focusAndEdit(continuationUi);
   }
 
   @Override
@@ -286,6 +297,9 @@ public final class ActionsImpl implements Actions {
    * or document), the session is restarted.
    */
   private void focusAndEdit(BlipView blipUi) {
+    if (blipUi == null) {
+      return;
+    }
     boolean allowed = !BlipUiUtil.isQuasiDeleted(blipUi);
     if (allowed) {
       if (edit.isEditing() && blipUi.equals(edit.getBlip())

@@ -44,4 +44,7 @@ public interface ActionMessages extends Messages {
 
   @DefaultMessage("The root blip is locked. Editing is not allowed here.")
   String rootBlipIsLocked();
+
+  @DefaultMessage("Cannot reply \u2014 this wave has no content.")
+  String cannotReplyEmptyWave();
 }
