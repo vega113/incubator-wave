@@ -551,23 +551,36 @@ public final class SearchPresenter
    */
   private void renderWaveCount() {
     int total = search.getTotal();
-    if (total == Search.UNKNOWN_SIZE) {
-      total = search.getMinimumTotal();
-    }
+    boolean totalKnown = total != Search.UNKNOWN_SIZE;
+    int loaded = search.getMinimumTotal();
     int unread = 0;
-    for (int i = 0, size = search.getMinimumTotal(); i < size; i++) {
+    for (int i = 0; i < loaded; i++) {
       Digest digest = search.getDigest(i);
       if (digest != null && digest.getUnreadCount() > 0) {
         unread++;
       }
     }
     String text;
-    if (total <= 0) {
+    if (totalKnown && total <= 0) {
       text = "";
-    } else if (unread > 0) {
-      text = total + " waves \u00b7 " + unread + " unread";
-    } else {
+    } else if (totalKnown && loaded < total) {
+      // Showing a partial page of a known total: "5 of 28 waves"
+      text = loaded + " of " + total + " waves";
+      if (unread > 0) {
+        text += " \u00b7 " + unread + " unread";
+      }
+    } else if (totalKnown) {
+      // All results loaded
       text = total + " waves";
+      if (unread > 0) {
+        text += " \u00b7 " + unread + " unread";
+      }
+    } else {
+      // Total unknown, show loaded count
+      text = loaded + " waves";
+      if (unread > 0) {
+        text += " \u00b7 " + unread + " unread";
+      }
     }
     searchUi.setWaveCountText(text);
   }
