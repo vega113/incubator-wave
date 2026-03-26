@@ -34,22 +34,12 @@ import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.SimplePanel;
 
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 
 /**
- * A horizontal scrubber widget for browsing version history groups.
- * Rendered as a fixed-position bar at the bottom of the wave panel,
- * containing an HTML5 range input, group info label, and an exit button.
- *
- * <p>The scrubber is styled with the ocean blue theme and provides:
- * <ul>
- *   <li>Slider (range input) for selecting a group</li>
- *   <li>Author-colored tick marks via CSS gradient</li>
- *   <li>Current group info label (author, timestamp, change count)</li>
- *   <li>Left/Right arrow key navigation</li>
- *   <li>"Exit History" button</li>
- * </ul>
+ * A horizontal scrubber widget for browsing version history. Fixed at the
+ * bottom of the wave panel with a range slider, version info label,
+ * Restore button, and Exit button.
  */
 public final class VersionScrubber extends Composite {
 
@@ -60,38 +50,30 @@ public final class VersionScrubber extends Composite {
 
     /** Called when the user clicks "Exit History". */
     void onExitClicked();
-  }
 
-  /** Static color palette for author-based tick coloring. */
-  private static final String[] AUTHOR_COLORS = {
-    "#0077b6", "#00b4d8", "#e07900", "#d62828",
-    "#2a9d8f", "#7209b7", "#f4a261", "#118ab2",
-    "#ef476f", "#06d6a0"
-  };
+    /** Called when the user clicks "Restore". */
+    void onRestoreClicked();
+  }
 
   private final FlowPanel container;
   private final Element rangeInput;
   private final HTML infoLabel;
   private final HTML exitButton;
-  private final Element tooltipEl;
+  private final HTML restoreButton;
 
   private List<HistoryApiClient.DeltaGroup> groups;
   private Listener listener;
-
-  /** Maps author addresses to colors for consistent coloring. */
-  private final HashMap<String, String> authorColorMap = new HashMap<String, String>();
-  private int nextColorIndex = 0;
 
   public VersionScrubber() {
     container = new FlowPanel();
     container.setStyleName("history-scrubber");
 
-    // Exit button
+    // Exit button (left side)
     exitButton = new HTML(EXIT_ICON_SVG + " Exit History");
     exitButton.setStyleName("history-scrubber-exit");
     container.add(exitButton);
 
-    // Range input - create via DOM since GWT doesn't have a native range widget
+    // Range input slider
     rangeInput = DOM.createElement("input");
     rangeInput.setAttribute("type", "range");
     rangeInput.setAttribute("min", "0");
@@ -100,7 +82,6 @@ public final class VersionScrubber extends Composite {
     rangeInput.setAttribute("step", "1");
     rangeInput.setClassName("history-scrubber-range");
 
-    // Wrap the native element in a simple container
     SimplePanel rangeWrapper = new SimplePanel();
     rangeWrapper.setStyleName("history-scrubber-range-wrapper");
     rangeWrapper.getElement().appendChild(rangeInput);
@@ -111,27 +92,24 @@ public final class VersionScrubber extends Composite {
     infoLabel.setStyleName("history-scrubber-label");
     container.add(infoLabel);
 
-    // Tooltip (hidden by default, shown on hover)
-    tooltipEl = DOM.createDiv();
-    tooltipEl.setClassName("history-scrubber-tooltip");
-    tooltipEl.getStyle().setDisplay(Style.Display.NONE);
-    container.getElement().appendChild(tooltipEl);
+    // Restore button (initially hidden)
+    restoreButton = new HTML(RESTORE_ICON_SVG + " Restore");
+    restoreButton.setStyleName("history-scrubber-restore");
+    restoreButton.setVisible(false);
+    container.add(restoreButton);
 
     initWidget(container);
 
-    // Start hidden; shown explicitly when history mode is entered.
+    // Start hidden
     setVisible(false);
 
-    // Wire up event handlers
     wireEvents();
   }
 
-  /** Wires up DOM event handlers for the range input and exit button. */
+  /** Wires up DOM event handlers for the range input and buttons. */
   private void wireEvents() {
-    // Range input change event (fires on mouse release) and keyboard/mouse events.
-    // Note: HTML5 'input' event is not in GWT's event model, so we use JSNI below.
-    DOM.sinkEvents(rangeInput, Event.ONCHANGE
-        | Event.ONKEYDOWN | Event.ONMOUSEMOVE | Event.ONMOUSEOUT);
+    // Range input: use both 'change' event (mouse release) and JSNI 'input' event (live drag).
+    DOM.sinkEvents(rangeInput, Event.ONCHANGE | Event.ONKEYDOWN);
     DOM.setEventListener(rangeInput, new EventListener() {
       public void onBrowserEvent(Event event) {
         int type = DOM.eventGetType(event);
@@ -159,17 +137,11 @@ public final class VersionScrubber extends Composite {
             }
             event.preventDefault();
           }
-        } else if (type == Event.ONMOUSEMOVE) {
-          showTooltipForPosition(event);
-        } else if (type == Event.ONMOUSEOUT) {
-          tooltipEl.getStyle().setDisplay(Style.Display.NONE);
         }
       }
     });
 
-    // Use JSNI to add the HTML5 'input' event listener, which GWT's Event
-    // class does not support (no ONINPUT constant). This fires continuously
-    // as the user drags the range slider, providing real-time feedback.
+    // JSNI: add the HTML5 'input' event listener for live slider dragging.
     addNativeInputListener(rangeInput);
 
     // Exit button click
@@ -180,9 +152,18 @@ public final class VersionScrubber extends Composite {
         }
       }
     });
+
+    // Restore button click
+    restoreButton.addClickHandler(new ClickHandler() {
+      public void onClick(ClickEvent event) {
+        if (listener != null) {
+          listener.onRestoreClicked();
+        }
+      }
+    });
   }
 
-  /** Called when the range input value changes (from either 'input' or 'change' events). */
+  /** Called when the range input value changes. */
   private void onRangeInput() {
     int val = Integer.parseInt(InputElement.as(rangeInput).getValue());
     if (listener != null) {
@@ -192,9 +173,7 @@ public final class VersionScrubber extends Composite {
 
   /**
    * Adds a native 'input' event listener via JSNI. The HTML5 'input' event
-   * fires continuously while the user drags a range slider, unlike 'change'
-   * which only fires on release. GWT's {@link Event} class lacks an ONINPUT
-   * constant, so we attach the listener directly through JavaScript.
+   * fires continuously while dragging, unlike 'change' which fires on release.
    */
   private native void addNativeInputListener(Element el) /*-{
     var self = this;
@@ -209,21 +188,15 @@ public final class VersionScrubber extends Composite {
   }
 
   /**
-   * Configures the scrubber with the given groups. Updates the range input
-   * min/max and generates author-colored tick marks.
+   * Configures the scrubber with the given groups. Updates the range slider
+   * min/max values.
    */
   public void configure(List<HistoryApiClient.DeltaGroup> groups) {
     this.groups = groups;
-    authorColorMap.clear();
-    nextColorIndex = 0;
-
     int maxVal = groups.size() - 1;
     if (maxVal < 0) maxVal = 0;
     rangeInput.setAttribute("max", String.valueOf(maxVal));
     InputElement.as(rangeInput).setValue("0");
-
-    // Generate a CSS gradient for tick marks colored by author
-    updateTickGradient();
   }
 
   /** Sets the scrubber to a specific group index. */
@@ -239,29 +212,26 @@ public final class VersionScrubber extends Composite {
     return Integer.parseInt(InputElement.as(rangeInput).getValue());
   }
 
-  /**
-   * Updates the info label with the current group details.
-   */
+  /** Updates the info label with the current group details. */
   public void updateLabel(HistoryApiClient.DeltaGroup group) {
     String author = group.getAuthor();
-    // Strip the domain part for display (show only username)
     int atIdx = author.indexOf('@');
     String displayName = (atIdx > 0) ? author.substring(0, atIdx) : author;
-    String color = getAuthorColor(author);
 
     String dateStr = formatTimestamp(group.getEndTimestamp());
-    int changes = group.getTotalOps();
 
     infoLabel.setHTML(
-        "<span class='history-scrubber-author' style='color:" + color + "'>"
+        "<span class='history-scrubber-author'>"
         + escapeHtml(displayName) + "</span>"
         + " <span class='history-scrubber-sep'>&mdash;</span> "
         + "<span class='history-scrubber-date'>" + escapeHtml(dateStr) + "</span>"
-        + " <span class='history-scrubber-sep'>&mdash;</span> "
-        + "<span class='history-scrubber-changes'>" + changes + " change"
-        + (changes != 1 ? "s" : "") + "</span>"
         + " <span class='history-scrubber-version'>(v" + group.getEndVersion() + ")</span>"
     );
+  }
+
+  /** Shows or hides the Restore button. */
+  public void setRestoreVisible(boolean visible) {
+    restoreButton.setVisible(visible);
   }
 
   /** Shows the scrubber bar. */
@@ -276,96 +246,20 @@ public final class VersionScrubber extends Composite {
     getElement().getStyle().setDisplay(Style.Display.NONE);
   }
 
-  // =========================================================================
-  // Internal helpers
-  // =========================================================================
-
-  /** Generates a CSS gradient background for the range track showing author colors. */
-  private void updateTickGradient() {
-    if (groups == null || groups.isEmpty()) {
-      return;
-    }
-    // Build a linear gradient with color stops for each group
-    int total = groups.size();
-    StringBuilder gradient = new StringBuilder("linear-gradient(to right");
-    for (int i = 0; i < total; i++) {
-      String color = getAuthorColor(groups.get(i).getAuthor());
-      double startPct = (i * 100.0) / total;
-      double endPct = ((i + 1) * 100.0) / total;
-      gradient.append(", ");
-      gradient.append(color).append(" ").append(formatPct(startPct)).append("%");
-      gradient.append(", ");
-      gradient.append(color).append(" ").append(formatPct(endPct)).append("%");
-    }
-    gradient.append(")");
-
-    // Apply the gradient as a CSS custom property that the stylesheet can reference
-    rangeInput.getStyle().setProperty("background", gradient.toString());
-  }
-
-  /** Formats a percentage with one decimal place. */
-  private String formatPct(double pct) {
-    // GWT-safe: no String.format
-    int whole = (int) pct;
-    int frac = (int) ((pct - whole) * 10);
-    return whole + "." + frac;
-  }
-
-  /** Shows the tooltip near the mouse position with group details. */
-  private void showTooltipForPosition(Event event) {
-    if (groups == null || groups.isEmpty()) {
-      return;
-    }
-    // Estimate which group the mouse is over based on position
-    int rangeWidth = rangeInput.getOffsetWidth();
-    if (rangeWidth <= 0) return;
-
-    int mouseX = event.getClientX() - rangeInput.getAbsoluteLeft();
-    int total = groups.size();
-    int groupIdx = (mouseX * total) / rangeWidth;
-    if (groupIdx < 0) groupIdx = 0;
-    if (groupIdx >= total) groupIdx = total - 1;
-
-    HistoryApiClient.DeltaGroup group = groups.get(groupIdx);
-    String author = group.getAuthor();
-    int atIdx = author.indexOf('@');
-    String displayName = (atIdx > 0) ? author.substring(0, atIdx) : author;
-    String dateStr = formatTimestamp(group.getEndTimestamp());
-
-    tooltipEl.setInnerHTML(
-        "<strong>" + escapeHtml(displayName) + "</strong><br>"
-        + escapeHtml(dateStr) + "<br>"
-        + group.getTotalOps() + " change" + (group.getTotalOps() != 1 ? "s" : "")
-    );
-    tooltipEl.getStyle().setDisplay(Style.Display.BLOCK);
-    tooltipEl.getStyle().setLeft(mouseX, Style.Unit.PX);
-  }
-
-  /** Gets a consistent color for an author address. */
-  private String getAuthorColor(String author) {
-    String color = authorColorMap.get(author);
-    if (color == null) {
-      color = AUTHOR_COLORS[nextColorIndex % AUTHOR_COLORS.length];
-      nextColorIndex++;
-      authorColorMap.put(author, color);
-    }
-    return color;
-  }
-
-  /** Formats a Unix timestamp (ms) into a human-readable date string. */
+  /** Formats a Unix timestamp (ms) into a readable date string. */
   private static String formatTimestamp(long timestampMs) {
     Date date = new Date(timestampMs);
-    // GWT-compatible date formatting
-    int month = date.getMonth() + 1;
+    String[] monthNames = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    String month = monthNames[date.getMonth()];
     int day = date.getDate();
-    int year = date.getYear() + 1900;
     int hours = date.getHours();
     int mins = date.getMinutes();
     String ampm = hours >= 12 ? "PM" : "AM";
     int displayHours = hours % 12;
     if (displayHours == 0) displayHours = 12;
     String minStr = (mins < 10) ? "0" + mins : "" + mins;
-    return month + "/" + day + "/" + year + " " + displayHours + ":" + minStr + " " + ampm;
+    return month + " " + day + ", " + displayHours + ":" + minStr + " " + ampm;
   }
 
   /** Basic HTML escaping. */
@@ -384,5 +278,14 @@ public final class VersionScrubber extends Composite {
       + " style='width:16px;height:16px;vertical-align:middle;margin-right:4px;'>"
       + "<line x1='18' y1='6' x2='6' y2='18'/>"
       + "<line x1='6' y1='6' x2='18' y2='18'/>"
+      + "</svg>";
+
+  /** SVG icon for the restore button. */
+  private static final String RESTORE_ICON_SVG =
+      "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'"
+      + " stroke-linecap='round' stroke-linejoin='round'"
+      + " style='width:16px;height:16px;vertical-align:middle;margin-right:4px;'>"
+      + "<polyline points='1 4 1 10 7 10'/>"
+      + "<path d='M3.51 15a9 9 0 1 0 2.13-9.36L1 10'/>"
       + "</svg>";
 }

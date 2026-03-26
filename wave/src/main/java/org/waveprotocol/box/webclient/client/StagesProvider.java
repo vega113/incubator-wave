@@ -47,8 +47,8 @@ import org.waveprotocol.wave.model.conversation.ConversationView;
 import org.waveprotocol.wave.model.document.WaveContext;
 import org.waveprotocol.wave.model.id.IdGenerator;
 import org.waveprotocol.wave.model.id.WaveId;
-import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.Wavelet;
 import org.waveprotocol.wave.model.waveref.WaveRef;
 
 import java.util.Set;
@@ -180,7 +180,6 @@ public class StagesProvider extends Stages {
 
   private void onStageThreeLoaded(StageThree x, Accessor<StageThree> whenReady) {
     if (closed) {
-      // Stop the loading process.
       return;
     }
     three = x;
@@ -199,8 +198,9 @@ public class StagesProvider extends Stages {
   }
 
   /**
-   * Wires click listeners for the view toolbar buttons (archive, inbox, history)
+   * Wires click listeners for the view toolbar buttons (archive, inbox)
    * that need external dependencies not available inside ViewToolbar itself.
+   * History button wiring is handled separately in {@link #wireHistoryMode()}.
    */
   private void wireToolbarButtons(StageThree three) {
     ViewToolbar viewToolbar = three.getViewToolbar();
@@ -209,56 +209,7 @@ public class StagesProvider extends Stages {
     viewToolbar.setFolderActionListener(new ViewToolbar.FolderActionListener() {
       @Override
       public void onFolderActionCompleted(String folder) {
-        // Navigate to the wave list by clearing the history token,
-        // which triggers WaveSelectionEvent in WebClient.
         History.newItem("", true);
-      }
-    });
-
-    // --- History button: create and wire the HistoryModeController ---
-    WaveId waveId = two.getWave().getWaveId();
-    String waveDomain = waveId.getDomain();
-    String waveIdStr = waveId.getId();
-
-    // Derive the conversation root wavelet coordinates.
-    WaveletId rootWaveletId = idGenerator.buildConversationRootWaveletId(waveId);
-    String waveletDomain = rootWaveletId.getDomain();
-    String waveletIdStr = rootWaveletId.getId();
-
-    HistoryApiClient historyApiClient = new HistoryApiClient();
-    VersionScrubber scrubber = new VersionScrubber();
-    InlineDiffRenderer diffRenderer = new InlineDiffRenderer();
-    diffRenderer.setWavePanelElement(wavePanelElement);
-
-    // Attach the scrubber widget to the DOM and adopt it into the GWT widget tree.
-    // The scrubber starts hidden and is shown when history mode is entered.
-    wavePanelElement.appendChild(scrubber.getElement());
-    rootPanel.doAdopt(scrubber);
-
-    final HistoryModeController historyController =
-        new HistoryModeController(historyApiClient, scrubber, diffRenderer);
-    historyController.setWaveletCoordinates(
-        waveDomain, waveIdStr, waveletDomain, waveletIdStr);
-    historyController.setWavePanelElement(wavePanelElement);
-
-    // Connect scrubber movement events back to the controller.
-    scrubber.setListener(new VersionScrubber.Listener() {
-      @Override
-      public void onScrubberMoved(int groupIndex) {
-        historyController.onScrubberMove(groupIndex);
-      }
-
-      @Override
-      public void onExitClicked() {
-        historyController.exitHistoryMode();
-      }
-    });
-
-    // Wire the history button to toggle history mode.
-    viewToolbar.setHistoryButtonListener(new ToolbarClickButton.Listener() {
-      @Override
-      public void onClicked() {
-        historyController.toggleHistoryMode();
       }
     });
   }
@@ -290,34 +241,45 @@ public class StagesProvider extends Stages {
   }
 
   /**
-   * Wires up the inline version history feature: creates the
-   * {@link HistoryModeController}, {@link VersionScrubber}, and
-   * {@link InlineDiffRenderer}, attaches the scrubber widget to the DOM,
-   * and connects the toolbar "History" button to toggle history mode.
+   * Wires up the inline version history feature. Only shows the History
+   * button if the current user is the wave creator (owner).
    */
   private void wireHistoryMode() {
     if (three == null || one == null || two == null) {
       return;
     }
 
+    // --- Owner check: only the wave creator sees the History button ---
+    String currentUserAddress = Session.get().getAddress();
+    Wavelet rootWavelet = two.getWave().getRoot();
+    if (rootWavelet == null || currentUserAddress == null) {
+      // Cannot determine ownership; hide history.
+      three.getViewToolbar().setHistoryButtonVisible(false);
+      return;
+    }
+
+    ParticipantId creator = rootWavelet.getCreatorId();
+    if (creator == null || !currentUserAddress.equals(creator.getAddress())) {
+      // Not the owner -- hide the history button.
+      three.getViewToolbar().setHistoryButtonVisible(false);
+      return;
+    }
+
+    // --- Owner confirmed: wire up history mode ---
+
     // Determine the wave/wavelet coordinates for the history API.
     WaveId wId = waveRef.getWaveId();
     String waveDomain = wId.getDomain();
     String waveIdStr = wId.getId();
-    // Use the conversation root wavelet (same domain, "conv+root").
     String waveletDomain = waveDomain;
     String waveletIdStr = "conv+root";
 
     // Create the history subsystem components.
     HistoryApiClient apiClient = new HistoryApiClient();
     versionScrubber = new VersionScrubber();
-    InlineDiffRenderer diffRenderer = new InlineDiffRenderer();
-
-    // Configure the diff renderer with the wave panel element.
-    diffRenderer.setWavePanelElement(wavePanelElement);
 
     // Create and configure the controller.
-    historyController = new HistoryModeController(apiClient, versionScrubber, diffRenderer);
+    historyController = new HistoryModeController(apiClient, versionScrubber);
     historyController.setWaveletCoordinates(waveDomain, waveIdStr, waveletDomain, waveletIdStr);
     historyController.setWavePanelElement(wavePanelElement);
 
@@ -331,6 +293,11 @@ public class StagesProvider extends Stages {
       @Override
       public void onExitClicked() {
         historyController.exitHistoryMode();
+      }
+
+      @Override
+      public void onRestoreClicked() {
+        historyController.restoreCurrentVersion();
       }
     });
 
