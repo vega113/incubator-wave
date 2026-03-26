@@ -40,6 +40,7 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR ${WAVE_HOME}
 COPY --from=build /workspace/target/universal/stage/ ${WAVE_HOME}/
+RUN mkdir -p ${WAVE_HOME}/logs
 
 EXPOSE 9898
 
