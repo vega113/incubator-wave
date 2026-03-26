@@ -53,7 +53,6 @@ import org.waveprotocol.wave.model.waveref.WaveRef;
 
 import java.util.Set;
 
-import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 
 /**
  * Stages for loading the undercurrent Wave Panel
@@ -79,6 +78,7 @@ public class StagesProvider extends Stages {
   private final ProfileManager profiles;
   private final WaveStore waveStore;
   private final boolean isNewWave;
+  private final boolean isDirectMessage;
   private final String localDomain;
   private final ContactManager contactManager;
 
@@ -113,6 +113,22 @@ public class StagesProvider extends Stages {
       LogicalPanel rootPanel, FramedPanel waveFrame, WaveRef waveRef, RemoteViewServiceMultiplexer channel,
       IdGenerator idGenerator, ProfileManager profiles, WaveStore store, boolean isNewWave,
       String localDomain, Set<ParticipantId> participants, ContactManager contactManager) {
+    this(wavePanelElement, unsavedIndicatorElement, rootPanel, waveFrame, waveRef, channel,
+        idGenerator, profiles, store, isNewWave, false, localDomain, participants, contactManager);
+  }
+
+  /**
+   * Full constructor including direct-message flag.
+   *
+   * @param isDirectMessage true if the wave is a direct message created via
+   *        the "Send Message" profile action. The DM tag will be added to
+   *        the conversation on creation.
+   */
+  public StagesProvider(Element wavePanelElement, Element unsavedIndicatorElement,
+      LogicalPanel rootPanel, FramedPanel waveFrame, WaveRef waveRef, RemoteViewServiceMultiplexer channel,
+      IdGenerator idGenerator, ProfileManager profiles, WaveStore store, boolean isNewWave,
+      boolean isDirectMessage, String localDomain, Set<ParticipantId> participants,
+      ContactManager contactManager) {
     this.wavePanelElement = wavePanelElement;
     this.unsavedIndicatorElement = unsavedIndicatorElement;
     this.waveFrame = waveFrame;
@@ -123,6 +139,7 @@ public class StagesProvider extends Stages {
     this.profiles = profiles;
     this.waveStore = store;
     this.isNewWave = isNewWave;
+    this.isDirectMessage = isDirectMessage;
     this.localDomain = localDomain;
     this.participants = participants;
     this.contactManager = contactManager;
@@ -151,7 +168,8 @@ public class StagesProvider extends Stages {
   @Override
   protected AsyncHolder<StageTwo> createStageTwoLoader(StageOne one) {
     return haltIfClosed(new StageTwoProvider(this.one = one, waveRef, channel, isNewWave,
-        idGenerator, profiles, new SavedStateIndicator(unsavedIndicatorElement), participants));
+        isDirectMessage, idGenerator, profiles, new SavedStateIndicator(unsavedIndicatorElement),
+        participants));
   }
 
   @Override
@@ -194,6 +212,7 @@ public class StagesProvider extends Stages {
         two.getWave(), two.getConversations(), two.getSupplement(), two.getReadMonitor());
     waveStore.add(wave);
     wireToolbarButtons(x);
+    wirePinState(x);
     install();
     wireHistoryMode();
     whenReady.use(x);
@@ -214,6 +233,20 @@ public class StagesProvider extends Stages {
         History.newItem("", true);
       }
     });
+  }
+
+  /**
+   * Sets the initial pin state on the view toolbar so the Pin/Unpin button
+   * label is correct when the wave first opens.
+   */
+  private void wirePinState(StageThree three) {
+    ViewToolbar viewToolbar = three.getViewToolbar();
+    try {
+      boolean pinned = two.getSupplement().isPinned();
+      viewToolbar.setPinned(pinned);
+    } catch (Exception e) {
+      // Supplement may not be available for all waves; default to unpinned.
+    }
   }
 
   private void initNewWave(StageThree three) {
@@ -266,27 +299,16 @@ public class StagesProvider extends Stages {
       isCreator = true;
     }
 
-    // In a DM wave (exactly 2 real participants, no domain participant),
-    // both participants should see the History button.
+    // In a DM wave (tagged with Conversation.DM_TAG), both participants
+    // should see the History button.
     boolean isDmParticipant = false;
     if (!isCreator) {
-      Set<ParticipantId> waveletParticipants = rootWavelet.getParticipantIds();
-      boolean hasDomainParticipant = false;
-      boolean currentUserIsParticipant = false;
-      int realParticipantCount = 0;
-      for (ParticipantId pid : waveletParticipants) {
-        if (ParticipantIdUtil.isDomainAddress(pid.getAddress())) {
-          hasDomainParticipant = true;
-        } else {
-          realParticipantCount++;
-          if (currentUserAddress.equals(pid.getAddress())) {
-            currentUserIsParticipant = true;
-          }
-        }
+      ConversationView conversations = two.getConversations();
+      if (conversations != null && conversations.getRoot() != null) {
+        java.util.Set<String> tags = conversations.getRoot().getTags();
+        isDmParticipant = tags != null && tags.contains(
+            org.waveprotocol.wave.model.conversation.Conversation.DM_TAG);
       }
-      isDmParticipant = !hasDomainParticipant
-          && realParticipantCount == 2
-          && currentUserIsParticipant;
     }
 
     if (!isCreator && !isDmParticipant) {
@@ -329,13 +351,22 @@ public class StagesProvider extends Stages {
       public void onRestoreClicked() {
         historyController.restoreCurrentVersion();
       }
+
+      @Override
+      public void onShowChangesToggled(boolean enabled) {
+        historyController.setShowDiff(enabled);
+      }
+
+      @Override
+      public void onFilterChanged(boolean textChangesOnly) {
+        historyController.onFilterChanged(textChangesOnly);
+      }
     });
 
-    // Attach the scrubber widget to the GWT widget tree so events fire.
-    // It starts hidden; HistoryModeController.enterHistoryMode() calls show().
-    versionScrubber.hide();
-    wavePanelElement.appendChild(versionScrubber.getElement());
-    one.getWavePanel().getGwtPanel().doAdopt(versionScrubber);
+    // Attach the scrubber to the body-level RootPanel so it is independent
+    // of the wave panel DOM. This prevents innerHTML replacement of the
+    // wave panel from destroying the scrubber widget.
+    versionScrubber.attach();
 
     // Wire the toolbar "History" button to toggle history mode.
     three.getViewToolbar().setHistoryButtonListener(new ToolbarClickButton.Listener() {
@@ -350,18 +381,15 @@ public class StagesProvider extends Stages {
   }
 
   public void destroy() {
-    // Detach the scrubber widget BEFORE exiting history mode, because
-    // exitHistoryMode() restores savedWavePanelHtml via setInnerHTML()
-    // which removes the scrubber DOM element from the tree.  If we call
-    // removeFromParent() after that, the element is already detached and
-    // GWT throws a removeChild-null error (#288).
-    if (versionScrubber != null) {
-      versionScrubber.removeFromParent();
-      versionScrubber = null;
-    }
+    // Exit history mode first (restores wave panel HTML), then detach scrubber.
+    // The scrubber is now body-level so it is safe to detach in either order.
     if (historyController != null) {
       historyController.exitHistoryMode();
       historyController = null;
+    }
+    if (versionScrubber != null) {
+      versionScrubber.detach();
+      versionScrubber = null;
     }
     if (wave != null) {
       waveStore.remove(wave);
@@ -394,6 +422,30 @@ public class StagesProvider extends Stages {
     if (blipUi != null) {
       focusFrame.focus(blipUi);
     }
+  }
+
+  /**
+   * Returns the wave ID of the currently open wave.
+   */
+  public WaveId getWaveId() {
+    return waveRef.getWaveId();
+  }
+
+  /**
+   * Navigates to and focuses a specific blip within this already-open wave.
+   * This avoids the overhead of closing and reopening the wave.
+   *
+   * @param targetRef the wave reference containing the blip to focus on.
+   *        Must reference the same wave as this provider.
+   * @return true if the blip was found and focused, false otherwise.
+   */
+  public boolean focusBlip(WaveRef targetRef) {
+    if (one == null || two == null || closed) {
+      return false;
+    }
+    selectAndFocusOnBlip(two.getReader(), two.getModelAsViewProvider(), two.getConversations(),
+        one.getFocusFrame(), targetRef);
+    return true;
   }
 
   /**

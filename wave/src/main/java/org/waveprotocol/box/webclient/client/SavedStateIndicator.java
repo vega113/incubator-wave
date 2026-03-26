@@ -26,12 +26,19 @@ import org.waveprotocol.box.webclient.client.i18n.SavedStateMessages;
 import org.waveprotocol.wave.client.scheduler.Scheduler;
 import org.waveprotocol.wave.client.scheduler.SchedulerInstance;
 import org.waveprotocol.wave.client.scheduler.TimerService;
+import org.waveprotocol.wave.client.widget.toast.ToastNotification;
 import org.waveprotocol.wave.concurrencycontrol.common.UnsavedDataListener;
 
 import java.util.logging.Logger;
 
 /**
  * Simple saved state indicator.
+ *
+ * <p>In addition to updating the topbar icon, this indicator shows a
+ * persistent toast notification when the blip has been in the "unsaved"
+ * state for more than {@link #UNSAVED_WARNING_DELAY_MS} milliseconds.
+ * The toast auto-dismisses when the save completes. It only fires once
+ * per unsaved period to avoid spamming the user.
  *
  * @author danilatos@google.com (Daniel Danilatos)
  * @author yurize@apache.org (Yuri Zelikov)
@@ -54,10 +61,30 @@ public class SavedStateIndicator implements UnsavedDataListener {
 
   private static final int UPDATE_DELAY_MS = 300;
 
+  /** Delay before showing the "taking longer than usual" notification. */
+  private static final int UNSAVED_WARNING_DELAY_MS = 5000;
+
+  /** Persistent-toast id so we can dismiss the correct one. */
+  private static final String UNSAVED_TOAST_ID = "unsaved-slow";
+
   private final Scheduler.Task updateTask = new Scheduler.Task() {
     @Override
     public void execute() {
       updateDisplay();
+    }
+  };
+
+  /** Timer that fires when the unsaved state has exceeded the warning threshold. */
+  private final Scheduler.Task unsavedWarningTask = new Scheduler.Task() {
+    @Override
+    public void execute() {
+      if (currentSavedState == SavedState.UNSAVED && !unsavedWarningShown) {
+        unsavedWarningShown = true;
+        ToastNotification.showPersistent(
+            UNSAVED_TOAST_ID,
+            messages.unsavedWarning(),
+            ToastNotification.Level.INFO);
+      }
     }
   };
 
@@ -67,17 +94,23 @@ public class SavedStateIndicator implements UnsavedDataListener {
   private SavedState visibleSavedState = SavedState.SAVED;
   private SavedState currentSavedState = SavedState.SAVED;
 
-  /** Cloud-check SVG icon for saved state (green for contrast on dark topbar). */
+  /**
+   * Whether the unsaved-warning toast has already been shown for the current
+   * unsaved period. Reset when state transitions back to SAVED.
+   */
+  private boolean unsavedWarningShown;
+
+  /** Cloud-check SVG icon for saved state (white on dark topbar; dot shows state). */
   private static final String SAVED_ICON_SVG =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#3fb950\" stroke-width=\"1.8\""
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\""
           + " stroke-linecap=\"round\" stroke-linejoin=\"round\" style=\"width:20px;height:20px;\">"
           + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
           + "<path d=\"M9 15l2 2 4-4\" stroke-width=\"2\"/>"
           + "</svg>";
 
-  /** Cloud-upload SVG icon for unsaved/saving state (amber for visibility on dark topbar). */
+  /** Cloud-upload SVG icon for unsaved/saving state (white on dark topbar; dot shows state). */
   private static final String UNSAVED_ICON_SVG =
-      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#ecc94b\" stroke-width=\"1.8\""
+      "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"1.8\""
           + " stroke-linecap=\"round\" stroke-linejoin=\"round\""
           + " style=\"width:20px;height:20px;\" class=\"saving-icon\">"
           + "<path d=\"M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z\"/>"
@@ -139,9 +172,9 @@ public class SavedStateIndicator implements UnsavedDataListener {
   @Override
   public void onUpdate(UnsavedDataInfo unsavedDataInfo) {
     if (unsavedDataInfo.estimateUnacknowledgedSize() != 0) {
-      currentSavedState = SavedState.UNSAVED;
+      setSavedState(SavedState.UNSAVED);
     } else {
-      currentSavedState = SavedState.SAVED;
+      setSavedState(SavedState.SAVED);
     }
     maybeUpdateDisplay();
   }
@@ -149,10 +182,34 @@ public class SavedStateIndicator implements UnsavedDataListener {
   @Override
   public void onClose(boolean everythingCommitted) {
     if (everythingCommitted) {
-      currentSavedState = SavedState.SAVED;
+      setSavedState(SavedState.SAVED);
     } else {
-      currentSavedState = SavedState.UNSAVED;
+      setSavedState(SavedState.UNSAVED);
     }
     maybeUpdateDisplay();
+  }
+
+  // ---- Unsaved-warning timer management ----
+
+  /**
+   * Transitions to the given saved state, managing the unsaved-warning timer
+   * and persistent toast as needed.
+   */
+  private void setSavedState(SavedState newState) {
+    SavedState previousState = currentSavedState;
+    currentSavedState = newState;
+
+    if (newState == SavedState.UNSAVED && previousState == SavedState.SAVED) {
+      // Entering unsaved state -- start the warning timer.
+      unsavedWarningShown = false;
+      scheduler.scheduleDelayed(unsavedWarningTask, UNSAVED_WARNING_DELAY_MS);
+    } else if (newState == SavedState.SAVED && previousState == SavedState.UNSAVED) {
+      // Returning to saved state -- cancel timer and dismiss any visible toast.
+      scheduler.cancel(unsavedWarningTask);
+      if (unsavedWarningShown) {
+        ToastNotification.dismissPersistent(UNSAVED_TOAST_ID);
+      }
+      unsavedWarningShown = false;
+    }
   }
 }

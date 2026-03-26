@@ -115,6 +115,26 @@ public final class FolderServlet extends HttpServlet {
         }
       }
       response.setStatus(HttpServletResponse.SC_OK);
+    } else if ("pin".equals(operation) || "unpin".equals(operation)) {
+      boolean pinning = "pin".equals(operation);
+      if (waves != null) {
+        boolean anyFailure = false;
+        for (String wave : waves) {
+          try {
+            WaveId waveId = WaveId.deserialise(StringEscapeUtils.unescapeHtml4(wave));
+            setPinState(waveId, pinning, user);
+          } catch (Exception ex) {
+            LOG.log(Level.SEVERE, (pinning ? "Pin" : "Unpin") + " error ", ex);
+            anyFailure = true;
+          }
+        }
+        if (anyFailure) {
+          response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+              "Failed to " + (pinning ? "pin" : "unpin") + " wave(s)");
+          return;
+        }
+      }
+      response.setStatus(HttpServletResponse.SC_OK);
     } else {
       response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown operation");
     }
@@ -146,6 +166,36 @@ public final class FolderServlet extends HttpServlet {
       supplement.archive();
     } else if ("inbox".equals(folder)) {
       supplement.inbox();
+    }
+    OperationUtil.submitDeltas(context, waveletProvider, LOGGING_REQUEST_LISTENER);
+  }
+
+  /**
+   * Pins or unpins a wave for a given participant.
+   */
+  public void setPinState(WaveId waveId, boolean pin, ParticipantId participant)
+      throws InvalidRequestException, OperationException, InterruptedException, ExecutionException {
+
+    OperationContextImpl context = new OperationContextImpl(waveletProvider,
+        converterManager.getEventDataConverter(ProtocolVersion.DEFAULT), conversationUtil);
+
+    OpBasedWavelet wavelet = context.openWavelet(waveId,
+        WaveletId.of(waveId.getDomain(), IdConstants.CONVERSATION_ROOT_WAVELET), participant);
+    ConversationView conversationView = context.getConversationUtil().buildConversation(wavelet);
+
+    WaveletId udwId =
+        WaveletId.of(waveId.getDomain(),
+            IdUtil.join(IdConstants.USER_DATA_WAVELET_PREFIX, participant.getAddress()));
+    OpBasedWavelet udw = context.openWavelet(waveId, udwId, participant);
+
+    PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
+
+    SupplementedWave supplement =
+        SupplementedWaveImpl.create(udwState, conversationView, participant, DefaultFollow.ALWAYS);
+    if (pin) {
+      supplement.pin();
+    } else {
+      supplement.unpin();
     }
     OperationUtil.submitDeltas(context, waveletProvider, LOGGING_REQUEST_LISTENER);
   }
