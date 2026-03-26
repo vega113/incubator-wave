@@ -116,14 +116,22 @@ public final class FolderServlet extends HttpServlet {
       }
       response.setStatus(HttpServletResponse.SC_OK);
     } else if ("pin".equals(operation) || "unpin".equals(operation)) {
+      boolean pinning = "pin".equals(operation);
       if (waves != null) {
+        boolean anyFailure = false;
         for (String wave : waves) {
           try {
             WaveId waveId = WaveId.deserialise(StringEscapeUtils.unescapeHtml4(wave));
-            setPinState(waveId, "pin".equals(operation), user);
+            setPinState(waveId, pinning, user);
           } catch (Exception ex) {
-            LOG.log(Level.SEVERE, operation + " error ", ex);
+            LOG.log(Level.SEVERE, (pinning ? "Pin" : "Unpin") + " error ", ex);
+            anyFailure = true;
           }
+        }
+        if (anyFailure) {
+          response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+              "Failed to " + (pinning ? "pin" : "unpin") + " wave(s)");
+          return;
         }
       }
       response.setStatus(HttpServletResponse.SC_OK);

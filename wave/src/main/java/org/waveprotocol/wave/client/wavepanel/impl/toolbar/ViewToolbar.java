@@ -20,7 +20,6 @@
 package org.waveprotocol.wave.client.wavepanel.impl.toolbar;
 
 import com.google.gwt.core.client.GWT;
-import com.google.gwt.user.client.Window;
 import org.waveprotocol.box.webclient.folder.FolderOperationBuilder;
 import org.waveprotocol.box.webclient.folder.FolderOperationBuilderImpl;
 import org.waveprotocol.box.webclient.folder.FolderOperationService;
@@ -73,11 +72,11 @@ public final class ViewToolbar {
   /** Reference to the history button for visibility control. */
   private ToolbarClickButton historyButton;
 
-  /** Reference to the pin/unpin button for text toggling. */
+  /** Reference to the pin button for label toggling. */
   private ToolbarClickButton pinButton;
 
-  /** Tracks the current pinned state on the client side. */
-  private boolean pinned;
+  /** Whether the currently open wave is pinned. */
+  private boolean pinned = false;
 
   private ViewToolbar(ToplevelToolbarWidget toolbarUi, FocusFramePresenter focusFrame,
       ModelAsViewProvider views, ConversationView wave, Reader reader, WaveId waveId,
@@ -236,23 +235,23 @@ public final class ViewToolbar {
    * Toggles the pin state of the currently open wave via the FolderServlet.
    */
   private void togglePin() {
-    final String operation = pinned
-        ? FolderOperationBuilder.OPERATION_UNPIN
-        : FolderOperationBuilder.OPERATION_PIN;
+    final boolean newPinState = !pinned;
+    String operation = newPinState
+        ? FolderOperationBuilder.OPERATION_PIN
+        : FolderOperationBuilder.OPERATION_UNPIN;
     String url = new FolderOperationBuilderImpl()
         .addParameter(FolderOperationBuilder.PARAM_OPERATION, operation)
         .addParameter(FolderOperationBuilder.PARAM_WAVE_ID, waveId.serialise())
         .getUrl();
-    LOG.trace().log("Toggling pin for wave ", waveId.serialise(), ", operation: ", operation);
+    LOG.trace().log(newPinState ? "Pinning" : "Unpinning", " wave ", waveId.serialise());
     pinButton.setState(ToolbarButtonView.State.DISABLED);
     folderService.execute(url, new FolderOperationService.Callback() {
       @Override
       public void onSuccess() {
-        pinned = !pinned;
-        pinButton.setText(pinned ? messages.unpin() : messages.pin());
+        pinned = newPinState;
+        updatePinButtonLabel();
         pinButton.setState(ToolbarButtonView.State.ENABLED);
-        Window.alert(pinned ? messages.pinConfirmation() : messages.unpinConfirmation());
-        LOG.trace().log("Successfully toggled pin state to: ", pinned);
+        LOG.trace().log("Successfully ", pinned ? "pinned" : "unpinned", " wave");
       }
 
       @Override
@@ -261,6 +260,24 @@ public final class ViewToolbar {
         LOG.error().log("Failed to toggle pin: ", message);
       }
     });
+  }
+
+  /**
+   * Updates the pin button text to reflect the current pin state.
+   */
+  private void updatePinButtonLabel() {
+    if (pinButton != null) {
+      pinButton.setText(pinned ? messages.unpin() : messages.pin());
+    }
+  }
+
+  /**
+   * Sets the pin state of the currently displayed wave. Called from
+   * StagesProvider after the wave is loaded so the button label is correct.
+   */
+  public void setPinned(boolean pinned) {
+    this.pinned = pinned;
+    updatePinButtonLabel();
   }
 
   /**

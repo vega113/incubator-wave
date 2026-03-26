@@ -51,17 +51,17 @@ public interface ToolbarMessages extends Messages {
   @DefaultMessage("Go to last message (End)")
   String lastTooltip();
 
-  @DefaultMessage("History")
-  String history();
-
-  @DefaultMessage("Version History (H)")
-  String historyTooltip();
-
   @DefaultMessage("Pin")
   String pin();
 
   @DefaultMessage("Unpin")
   String unpin();
+
+  @DefaultMessage("History")
+  String history();
+
+  @DefaultMessage("Version History (H)")
+  String historyTooltip();
 
   @DefaultMessage("Wave pinned")
   String pinConfirmation();

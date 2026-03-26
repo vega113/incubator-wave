@@ -27,8 +27,6 @@ import com.google.gwt.http.client.RequestException;
 import com.google.gwt.http.client.Response;
 import com.google.gwt.http.client.URL;
 
-import org.waveprotocol.wave.client.widget.toast.ToastNotification;
-
 import org.waveprotocol.wave.client.widget.dialog.ConfirmDialog;
 import org.waveprotocol.wave.client.widget.toast.ToastNotification;
 
