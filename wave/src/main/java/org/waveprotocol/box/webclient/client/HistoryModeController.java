@@ -28,6 +28,9 @@ import com.google.gwt.http.client.Response;
 import com.google.gwt.http.client.URL;
 import com.google.gwt.user.client.Window;
 
+import org.waveprotocol.wave.client.widget.dialog.ConfirmDialog;
+import org.waveprotocol.wave.client.widget.toast.ToastNotification;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -299,13 +302,27 @@ public final class HistoryModeController {
 
     final long targetVersion = groups.get(currentGroupIndex).getEndVersion();
 
-    boolean confirmed = Window.confirm(
-        "Restore wave to version " + targetVersion + "?\n\n"
-        + "This will revert all changes made after this version.");
-    if (!confirmed) {
-      return;
-    }
+    ConfirmDialog.show("Restore Version",
+        "Restore wave to version " + targetVersion + "? "
+        + "This will revert all changes made after this version.",
+        "Restore", "Cancel",
+        new ConfirmDialog.Listener() {
+          @Override
+          public void onConfirm() {
+            doRestore(targetVersion);
+          }
 
+          @Override
+          public void onCancel() {
+            // User cancelled -- do nothing.
+          }
+        });
+  }
+
+  /**
+   * Sends the restore POST request for the given version.
+   */
+  private void doRestore(final long targetVersion) {
     String url = "/history/" + enc(waveDomain) + "/" + enc(waveId) + "/"
         + enc(waveletDomain) + "/" + enc(waveletId)
         + "/api/restore?version=" + targetVersion;
@@ -319,20 +336,20 @@ public final class HistoryModeController {
           // Force a page reload to pick up the new wave state
           Window.Location.reload();
         } else {
-          Window.alert("Failed to restore version: HTTP "
+          ToastNotification.showWarning("Failed to restore version: HTTP "
               + response.getStatusCode() + " " + response.getStatusText());
         }
       }
 
       public void onError(Request request, Throwable exception) {
-        Window.alert("Failed to restore version: " + exception.getMessage());
+        ToastNotification.showWarning("Failed to restore version: " + exception.getMessage());
       }
     });
 
     try {
       rb.send();
     } catch (RequestException e) {
-      Window.alert("Failed to send restore request: " + e.getMessage());
+      ToastNotification.showWarning("Failed to send restore request: " + e.getMessage());
     }
   }
 

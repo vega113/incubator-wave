@@ -194,6 +194,7 @@ public class StagesProvider extends Stages {
         two.getWave(), two.getConversations(), two.getSupplement(), two.getReadMonitor());
     waveStore.add(wave);
     wireToolbarButtons(x);
+    wirePinState(x);
     install();
     wireHistoryMode();
     whenReady.use(x);
@@ -214,6 +215,20 @@ public class StagesProvider extends Stages {
         History.newItem("", true);
       }
     });
+  }
+
+  /**
+   * Sets the initial pin state on the view toolbar so the Pin/Unpin button
+   * label is correct when the wave first opens.
+   */
+  private void wirePinState(StageThree three) {
+    ViewToolbar viewToolbar = three.getViewToolbar();
+    try {
+      boolean pinned = two.getSupplement().isPinned();
+      viewToolbar.setPinned(pinned);
+    } catch (Exception e) {
+      // Supplement may not be available for all waves; default to unpinned.
+    }
   }
 
   private void initNewWave(StageThree three) {
