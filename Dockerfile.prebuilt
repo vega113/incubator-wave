@@ -25,11 +25,8 @@
 
 FROM eclipse-temurin:17-jre
 ENV WAVE_HOME=/opt/wave
-RUN groupadd --system wave \
-    && useradd --system --gid wave --home-dir ${WAVE_HOME} --shell /usr/sbin/nologin wave
 WORKDIR ${WAVE_HOME}
-COPY --chown=wave:wave . ${WAVE_HOME}/
-USER wave
+COPY . ${WAVE_HOME}/
 
 EXPOSE 9898
 
