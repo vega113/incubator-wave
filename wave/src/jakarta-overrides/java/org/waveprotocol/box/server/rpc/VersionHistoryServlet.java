@@ -669,7 +669,7 @@ public final class VersionHistoryServlet extends HttpServlet {
         LOG.warning("Restore failed for " + waveletName + " to version " + targetVersion
             + ": " + error);
         resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-            "Restore failed: " + error);
+            "Restore failed. Check server logs for details.");
         return;
       }
 
@@ -1113,7 +1113,10 @@ public final class VersionHistoryServlet extends HttpServlet {
     sb.append("    method: 'POST',\n");
     sb.append("    credentials: 'same-origin'\n");
     sb.append("  }).then(function(r) {\n");
-    sb.append("    return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });\n");
+    sb.append("    return r.text().then(function(text) {\n");
+    sb.append("      try { var data = JSON.parse(text); } catch(e) { data = { message: text || ('HTTP ' + r.status) }; }\n");
+    sb.append("      return { ok: r.ok, status: r.status, data: data };\n");
+    sb.append("    });\n");
     sb.append("  }).then(function(result) {\n");
     sb.append("    if (result.ok && result.data.ok) {\n");
     sb.append("      showToast('Restored to version ' + version + ' (' + (result.data.opsApplied || 0) + ' ops applied)', 'success');\n");
