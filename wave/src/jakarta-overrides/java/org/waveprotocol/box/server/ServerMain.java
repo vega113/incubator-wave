@@ -232,6 +232,8 @@ public class ServerMain {
     server.addServlet("/version", VersionServlet.class);
     server.addServlet("/profile/*", FetchProfilesServlet.class);
     server.addServlet("/userprofile/*", ProfileServlet.class);
+    server.addServlet("/account/settings", AccountSettingsServlet.class);
+    server.addServlet("/account/settings/*", AccountSettingsServlet.class);
     server.addServlet("/contacts", FetchContactsServlet.class);
     server.addServlet("/iniavatars/*", org.apache.wave.box.server.rpc.InitialsAvatarsServlet.class);
     server.addServlet("/wave/public/*", PublicWaveFetchServlet.class);
@@ -264,6 +266,7 @@ public class ServerMain {
       LOG.warning("Failed to configure fragments transport/endpoints; leaving /fragments disabled", e);
     }
 
+    server.addServlet("/render/*", RenderApiServlet.class);
     server.addServlet("/wave/*", PublicWaveServlet.class);
 
     server.addServlet("/terms", LegalServlet.class);
@@ -272,7 +275,6 @@ public class ServerMain {
     // SEO endpoints
     server.addServlet("/robots.txt", RobotsServlet.class);
     server.addServlet("/sitemap.xml", SitemapServlet.class);
-    server.addServlet("/wave/*", PublicWaveServlet.class);
 
     server.addServlet("/", WaveClientServlet.class);
   }
