@@ -331,6 +331,11 @@ public class StagesProvider extends Stages {
       }
 
       @Override
+      public void onShowChangesToggled(boolean enabled) {
+        historyController.setShowDiff(enabled);
+      }
+
+      @Override
       public void onFilterChanged(boolean textChangesOnly) {
         historyController.onFilterChanged(textChangesOnly);
       }

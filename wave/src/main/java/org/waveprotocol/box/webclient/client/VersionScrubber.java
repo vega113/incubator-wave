@@ -40,7 +40,7 @@ import java.util.List;
 /**
  * A horizontal scrubber widget for browsing version history. Fixed at the
  * bottom of the viewport with a range slider, version info label, navigation
- * arrows, filter toggle, Restore button, and Exit button.
+ * arrows, filter toggle, show-changes toggle, Restore button, and Exit button.
  *
  * <p>The scrubber is attached directly to the document body (via
  * {@link RootPanel#get()}) so that wave panel innerHTML swaps do not destroy
@@ -60,6 +60,9 @@ public final class VersionScrubber extends FlowPanel {
     /** Called when the user clicks "Restore". */
     void onRestoreClicked();
 
+    /** Called when the "Show changes" toggle is changed. */
+    void onShowChangesToggled(boolean enabled);
+
     /** Called when the filter-text-only toggle changes. */
     void onFilterChanged(boolean textChangesOnly);
   }
@@ -72,6 +75,8 @@ public final class VersionScrubber extends FlowPanel {
   private final HTML nextButton;
   private final HTML filterToggle;
   private final HTML groupCounter;
+  private final Element showChangesCheckbox;
+  private final Element showChangesLabel;
 
   private List<HistoryApiClient.DeltaGroup> groups;
   private Listener listener;
@@ -124,6 +129,18 @@ public final class VersionScrubber extends FlowPanel {
     filterToggle = new HTML(FILTER_ICON_SVG + " Text only");
     filterToggle.setStyleName("history-scrubber-filter");
     add(filterToggle);
+
+    // "Show changes" toggle
+    showChangesLabel = DOM.createLabel();
+    showChangesLabel.setClassName("history-scrubber-toggle");
+    showChangesCheckbox = DOM.createInputCheck();
+    showChangesCheckbox.setAttribute("type", "checkbox");
+    showChangesLabel.appendChild(showChangesCheckbox);
+    showChangesLabel.appendChild(
+        Document.get().createTextNode("Show changes"));
+    SimplePanel toggleWrapper = new SimplePanel();
+    toggleWrapper.getElement().appendChild(showChangesLabel);
+    add(toggleWrapper);
 
     // Restore button (initially hidden)
     restoreButton = new HTML(RESTORE_ICON_SVG + " Restore");
@@ -255,6 +272,19 @@ public final class VersionScrubber extends FlowPanel {
         }
       }
     });
+
+    // Show changes checkbox
+    DOM.sinkEvents(showChangesCheckbox, Event.ONCHANGE);
+    DOM.setEventListener(showChangesCheckbox, new EventListener() {
+      public void onBrowserEvent(Event event) {
+        if (DOM.eventGetType(event) == Event.ONCHANGE) {
+          boolean checked = InputElement.as(showChangesCheckbox).isChecked();
+          if (listener != null) {
+            listener.onShowChangesToggled(checked);
+          }
+        }
+      }
+    });
   }
 
   /** Called when the range input value changes. */
@@ -362,10 +392,12 @@ public final class VersionScrubber extends FlowPanel {
     getElement().getStyle().setDisplay(Style.Display.FLEX);
   }
 
-  /** Hides the scrubber bar. */
+  /** Hides the scrubber bar and resets the toggle state. */
   public void hide() {
     setVisible(false);
     getElement().getStyle().setDisplay(Style.Display.NONE);
+    // Reset the show-changes checkbox
+    InputElement.as(showChangesCheckbox).setChecked(false);
   }
 
   /** Formats a Unix timestamp (ms) into a readable date string. */
