@@ -329,13 +329,17 @@ public class StagesProvider extends Stages {
       public void onRestoreClicked() {
         historyController.restoreCurrentVersion();
       }
+
+      @Override
+      public void onFilterChanged(boolean textChangesOnly) {
+        historyController.onFilterChanged(textChangesOnly);
+      }
     });
 
-    // Attach the scrubber widget to the GWT widget tree so events fire.
-    // It starts hidden; HistoryModeController.enterHistoryMode() calls show().
-    versionScrubber.hide();
-    wavePanelElement.appendChild(versionScrubber.getElement());
-    one.getWavePanel().getGwtPanel().doAdopt(versionScrubber);
+    // Attach the scrubber to the body-level RootPanel so it is independent
+    // of the wave panel DOM. This prevents innerHTML replacement of the
+    // wave panel from destroying the scrubber widget.
+    versionScrubber.attach();
 
     // Wire the toolbar "History" button to toggle history mode.
     three.getViewToolbar().setHistoryButtonListener(new ToolbarClickButton.Listener() {
@@ -350,18 +354,15 @@ public class StagesProvider extends Stages {
   }
 
   public void destroy() {
-    // Detach the scrubber widget BEFORE exiting history mode, because
-    // exitHistoryMode() restores savedWavePanelHtml via setInnerHTML()
-    // which removes the scrubber DOM element from the tree.  If we call
-    // removeFromParent() after that, the element is already detached and
-    // GWT throws a removeChild-null error (#288).
-    if (versionScrubber != null) {
-      versionScrubber.removeFromParent();
-      versionScrubber = null;
-    }
+    // Exit history mode first (restores wave panel HTML), then detach scrubber.
+    // The scrubber is now body-level so it is safe to detach in either order.
     if (historyController != null) {
       historyController.exitHistoryMode();
       historyController = null;
+    }
+    if (versionScrubber != null) {
+      versionScrubber.detach();
+      versionScrubber = null;
     }
     if (wave != null) {
       waveStore.remove(wave);
