@@ -265,6 +265,7 @@ public class ServerMain {
     }
 
     server.addServlet("/render/*", RenderApiServlet.class);
+    server.addServlet("/wave/*", PublicWaveServlet.class);
 
     server.addServlet("/terms", LegalServlet.class);
     server.addServlet("/privacy", LegalServlet.class);

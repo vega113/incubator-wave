@@ -24,8 +24,8 @@ import com.google.gwt.dom.client.Element;
 
 /**
  * Injects CSS styles for the inline version history UI (scrubber bar,
- * diff overlay, and history-mode wave panel adjustments). Injection is
- * idempotent -- calling {@link #inject()} more than once is safe.
+ * snapshot rendering, and history-mode wave panel adjustments). Injection
+ * is idempotent -- calling {@link #inject()} more than once is safe.
  */
 public final class HistoryStyles {
 
@@ -47,7 +47,7 @@ public final class HistoryStyles {
   }
 
   private static final String CSS =
-      // -- History scrubber bar (bottom of wave panel) --
+      // -- History scrubber bar (fixed at bottom) --
       ".history-scrubber {"
       + "  position: fixed;"
       + "  bottom: 0;"
@@ -83,6 +83,24 @@ public final class HistoryStyles {
       + "  background: rgba(255,255,255,0.3);"
       + "}"
 
+      // -- Restore button --
+      + ".history-scrubber-restore {"
+      + "  cursor: pointer;"
+      + "  padding: 6px 14px;"
+      + "  border-radius: 4px;"
+      + "  background: #2e7d32;"
+      + "  color: #fff;"
+      + "  font-weight: 600;"
+      + "  font-size: 13px;"
+      + "  white-space: nowrap;"
+      + "  border: 1px solid rgba(255,255,255,0.25);"
+      + "  transition: background 0.15s;"
+      + "  flex-shrink: 0;"
+      + "}"
+      + ".history-scrubber-restore:hover {"
+      + "  background: #388e3c;"
+      + "}"
+
       // -- Range input wrapper --
       + ".history-scrubber-range-wrapper {"
       + "  flex: 1;"
@@ -98,6 +116,7 @@ public final class HistoryStyles {
       + "  border-radius: 3px;"
       + "  outline: none;"
       + "  cursor: pointer;"
+      + "  background: rgba(255,255,255,0.3);"
       + "}"
       + ".history-scrubber-range::-webkit-slider-thumb {"
       + "  -webkit-appearance: none;"
@@ -135,45 +154,13 @@ public final class HistoryStyles {
       + ".history-scrubber-date {"
       + "  opacity: 0.85;"
       + "}"
-      + ".history-scrubber-changes {"
-      + "  opacity: 0.85;"
-      + "}"
       + ".history-scrubber-version {"
       + "  opacity: 0.6;"
       + "  font-size: 11px;"
       + "}"
 
-      // -- Tooltip --
-      + ".history-scrubber-tooltip {"
-      + "  position: absolute;"
-      + "  bottom: 100%;"
-      + "  margin-bottom: 8px;"
-      + "  background: #1b3a5c;"
-      + "  color: #e0f0ff;"
-      + "  padding: 6px 10px;"
-      + "  border-radius: 4px;"
-      + "  font-size: 12px;"
-      + "  white-space: nowrap;"
-      + "  pointer-events: none;"
-      + "  box-shadow: 0 2px 8px rgba(0,0,0,0.3);"
-      + "}"
-
-      // -- Diff container overlay --
-      + ".history-diff-container {"
-      + "  position: absolute;"
-      + "  top: 0;"
-      + "  left: 0;"
-      + "  right: 0;"
-      + "  bottom: 0;"
-      + "  z-index: 100;"
-      + "  background: #fff;"
-      + "  overflow-y: auto;"
-      + "  padding: 16px 24px 80px 24px;"
-      + "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;"
-      + "}"
-
-      // -- History header --
-      + ".history-header {"
+      // -- Snapshot header (version info bar at top of rendered snapshot) --
+      + ".history-snapshot-header {"
       + "  padding: 12px 16px;"
       + "  margin-bottom: 16px;"
       + "  background: linear-gradient(135deg, #e8f4f8 0%, #d0e8f2 100%);"
@@ -182,12 +169,22 @@ public final class HistoryStyles {
       + "  font-size: 14px;"
       + "  color: #1b3a5c;"
       + "}"
-      + ".history-header-label {"
+      + ".history-snapshot-version {"
       + "  font-weight: 600;"
       + "  color: #0077b6;"
       + "}"
+      + ".history-snapshot-sep {"
+      + "  opacity: 0.5;"
+      + "  margin: 0 4px;"
+      + "}"
+      + ".history-snapshot-author {"
+      + "  font-weight: 500;"
+      + "}"
+      + ".history-snapshot-date {"
+      + "  opacity: 0.85;"
+      + "}"
 
-      // -- Blip cards --
+      // -- Blip cards (rendered snapshot content) --
       + ".history-blip {"
       + "  margin-bottom: 12px;"
       + "  padding: 12px 16px;"
@@ -195,43 +192,10 @@ public final class HistoryStyles {
       + "  border: 1px solid #e0e0e0;"
       + "  background: #fafafa;"
       + "}"
-      + ".history-blip-changed {"
-      + "  border-color: #b3d9ff;"
-      + "  background: #f0f8ff;"
-      + "}"
-      + ".history-blip-deleted {"
-      + "  border-color: #ffb3b3;"
-      + "  background: #fff5f5;"
-      + "}"
-      + ".history-blip-unchanged {"
-      + "  opacity: 0.5;"
-      + "}"
       + ".history-blip-header {"
       + "  margin-bottom: 8px;"
       + "  font-size: 13px;"
       + "  color: #444;"
-      + "}"
-      + ".history-blip-badge {"
-      + "  display: inline-block;"
-      + "  padding: 1px 6px;"
-      + "  border-radius: 3px;"
-      + "  font-size: 10px;"
-      + "  font-weight: 700;"
-      + "  text-transform: uppercase;"
-      + "  letter-spacing: 0.5px;"
-      + "  vertical-align: middle;"
-      + "}"
-      + ".history-blip-badge-new {"
-      + "  background: #d4edda;"
-      + "  color: #155724;"
-      + "}"
-      + ".history-blip-badge-modified {"
-      + "  background: #cce5ff;"
-      + "  color: #004085;"
-      + "}"
-      + ".history-blip-badge-deleted {"
-      + "  background: #f8d7da;"
-      + "  color: #721c24;"
       + "}"
       + ".history-blip-time {"
       + "  font-size: 12px;"
@@ -243,35 +207,30 @@ public final class HistoryStyles {
       + "  line-height: 1.6;"
       + "  white-space: pre-wrap;"
       + "  word-wrap: break-word;"
+      + "  color: #2d3748;"
       + "}"
 
-      // -- Diff highlighting --
-      + ".diff-add {"
-      + "  background: #d4edda;"
-      + "  color: #155724;"
-      + "  padding: 1px 3px;"
-      + "  border-radius: 2px;"
-      + "  text-decoration: none;"
-      + "}"
-      + ".diff-del {"
-      + "  background: #f8d7da;"
-      + "  color: #721c24;"
-      + "  padding: 1px 3px;"
-      + "  border-radius: 2px;"
-      + "  text-decoration: line-through;"
-      + "}"
-
-      // -- No changes message --
-      + ".history-no-changes {"
+      // -- Empty / error states --
+      + ".history-empty {"
       + "  text-align: center;"
       + "  padding: 24px;"
       + "  color: #888;"
       + "  font-style: italic;"
       + "}"
+      + ".history-error {"
+      + "  text-align: center;"
+      + "  padding: 24px;"
+      + "  color: #c53030;"
+      + "  background: #fff5f5;"
+      + "  border-radius: 6px;"
+      + "  border: 1px solid #fed7d7;"
+      + "  margin: 16px;"
+      + "}"
 
       // -- Wave panel adjustments when in history mode --
       + ".history-mode {"
       + "  position: relative;"
-      + "  padding-bottom: 60px;"
+      + "  padding: 16px 24px 80px 24px;"
+      + "  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;"
       + "}";
 }
