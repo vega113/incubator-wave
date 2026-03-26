@@ -429,7 +429,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       try {
         WaveSupplementContext ctx = getOrBuildContext(wave, user, supplementCache, waveletAdapters);
 
-        if (ctx.supplement != null && ctx.udw != null && ctx.supplement.isPinned()) {
+        if (ctx.supplement != null && ctx.supplement.isPinned()) {
           pinned.add(wave);
           continue;
         }
