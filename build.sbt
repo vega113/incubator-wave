@@ -1106,9 +1106,9 @@ ThisBuild / compileGwt := {
 
       val gwtArgs = Seq(
         "-war", warDir,
-        "-style", "OBFUSCATED",
-        "-XdisableClassMetadata",
-        "-XdisableCastChecking",
+        // TODO(#273): Revert PRETTY mode and restore OBFUSCATED with
+        // -XdisableClassMetadata and -XdisableCastChecking after debug cycle.
+        "-style", "PRETTY",
         "-localWorkers", "4",
         "org.waveprotocol.box.webclient.WebClientProd"
       )
