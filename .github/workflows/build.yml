@@ -29,10 +29,14 @@ jobs:
       - name: Install sbt
         run: |
           set -euo pipefail
+          SBT_VERSION=1.10.2
+          SBT_SHA256=a716dd018bd68bc7a95a2dd10337663aa76f443ad6c99deabe5eadd1adfc7639
+          SBT_TGZ=/tmp/sbt-${SBT_VERSION}.tgz
           curl --fail --show-error --location --retry 3 \
-            "https://github.com/sbt/sbt/releases/download/v1.10.7/sbt-1.10.7.tgz" \
-            --output /tmp/sbt.tgz
-          sudo tar xzf /tmp/sbt.tgz -C /usr/local
+            "https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz" \
+            --output "${SBT_TGZ}"
+          echo "${SBT_SHA256}  ${SBT_TGZ}" | sha256sum --check --status
+          sudo tar xzf "${SBT_TGZ}" -C /usr/local
           sudo ln -sf /usr/local/sbt/bin/sbt /usr/local/bin/sbt
 
       - name: Validate canonical deployment assets
