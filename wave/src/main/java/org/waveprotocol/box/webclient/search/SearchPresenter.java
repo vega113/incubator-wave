@@ -491,8 +491,12 @@ public final class SearchPresenter
   }
 
   private void renderShowMore() {
-    searchUi.setShowMoreVisible(
-        search.getTotal() == Search.UNKNOWN_SIZE || querySize < search.getTotal());
+    boolean hasMore = search.getTotal() == Search.UNKNOWN_SIZE || querySize < search.getTotal();
+    searchUi.setShowMoreVisible(hasMore);
+    // Notify the view that loading-more is complete so infinite scroll resets.
+    if (searchUi instanceof SearchPanelWidget) {
+      ((SearchPanelWidget) searchUi).onLoadMoreComplete();
+    }
   }
 
   //
@@ -553,6 +557,7 @@ public final class SearchPresenter
     //
     if (search.getState() == State.READY) {
       renderTitle();
+      renderShowMore();
       // Deferred load: fetch saved searches after the first search result
       // arrives so the /searches request does not block wave list display.
       if (!savedSearchesLoaded) {
