@@ -106,21 +106,21 @@ public final class HtmlRenderer {
       + "}\n"
 
       // --- Search help panel overrides ---
-      // Ensure the search area container is positioned so the help panel
-      // can appear as an absolute-positioned dropdown below it.
-      + "#app [kind=\"c\"] { position: relative; overflow: visible !important; }\n"
+      // The search widget (.self in Search.css) already has position:relative,
+      // so the help panel's absolute positioning works out of the box.
+      // NOTE: Do NOT add position:relative to [kind="c"] here -- that selector
+      // matches the ROOT_CONVERSATION element (.fixedSelf) and overriding its
+      // position:absolute collapses the wave panel (#285).
+      // Ensure the root conversation container allows the tags panel (which has
+      // bottom:-4px) to overflow visually.
+      + "#app [kind=\"c\"] { overflow: visible; }\n"
 
       // --- Unified toolbar row: compact 32px action icons ---
-      // The toolbar sits directly below the search box. All action and filter
-      // icons live here in logical groups separated by thin vertical dividers.
-      + "#app [kind=\"c\"] + div {\n"
-      + "  height: 32px !important;\n"
-      + "  display: flex;\n"
-      + "  align-items: center;\n"
-      + "}\n"
-
-      // Toolbar icon buttons — minimal icon circles
-      + "#app [kind=\"c\"] ~ div .gwt-PushButton {\n"
+      // The toolbar sits directly below the search box inside the search
+      // panel (left sidebar).  We use [data-mobile-role="search-panel"] as
+      // a stable anchor because [kind="c"] matches the ROOT_CONVERSATION
+      // element in the wave panel, not the search area (#290).
+      + "[data-mobile-role=\"search-panel\"] .gwt-PushButton {\n"
       + "  display: inline-flex !important;\n"
       + "  align-items: center !important;\n"
       + "  justify-content: center !important;\n"
@@ -136,22 +136,22 @@ public final class HtmlRenderer {
       + "  transition: all 0.15s ease;\n"
       + "  line-height: 1;\n"
       + "}\n"
-      + "#app [kind=\"c\"] ~ div .gwt-PushButton:hover {\n"
+      + "[data-mobile-role=\"search-panel\"] .gwt-PushButton:hover {\n"
       + "  border-color: " + WAVE_PRIMARY + ";\n"
       + "  color: " + WAVE_PRIMARY + ";\n"
       + "  background: rgba(0,119,182,0.06);\n"
       + "}\n"
-      + "#app [kind=\"c\"] ~ div .gwt-PushButton:active {\n"
+      + "[data-mobile-role=\"search-panel\"] .gwt-PushButton:active {\n"
       + "  background: rgba(0,119,182,0.18);\n"
       + "  transform: scale(0.92);\n"
       + "}\n"
-      + "#app [kind=\"c\"] ~ div .gwt-PushButton svg {\n"
+      + "[data-mobile-role=\"search-panel\"] .gwt-PushButton svg {\n"
       + "  display: block;\n"
       + "}\n"
 
       // Mobile: enlarge touch targets on narrow screens
       + "@media (max-width: 480px) {\n"
-      + "  #app [kind=\"c\"] ~ div .gwt-PushButton {\n"
+      + "  [data-mobile-role=\"search-panel\"] .gwt-PushButton {\n"
       + "    width: 34px;\n"
       + "    height: 34px;\n"
       + "    min-width: 34px;\n"
