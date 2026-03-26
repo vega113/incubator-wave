@@ -3023,6 +3023,7 @@ public final class HtmlRenderer {
       sb.append("      <div class=\"user-menu-dropdown\">\n");
       sb.append("        <div class=\"user-info\">").append(fullAddress).append("</div>\n");
       sb.append("        <a href=\"/userprofile/edit\">Edit Profile</a>\n");
+      sb.append("        <a href=\"/account/settings\">Account Settings</a>\n");
       sb.append("        <a href=\"/robot/register/create\">Robot Registration</a>\n");
       sb.append("        <a href=\"/robot/dataapi/token\">API Token</a>\n");
       sb.append("        <a href=\"#\" onclick=\"window.openVersionHistory(); return false;\">Version History</a>\n");
@@ -5412,6 +5413,323 @@ public final class HtmlRenderer {
   }
 
   // =========================================================================
+  // Account Settings Page
+  // =========================================================================
+
+  /**
+   * Renders the account settings page with the SupaWave ocean theme.
+   * Allows users to update their email, request password reset, and view
+   * read-only account information.
+   */
+  public static String renderAccountSettingsPage(String currentUser, String domain,
+      HumanAccountData account, boolean passwordResetEnabled) {
+    StringBuilder sb = new StringBuilder(16384);
+    sb.append("<!DOCTYPE html>\n<html dir=\"ltr\">\n<head>\n");
+    sb.append("<meta charset=\"UTF-8\">\n");
+    sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">\n");
+    sb.append("<link rel=\"alternate icon\" href=\"/static/favicon.ico\">\n");
+    sb.append("<title>Account Settings - SupaWave</title>\n");
+
+    // Inline CSS (reuse profile edit page styles)
+    sb.append("<style>\n");
+    sb.append("*, *::before, *::after { box-sizing: border-box; }\n");
+    sb.append("body {\n");
+    sb.append("  margin: 0; padding: 0;\n");
+    sb.append("  font-family: ").append(WAVE_FONT).append(";\n");
+    sb.append("  background: ").append(WAVE_BG).append(";\n");
+    sb.append("  color: ").append(WAVE_TEXT).append(";\n");
+    sb.append("  min-height: 100vh;\n");
+    sb.append("}\n");
+
+    // Header bar
+    sb.append(".settings-header {\n");
+    sb.append("  background: ").append(WAVE_GRADIENT).append(";\n");
+    sb.append("  color: #fff; padding: 16px 24px;\n");
+    sb.append("  display: flex; align-items: center; justify-content: space-between;\n");
+    sb.append("  box-shadow: 0 2px 8px rgba(0,0,0,0.1);\n");
+    sb.append("}\n");
+    sb.append(".settings-header .brand { display: flex; align-items: center; gap: 10px; }\n");
+    sb.append(".settings-header .brand span { font-size: 20px; font-weight: 700; }\n");
+    sb.append(".settings-header a { color: #fff; text-decoration: none; margin-left: 16px; font-size: 13px; opacity: 0.85; }\n");
+    sb.append(".settings-header a:hover { opacity: 1; text-decoration: underline; }\n");
+
+    // Container
+    sb.append(".settings-container {\n");
+    sb.append("  max-width: 640px; margin: 32px auto; padding: 0 24px;\n");
+    sb.append("}\n");
+
+    // Card
+    sb.append(".settings-card {\n");
+    sb.append("  background: #fff; border-radius: 12px;\n");
+    sb.append("  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);\n");
+    sb.append("  padding: 32px; margin-bottom: 24px;\n");
+    sb.append("}\n");
+    sb.append(".settings-card h2 { margin: 0 0 20px; font-size: 18px; font-weight: 600; }\n");
+
+    // Info rows
+    sb.append(".info-row {\n");
+    sb.append("  display: flex; justify-content: space-between; align-items: center;\n");
+    sb.append("  padding: 12px 0; border-bottom: 1px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("}\n");
+    sb.append(".info-row:last-child { border-bottom: none; }\n");
+    sb.append(".info-label { font-size: 13px; font-weight: 600; color: ").append(WAVE_TEXT_MUTED).append("; }\n");
+    sb.append(".info-value { font-size: 14px; color: ").append(WAVE_TEXT).append("; }\n");
+
+    // Form fields
+    sb.append(".form-group {\n");
+    sb.append("  margin-bottom: 20px;\n");
+    sb.append("}\n");
+    sb.append(".form-group label {\n");
+    sb.append("  display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;\n");
+    sb.append("  color: ").append(WAVE_TEXT).append(";\n");
+    sb.append("}\n");
+    sb.append(".form-group .hint {\n");
+    sb.append("  font-size: 12px; color: ").append(WAVE_TEXT_MUTED).append(";\n");
+    sb.append("  margin-top: 4px;\n");
+    sb.append("}\n");
+    sb.append(".form-input {\n");
+    sb.append("  width: 100%; padding: 10px 14px;\n");
+    sb.append("  border: 1.5px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("  border-radius: 8px; font-size: 14px;\n");
+    sb.append("  outline: none; transition: border-color 0.2s, box-shadow 0.2s;\n");
+    sb.append("  font-family: inherit; background: #fafbfc;\n");
+    sb.append("}\n");
+    sb.append(".form-input:focus {\n");
+    sb.append("  border-color: ").append(WAVE_PRIMARY).append(";\n");
+    sb.append("  box-shadow: 0 0 0 3px rgba(0,119,182,0.12); background: #fff;\n");
+    sb.append("}\n");
+
+    // Buttons
+    sb.append(".btn-primary {\n");
+    sb.append("  background: ").append(WAVE_GRADIENT).append(";\n");
+    sb.append("  color: #fff; border: none; padding: 10px 24px;\n");
+    sb.append("  border-radius: 8px; font-size: 14px; font-weight: 600;\n");
+    sb.append("  cursor: pointer; transition: opacity 0.2s, transform 0.1s;\n");
+    sb.append("}\n");
+    sb.append(".btn-primary:hover { opacity: 0.9; }\n");
+    sb.append(".btn-primary:active { transform: scale(0.98); }\n");
+    sb.append(".btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }\n");
+
+    sb.append(".btn-secondary {\n");
+    sb.append("  background: #fff; color: ").append(WAVE_TEXT).append(";\n");
+    sb.append("  border: 1.5px solid ").append(WAVE_BORDER).append(";\n");
+    sb.append("  padding: 10px 24px; border-radius: 8px;\n");
+    sb.append("  font-size: 14px; font-weight: 600; cursor: pointer;\n");
+    sb.append("  transition: all 0.15s;\n");
+    sb.append("}\n");
+    sb.append(".btn-secondary:hover {\n");
+    sb.append("  border-color: ").append(WAVE_PRIMARY).append(";\n");
+    sb.append("  color: ").append(WAVE_PRIMARY).append(";\n");
+    sb.append("}\n");
+    sb.append(".btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }\n");
+
+    // Status badge
+    sb.append(".status-badge {\n");
+    sb.append("  display: inline-block; padding: 2px 10px; border-radius: 12px;\n");
+    sb.append("  font-size: 12px; font-weight: 600; text-transform: capitalize;\n");
+    sb.append("}\n");
+    sb.append(".status-confirmed { background: #c6f6d5; color: #276749; }\n");
+    sb.append(".status-unconfirmed { background: #fefcbf; color: #975a16; }\n");
+
+    // Toast notification
+    sb.append(".toast {\n");
+    sb.append("  position: fixed; bottom: 24px; right: 24px;\n");
+    sb.append("  padding: 12px 24px; border-radius: 8px;\n");
+    sb.append("  color: #fff; font-size: 14px; font-weight: 500;\n");
+    sb.append("  box-shadow: 0 4px 12px rgba(0,0,0,0.15);\n");
+    sb.append("  transform: translateY(100px); opacity: 0;\n");
+    sb.append("  transition: all 0.3s ease;\n");
+    sb.append("  z-index: 9999;\n");
+    sb.append("}\n");
+    sb.append(".toast.show { transform: translateY(0); opacity: 1; }\n");
+    sb.append(".toast-success { background: #38a169; }\n");
+    sb.append(".toast-error { background: #e53e3e; }\n");
+
+    // Password section description
+    sb.append(".section-desc {\n");
+    sb.append("  font-size: 13px; color: ").append(WAVE_TEXT_MUTED).append(";\n");
+    sb.append("  margin-bottom: 16px; line-height: 1.5;\n");
+    sb.append("}\n");
+
+    sb.append("</style>\n");
+    sb.append("</head>\n<body>\n");
+
+    // Header
+    sb.append("<div class=\"settings-header\">\n");
+    sb.append("  <div class=\"brand\">\n");
+    sb.append("    <span>SupaWave</span>\n");
+    sb.append("  </div>\n");
+    sb.append("  <div>\n");
+    sb.append("    <span style=\"font-size:13px; opacity:0.9;\">").append(escapeHtml(currentUser)).append("</span>\n");
+    sb.append("    <a href=\"/userprofile/edit\">Edit Profile</a>\n");
+    sb.append("    <a href=\"/\">Back to Wave</a>\n");
+    sb.append("  </div>\n");
+    sb.append("</div>\n");
+
+    // Content
+    sb.append("<div class=\"settings-container\">\n");
+
+    // ==== Account Info Card ====
+    sb.append("  <div class=\"settings-card\">\n");
+    sb.append("    <h2>Account Information</h2>\n");
+
+    // Username
+    sb.append("    <div class=\"info-row\">\n");
+    sb.append("      <span class=\"info-label\">Username</span>\n");
+    sb.append("      <span class=\"info-value\">").append(escapeHtml(account.getId().getAddress())).append("</span>\n");
+    sb.append("    </div>\n");
+
+    // Role
+    String role = account.getRole();
+    if (role == null || role.isEmpty()) role = "user";
+    sb.append("    <div class=\"info-row\">\n");
+    sb.append("      <span class=\"info-label\">Role</span>\n");
+    sb.append("      <span class=\"info-value\" style=\"text-transform:capitalize;\">").append(escapeHtml(role)).append("</span>\n");
+    sb.append("    </div>\n");
+
+    // Registration date
+    long regTime = account.getRegistrationTime();
+    String regDisplay = regTime > 0
+        ? new java.text.SimpleDateFormat("MMMM d, yyyy").format(new java.util.Date(regTime))
+        : "Unknown";
+    sb.append("    <div class=\"info-row\">\n");
+    sb.append("      <span class=\"info-label\">Registered</span>\n");
+    sb.append("      <span class=\"info-value\">").append(escapeHtml(regDisplay)).append("</span>\n");
+    sb.append("    </div>\n");
+
+    sb.append("  </div>\n"); // .settings-card
+
+    // ==== Email Card ====
+    sb.append("  <div class=\"settings-card\">\n");
+    sb.append("    <h2>Email Address</h2>\n");
+
+    String currentEmail = account.getEmail();
+    boolean emailConfirmed = account.isEmailConfirmed();
+
+    // Current email display
+    if (currentEmail != null && !currentEmail.isEmpty()) {
+      sb.append("    <div style=\"margin-bottom:16px;\">\n");
+      sb.append("      <span style=\"font-size:14px;\">").append(escapeHtml(currentEmail)).append("</span>\n");
+      sb.append("      <span class=\"status-badge ").append(emailConfirmed ? "status-confirmed" : "status-unconfirmed").append("\">");
+      sb.append(emailConfirmed ? "Confirmed" : "Unconfirmed");
+      sb.append("</span>\n");
+      sb.append("    </div>\n");
+    }
+
+    sb.append("    <div class=\"form-group\">\n");
+    sb.append("      <label for=\"emailInput\">").append(currentEmail != null && !currentEmail.isEmpty() ? "New Email" : "Email Address").append("</label>\n");
+    sb.append("      <input type=\"email\" id=\"emailInput\" class=\"form-input\" placeholder=\"you@example.com\" value=\"")
+        .append(escapeHtml(currentEmail)).append("\">\n");
+    sb.append("      <div class=\"hint\">Used for password resets and notifications</div>\n");
+    sb.append("    </div>\n");
+
+    sb.append("    <button type=\"button\" class=\"btn-primary\" id=\"saveEmailBtn\">Save Email</button>\n");
+
+    sb.append("  </div>\n"); // .settings-card
+
+    // ==== Password Card ====
+    sb.append("  <div class=\"settings-card\">\n");
+    sb.append("    <h2>Password</h2>\n");
+
+    if (passwordResetEnabled) {
+      if (currentEmail != null && !currentEmail.isEmpty() && emailConfirmed) {
+        sb.append("    <div class=\"section-desc\">Click the button below to receive a password reset link at your email address.</div>\n");
+        sb.append("    <button type=\"button\" class=\"btn-secondary\" id=\"resetPasswordBtn\">Send Password Reset Email</button>\n");
+      } else if (currentEmail != null && !currentEmail.isEmpty() && !emailConfirmed) {
+        sb.append("    <div class=\"section-desc\">Please confirm your email address before requesting a password reset.</div>\n");
+        sb.append("    <button type=\"button\" class=\"btn-secondary\" disabled>Send Password Reset Email</button>\n");
+      } else {
+        sb.append("    <div class=\"section-desc\">Add an email address first to enable password reset.</div>\n");
+        sb.append("    <button type=\"button\" class=\"btn-secondary\" disabled>Send Password Reset Email</button>\n");
+      }
+    } else {
+      sb.append("    <div class=\"section-desc\">Password reset is currently disabled by the server administrator.</div>\n");
+    }
+
+    sb.append("  </div>\n"); // .settings-card
+
+    sb.append("</div>\n"); // .settings-container
+
+    // Toast
+    sb.append("<div id=\"toast\" class=\"toast\"></div>\n");
+
+    // JavaScript
+    sb.append("<script>\n");
+    sb.append("(function() {\n");
+    sb.append("  var toast = document.getElementById('toast');\n");
+    sb.append("  function showToast(msg, type) {\n");
+    sb.append("    toast.textContent = msg;\n");
+    sb.append("    toast.className = 'toast toast-' + type + ' show';\n");
+    sb.append("    setTimeout(function() { toast.className = 'toast'; }, 4000);\n");
+    sb.append("  }\n\n");
+
+    // Save email
+    sb.append("  var saveEmailBtn = document.getElementById('saveEmailBtn');\n");
+    sb.append("  if (saveEmailBtn) {\n");
+    sb.append("    saveEmailBtn.addEventListener('click', function() {\n");
+    sb.append("      var btn = this;\n");
+    sb.append("      btn.disabled = true;\n");
+    sb.append("      var email = document.getElementById('emailInput').value.trim();\n");
+    sb.append("      fetch('/account/settings/email', {\n");
+    sb.append("        method: 'POST',\n");
+    sb.append("        headers: { 'Content-Type': 'application/json' },\n");
+    sb.append("        body: JSON.stringify({ email: email || null })\n");
+    sb.append("      })\n");
+    sb.append("      .then(function(r) { return r.json(); })\n");
+    sb.append("      .then(function(d) {\n");
+    sb.append("        if (d.ok) {\n");
+    sb.append("          showToast(d.message || 'Email updated', 'success');\n");
+    sb.append("          setTimeout(function() { location.reload(); }, 1500);\n");
+    sb.append("        } else {\n");
+    sb.append("          showToast(d.error || 'Failed to update email', 'error');\n");
+    sb.append("        }\n");
+    sb.append("        btn.disabled = false;\n");
+    sb.append("      })\n");
+    sb.append("      .catch(function() { showToast('Failed to update email', 'error'); btn.disabled = false; });\n");
+    sb.append("    });\n");
+    sb.append("  }\n\n");
+
+    // Request password reset
+    sb.append("  var resetBtn = document.getElementById('resetPasswordBtn');\n");
+    sb.append("  if (resetBtn) {\n");
+    sb.append("    resetBtn.addEventListener('click', function() {\n");
+    sb.append("      var btn = this;\n");
+    sb.append("      btn.disabled = true;\n");
+    sb.append("      btn.textContent = 'Sending...';\n");
+    sb.append("      fetch('/account/settings/request-password-reset', {\n");
+    sb.append("        method: 'POST',\n");
+    sb.append("        headers: { 'Content-Type': 'application/json' },\n");
+    sb.append("        body: '{}'\n");
+    sb.append("      })\n");
+    sb.append("      .then(function(r) { return r.json(); })\n");
+    sb.append("      .then(function(d) {\n");
+    sb.append("        if (d.ok) {\n");
+    sb.append("          showToast(d.message || 'Reset email sent', 'success');\n");
+    sb.append("          btn.textContent = 'Email Sent';\n");
+    sb.append("          setTimeout(function() { btn.textContent = 'Send Password Reset Email'; btn.disabled = false; }, 5000);\n");
+    sb.append("        } else {\n");
+    sb.append("          showToast(d.error || 'Failed to send reset email', 'error');\n");
+    sb.append("          btn.textContent = 'Send Password Reset Email';\n");
+    sb.append("          btn.disabled = false;\n");
+    sb.append("        }\n");
+    sb.append("      })\n");
+    sb.append("      .catch(function() {\n");
+    sb.append("        showToast('Failed to send reset email', 'error');\n");
+    sb.append("        btn.textContent = 'Send Password Reset Email';\n");
+    sb.append("        btn.disabled = false;\n");
+    sb.append("      });\n");
+    sb.append("    });\n");
+    sb.append("  }\n");
+
+    sb.append("})();\n");
+    sb.append("</script>\n");
+
+    sb.append("</body>\n</html>\n");
+    return sb.toString();
+  }
+
+  // =========================================================================
   // Profile Edit Page
   // =========================================================================
 
@@ -5623,7 +5941,7 @@ public final class HtmlRenderer {
     sb.append("      <label>Email</label>\n");
     sb.append("      <input type=\"email\" class=\"form-input\" value=\"")
         .append(escapeHtml(account.getEmail())).append("\" disabled style=\"opacity:0.7;\">\n");
-    sb.append("      <div class=\"hint\">Email is managed through account settings</div>\n");
+    sb.append("      <div class=\"hint\"><a href=\"/account/settings\" style=\"color:").append(WAVE_PRIMARY).append(";text-decoration:none;\">Edit in Account Settings</a></div>\n");
     sb.append("    </div>\n");
 
     // Bio
