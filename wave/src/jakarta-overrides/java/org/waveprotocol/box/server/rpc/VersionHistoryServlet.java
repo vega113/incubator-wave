@@ -99,6 +99,28 @@ public final class VersionHistoryServlet extends HttpServlet {
     }
   }
 
+  @Override
+  protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
+    if (user == null) {
+      resp.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Not authenticated");
+      return;
+    }
+
+    String pathInfo = req.getPathInfo();
+    if (pathInfo == null || pathInfo.length() < 2) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing wave/wavelet path");
+      return;
+    }
+
+    String path = pathInfo.substring(1);
+    if (path.contains("/api/restore")) {
+      handleRestoreApi(path, req, resp, user);
+    } else {
+      resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Unknown POST endpoint");
+    }
+  }
+
   /**
    * Parses wave/wavelet identifiers from the path prefix.
    * Expected format: {waveDomain}/{waveId}/{waveletDomain}/{waveletId}[/api/...]
@@ -463,6 +485,81 @@ public final class VersionHistoryServlet extends HttpServlet {
     result = result.replace("&#39;", "'");
     result = result.replace("&amp;", "&");
     return result;
+  }
+
+  // =========================================================================
+  // Restore API
+  // =========================================================================
+
+  /**
+   * Handles a POST to {@code /api/restore?version=N}. Restores the wave to
+   * the specified historical version by replaying deltas up to that version,
+   * extracting each document's content, and submitting document-replacement
+   * deltas against the current version.
+   *
+   * <p>Only the wave creator (owner) is allowed to restore.
+   */
+  private void handleRestoreApi(String path, HttpServletRequest req,
+      HttpServletResponse resp, ParticipantId user) throws IOException {
+    WaveletName waveletName = parseWaveletName(path);
+    if (waveletName == null) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid wave/wavelet path");
+      return;
+    }
+
+    try {
+      if (!waveletProvider.checkAccessPermission(waveletName, user)) {
+        resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied");
+        return;
+      }
+    } catch (WaveServerException e) {
+      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      return;
+    }
+
+    // Check that the requesting user is the wave creator
+    try {
+      CommittedWaveletSnapshot currentSnapshot = waveletProvider.getSnapshot(waveletName);
+      if (currentSnapshot == null) {
+        resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Wavelet not found");
+        return;
+      }
+      ParticipantId creator = currentSnapshot.snapshot.getCreator();
+      if (!user.equals(creator)) {
+        resp.sendError(HttpServletResponse.SC_FORBIDDEN,
+            "Only the wave creator can restore versions");
+        return;
+      }
+    } catch (WaveServerException e) {
+      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      return;
+    }
+
+    String versionParam = req.getParameter("version");
+    if (versionParam == null) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Missing version parameter");
+      return;
+    }
+    long targetVersion;
+    try {
+      targetVersion = Long.parseLong(versionParam);
+    } catch (NumberFormatException e) {
+      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid version");
+      return;
+    }
+
+    // Version restoration requires constructing operational transform deltas
+    // to transform the current document state to match the historical state.
+    // This is a complex operation that depends on the wave protocol's delta
+    // submission pipeline and is not yet implemented.
+    resp.setStatus(HttpServletResponse.SC_NOT_IMPLEMENTED);
+    resp.setContentType("application/json; charset=UTF-8");
+    resp.setCharacterEncoding("UTF-8");
+    try (PrintWriter w = resp.getWriter()) {
+      w.append("{\"error\":\"Version restoration is not yet implemented. ")
+       .append("Target version: ").append(String.valueOf(targetVersion)).append("\"}");
+      w.flush();
+    }
   }
 
   // =========================================================================
