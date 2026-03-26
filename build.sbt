@@ -422,7 +422,7 @@ Test / unmanagedSources := (Test / unmanagedSources).value.filterNot { f =>
   fn.endsWith("IT.java") ||
   fn == "MongoItTestUtil.java" ||
   // Constructor signature changed; exclude until test is updated
-  p.endsWith("/org/waveprotocol/box/server/rpc/PublicWaveServletTest.java")
+  p.endsWith("/PublicWaveServletTest.java")
 }
 
 // Ensure `sbt clean` removes generated sources only (dependencies/caches are preserved)
