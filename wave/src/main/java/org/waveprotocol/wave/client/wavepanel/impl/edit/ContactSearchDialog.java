@@ -564,13 +564,11 @@ public class ContactSearchDialog extends Composite {
           public void onSuccess(List<ContactSearchService.SearchResult> results, int total,
               boolean more) {
             isLoadingMore = false;
+            hideLoadingIndicator();
             // Discard if the user started a new search while we were loading.
             if (seq != requestSeq) {
               return;
             }
-            // Remove the loading indicator.
-            loadingMoreLabel.setVisible(false);
-            resultsPanel.remove(loadingMoreLabel);
 
             hasMore = more;
             currentOffset += results.size();
@@ -580,13 +578,21 @@ public class ContactSearchDialog extends Composite {
           @Override
           public void onFailure(String message) {
             isLoadingMore = false;
-            if (seq != requestSeq) {
-              return;
-            }
-            loadingMoreLabel.setVisible(false);
-            resultsPanel.remove(loadingMoreLabel);
+            hideLoadingIndicator();
           }
         });
+  }
+
+  /**
+   * Safely hides and detaches the loading-more indicator. This is a no-op
+   * if the label is not currently attached (e.g. the panel was already
+   * cleared by a fresh search).
+   */
+  private void hideLoadingIndicator() {
+    loadingMoreLabel.setVisible(false);
+    if (loadingMoreLabel.getParent() == resultsPanel) {
+      resultsPanel.remove(loadingMoreLabel);
+    }
   }
 
   /**
