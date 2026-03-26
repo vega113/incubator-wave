@@ -376,7 +376,7 @@ Test / testOptions += Tests.Filter { name =>
   val isMongo = name.contains(".mongodb.")
   val isFederation = name.contains(".wave.federation.")
   val isPersistence = name.contains(".server.persistence.")
-  val isAllowedPersistence = name.contains(".server.persistence.memory.") || name.contains(".server.persistence.file.")
+  val isAllowedPersistence = name.contains(".server.persistence.memory.") || name.contains(".server.persistence.file.") || name.contains(".server.persistence.protos.")
   isJUnit && !isGwt && !isLarge && !isStress && !isMongo && !isFederation && (!isPersistence || isAllowedPersistence)
 }
 
