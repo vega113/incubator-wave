@@ -533,8 +533,9 @@ public final class VersionHistoryServlet extends HttpServlet {
     }
 
     // Check that the requesting user is the wave creator
+    CommittedWaveletSnapshot currentSnapshot;
     try {
-      CommittedWaveletSnapshot currentSnapshot = waveletProvider.getSnapshot(waveletName);
+      currentSnapshot = waveletProvider.getSnapshot(waveletName);
       if (currentSnapshot == null) {
         resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Wavelet not found");
         return;
@@ -564,12 +565,7 @@ public final class VersionHistoryServlet extends HttpServlet {
     }
 
     try {
-      // 1. Get the current snapshot
-      CommittedWaveletSnapshot currentSnapshot = waveletProvider.getSnapshot(waveletName);
-      if (currentSnapshot == null) {
-        resp.sendError(HttpServletResponse.SC_NOT_FOUND, "Wavelet not found");
-        return;
-      }
+      // Reuse currentSnapshot from creator check above
       ReadableWaveletData currentState = currentSnapshot.snapshot;
       long currentVersion = currentState.getHashedVersion().getVersion();
 
