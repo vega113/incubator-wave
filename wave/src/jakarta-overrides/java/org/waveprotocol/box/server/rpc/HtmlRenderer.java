@@ -1982,7 +1982,7 @@ public final class HtmlRenderer {
     sb.append("        </svg>\n");
     sb.append("      </div>\n");
     sb.append("      <h3>Open &amp; Federated</h3>\n");
-    sb.append("      <p>Built on the open Apache Wave protocol. Self-host your own server and communicate across federated Wave instances.</p>\n");
+    sb.append("      <p>Built on an open protocol. Self-host your own server and communicate across federated SupaWave instances.</p>\n");
     sb.append("    </div>\n");
 
     sb.append("  </div>\n");
@@ -1995,7 +1995,7 @@ public final class HtmlRenderer {
     sb.append("<a href=\"/privacy\">Privacy</a> &middot; ");
     sb.append("<a href=\"/contact\">Contact</a>\n");
     sb.append("  </div>\n");
-    sb.append("  Powered by <a href=\"https://incubator.apache.org/projects/wave.html\">Apache Wave</a>\n");
+    sb.append("  Powered by <a href=\"https://supawave.ai\">SupaWave</a>\n");
     sb.append("  &middot; @").append(escapeHtml(domain)).append("\n");
     sb.append("</footer>\n");
 
@@ -4376,7 +4376,7 @@ public final class HtmlRenderer {
     sb.append("    <a href=\"/privacy\">Privacy Policy</a>\n");
     sb.append("    <a href=\"/contact\">Contact</a>\n");
     sb.append("  </div>\n");
-    sb.append("  <div>&copy; 2025 WavelyLabs. Powered by <a href=\"https://incubator.apache.org/projects/wave.html\">Apache Wave</a>.</div>\n");
+    sb.append("  <div>&copy; 2025 SupaWave. Powered by <a href=\"https://supawave.ai\">SupaWave</a>.</div>\n");
     sb.append("</footer>\n");
   }
 
@@ -4423,7 +4423,7 @@ public final class HtmlRenderer {
 
     // 1. Introduction
     sb.append("<h2 id=\"introduction\">1. Introduction</h2>\n");
-    sb.append("<p>Welcome to SupaWave, a real-time collaborative messaging platform operated by WavelyLabs ");
+    sb.append("<p>Welcome to SupaWave, a real-time collaborative messaging platform operated by SupaWave ");
     sb.append("(\"we,\" \"us,\" or \"our\"). SupaWave enables users to create, share, and collaborate on ");
     sb.append("rich conversations called \"waves\" with live editing, threaded replies, and multimedia attachments.</p>\n");
     sb.append("<p>These Terms of Service (\"Terms\") govern your access to and use of the SupaWave platform, ");
@@ -4464,7 +4464,7 @@ public final class HtmlRenderer {
     // 5. User Content
     sb.append("<h2 id=\"user-content\">5. User Content</h2>\n");
     sb.append("<p>You retain ownership of all content you create, post, or share on SupaWave (\"User Content\"). ");
-    sb.append("By posting User Content, you grant WavelyLabs a non-exclusive, worldwide, royalty-free license to ");
+    sb.append("By posting User Content, you grant SupaWave a non-exclusive, worldwide, royalty-free license to ");
     sb.append("display, distribute, and store your content solely for the purpose of operating and providing the SupaWave platform.</p>\n");
     sb.append("<p>You represent that you have the right to share any content you post and that your content does not ");
     sb.append("infringe upon the intellectual property rights of any third party.</p>\n");
@@ -4502,9 +4502,8 @@ public final class HtmlRenderer {
 
     // 9. Intellectual Property
     sb.append("<h2 id=\"ip\">9. Intellectual Property</h2>\n");
-    sb.append("<p>The SupaWave platform, including its design, logos, and proprietary features, is owned by WavelyLabs. ");
-    sb.append("SupaWave is built on the open-source Apache Wave protocol, which is licensed under the Apache License 2.0. ");
-    sb.append("Nothing in these Terms grants you rights to use the SupaWave or WavelyLabs trademarks without prior ");
+    sb.append("<p>The SupaWave platform, including its design, logos, and proprietary features, is owned by SupaWave. ");
+    sb.append("Nothing in these Terms grants you rights to use the SupaWave trademarks without prior ");
     sb.append("written permission.</p>\n");
 
     // 10. Termination & Suspension
@@ -4524,7 +4523,7 @@ public final class HtmlRenderer {
     sb.append("<p>SupaWave is provided \"as is\" and \"as available\" without warranties of any kind, ");
     sb.append("either express or implied, including but not limited to warranties of merchantability, ");
     sb.append("fitness for a particular purpose, or non-infringement.</p>\n");
-    sb.append("<p>To the fullest extent permitted by law, WavelyLabs shall not be liable for any indirect, ");
+    sb.append("<p>To the fullest extent permitted by law, SupaWave shall not be liable for any indirect, ");
     sb.append("incidental, special, consequential, or punitive damages, or any loss of data, use, or profits, ");
     sb.append("arising from your use of or inability to use the platform.</p>\n");
 
@@ -4544,8 +4543,8 @@ public final class HtmlRenderer {
     sb.append("<h2 id=\"contact\">14. Contact Information</h2>\n");
     sb.append("<p>If you have questions about these Terms, please contact us:</p>\n");
     sb.append("<div class=\"contact-box\">\n");
-    sb.append("  <h3>WavelyLabs</h3>\n");
-    sb.append("  <p>Email: <a href=\"mailto:support@supawa.ve\">support@supawa.ve</a></p>\n");
+    sb.append("  <h3>SupaWave</h3>\n");
+    sb.append("  <p>Email: <a href=\"mailto:support@supawave.ai\">support@supawave.ai</a></p>\n");
     sb.append("  <p>Visit our <a href=\"/contact\">Contact page</a> for additional ways to reach us.</p>\n");
     sb.append("</div>\n");
 
@@ -4598,7 +4597,7 @@ public final class HtmlRenderer {
 
     // 1. Introduction
     sb.append("<h2 id=\"introduction\">1. Introduction</h2>\n");
-    sb.append("<p>WavelyLabs (\"we,\" \"us,\" or \"our\") operates SupaWave, a real-time collaborative messaging platform. ");
+    sb.append("<p>SupaWave (\"we,\" \"us,\" or \"our\") operates the SupaWave real-time collaborative messaging platform. ");
     sb.append("This Privacy Policy explains how we collect, use, store, and protect your personal information ");
     sb.append("when you use our platform.</p>\n");
     sb.append("<p>By using SupaWave, you agree to the collection and use of information in accordance with this policy.</p>\n");
@@ -4691,7 +4690,7 @@ public final class HtmlRenderer {
     sb.append("  <li><strong>Export</strong> &#8212; request an export of your wave data in a portable format</li>\n");
     sb.append("</ul>\n");
     sb.append("<p>To exercise any of these rights, please contact us at ");
-    sb.append("<a href=\"mailto:support@supawa.ve\">support@supawa.ve</a>.</p>\n");
+    sb.append("<a href=\"mailto:support@supawave.ai\">support@supawave.ai</a>.</p>\n");
 
     // 10. Data Retention
     sb.append("<h2 id=\"retention\">10. Data Retention</h2>\n");
@@ -4717,11 +4716,11 @@ public final class HtmlRenderer {
 
     // 13. Operator & Contact
     sb.append("<h2 id=\"contact\">13. Operator &amp; Contact</h2>\n");
-    sb.append("<p>SupaWave is operated by WavelyLabs. If you have questions or concerns about this Privacy Policy ");
+    sb.append("<p>SupaWave is operated by SupaWave. If you have questions or concerns about this Privacy Policy ");
     sb.append("or our data practices, please contact us:</p>\n");
     sb.append("<div class=\"contact-box\">\n");
-    sb.append("  <h3>WavelyLabs</h3>\n");
-    sb.append("  <p>Email: <a href=\"mailto:support@supawa.ve\">support@supawa.ve</a></p>\n");
+    sb.append("  <h3>SupaWave</h3>\n");
+    sb.append("  <p>Email: <a href=\"mailto:support@supawave.ai\">support@supawave.ai</a></p>\n");
     sb.append("  <p>Visit our <a href=\"/contact\">Contact page</a> for additional ways to reach us.</p>\n");
     sb.append("</div>\n");
 
@@ -4759,13 +4758,13 @@ public final class HtmlRenderer {
     sb.append("<div class=\"contact-box\">\n");
     sb.append("  <h3>General Support</h3>\n");
     sb.append("  <p>For questions, account help, or general inquiries:</p>\n");
-    sb.append("  <p>Email: <a href=\"mailto:support@supawa.ve\">support@supawa.ve</a></p>\n");
+    sb.append("  <p>Email: <a href=\"mailto:support@supawave.ai\">support@supawave.ai</a></p>\n");
     sb.append("</div>\n");
 
     sb.append("<div class=\"contact-box\">\n");
     sb.append("  <h3>Report Abuse or Security Issues</h3>\n");
     sb.append("  <p>To report abusive content, harassment, or security vulnerabilities:</p>\n");
-    sb.append("  <p>Email: <a href=\"mailto:abuse@supawa.ve\">abuse@supawa.ve</a></p>\n");
+    sb.append("  <p>Email: <a href=\"mailto:abuse@supawave.ai\">abuse@supawave.ai</a></p>\n");
     sb.append("  <p>We take all reports seriously and will respond as quickly as possible.</p>\n");
     sb.append("</div>\n");
 
@@ -4773,19 +4772,19 @@ public final class HtmlRenderer {
     sb.append("  <h3>Privacy Requests</h3>\n");
     sb.append("  <p>For data access, deletion, or export requests under our ");
     sb.append("<a href=\"/privacy\">Privacy Policy</a>:</p>\n");
-    sb.append("  <p>Email: <a href=\"mailto:privacy@supawa.ve\">privacy@supawa.ve</a></p>\n");
+    sb.append("  <p>Email: <a href=\"mailto:privacy@supawave.ai\">privacy@supawave.ai</a></p>\n");
     sb.append("</div>\n");
 
     sb.append("<div class=\"contact-box\">\n");
     sb.append("  <h3>Open Source &amp; Development</h3>\n");
-    sb.append("  <p>SupaWave is built on the open-source Apache Wave protocol. ");
+    sb.append("  <p>SupaWave is open source. ");
     sb.append("For technical discussions, bug reports, or contributions:</p>\n");
     sb.append("  <p>GitHub: <a href=\"https://github.com/nicksellen/incubator-wave\" target=\"_blank\" rel=\"noopener\">incubator-wave on GitHub</a></p>\n");
     sb.append("</div>\n");
 
-    sb.append("<h2 style=\"border-top: none;\">About WavelyLabs</h2>\n");
-    sb.append("<p>WavelyLabs develops and operates SupaWave, continuing the vision of real-time collaborative ");
-    sb.append("communication pioneered by the Apache Wave project. We believe in open protocols, user ownership ");
+    sb.append("<h2 style=\"border-top: none;\">About SupaWave</h2>\n");
+    sb.append("<p>SupaWave is a real-time collaborative communication platform. ");
+    sb.append("We believe in open protocols, user ownership ");
     sb.append("of data, and building tools that bring people together.</p>\n");
 
     sb.append("</main>\n");
