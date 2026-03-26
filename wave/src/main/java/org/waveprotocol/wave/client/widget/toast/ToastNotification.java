@@ -24,6 +24,10 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.user.client.Timer;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Lightweight, non-blocking toast notification that replaces native
  * {@code Window.alert()} calls. Toasts appear at the bottom center of the
@@ -58,10 +62,12 @@ public final class ToastNotification {
   /** Timer controlling auto-dismiss of the current toast. */
   private static Timer currentDismissTimer;
 
-  /** The persistent toast element currently in the DOM, if any. */
-  private static Element persistentToast;
-  /** Identifier for the current persistent toast so callers can target dismissal. */
-  private static String persistentToastId;
+  /** Persistent toasts keyed by caller-provided id. */
+  private static final Map<String, Element> persistentToasts = new LinkedHashMap<>();
+  /** Fade-out timers for persistent toasts pending DOM removal. */
+  private static final Map<String, Timer> persistentDismissTimers = new HashMap<>();
+  /** Persistent toasts currently fading out before removal. */
+  private static final Map<String, Element> dismissingPersistentToasts = new HashMap<>();
 
   /** Whether the wave-animation CSS keyframes have been injected. */
   private static boolean waveCssInjected;
@@ -91,19 +97,22 @@ public final class ToastNotification {
    * @param level severity / color theme
    */
   public static void showPersistent(String id, String message, Level level) {
-    // Already showing this exact toast -- do not recreate.
-    if (persistentToast != null && id != null && id.equals(persistentToastId)) {
+    if (id == null) {
       return;
     }
-    removePersistentToast();
+
+    if (persistentToasts.containsKey(id)) {
+      return;
+    }
+
+    clearPendingPersistentDismiss(id);
     injectWaveCss();
 
     final Element toast = Document.get().createDivElement();
     Style ts = toast.getStyle();
 
-    // Positioning: fixed, bottom center, above the auto-dismiss toast area
+    // Positioning: fixed, bottom center, stacked above the auto-dismiss toast area
     ts.setProperty("position", "fixed");
-    ts.setProperty("bottom", "72px");
     ts.setProperty("left", "50%");
     ts.setProperty("transform", "translateX(-50%)");
     ts.setProperty("zIndex", "2147483646");
@@ -143,8 +152,8 @@ public final class ToastNotification {
 
     toast.setInnerText(message);
     Document.get().getBody().appendChild(toast);
-    persistentToast = toast;
-    persistentToastId = id;
+    persistentToasts.put(id, toast);
+    updatePersistentToastPositions();
 
     // Trigger fade-in on next frame.
     new Timer() {
@@ -161,22 +170,31 @@ public final class ToastNotification {
    * visible), this is a no-op.
    */
   public static void dismissPersistent(String id) {
-    if (persistentToast != null && id != null && id.equals(persistentToastId)) {
-      final Element toRemove = persistentToast;
-      toRemove.getStyle().setProperty("opacity", "0");
-      persistentToast = null;
-      persistentToastId = null;
-      // Allow fade-out to complete before removing from DOM.
-      new Timer() {
+    if (id == null) {
+      return;
+    }
+
+    final Element toast = persistentToasts.remove(id);
+    if (toast != null) {
+      toast.getStyle().setProperty("opacity", "0");
+      updatePersistentToastPositions();
+      dismissingPersistentToasts.put(id, toast);
+
+      Timer dismissTimer = new Timer() {
         @Override
         public void run() {
           try {
-            toRemove.removeFromParent();
+            toast.removeFromParent();
           } catch (Throwable ignored) {
             // Best effort.
+          } finally {
+            dismissingPersistentToasts.remove(id);
+            persistentDismissTimers.remove(id);
           }
         }
-      }.schedule(350);
+      };
+      persistentDismissTimers.put(id, dismissTimer);
+      dismissTimer.schedule(350);
     }
   }
 
@@ -289,16 +307,30 @@ public final class ToastNotification {
     }
   }
 
-  /** Removes the persistent toast from the DOM immediately, if present. */
-  private static void removePersistentToast() {
-    if (persistentToast != null) {
+  /** Cancels/removes any pending fade-out toast for the given id. */
+  private static void clearPendingPersistentDismiss(String id) {
+    Timer dismissTimer = persistentDismissTimers.remove(id);
+    if (dismissTimer != null) {
+      dismissTimer.cancel();
+    }
+
+    Element dismissingToast = dismissingPersistentToasts.remove(id);
+    if (dismissingToast != null) {
       try {
-        persistentToast.removeFromParent();
+        dismissingToast.removeFromParent();
       } catch (Throwable ignored) {
         // Best effort.
       }
-      persistentToast = null;
-      persistentToastId = null;
+    }
+  }
+
+  /** Updates bottom offsets so visible persistent toasts do not overlap. */
+  private static void updatePersistentToastPositions() {
+    int index = 0;
+    for (Element toast : persistentToasts.values()) {
+      int bottomPx = 72 + (index * 56);
+      toast.getStyle().setProperty("bottom", bottomPx + "px");
+      index++;
     }
   }
 }
