@@ -4045,9 +4045,14 @@ public final class HtmlRenderer {
 
     // Refresh unread count badge
     sb.append("  function refreshContactBadge() {\n");
-    sb.append("    fetch('/admin/api/contacts?status=new&limit=0').then(function(r){return r.json();}).then(function(data){\n");
-    sb.append("      if(data.total>0){contactBadge.textContent=data.total;contactBadge.classList.remove('hidden');}\n");
-    sb.append("      else{contactBadge.textContent='0';contactBadge.classList.add('hidden');}\n");
+    sb.append("    fetch('/admin/api/contacts?status=new&limit=0', {cache:'no-store'}).then(function(r){\n");
+    sb.append("      if(!r.ok){throw new Error('Failed to fetch unread contact count: ' + r.status);}\n");
+    sb.append("      return r.json();\n");
+    sb.append("    }).then(function(data){\n");
+    sb.append("      if(typeof data.total === 'number'){\n");
+    sb.append("        if(data.total>0){contactBadge.textContent=data.total;contactBadge.classList.remove('hidden');}\n");
+    sb.append("        else{contactBadge.textContent='0';contactBadge.classList.add('hidden');}\n");
+    sb.append("      }\n");
     sb.append("    }).catch(function(){});\n");
     sb.append("  }\n");
     sb.append("  refreshContactBadge();\n");
