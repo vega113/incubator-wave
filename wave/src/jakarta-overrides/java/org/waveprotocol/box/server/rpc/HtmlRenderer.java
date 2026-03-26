@@ -2790,16 +2790,16 @@ public final class HtmlRenderer {
     sb.append("      });\n");
     sb.append("  });\n\n");
 
-    // Listen for clicks on participant avatars in the wave panel
+    // Listen for clicks on blip author avatars (the small avatar next to each
+    // blip).  Participant-bar avatars are handled by the GWT ParticipantController
+    // which calls window.showProfileCard() via JSNI.  Blip author avatars have
+    // no GWT click handler, so we catch them here using the data-address attribute.
     sb.append("  document.addEventListener('click', function(e) {\n");
-    sb.append("    // Check if clicked on a participant avatar in the wave\n");
     sb.append("    var target = e.target;\n");
-    sb.append("    // GWT participant elements have kind='participant' attribute\n");
-    sb.append("    var participantEl = target.closest ? target.closest('[kind=\"participant\"]') : null;\n");
-    sb.append("    if (participantEl) {\n");
-    sb.append("      // Extract the participant address from the element\n");
-    sb.append("      // GWT stores the address in the inner text or title of the avatar\n");
-    sb.append("      var address = participantEl.getAttribute('p') || participantEl.title || '';\n");
+    sb.append("    // Blip author avatars carry data-address but no kind='p' attribute.\n");
+    sb.append("    // Participant-bar avatars (kind='p') are handled by GWT first.\n");
+    sb.append("    if (target && target.getAttribute && target.getAttribute('data-address')) {\n");
+    sb.append("      var address = target.getAttribute('data-address');\n");
     sb.append("      if (address && address.indexOf('@') > 0) {\n");
     sb.append("        e.preventDefault();\n");
     sb.append("        e.stopPropagation();\n");
