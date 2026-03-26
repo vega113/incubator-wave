@@ -171,7 +171,9 @@ public final class FolderServlet extends HttpServlet {
   }
 
   /**
-   * Pins or unpins a wave for a given participant.
+   * Pins or unpins a wave for a given participant by writing directly to the
+   * UDW folder document. This avoids building the conversation model, which
+   * can fail for waves with malformed manifest documents.
    */
   public void setPinState(WaveId waveId, boolean pin, ParticipantId participant)
       throws InvalidRequestException, OperationException, InterruptedException, ExecutionException {
@@ -179,23 +181,20 @@ public final class FolderServlet extends HttpServlet {
     OperationContextImpl context = new OperationContextImpl(waveletProvider,
         converterManager.getEventDataConverter(ProtocolVersion.DEFAULT), conversationUtil);
 
-    OpBasedWavelet wavelet = context.openWavelet(waveId,
-        WaveletId.of(waveId.getDomain(), IdConstants.CONVERSATION_ROOT_WAVELET), participant);
-    ConversationView conversationView = context.getConversationUtil().buildConversation(wavelet);
-
     WaveletId udwId =
         WaveletId.of(waveId.getDomain(),
             IdUtil.join(IdConstants.USER_DATA_WAVELET_PREFIX, participant.getAddress()));
     OpBasedWavelet udw = context.openWavelet(waveId, udwId, participant);
 
     PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
-
-    SupplementedWave supplement =
-        SupplementedWaveImpl.create(udwState, conversationView, participant, DefaultFollow.ALWAYS);
     if (pin) {
-      supplement.pin();
+      if (!udwState.isInFolder(SupplementedWaveImpl.PINNED_FOLDER)) {
+        udwState.addFolder(SupplementedWaveImpl.PINNED_FOLDER);
+      }
     } else {
-      supplement.unpin();
+      if (udwState.isInFolder(SupplementedWaveImpl.PINNED_FOLDER)) {
+        udwState.removeFolder(SupplementedWaveImpl.PINNED_FOLDER);
+      }
     }
     OperationUtil.submitDeltas(context, waveletProvider, LOGGING_REQUEST_LISTENER);
   }
