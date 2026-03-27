@@ -39,6 +39,7 @@ jobs:
       issues: write
       pull-requests: read
     steps:
+      - uses: actions/checkout@v4
       - name: Requeue eligible PR gates
         uses: actions/github-script@v7
         with:
@@ -156,9 +157,9 @@ jobs:
     permissions:
       checks: read
       contents: read
-      actions: write
       pull-requests: read
     steps:
+      - uses: actions/checkout@v4
       - name: Evaluate review gate
         uses: actions/github-script@v7
         with:
