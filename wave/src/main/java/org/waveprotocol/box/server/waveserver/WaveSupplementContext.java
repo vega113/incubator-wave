@@ -19,6 +19,8 @@
 
 package org.waveprotocol.box.server.waveserver;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
 import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
 import org.waveprotocol.wave.model.supplement.SupplementedWave;
@@ -37,7 +39,8 @@ final class WaveSupplementContext {
       SupplementedWave supplement, ObservableConversationView conversations) {
     this.convWavelet = convWavelet;
     this.udw = udw;
-    this.conversationalWavelets = conversationalWavelets;
+    this.conversationalWavelets =
+        Collections.unmodifiableList(new ArrayList<>(conversationalWavelets));
     this.supplement = supplement;
     this.conversations = conversations;
   }

@@ -50,7 +50,7 @@ public final class ChangelogServletTest {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
     HttpServletRequest request = request("/changelog", "/api", null);
-    HttpServletResponse response = response(body, contentType, new String[1]);
+    HttpServletResponse response = response(body, contentType);
 
     servlet.doGet(request, response);
 
@@ -64,7 +64,7 @@ public final class ChangelogServletTest {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
     HttpServletRequest request = request("/changelog", "/latest", null);
-    HttpServletResponse response = response(body, contentType, new String[1]);
+    HttpServletResponse response = response(body, contentType);
 
     servlet.doGet(request, response);
 
@@ -77,14 +77,13 @@ public final class ChangelogServletTest {
   public void currentPathReturnsCurrentReleaseEntry() throws Exception {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
-    String[] cacheControl = new String[1];
     HttpServletRequest request = request("/changelog", "/current", null);
-    HttpServletResponse response = response(body, contentType, cacheControl);
+    HttpServletResponse response = response(body, contentType);
 
     servlet.doGet(request, response);
 
     assertEquals("application/json; charset=UTF-8", contentType[0]);
-    assertEquals("no-cache", cacheControl[0]);
+    assertEquals("no-cache", response.getHeader("Cache-Control"));
     assertTrue(body.toString().contains("\"releaseId\":\"2026-03-27-unread-only-search-filter\""));
   }
 
@@ -93,7 +92,7 @@ public final class ChangelogServletTest {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
     HttpServletRequest request = request("/changelog", null, "text/html");
-    HttpServletResponse response = response(body, contentType, new String[1]);
+    HttpServletResponse response = response(body, contentType);
 
     servlet.doGet(request, response);
 
@@ -107,7 +106,7 @@ public final class ChangelogServletTest {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
     HttpServletRequest request = request("/changelog", null, "application/json");
-    HttpServletResponse response = response(body, contentType, new String[1]);
+    HttpServletResponse response = response(body, contentType);
 
     servlet.doGet(request, response);
 
@@ -122,7 +121,7 @@ public final class ChangelogServletTest {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
     HttpServletRequest request = request("/changelog", "/api", "text/html");
-    HttpServletResponse response = response(body, contentType, new String[1]);
+    HttpServletResponse response = response(body, contentType);
 
     servlet.doGet(request, response);
 
@@ -144,8 +143,7 @@ public final class ChangelogServletTest {
             });
   }
 
-  private static HttpServletResponse response(
-      StringWriter body, String[] contentType, String[] cacheControl) {
+  private static HttpServletResponse response(StringWriter body, String[] contentType) {
     PrintWriter writer = new PrintWriter(body);
     return (HttpServletResponse)
         Proxy.newProxyInstance(
@@ -157,13 +155,7 @@ public final class ChangelogServletTest {
                 contentType[0] = (String) args[0];
                 yield null;
               }
-              case "setHeader" -> {
-                if ("Cache-Control".equals(args[0])) {
-                  cacheControl[0] = (String) args[1];
-                }
-                yield null;
-              }
-              case "setStatus" -> null;
+              case "setStatus", "setHeader" -> null;
               case "sendError" -> {
                 throw new AssertionError("Unexpected sendError call");
               }

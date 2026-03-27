@@ -25,6 +25,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
@@ -69,7 +70,7 @@ public final class VersionServlet extends HttpServlet {
 
   /** Visible-for-testing constructor. */
   public VersionServlet(String buildCommit, long buildTime) {
-    this(buildCommit, buildTime, new ChangelogProvider(new org.json.JSONArray()));
+    this(buildCommit, buildTime, new ChangelogProvider(new JSONArray()));
   }
 
   /** Visible-for-testing constructor. */

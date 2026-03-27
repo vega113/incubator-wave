@@ -46,6 +46,9 @@ public final class HtmlRendererChangelogTest {
     assertTrue(!html.contains("data.changelog || null"));
     assertTrue(html.contains("'/changelog#' + encodeURIComponent(releaseNotes[0].releaseId)"));
     assertTrue(html.contains("What's New"));
+    assertTrue(
+        html.contains(
+            "whatsNew.href = '/changelog#release-' + encodeURIComponent(releaseNotes[0].releaseId);"));
   }
 
   @Test

@@ -4,18 +4,13 @@
     "version": "PR #405",
     "date": "2026-03-27",
     "title": "Release-Aware Upgrade Notes",
-    "summary": "The update popup now matches the release notes for the deployed SupaWave version instead of always showing the latest changelog entry.",
+    "summary": "Upgrade banners now map to the deployed release notes instead of always showing the newest changelog entry.",
     "sections": [
       {
         "type": "fix",
         "items": [
-          "The deploy/update popup now maps to the actual deployed release instead of always showing the newest changelog entry"
-        ]
-      },
-      {
-        "type": "feature",
-        "items": [
-          "Added release-aware changelog validation so future deploys keep release history aligned"
+          "The upgrade banner now links to the exact deployed release notes when the release mapping is known",
+          "Deploy metadata now keeps changelog release mapping aligned across upgrades and rollbacks"
         ]
       }
     ]
@@ -34,7 +29,7 @@
         ]
       },
       {
-        "type": "feature",
+        "type": "fix",
         "items": [
           "Updated the search help popup with unread-only examples"
         ]

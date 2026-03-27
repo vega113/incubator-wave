@@ -13,13 +13,13 @@
 ## Investigation Summary
 
 - Current bug:
-  - [`VersionServlet.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java) injects `changelogProvider.getLatestEntry()` into `/version`.
-  - [`HtmlRenderer.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java) shows that payload directly in `showUpgradeBanner(...)`.
+  - [`VersionServlet.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java) injects `changelogProvider.getLatestEntry()` into `/version`.
+  - [`HtmlRenderer.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java) shows that payload directly in `showUpgradeBanner(...)`.
   - Result: the popup is tied to array index `0`, not to the actual deployed app version.
 - Regression mode:
   - A merged backfill branch already existed (`PR #396` / merge `93b4a5de`), but later branches reintroduced an older two-entry or one-entry changelog snapshot, proving that stale-branch merges can silently delete previously released entries.
 - Deployment constraint:
-  - Contabo deploys already have a real build identity (`GitHub.sha`) in [`deploy-contabo.yml`](./.github/workflows/deploy-contabo.yml), but that identity is not passed into `WAVE_SERVER_VERSION`.
+  - Contabo deploys already have a real build identity (`GitHub.sha`) in [`deploy-contabo.yml`](.github/workflows/deploy-contabo.yml), but that identity is not passed into `WAVE_SERVER_VERSION`.
   - The plan must preserve that exact build identity instead of replacing it with a changelog-only key.
 - External pattern references:
   - Keep a Changelog recommends explicit versioned releases and backfilling missed release notes instead of leaving gaps.
@@ -58,35 +58,35 @@
 ## File Map
 
 **Modify:**
-- [`wave/config/changelog.json`](./wave/config/changelog.json)
-- [`wave/src/main/resources/config/changelog.json`](./wave/src/main/resources/config/changelog.json)
-- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java)
-- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java)
-- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java)
-- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java)
-- [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java`](./wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java)
-- [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java`](./wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java)
-- [`wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java`](./wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java)
-- [`wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java`](./wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java)
-- [`wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java`](./wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java)
-- [`deploy/caddy/compose.yml`](./deploy/caddy/compose.yml)
-- [`deploy/caddy/deploy.sh`](./deploy/caddy/deploy.sh)
-- [`.github/workflows/build.yml`](./.github/workflows/build.yml)
-- [`.github/workflows/deploy-contabo.yml`](./.github/workflows/deploy-contabo.yml)
-- [`AGENTS.md`](./AGENTS.md)
+- [`wave/config/changelog.json`](wave/config/changelog.json)
+- [`wave/src/main/resources/config/changelog.json`](wave/src/main/resources/config/changelog.json)
+- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java)
+- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java)
+- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java)
+- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java)
+- [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java`](wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java)
+- [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java`](wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java)
+- [`wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java`](wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java)
+- [`wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java`](wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java)
+- [`wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java`](wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java)
+- [`deploy/caddy/compose.yml`](deploy/caddy/compose.yml)
+- [`deploy/caddy/deploy.sh`](deploy/caddy/deploy.sh)
+- [`.github/workflows/build.yml`](.github/workflows/build.yml)
+- [`.github/workflows/deploy-contabo.yml`](.github/workflows/deploy-contabo.yml)
+- [`AGENTS.md`](AGENTS.md)
 
 **Create:**
-- [`scripts/validate-changelog.py`](./scripts/validate-changelog.py)
+- [`scripts/validate-changelog.py`](scripts/validate-changelog.py)
 
 ## Chunk 1: Release-Aware Changelog Schema And Provider
 
 ### Task 1: Convert the changelog data model from “latest card” to immutable release entries
 
 **Files:**
-- Modify: [`wave/config/changelog.json`](./wave/config/changelog.json)
-- Modify: [`wave/src/main/resources/config/changelog.json`](./wave/src/main/resources/config/changelog.json)
-- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java)
-- Test: [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java`](./wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java)
+- Modify: [`wave/config/changelog.json`](wave/config/changelog.json)
+- Modify: [`wave/src/main/resources/config/changelog.json`](wave/src/main/resources/config/changelog.json)
+- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogProvider.java)
+- Test: [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java`](wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogProviderTest.java)
 
 - [ ] **Step 1: Write failing provider tests for release-aware lookup**
 
@@ -119,7 +119,7 @@ Add provider behavior for:
 - schema validation for `releaseId`, `date`, `title`, `summary`, and `sections`
 - immutable cloning of returned JSON
 
-- [ ] **Step 4: Backfill the changelog files with real release entries**
+- [ ] **Step 4: Backfill both changelog files with real release entries**
 
 Backfill one entry per shipped user-facing release using stable release-note IDs, including the currently missing post-`/changelog` releases such as:
 - `title:` / `content:` search
@@ -135,8 +135,7 @@ Backfill one entry per shipped user-facing release using stable release-note IDs
 - search bootstrap restoration
 - inline-anchor crash fix
 - unread-only search filter
-
-Keep `wave/config/changelog.json` and `wave/src/main/resources/config/changelog.json` aligned whenever a PR changes user-facing release notes.
+- Keep `wave/src/main/resources/config/changelog.json` aligned with `wave/config/changelog.json` for every user-facing release entry.
 
 - [ ] **Step 5: Re-run provider tests**
 
@@ -153,11 +152,11 @@ Expected:
 ### Task 2: Make `/version` and `/changelog` return release-correct notes
 
 **Files:**
-- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java)
-- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java)
-- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WaveClientServlet.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WaveClientServlet.java)
-- Test: [`wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java`](./wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java)
-- Test: [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java`](./wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java)
+- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/VersionServlet.java)
+- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/ChangelogServlet.java)
+- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WaveClientServlet.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WaveClientServlet.java)
+- Test: [`wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java`](wave/src/jakarta-test/java/org/waveprotocol/box/server/jakarta/VersionServletJakartaIT.java)
+- Test: [`wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java`](wave/src/test/java/org/waveprotocol/box/server/rpc/ChangelogServletTest.java)
 
 - [ ] **Step 1: Write failing servlet tests for range lookups**
 
@@ -213,9 +212,9 @@ Expected:
 ### Task 3: Update the client popup to show the actual deployed changes
 
 **Files:**
-- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java`](./wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java)
-- Test: [`wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java`](./wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java)
-- Test: [`wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java`](./wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java)
+- Modify: [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java)
+- Test: [`wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java`](wave/src/test/java/org/waveprotocol/box/server/rpc/HtmlRendererChangelogTest.java)
+- Test: [`wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java`](wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletFragmentDefaultsTest.java)
 
 - [ ] **Step 1: Write failing tests for popup script generation**
 
@@ -264,9 +263,9 @@ Expected:
 ### Task 4: Make deployed server builds expose the real build commit
 
 **Files:**
-- Modify: [`deploy/caddy/compose.yml`](./deploy/caddy/compose.yml)
-- Modify: [`deploy/caddy/deploy.sh`](./deploy/caddy/deploy.sh)
-- Modify: [`.github/workflows/deploy-contabo.yml`](./.github/workflows/deploy-contabo.yml)
+- Modify: [`deploy/caddy/compose.yml`](deploy/caddy/compose.yml)
+- Modify: [`deploy/caddy/deploy.sh`](deploy/caddy/deploy.sh)
+- Modify: [`.github/workflows/deploy-contabo.yml`](.github/workflows/deploy-contabo.yml)
 
 - [ ] **Step 1: Add a failing validation path for server-version wiring**
 
@@ -307,9 +306,9 @@ Expected:
 ### Task 5: Add CI guardrails against stale changelog rewrites
 
 **Files:**
-- Create: [`scripts/validate-changelog.py`](./scripts/validate-changelog.py)
-- Modify: [`.github/workflows/build.yml`](./.github/workflows/build.yml)
-- Modify: [`AGENTS.md`](./AGENTS.md)
+- Create: [`scripts/validate-changelog.py`](scripts/validate-changelog.py)
+- Modify: [`.github/workflows/build.yml`](.github/workflows/build.yml)
+- Modify: [`AGENTS.md`](AGENTS.md)
 
 - [ ] **Step 1: Write the validation script**
 
@@ -327,7 +326,6 @@ Script responsibilities:
 Run:
 ```bash
 python3 scripts/validate-changelog.py --changelog wave/config/changelog.json
-python3 scripts/validate-changelog.py --changelog wave/src/main/resources/config/changelog.json
 ```
 
 Expected:
@@ -338,7 +336,6 @@ Expected:
 Add a build step before compile that runs:
 ```bash
 python3 scripts/validate-changelog.py --changelog wave/config/changelog.json --base-ref "${GITHUB_BASE_REF:-}"
-python3 scripts/validate-changelog.py --changelog wave/src/main/resources/config/changelog.json --base-ref "${GITHUB_BASE_REF:-}"
 ```
 
 Workflow details:
@@ -347,9 +344,9 @@ Workflow details:
 
 - [ ] **Step 4: Document the authoring rule**
 
-Update [`AGENTS.md`](./AGENTS.md) so user-facing PRs must:
+Update [`AGENTS.md`](AGENTS.md) so user-facing PRs must:
 - prepend a new release entry,
-- keep `wave/config/changelog.json` and `wave/src/main/resources/config/changelog.json` aligned,
+- update both changelog files in lockstep,
 - keep prior releases intact,
 - use a stable `releaseId` slug that will not change during review-fix pushes,
 - avoid reformatting or regrouping older releases in feature PRs.
@@ -367,7 +364,6 @@ Update [`AGENTS.md`](./AGENTS.md) so user-facing PRs must:
 - `python3 scripts/validate-changelog.py --changelog wave/config/changelog.json`
 - `python3 scripts/validate-changelog.py --changelog wave/src/main/resources/config/changelog.json`
 - `python3 scripts/validate-changelog.py --changelog wave/config/changelog.json --base-ref <base-ref>`
-- `python3 scripts/validate-changelog.py --changelog wave/src/main/resources/config/changelog.json --base-ref <base-ref>`
 - `sbt "wave/testOnly org.waveprotocol.box.server.rpc.ChangelogProviderTest"`
 - `sbt "wave/testOnly org.waveprotocol.box.server.rpc.ChangelogServletTest"`
 - `sbt "wave/testOnly org.waveprotocol.box.server.rpc.HtmlRendererChangelogTest"`

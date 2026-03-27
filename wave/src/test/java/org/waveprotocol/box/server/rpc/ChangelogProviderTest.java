@@ -24,12 +24,13 @@ import static org.junit.Assert.assertTrue;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import java.io.File;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.junit.Test;
 
@@ -77,13 +78,16 @@ public final class ChangelogProviderTest {
         changelogFile,
         sampleEntriesJson(),
         StandardCharsets.UTF_8);
-    Files.writeString(configFile, "core.changelog_path=\"custom-changelog.json\"", StandardCharsets.UTF_8);
+    Files.writeString(
+        configFile,
+        "core.changelog_path=\"custom-changelog.json\"",
+        StandardCharsets.UTF_8);
 
     String previousConfigPath = System.getProperty("wave.server.config");
     System.setProperty("wave.server.config", configFile.toString());
     try {
-      Config config = ConfigFactory.parseMap(
-          java.util.Map.of("core.changelog_path", "custom-changelog.json"));
+      Config config =
+          ConfigFactory.parseMap(java.util.Map.of("core.changelog_path", "custom-changelog.json"));
 
       ChangelogProvider provider = new ChangelogProvider(config);
 
@@ -100,7 +104,8 @@ public final class ChangelogProviderTest {
   }
 
   @Test
-  public void defaultProviderLoadsClasspathChangelogFromDifferentWorkingDirectory() throws Exception {
+  public void defaultProviderLoadsClasspathChangelogFromDifferentWorkingDirectory()
+      throws Exception {
     Path tempDir = Files.createTempDirectory("changelog-provider-cwd");
     Process process =
         new ProcessBuilder(
@@ -116,8 +121,11 @@ public final class ChangelogProviderTest {
     int exitCode = process.waitFor();
 
     assertEquals(0, exitCode);
-    assertTrue(output, output.matches("(?s).*PR #[0-9]+.*"));
-    assertTrue(output, output.toLowerCase().contains("release"));
+    assertTrue(output, Pattern.compile("PR #\\d+").matcher(output).find());
+    assertTrue(
+        output,
+        output.toLowerCase().contains("upgrade")
+            || output.toLowerCase().contains("changelog"));
   }
 
   @Test
@@ -196,7 +204,8 @@ public final class ChangelogProviderTest {
   private static String readProcessOutput(Process process) throws Exception {
     StringBuilder output = new StringBuilder();
     try (BufferedReader reader =
-        new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+        new BufferedReader(
+            new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
       String line = reader.readLine();
       while (line != null) {
         output.append(line).append(System.lineSeparator());

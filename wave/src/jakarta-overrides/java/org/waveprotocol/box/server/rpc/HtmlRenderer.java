@@ -3020,8 +3020,11 @@ public final class HtmlRenderer {
     sb.append("    actions.style.cssText = 'display:flex;gap:14px;align-items:center;flex-wrap:wrap;';\n");
     sb.append("    actions.appendChild(reload);\n");
     sb.append("    var whatsNew = document.createElement('a');\n");
-    sb.append("    whatsNew.href = status === 'exact' && releaseNotes.length > 0 && releaseNotes[0].releaseId")
-        .append(" ? '/changelog#' + encodeURIComponent(releaseNotes[0].releaseId) : '/changelog';\n");
+    sb.append("    if (status === 'exact' && releaseNotes.length > 0 && releaseNotes[0].releaseId) {\n");
+    sb.append("      whatsNew.href = '/changelog#release-' + encodeURIComponent(releaseNotes[0].releaseId);\n");
+    sb.append("    } else {\n");
+    sb.append("      whatsNew.href = '/changelog';\n");
+    sb.append("    }\n");
     sb.append("    whatsNew.textContent = \"What's New \\u2192\";\n");
     sb.append("    whatsNew.style.cssText = 'color:white;text-decoration:none;opacity:0.88;';\n");
     sb.append("    whatsNew.target = '_blank';\n");

@@ -25,7 +25,7 @@ from pathlib import Path
 
 
 REQUIRED_KEYS = ("releaseId", "version", "date", "title", "summary", "sections")
-DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def load_changelog(path: Path) -> list[dict]:
@@ -67,8 +67,8 @@ def validate_entry(entry: dict, index: int) -> list[str]:
   if not isinstance(version, str) or not version.strip():
     errors.append(f"entry {index} has an invalid version")
   date = entry.get("date")
-  if not isinstance(date, str) or not DATE_PATTERN.fullmatch(date):
-    errors.append(f"entry {index} has an invalid date; expected YYYY-MM-DD")
+  if not isinstance(date, str) or not ISO_DATE_PATTERN.fullmatch(date.strip()):
+    errors.append(f"entry {index} has an invalid date (expected YYYY-MM-DD)")
   title = entry.get("title")
   if not isinstance(title, str) or not title.strip():
     errors.append(f"entry {index} has an invalid title")
@@ -78,6 +78,16 @@ def validate_entry(entry: dict, index: int) -> list[str]:
   sections = entry.get("sections")
   if not isinstance(sections, list) or len(sections) == 0:
     errors.append(f"entry {index} must contain a non-empty sections array")
+  elif any(
+      not isinstance(section, dict)
+      or section.get("type") not in {"feature", "fix"}
+      or not isinstance(section.get("items"), list)
+      or len(section["items"]) == 0
+      for section in sections
+  ):
+    errors.append(
+        f"entry {index} must use feature/fix section types with non-empty items lists"
+    )
   return errors
 
 
@@ -107,8 +117,8 @@ def validate_schema(entries: list[dict]) -> list[str]:
 
 def validate_against_base(base_entries: list[dict], current_entries: list[dict]) -> list[str]:
   errors: list[str] = []
-  base_ids = [entry["releaseId"] for entry in base_entries]
-  current_ids = [entry["releaseId"] for entry in current_entries]
+  base_ids = [entry["releaseId"] for entry in base_entries if isinstance(entry, dict)]
+  current_ids = [entry["releaseId"] for entry in current_entries if isinstance(entry, dict)]
   current_set = set(current_ids)
 
   missing_ids = [release_id for release_id in base_ids if release_id not in current_set]
