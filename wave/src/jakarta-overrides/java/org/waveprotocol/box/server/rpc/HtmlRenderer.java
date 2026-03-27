@@ -4310,10 +4310,10 @@ public final class HtmlRenderer {
     sb.append("      } else if (legacyUser.slice(-8) === ':enabled') {\n");
     sb.append("        legacyUser = legacyUser.slice(0, -8);\n");
     sb.append("      }\n");
-    sb.append("      legacyUser = normalizeAllowedUserEmail(legacyUser);\n");
+    sb.append("      legacyUser = legacyUser.trim();\n");
     sb.append("      return legacyUser ? { email: legacyUser, enabled: legacyEnabled } : null;\n");
     sb.append("    }\n");
-    sb.append("    var email = normalizeAllowedUserEmail(user.email);\n");
+    sb.append("    var email = (user.email || '').trim();\n");
     sb.append("    if (!email) { return null; }\n");
     sb.append("    return { email: email, enabled: user.enabled !== false };\n");
     sb.append("  }\n");
