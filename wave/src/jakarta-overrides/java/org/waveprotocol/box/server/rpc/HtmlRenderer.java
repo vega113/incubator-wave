@@ -4571,8 +4571,9 @@ public final class HtmlRenderer {
 
     // Toggle flag
     sb.append("  window.toggleFlag = function(idx) {\n");
-    sb.append("    var payload = buildFlagPayload(flagsData[idx]);\n");
-    sb.append("    payload.enabled = !payload.enabled;\n");
+    sb.append("    var rowFlag = normalizeFlag(flagsData[idx]);\n");
+    sb.append("    var payload = buildFlagPayload(rowFlag);\n");
+    sb.append("    payload.enabled = !rowFlag.enabled;\n");
     sb.append("    saveFlag(payload, 'Flag toggled', { closeForm: false });\n");
     sb.append("  };\n");
 

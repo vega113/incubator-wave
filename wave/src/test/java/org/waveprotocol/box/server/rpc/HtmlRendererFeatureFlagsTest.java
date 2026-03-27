@@ -39,7 +39,9 @@ public final class HtmlRendererFeatureFlagsTest {
                 + "    flagForm.style.display = 'none';\n"
                 + "  });"));
     assertTrue(html.contains("var flag = buildFlagPayload(flagsData[flagIndex]);"));
-    assertTrue(html.contains("var payload = buildFlagPayload(flagsData[idx]);"));
+    assertTrue(html.contains("var rowFlag = normalizeFlag(flagsData[idx]);"));
+    assertTrue(html.contains("var payload = buildFlagPayload(rowFlag);"));
+    assertTrue(html.contains("payload.enabled = !rowFlag.enabled;"));
     assertTrue(html.contains("this.checked"));
     assertTrue(html.contains("syncEditingFlag(payload);"));
     assertTrue(html.contains("closeForm: false"));
