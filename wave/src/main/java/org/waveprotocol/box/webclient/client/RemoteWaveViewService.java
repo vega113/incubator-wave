@@ -30,7 +30,12 @@ import org.waveprotocol.box.common.comms.jso.ProtocolSubmitRequestJsoImpl;
 import org.waveprotocol.box.common.comms.jso.ProtocolWaveletUpdateJsoImpl;
 import org.waveprotocol.box.webclient.common.WaveletOperationSerializer;
 import org.waveprotocol.wave.client.common.util.ClientPercentEncoderDecoder;
+import org.waveprotocol.wave.client.events.ClientEvents;
 import org.waveprotocol.wave.client.events.Log;
+import org.waveprotocol.wave.client.events.NetworkStatusEvent;
+import org.waveprotocol.wave.client.events.NetworkStatusEvent.ConnectionStatus;
+import org.waveprotocol.wave.client.events.NetworkStatusEventHandler;
+import org.waveprotocol.wave.concurrencycontrol.channel.WaveViewDisconnectTracker;
 import org.waveprotocol.wave.concurrencycontrol.channel.WaveViewService;
 import org.waveprotocol.wave.concurrencycontrol.common.ResponseCode;
 import org.waveprotocol.wave.federation.ProtocolHashedVersion;
@@ -270,6 +275,7 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
   private final RemoteViewServiceMultiplexer mux;
   private final DocumentFactory<?> docFactory;
   private final VersionSignatureManager versions = new VersionSignatureManager();
+  private final WaveViewDisconnectTracker disconnectTracker = new WaveViewDisconnectTracker();
 
   /** Filter for client-side filtering. */
   // TODO: remove after Issue 124 is addressed.
@@ -293,6 +299,16 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
     this.waveId = waveId;
     this.mux = mux;
     this.docFactory = docFactory;
+    ClientEvents.get().addNetworkStatusEventHandler(new NetworkStatusEventHandler() {
+      @Override
+      public void onNetworkStatus(NetworkStatusEvent event) {
+        ConnectionStatus status = event.getStatus();
+        if (status == ConnectionStatus.DISCONNECTED || status == ConnectionStatus.NEVER_CONNECTED) {
+          stopOpenContext();
+          disconnectTracker.onSocketDisconnected();
+        }
+      }
+    });
   }
 
   //
@@ -311,6 +327,7 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
     newPrefixes.add("dummy");
     this.filter = IdFilter.of(filter.getIds(), newPrefixes);
     this.callback = callback;
+    disconnectTracker.onStreamOpened(callback);
 
     openContext = AsyncCallContext.start("ProtocolOpenRequest");
     // Optional initial viewport hints from flags
@@ -373,6 +390,8 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
   public void viewClose(final WaveId waveId, final String channelId, final CloseCallback callback) {
     Preconditions.checkArgument(this.waveId.equals(waveId));
     LOG.info("closing channel " + waveId);
+    stopOpenContext();
+    disconnectTracker.onStreamClosed();
     callback.onSuccess();
     mux.close(waveId, this);
   }
@@ -409,7 +428,7 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
         callback.onUpdate(deserialize(update));
       } else {
         if (update.hasMarker()) {
-          openContext.stop();
+          stopOpenContext();
         }
         callback.onUpdate(deserialize(update));
       }
@@ -418,6 +437,13 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
 
   private WaveViewServiceUpdateImpl deserialize(ProtocolWaveletUpdate update) {
     return new WaveViewServiceUpdateImpl(update);
+  }
+
+  private void stopOpenContext() {
+    if (openContext != null) {
+      openContext.stop();
+      openContext = null;
+    }
   }
 
   /** @return the target wavelet of an update. */
