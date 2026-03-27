@@ -157,6 +157,64 @@ public final class FeatureFlagServletTest {
   }
 
   @Test
+  public void postSaveAcceptsLegacyCommaSeparatedAllowedUsers() throws Exception {
+    StringWriter body = new StringWriter();
+    String[] contentType = new String[1];
+    JSONObject payload =
+        new JSONObject()
+            .put("name", "new-ui")
+            .put("description", "New UI")
+            .put("enabled", true)
+            .put("allowedUsers", "vega@supawave.ai,ops@supawave.ai:disabled");
+
+    servlet.doPost(request(payload.toString(), null), response(body, contentType));
+
+    FeatureFlag flag = store.get("new-ui");
+    assertEquals(Boolean.TRUE, flag.getAllowedUsers().get("vega@supawave.ai"));
+    assertEquals(Boolean.FALSE, flag.getAllowedUsers().get("ops@supawave.ai"));
+    assertEquals("application/json", contentType[0]);
+    assertTrue(body.toString().contains("\"ok\":true"));
+  }
+
+  @Test
+  public void postSaveRejectsUnsupportedAllowedUsersShape() throws Exception {
+    StringWriter body = new StringWriter();
+    String[] contentType = new String[1];
+    int[] status = new int[1];
+    JSONObject payload =
+        new JSONObject()
+            .put("name", "new-ui")
+            .put("description", "New UI")
+            .put("enabled", true)
+            .put("allowedUsers", new JSONObject().put("email", "vega@supawave.ai"));
+
+    servlet.doPost(request(payload.toString(), null), response(body, contentType, status));
+
+    assertEquals(HttpServletResponse.SC_BAD_REQUEST, status[0]);
+    assertEquals("application/json", contentType[0]);
+    assertTrue(body.toString().contains("allowedUsers must be a JSONArray or CSV string"));
+  }
+
+  @Test
+  public void postSaveRejectsOversizedBodyWith413() throws Exception {
+    StringWriter body = new StringWriter();
+    String[] contentType = new String[1];
+    int[] status = new int[1];
+    JSONObject payload =
+        new JSONObject()
+            .put("name", "new-ui")
+            .put("description", "x".repeat(5000))
+            .put("enabled", false)
+            .put("allowedUsers", new JSONArray());
+
+    servlet.doPost(request(payload.toString(), null), response(body, contentType, status));
+
+    assertEquals(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, status[0]);
+    assertEquals("application/json", contentType[0]);
+    assertTrue(body.toString().contains("Request body too large"));
+  }
+
+  @Test
   public void listReturnsLegacyAllowedUsersString() throws Exception {
     store.save(new FeatureFlag("new-ui", "New UI", false, allowedUsers()));
     StringWriter body = new StringWriter();
@@ -192,6 +250,11 @@ public final class FeatureFlagServletTest {
   }
 
   private static HttpServletResponse response(StringWriter body, String[] contentType) {
+    return response(body, contentType, null);
+  }
+
+  private static HttpServletResponse response(
+      StringWriter body, String[] contentType, int[] status) {
     PrintWriter writer = new PrintWriter(body);
     return (HttpServletResponse)
         Proxy.newProxyInstance(
@@ -203,7 +266,13 @@ public final class FeatureFlagServletTest {
                 contentType[0] = (String) args[0];
                 yield null;
               }
-              case "setCharacterEncoding", "setStatus" -> null;
+              case "setCharacterEncoding" -> null;
+              case "setStatus" -> {
+                if (status != null) {
+                  status[0] = (Integer) args[0];
+                }
+                yield null;
+              }
               case "sendError" -> {
                 throw new AssertionError("Unexpected sendError call");
               }

@@ -60,6 +60,7 @@ import java.util.Map;
 @SuppressWarnings("serial")
 public final class FeatureFlagServlet extends HttpServlet {
   private static final Log LOG = Log.get(FeatureFlagServlet.class);
+  private static final int MAX_REQUEST_BODY_CHARS = 4096;
 
   private final FeatureFlagStore store;
   private final FeatureFlagService service;
@@ -173,14 +174,16 @@ public final class FeatureFlagServlet extends HttpServlet {
     }
     String description = body.optString("description", "");
     boolean enabled = readBoolean(body.opt("enabled"));
-    Map<String, Boolean> allowedUsers = parseAllowedUsers(body.opt("allowedUsers"));
 
     try {
+      Map<String, Boolean> allowedUsers = parseAllowedUsers(body.opt("allowedUsers"));
       FeatureFlag flag = new FeatureFlag(name, description.trim(), enabled, allowedUsers);
       store.save(flag);
       service.refreshCache();
       setJsonUtf8(resp);
       resp.getWriter().write("{\"ok\":true}");
+    } catch (IllegalArgumentException e) {
+      sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
     } catch (PersistenceException e) {
       LOG.severe("Failed to save feature flag: " + name, e);
       sendJsonError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
@@ -265,7 +268,9 @@ public final class FeatureFlagServlet extends HttpServlet {
     BufferedReader reader = req.getReader();
     while ((n = reader.read(buf)) != -1) {
       sb.append(buf, 0, n);
-      if (sb.length() > 4096) break;
+      if (sb.length() > MAX_REQUEST_BODY_CHARS) {
+        throw new RequestBodyTooLargeException();
+      }
     }
     return sb.toString();
   }
@@ -277,6 +282,10 @@ public final class FeatureFlagServlet extends HttpServlet {
       throws IOException {
     try {
       return new JSONObject(readBody(req));
+    } catch (RequestBodyTooLargeException e) {
+      sendJsonError(resp, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE,
+          "Request body too large");
+      return null;
     } catch (RuntimeException e) {
       sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST, "Invalid JSON body");
       return null;
@@ -306,8 +315,9 @@ public final class FeatureFlagServlet extends HttpServlet {
       for (String part : csv.split(",")) {
         addAllowedUserString(allowedUsers, part);
       }
+      return allowedUsers;
     }
-    return allowedUsers;
+    throw new IllegalArgumentException("allowedUsers must be a JSONArray or CSV string");
   }
 
   private static boolean readBoolean(Object rawValue) {
@@ -380,6 +390,9 @@ public final class FeatureFlagServlet extends HttpServlet {
       return;
     }
     allowedUsers.put(email, enabled);
+  }
+
+  private static final class RequestBodyTooLargeException extends IOException {
   }
 
   private static void setJsonUtf8(HttpServletResponse resp) {
