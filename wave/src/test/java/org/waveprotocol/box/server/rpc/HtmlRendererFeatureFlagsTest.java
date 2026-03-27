@@ -31,10 +31,10 @@ public final class HtmlRendererFeatureFlagsTest {
     assertTrue(html.contains("toggleAllowedUser("));
     assertTrue(html.contains("normalizeAllowedUserEmail(legacyUser)"));
     assertTrue(html.contains("normalizeAllowedUserEmail(user.email)"));
-    assertTrue(html.contains("buildFlagPayload("));
+    assertTrue(html.contains("var flag = normalizeFlag(flagsData[flagIndex]);"));
+    assertTrue(html.contains("var f = normalizeFlag(flagsData[idx]);"));
     assertTrue(html.contains("this.checked"));
-    assertTrue(html.contains("flagUsersModel = cloneAllowedUsers(flag.allowedUsers);"));
-    assertTrue(html.contains("flagEnabledInput.checked = payload.enabled;"));
+    assertTrue(html.contains("syncEditingFlag(payload);"));
     assertTrue(html.contains("closeForm: false"));
     assertTrue(html.contains("resetFlagEditingState()"));
     assertTrue(
@@ -42,9 +42,11 @@ public final class HtmlRendererFeatureFlagsTest {
             "if (options.closeForm !== false) {\n"
                 + "          flagForm.style.display = 'none';\n"
                 + "          resetFlagEditingState();\n"
+                + "        } else {\n"
+                + "          syncEditingFlag(payload);\n"
                 + "        }"));
     assertTrue(html.contains("resetFlagEditingState();\n    flagForm.style.display = 'none';"));
-    assertTrue(html.contains("resetFlagEditingState();\n        fetchFlags();"));
+    assertTrue(html.contains("flagNameInput.value = flag.name;"));
     assertTrue(html.contains("return legacyUser ? { email: legacyUser, enabled: legacyEnabled } : null;"));
   }
 }

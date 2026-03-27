@@ -4371,6 +4371,17 @@ public final class HtmlRenderer {
     sb.append("    flagEditingName = null;\n");
     sb.append("  }\n");
 
+    sb.append("  function syncEditingFlag(flag) {\n");
+    sb.append("    if (flagEditingName !== flag.name) { return; }\n");
+    sb.append("    flagNameInput.value = flag.name;\n");
+    sb.append("    flagNameInput.disabled = true;\n");
+    sb.append("    flagDescInput.value = flag.description || '';\n");
+    sb.append("    flagEnabledInput.checked = !!flag.enabled;\n");
+    sb.append("    flagUsersInput.value = '';\n");
+    sb.append("    setFlagUsersModel(flag.allowedUsers || []);\n");
+    sb.append("    flagForm.style.display = 'block';\n");
+    sb.append("  }\n");
+
     sb.append("  function renderFlagUsersCell(users, flagIndex) {\n");
     sb.append("    var normalized = normalizeAllowedUsers(users);\n");
     sb.append("    if (!normalized.length) {\n");
@@ -4438,6 +4449,8 @@ public final class HtmlRenderer {
     sb.append("        if (options.closeForm !== false) {\n");
     sb.append("          flagForm.style.display = 'none';\n");
     sb.append("          resetFlagEditingState();\n");
+    sb.append("        } else {\n");
+    sb.append("          syncEditingFlag(payload);\n");
     sb.append("        }\n");
     sb.append("        fetchFlags();\n");
     sb.append("      }).catch(function(e){ showToast('Failed: ' + e.message, 'error'); });\n");
@@ -4538,14 +4551,9 @@ public final class HtmlRenderer {
     sb.append("  };\n");
 
     sb.append("  window.toggleAllowedUser = function(flagIndex, userIndex, nextEnabled) {\n");
-    sb.append("    var flag = buildFlagPayload(flagsData[flagIndex]);\n");
+    sb.append("    var flag = normalizeFlag(flagsData[flagIndex]);\n");
     sb.append("    if (!flag.allowedUsers[userIndex]) { return; }\n");
     sb.append("    flag.allowedUsers[userIndex].enabled = nextEnabled;\n");
-    sb.append("    flagsData[flagIndex] = normalizeFlag(flag);\n");
-    sb.append("    if (flagForm.style.display !== 'none' && flagEditingName === flag.name) {\n");
-    sb.append("      flagUsersModel = cloneAllowedUsers(flag.allowedUsers);\n");
-    sb.append("      renderFlagUsersEditor();\n");
-    sb.append("    }\n");
     sb.append("    saveFlag({\n");
     sb.append("      name: flag.name,\n");
     sb.append("      description: flag.description || '',\n");
@@ -4556,17 +4564,13 @@ public final class HtmlRenderer {
 
     // Toggle flag
     sb.append("  window.toggleFlag = function(idx) {\n");
-    sb.append("    var f = buildFlagPayload(flagsData[idx]);\n");
+    sb.append("    var f = normalizeFlag(flagsData[idx]);\n");
     sb.append("    var payload = {\n");
     sb.append("      name: f.name,\n");
     sb.append("      description: f.description || '',\n");
     sb.append("      enabled: !f.enabled,\n");
     sb.append("      allowedUsers: cloneAllowedUsers(f.allowedUsers)\n");
     sb.append("    };\n");
-    sb.append("    flagsData[idx] = normalizeFlag(payload);\n");
-    sb.append("    if (flagForm.style.display !== 'none' && flagEditingName === f.name) {\n");
-    sb.append("      flagEnabledInput.checked = payload.enabled;\n");
-    sb.append("    }\n");
     sb.append("    saveFlag(payload, 'Flag toggled', { closeForm: false });\n");
     sb.append("  };\n");
 

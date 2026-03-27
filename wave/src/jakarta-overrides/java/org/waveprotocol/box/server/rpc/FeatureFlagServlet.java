@@ -306,7 +306,7 @@ public final class FeatureFlagServlet extends HttpServlet {
           putAllowedUser(
               allowedUsers,
               normalizeAllowedUserEmail(userJson.optString("email", null)),
-              readBoolean(userJson.opt("enabled"), true));
+              readAllowedUserEnabled(userJson));
         } else if (value instanceof String userString) {
           addAllowedUserString(allowedUsers, userString);
         } else {
@@ -341,6 +341,26 @@ public final class FeatureFlagServlet extends HttpServlet {
       }
     }
     throw new IllegalArgumentException("enabled must be a boolean");
+  }
+
+  private static boolean readAllowedUserEnabled(JSONObject userJson) {
+    Object rawValue = userJson.opt("enabled");
+    if (rawValue == null || rawValue == JSONObject.NULL) {
+      return true;
+    }
+    if (rawValue instanceof Boolean booleanValue) {
+      return booleanValue;
+    }
+    if (rawValue instanceof String stringValue) {
+      String normalized = stringValue.trim();
+      if ("true".equalsIgnoreCase(normalized)) {
+        return true;
+      }
+      if ("false".equalsIgnoreCase(normalized)) {
+        return false;
+      }
+    }
+    throw new IllegalArgumentException("allowedUsers.enabled must be a boolean");
   }
 
   private static IllegalArgumentException unexpectedAllowedUsersElement(int index, Object value) {
