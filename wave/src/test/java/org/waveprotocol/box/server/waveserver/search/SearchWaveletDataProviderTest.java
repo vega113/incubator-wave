@@ -53,6 +53,6 @@ public final class SearchWaveletDataProviderTest extends TestCase {
     String xml = DocOpUtil.toXmlString(DocOpUtil.asInitialization(docOp));
 
     assertTrue(xml.contains("total=\"5\""));
-    assertFalse(xml.contains("total=\"1\""));
+    assertFalse(xml.contains("total=\"2\""));
   }
 }
