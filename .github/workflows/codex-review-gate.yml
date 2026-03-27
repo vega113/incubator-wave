@@ -136,19 +136,24 @@ jobs:
                 continue;
               }
 
-              const workflowRef = pullRequest.head.ref;
+              const workflowRef = context.payload.repository?.default_branch ?? "main";
 
-              await github.rest.actions.createWorkflowDispatch({
-                owner,
-                repo,
-                workflow_id: workflowId,
-                ref: workflowRef,
-                inputs: {
-                  pr_number: String(pullRequest.number)
-                }
-              });
+              try {
+                await github.rest.actions.createWorkflowDispatch({
+                  owner,
+                  repo,
+                  workflow_id: workflowId,
+                  ref: workflowRef,
+                  inputs: {
+                    pr_number: String(pullRequest.number)
+                  }
+                });
 
-              core.info(`Workflow-dispatch Codex Review Gate reevaluation for PR #${pullRequest.number}`);
+                core.info(`Workflow-dispatch Codex Review Gate reevaluation for PR #${pullRequest.number}`);
+              } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                core.warning(`Failed to redispatch Codex Review Gate for PR #${pullRequest.number}: ${errorMessage}`);
+              }
             }
 
   codex-review-gate:
@@ -176,7 +181,6 @@ jobs:
     permissions:
       checks: read
       contents: read
-      actions: write
       pull-requests: read
     steps:
       - name: Evaluate review gate
