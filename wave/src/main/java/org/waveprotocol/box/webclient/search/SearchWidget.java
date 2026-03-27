@@ -26,6 +26,7 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.SpanElement;
 import com.google.gwt.event.dom.client.ChangeEvent;
 import com.google.gwt.event.dom.client.ChangeHandler;
+import com.google.gwt.event.dom.client.KeyCodes;
 import com.google.gwt.event.dom.client.KeyUpEvent;
 import com.google.gwt.event.dom.client.KeyUpHandler;
 import com.google.gwt.resources.client.ClientBundle;
@@ -85,10 +86,11 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
 
   private final static Binder BINDER = GWT.create(Binder.class);
 
+  private String lastSubmittedQuery;
   private boolean suppressNextChange;
 
-  @UiField
-  TextBox query;
+  @UiField(provided = true)
+  final InputAwareTextBox query = new InputAwareTextBox();
   @UiField
   Element helpButton;
   @UiField
@@ -144,6 +146,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     }
     query.addChangeHandler(this);
     query.addKeyUpHandler(this);
+    query.sinkBitlessEvent("input");
     initHelpPanel();
   }
 
@@ -241,34 +244,82 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
 
   @Override
   public void setQuery(String text) {
-    query.setValue(SearchPresenter.normalizeSearchQuery(text));
+    query.setValue(text);
   }
 
   @Override
   public void onChange(ChangeEvent event) {
-    if (suppressNextChange && SearchPresenter.DEFAULT_SEARCH.equals(query.getValue())) {
-      suppressNextChange = false;
-      return;
+    String currentQuery = query.getValue();
+    boolean suppressChange = shouldSuppressChange(currentQuery);
+    if (!suppressChange) {
+      lastSubmittedQuery = null;
+      if (isBlank(currentQuery)) {
+        query.setValue(SearchPresenter.DEFAULT_SEARCH);
+      }
+      onQuery();
     }
-    if (query.getValue() == null || query.getValue().trim().isEmpty()) {
-      query.setValue(SearchPresenter.DEFAULT_SEARCH);
-    }
-    suppressNextChange = false;
-    onQuery();
   }
 
   @Override
   public void onKeyUp(KeyUpEvent event) {
-    if (query.getValue() == null || query.getValue().trim().isEmpty()) {
-      query.setValue(SearchPresenter.DEFAULT_SEARCH);
-      suppressNextChange = true;
-      onQuery();
+    if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER) {
+      submitQuery();
     }
+  }
+
+  private void submitQuery() {
+    String submittedQuery = SearchPresenter.normalizeSearchQuery(query.getValue());
+    lastSubmittedQuery = submittedQuery;
+    suppressNextChange = false;
+    if (SearchPresenter.DEFAULT_SEARCH.equals(submittedQuery)) {
+      query.setValue(submittedQuery);
+      suppressNextChange = true;
+      lastSubmittedQuery = null;
+    }
+    onQuery();
+  }
+
+  private void handleInputEvent() {
+    String currentQuery = query.getValue();
+    if (isBlank(currentQuery)) {
+      submitQuery();
+    } else {
+      suppressNextChange = false;
+      lastSubmittedQuery = null;
+    }
+  }
+
+  private boolean isBlank(String text) {
+    return text == null || text.trim().isEmpty();
+  }
+
+  private boolean shouldSuppressChange(String queryText) {
+    boolean suppressChange = false;
+    if (suppressNextChange && SearchPresenter.DEFAULT_SEARCH.equals(queryText)) {
+      suppressNextChange = false;
+      lastSubmittedQuery = null;
+      suppressChange = true;
+    } else if (queryText != null && queryText.equals(lastSubmittedQuery)) {
+      lastSubmittedQuery = null;
+      suppressChange = true;
+    }
+    return suppressChange;
   }
 
   private void onQuery() {
     if (listener != null) {
       listener.onQueryEntered();
+    }
+  }
+
+  private final class InputAwareTextBox extends TextBox {
+
+    @Override
+    public void onBrowserEvent(Event event) {
+      super.onBrowserEvent(event);
+      if (event.getTypeInt() == Event.ONINPUT) {
+        handleInputEvent();
+      }
     }
   }
 }
