@@ -29,8 +29,12 @@ public final class HtmlRendererFeatureFlagsTest {
 
     assertTrue(html.contains("e.g. vega (will become vega@supawave.ai)"));
     assertTrue(html.contains("toggleAllowedUser("));
+    assertTrue(html.contains("normalizeAllowedUserEmail(legacyUser)"));
+    assertTrue(html.contains("normalizeAllowedUserEmail(user.email)"));
     assertTrue(html.contains("buildFlagPayload("));
     assertTrue(html.contains("this.checked"));
+    assertTrue(html.contains("flagUsersModel = cloneAllowedUsers(flag.allowedUsers);"));
+    assertTrue(html.contains("flagEnabledInput.checked = payload.enabled;"));
     assertTrue(html.contains("closeForm: false"));
     assertTrue(html.contains("resetFlagEditingState()"));
     assertTrue(html.contains("resetFlagEditingState();\n    flagForm.style.display = 'none';"));

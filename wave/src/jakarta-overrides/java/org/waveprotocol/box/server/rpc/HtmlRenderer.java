@@ -4310,9 +4310,10 @@ public final class HtmlRenderer {
     sb.append("      } else if (legacyUser.slice(-8) === ':enabled') {\n");
     sb.append("        legacyUser = legacyUser.slice(0, -8);\n");
     sb.append("      }\n");
+    sb.append("      legacyUser = normalizeAllowedUserEmail(legacyUser);\n");
     sb.append("      return legacyUser ? { email: legacyUser, enabled: legacyEnabled } : null;\n");
     sb.append("    }\n");
-    sb.append("    var email = (user.email || '').trim();\n");
+    sb.append("    var email = normalizeAllowedUserEmail(user.email);\n");
     sb.append("    if (!email) { return null; }\n");
     sb.append("    return { email: email, enabled: user.enabled !== false };\n");
     sb.append("  }\n");
@@ -4541,6 +4542,10 @@ public final class HtmlRenderer {
     sb.append("    if (!flag.allowedUsers[userIndex]) { return; }\n");
     sb.append("    flag.allowedUsers[userIndex].enabled = nextEnabled;\n");
     sb.append("    flagsData[flagIndex] = normalizeFlag(flag);\n");
+    sb.append("    if (flagForm.style.display !== 'none' && flagEditingName === flag.name) {\n");
+    sb.append("      flagUsersModel = cloneAllowedUsers(flag.allowedUsers);\n");
+    sb.append("      renderFlagUsersEditor();\n");
+    sb.append("    }\n");
     sb.append("    saveFlag({\n");
     sb.append("      name: flag.name,\n");
     sb.append("      description: flag.description || '',\n");
@@ -4559,6 +4564,9 @@ public final class HtmlRenderer {
     sb.append("      allowedUsers: cloneAllowedUsers(f.allowedUsers)\n");
     sb.append("    };\n");
     sb.append("    flagsData[idx] = normalizeFlag(payload);\n");
+    sb.append("    if (flagForm.style.display !== 'none' && flagEditingName === f.name) {\n");
+    sb.append("      flagEnabledInput.checked = payload.enabled;\n");
+    sb.append("    }\n");
     sb.append("    saveFlag(payload, 'Flag toggled', { closeForm: false });\n");
     sb.append("  };\n");
 

@@ -304,7 +304,7 @@ public final class FeatureFlagServlet extends HttpServlet {
           putAllowedUser(
               allowedUsers,
               normalizeAllowedUserEmail(userJson.optString("email", null)),
-              readBoolean(userJson.opt("enabled")));
+              readBoolean(userJson.opt("enabled"), true));
         } else if (value instanceof String userString) {
           addAllowedUserString(allowedUsers, userString);
         } else {
@@ -322,14 +322,17 @@ public final class FeatureFlagServlet extends HttpServlet {
     throw new IllegalArgumentException("allowedUsers must be a JSONArray or CSV string");
   }
 
-  private static boolean readBoolean(Object rawValue) {
+  private static boolean readBoolean(Object rawValue, boolean defaultValue) {
+    if (rawValue == null || rawValue == JSONObject.NULL) {
+      return defaultValue;
+    }
     if (rawValue instanceof Boolean booleanValue) {
       return booleanValue;
     }
     if (rawValue instanceof String stringValue) {
       return "true".equalsIgnoreCase(stringValue.trim());
     }
-    return false;
+    return defaultValue;
   }
 
   private static IllegalArgumentException unexpectedAllowedUsersElement(int index, Object value) {
