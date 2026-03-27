@@ -33,6 +33,7 @@ import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
+import com.google.gwt.user.client.DOM;
 import com.google.gwt.user.client.Event;
 import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
@@ -244,12 +245,17 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
 
   @Override
   public void setQuery(String text) {
-    query.setValue(text);
+    if (!shouldDeferDefaultQueryUpdate(text)) {
+      query.setValue(text);
+    }
   }
 
   @Override
   public void onChange(ChangeEvent event) {
     String currentQuery = query.getValue();
+    if (shouldCommitDeferredDefault(currentQuery)) {
+      return;
+    }
     if (!shouldSuppressChange(currentQuery)) {
       submitQuery(currentQuery);
     }
@@ -264,13 +270,9 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
 
   private void submitQuery(String rawQuery) {
     String submittedQuery = SearchPresenter.normalizeSearchQuery(rawQuery);
-    lastSubmittedQuery = submittedQuery;
-    suppressNextChange = false;
-    if (SearchPresenter.DEFAULT_SEARCH.equals(submittedQuery)) {
-      query.setValue(submittedQuery);
-      suppressNextChange = true;
-      lastSubmittedQuery = null;
-    }
+    boolean defaultQuery = SearchPresenter.DEFAULT_SEARCH.equals(submittedQuery);
+    lastSubmittedQuery = defaultQuery ? null : submittedQuery;
+    suppressNextChange = defaultQuery;
     onQuery();
   }
 
@@ -289,16 +291,25 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   }
 
   private boolean shouldSuppressChange(String queryText) {
-    boolean suppressChange = false;
-    if (suppressNextChange && SearchPresenter.DEFAULT_SEARCH.equals(queryText)) {
-      suppressNextChange = false;
+    boolean suppressChange = queryText != null && queryText.equals(lastSubmittedQuery);
+    if (suppressChange) {
       lastSubmittedQuery = null;
-      suppressChange = true;
-    } else if (queryText != null && queryText.equals(lastSubmittedQuery)) {
-      lastSubmittedQuery = null;
-      suppressChange = true;
     }
     return suppressChange;
+  }
+
+  private boolean shouldCommitDeferredDefault(String queryText) {
+    boolean commitDeferredDefault = suppressNextChange && isBlank(queryText);
+    if (commitDeferredDefault) {
+      query.setValue(SearchPresenter.DEFAULT_SEARCH);
+      suppressNextChange = false;
+      lastSubmittedQuery = null;
+    }
+    return commitDeferredDefault;
+  }
+
+  private boolean shouldDeferDefaultQueryUpdate(String text) {
+    return suppressNextChange && SearchPresenter.DEFAULT_SEARCH.equals(text);
   }
 
   private void onQuery() {
@@ -312,7 +323,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     @Override
     public void onBrowserEvent(Event event) {
       super.onBrowserEvent(event);
-      if (event.getTypeInt() == Event.ONINPUT) {
+      if ("input".equals(DOM.eventGetTypeString(event))) {
         handleInputEvent();
       }
     }
