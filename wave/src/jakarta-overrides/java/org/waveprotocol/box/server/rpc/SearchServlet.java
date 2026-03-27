@@ -36,6 +36,7 @@ import org.waveprotocol.box.server.robots.OperationContextImpl;
 import org.waveprotocol.box.server.robots.OperationServiceRegistry;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.robots.util.OperationUtil;
+import org.waveprotocol.box.server.waveserver.search.SearchWaveletSnapshotPublisher;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.box.server.authentication.WebSession;
@@ -62,17 +63,20 @@ public class SearchServlet extends HttpServlet {
   private final WaveletProvider waveletProvider;
   private final ConversationUtil conversationUtil;
   private final ProtoSerializer serializer;
+  private final SearchWaveletSnapshotPublisher snapshotPublisher;
 
   @Inject
   public SearchServlet(SessionManager sessionManager, EventDataConverterManager converterManager,
                        @Named("DataApiRegistry") OperationServiceRegistry operationRegistry, WaveletProvider waveletProvider,
-                       ConversationUtil conversationUtil, ProtoSerializer serializer) {
+                       ConversationUtil conversationUtil, ProtoSerializer serializer,
+                       SearchWaveletSnapshotPublisher snapshotPublisher) {
     this.sessionManager = sessionManager;
     this.converterManager = converterManager;
     this.operationRegistry = operationRegistry;
     this.waveletProvider = waveletProvider;
     this.conversationUtil = conversationUtil;
     this.serializer = serializer;
+    this.snapshotPublisher = snapshotPublisher;
   }
 
   @Override
@@ -96,6 +100,9 @@ public class SearchServlet extends HttpServlet {
       return;
     }
     SearchResult searchResult = performSearch(searchRequest, user);
+    if (snapshotPublisher != null) {
+      snapshotPublisher.publishBootstrap(user, searchRequest.getQuery(), searchResult);
+    }
     int totalGuess = computeTotalResultsNumberGuess(searchRequest, searchResult);
     SearchResponse searchResponse = serializeSearchResult(searchResult, totalGuess);
     String ctx = "user=" + user.getAddress() + ", query=\"" + searchRequest.getQuery() +

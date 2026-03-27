@@ -57,7 +57,7 @@ public class SearchServletJakartaIT {
     ServletContextHandler ctx = new ServletContextHandler(ServletContextHandler.SESSIONS);
     ctx.setContextPath("/");
     ctx.addServlet(new org.eclipse.jetty.ee10.servlet.ServletHolder(
-        new TestSearchServlet(sm, conv, reg, wprov, convUtil, serializer)), "/search/*");
+        new TestSearchServlet(sm, conv, reg, wprov, convUtil, serializer, null)), "/search/*");
     server.setHandler(ctx);
     server.start();
     port = c.getLocalPort();
@@ -71,8 +71,9 @@ public class SearchServletJakartaIT {
   // Override performSearch to avoid deep Operation pipeline stubbing
   public static class TestSearchServlet extends SearchServlet {
     public TestSearchServlet(SessionManager sm, EventDataConverterManager conv, OperationServiceRegistry reg,
-                             WaveletProvider wprov, ConversationUtil convUtil, ProtoSerializer serializer) {
-      super(sm, conv, reg, wprov, convUtil, serializer);
+                             WaveletProvider wprov, ConversationUtil convUtil, ProtoSerializer serializer,
+                             org.waveprotocol.box.server.waveserver.search.SearchWaveletSnapshotPublisher snapshotPublisher) {
+      super(sm, conv, reg, wprov, convUtil, serializer, snapshotPublisher);
     }
     @Override
     protected com.google.wave.api.SearchResult performSearch(org.waveprotocol.box.search.SearchProto.SearchRequest req,
@@ -117,7 +118,7 @@ public class SearchServletJakartaIT {
     ServletContextHandler ctx = new ServletContextHandler(ServletContextHandler.SESSIONS);
     ctx.setContextPath("/");
     ctx.addServlet(new org.eclipse.jetty.ee10.servlet.ServletHolder(
-        new TestSearchServlet(sm, conv, reg, wprov, convUtil, throwing)), "/search/*");
+        new TestSearchServlet(sm, conv, reg, wprov, convUtil, throwing, null)), "/search/*");
     srv.setHandler(ctx);
     srv.start();
     int p = cc.getLocalPort();
