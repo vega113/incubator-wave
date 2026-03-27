@@ -246,7 +246,7 @@ public class WaveDigester {
     }
     int blipCount = 0;
     long lastModified = -1;
-    int unreadCount = countUnread(convWavelet, conversationalWavelets, supplement, conversations,
+    int unreadCount = countUnread(rawWaveletData, conversationalWavelets, supplement, conversations,
         waveletAdapters);
     for (ObservableWaveletData conversationalWavelet : conversationalWavelets) {
       ObservableConversation conversation;
@@ -271,7 +271,7 @@ public class WaveDigester {
         rawWaveletData.getCreationTime(), unreadCount, blipCount);
   }
 
-  private int countUnread(ObservableWaveletData convWavelet,
+  private int countUnread(WaveletData convWavelet,
       Iterable<? extends ObservableWaveletData> conversationalWavelets,
       SupplementedWave supplement, ObservableConversationView conversations,
       Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {

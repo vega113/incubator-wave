@@ -59,11 +59,11 @@ import org.waveprotocol.wave.model.operation.wave.WaveletOperationContext;
 import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.version.HashedVersionFactory;
 import org.waveprotocol.wave.model.version.HashedVersionZeroFactoryImpl;
-import org.waveprotocol.wave.model.wave.OpBasedWavelet;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
 import org.waveprotocol.wave.model.wave.data.WaveViewData;
+import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
 
 import java.util.Arrays;
