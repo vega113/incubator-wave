@@ -34,9 +34,10 @@ jobs:
     if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       checks: read
       contents: read
-      issues: write
+      issues: read
       pull-requests: read
     steps:
       - name: Re-dispatch eligible PR gates
@@ -53,7 +54,7 @@ jobs:
               "chatgpt-codex-connector[bot]",
               "openai-codex",
               "openai-codex[bot]"
-            ]);
+            ].map((login) => login.toLowerCase()));
 
             const isCodexReactionLogin = (login) => {
               const normalized = (login ?? "").toLowerCase();
@@ -135,14 +136,19 @@ jobs:
                 continue;
               }
 
-              await github.rest.issues.createComment({
+              const workflowRef = context.ref.replace(/^refs\/heads\//, "");
+
+              await github.rest.actions.createWorkflowDispatch({
                 owner,
                 repo,
-                issue_number: pullRequest.number,
-                body: "/codex-review-gate\n\nScheduled reevaluation after the 5 minute CodeRabbit grace window."
+                workflow_id: workflowId,
+                ref: workflowRef,
+                inputs: {
+                  pr_number: String(pullRequest.number)
+                }
               });
 
-              core.info(`Comment-triggered Codex Review Gate reevaluation for PR #${pullRequest.number}`);
+              core.info(`Workflow-dispatch Codex Review Gate reevaluation for PR #${pullRequest.number}`);
             }
 
   codex-review-gate:
@@ -179,11 +185,12 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const prNumber =
+            const prNumberInput =
               context.payload.inputs?.pr_number ??
               context.payload.pull_request?.number ??
               context.payload.issue?.number ??
               context.payload.review_thread?.pull_request?.number;
+            const prNumber = Number(prNumberInput);
             const reviewGracePeriodMs = 5 * 60 * 1000;
             const codeRabbitNames = new Set(["CodeRabbit", "CodeRabbit - Review completed"]);
             const codexReactionLogins = new Set([
@@ -191,7 +198,7 @@ jobs:
               "chatgpt-codex-connector[bot]",
               "openai-codex",
               "openai-codex[bot]"
-            ]);
+            ].map((login) => login.toLowerCase()));
 
             const isCodexReactionLogin = (login) => {
               const normalized = (login ?? "").toLowerCase();
@@ -236,6 +243,11 @@ jobs:
                 }
               }
             `;
+
+            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+              core.setFailed(`Invalid pull request number: ${prNumberInput}`);
+              return;
+            }
 
             const result = await github.graphql(query, { owner, repo, number: prNumber });
             const pullRequest = result.repository.pullRequest;
