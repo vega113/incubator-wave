@@ -8,11 +8,11 @@ public final class SearchWidgetQueryStateTest extends TestCase {
 
   public void testShouldClearDeferredDefaultQueryUpdateForNonDefaultQuery() {
     assertTrue(SearchWidgetQueryState.shouldClearDeferredDefaultQueryUpdate(
-        true, "creator:bob"));
+        true, "creator:bob", "in:inbox"));
   }
 
   public void testShouldNotClearDeferredDefaultQueryUpdateForDefaultQuery() {
     assertFalse(SearchWidgetQueryState.shouldClearDeferredDefaultQueryUpdate(
-        true, "in:inbox"));
+        true, "in:inbox", "in:inbox"));
   }
 }

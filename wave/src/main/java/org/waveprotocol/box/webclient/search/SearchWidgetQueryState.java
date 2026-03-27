@@ -6,7 +6,7 @@ public final class SearchWidgetQueryState {
   }
 
   public static boolean shouldClearDeferredDefaultQueryUpdate(
-      boolean suppressNextChange, String text) {
-    return suppressNextChange && !SearchPresenter.DEFAULT_SEARCH.equals(text);
+      boolean suppressNextChange, String text, String defaultSearch) {
+    return suppressNextChange && !defaultSearch.equals(text);
   }
 }
