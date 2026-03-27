@@ -136,27 +136,6 @@ public final class FeatureFlagServletTest {
   }
 
   @Test
-  public void postSaveDefaultsMissingAllowedUserEnabledToTrue() throws Exception {
-    StringWriter body = new StringWriter();
-    String[] contentType = new String[1];
-    JSONObject payload =
-        new JSONObject()
-            .put("name", "new-ui")
-            .put("description", "New UI")
-            .put("enabled", false)
-            .put(
-                "allowedUsers",
-                new JSONArray().put(new JSONObject().put("email", "vega")));
-
-    servlet.doPost(request(payload.toString(), null), response(body, contentType));
-
-    FeatureFlag flag = store.get("new-ui");
-    assertEquals(Boolean.TRUE, flag.getAllowedUsers().get("vega@supawave.ai"));
-    assertEquals("application/json", contentType[0]);
-    assertTrue(body.toString().contains("\"ok\":true"));
-  }
-
-  @Test
   public void postSaveAcceptsLegacyCommaSeparatedAllowedUsers() throws Exception {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
@@ -200,10 +179,14 @@ public final class FeatureFlagServletTest {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
     int[] status = new int[1];
+    StringBuilder description = new StringBuilder();
+    for (int i = 0; i < 5000; i++) {
+      description.append('x');
+    }
     JSONObject payload =
         new JSONObject()
             .put("name", "new-ui")
-            .put("description", "x".repeat(5000))
+            .put("description", description.toString())
             .put("enabled", false)
             .put("allowedUsers", new JSONArray());
 
@@ -215,7 +198,7 @@ public final class FeatureFlagServletTest {
   }
 
   @Test
-  public void listReturnsLegacyAllowedUsersString() throws Exception {
+  public void listReturnsStructuredAllowedUsers() throws Exception {
     store.save(new FeatureFlag("new-ui", "New UI", false, allowedUsers()));
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];
@@ -224,10 +207,13 @@ public final class FeatureFlagServletTest {
 
     JSONObject payload = new JSONObject(body.toString());
     JSONArray flags = payload.getJSONArray("flags");
+    JSONArray allowedUsers = flags.getJSONObject(0).getJSONArray("allowedUsers");
+
     assertEquals("application/json", contentType[0]);
-    assertEquals(
-        "vega@supawave.ai:enabled,ops@supawave.ai:disabled",
-        flags.getJSONObject(0).getString("allowedUsers"));
+    assertEquals("vega@supawave.ai", allowedUsers.getJSONObject(0).getString("email"));
+    assertTrue(allowedUsers.getJSONObject(0).getBoolean("enabled"));
+    assertEquals("ops@supawave.ai", allowedUsers.getJSONObject(1).getString("email"));
+    assertFalse(allowedUsers.getJSONObject(1).getBoolean("enabled"));
   }
 
   private static HttpServletRequest request(String body, String pathInfo) {
