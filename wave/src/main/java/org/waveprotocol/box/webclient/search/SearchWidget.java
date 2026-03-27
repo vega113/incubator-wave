@@ -219,7 +219,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
         query.setValue(example.getInnerText());
         helpPanel.getStyle().setProperty("display", "none");
         helpBackdrop.getStyle().setProperty("display", "none");
-        onQuery();
+        submitQuery(query.getValue());
       }
     });
   }
@@ -250,25 +250,20 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   @Override
   public void onChange(ChangeEvent event) {
     String currentQuery = query.getValue();
-    boolean suppressChange = shouldSuppressChange(currentQuery);
-    if (!suppressChange) {
-      lastSubmittedQuery = null;
-      if (isBlank(currentQuery)) {
-        query.setValue(SearchPresenter.DEFAULT_SEARCH);
-      }
-      onQuery();
+    if (!shouldSuppressChange(currentQuery)) {
+      submitQuery(currentQuery);
     }
   }
 
   @Override
   public void onKeyUp(KeyUpEvent event) {
     if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER) {
-      submitQuery();
+      submitQuery(query.getValue());
     }
   }
 
-  private void submitQuery() {
-    String submittedQuery = SearchPresenter.normalizeSearchQuery(query.getValue());
+  private void submitQuery(String rawQuery) {
+    String submittedQuery = SearchPresenter.normalizeSearchQuery(rawQuery);
     lastSubmittedQuery = submittedQuery;
     suppressNextChange = false;
     if (SearchPresenter.DEFAULT_SEARCH.equals(submittedQuery)) {
@@ -282,7 +277,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   private void handleInputEvent() {
     String currentQuery = query.getValue();
     if (isBlank(currentQuery)) {
-      submitQuery();
+      submitQuery(currentQuery);
     } else {
       suppressNextChange = false;
       lastSubmittedQuery = null;
