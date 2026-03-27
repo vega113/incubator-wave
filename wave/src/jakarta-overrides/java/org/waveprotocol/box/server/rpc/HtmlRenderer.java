@@ -4310,10 +4310,9 @@ public final class HtmlRenderer {
     sb.append("      } else if (legacyUser.slice(-8) === ':enabled') {\n");
     sb.append("        legacyUser = legacyUser.slice(0, -8);\n");
     sb.append("      }\n");
-    sb.append("      var legacyEmail = normalizeAllowedUserEmail(legacyUser);\n");
-    sb.append("      return legacyEmail ? { email: legacyEmail, enabled: legacyEnabled } : null;\n");
+    sb.append("      return legacyUser ? { email: legacyUser, enabled: legacyEnabled } : null;\n");
     sb.append("    }\n");
-    sb.append("    var email = normalizeAllowedUserEmail(user.email || '');\n");
+    sb.append("    var email = (user.email || '').trim();\n");
     sb.append("    if (!email) { return null; }\n");
     sb.append("    return { email: email, enabled: user.enabled !== false };\n");
     sb.append("  }\n");
@@ -4377,7 +4376,7 @@ public final class HtmlRenderer {
     sb.append("      var user = normalized[i];\n");
     sb.append("      html += '<div style=\"display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;\">';\n");
     sb.append("      html += '<span style=\"font-size:12px;word-break:break-all;\">' + esc(user.email) + '</span>';\n");
-    sb.append("      html += '<label style=\"font-size:12px;white-space:nowrap;\"><input type=\"checkbox\" onchange=\"toggleAllowedUser(' + flagIndex + ',' + i + ')\"' + (user.enabled ? ' checked' : '') + '> enabled</label>';\n");
+    sb.append("      html += '<label style=\"font-size:12px;white-space:nowrap;\"><input type=\"checkbox\" onchange=\"toggleAllowedUser(' + flagIndex + ',' + i + ', this.checked)\"' + (user.enabled ? ' checked' : '') + '> enabled</label>';\n");
     sb.append("      html += '</div>';\n");
     sb.append("    }\n");
     sb.append("    return html;\n");
@@ -4413,13 +4412,27 @@ public final class HtmlRenderer {
     sb.append("    renderFlagUsersEditor();\n");
     sb.append("  }\n");
 
-    sb.append("  function saveFlag(payload, successMessage) {\n");
+    sb.append("  function buildFlagPayload(baseFlag) {\n");
+    sb.append("    var flag = normalizeFlag(baseFlag);\n");
+    sb.append("    if (flagEditingName === flag.name) {\n");
+    sb.append("      addPendingFlagUsers();\n");
+    sb.append("      flag.description = flagDescInput.value.trim();\n");
+    sb.append("      flag.enabled = flagEnabledInput.checked;\n");
+    sb.append("      flag.allowedUsers = cloneAllowedUsers(flagUsersModel);\n");
+    sb.append("    }\n");
+    sb.append("    return flag;\n");
+    sb.append("  }\n");
+
+    sb.append("  function saveFlag(payload, successMessage, options) {\n");
+    sb.append("    options = options || {};\n");
     sb.append("    fetch('/admin/flags', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })\n");
     sb.append("      .then(function(r){return r.json();})\n");
     sb.append("      .then(function(data){\n");
     sb.append("        if (data.error) { showToast(data.error, 'error'); return; }\n");
     sb.append("        showToast(successMessage, 'success');\n");
-    sb.append("        flagForm.style.display = 'none';\n");
+    sb.append("        if (options.closeForm !== false) {\n");
+    sb.append("          flagForm.style.display = 'none';\n");
+    sb.append("        }\n");
     sb.append("        fetchFlags();\n");
     sb.append("      }).catch(function(e){ showToast('Failed: ' + e.message, 'error'); });\n");
     sb.append("  }\n");
@@ -4517,27 +4530,30 @@ public final class HtmlRenderer {
     sb.append("    renderFlagUsersEditor();\n");
     sb.append("  };\n");
 
-    sb.append("  window.toggleAllowedUser = function(flagIndex, userIndex) {\n");
-    sb.append("    var flag = normalizeFlag(flagsData[flagIndex]);\n");
-    sb.append("    flag.allowedUsers[userIndex].enabled = !flag.allowedUsers[userIndex].enabled;\n");
+    sb.append("  window.toggleAllowedUser = function(flagIndex, userIndex, nextEnabled) {\n");
+    sb.append("    var flag = buildFlagPayload(flagsData[flagIndex]);\n");
+    sb.append("    if (!flag.allowedUsers[userIndex]) { return; }\n");
+    sb.append("    flag.allowedUsers[userIndex].enabled = nextEnabled;\n");
+    sb.append("    flagsData[flagIndex] = normalizeFlag(flag);\n");
     sb.append("    saveFlag({\n");
     sb.append("      name: flag.name,\n");
     sb.append("      description: flag.description || '',\n");
     sb.append("      enabled: flag.enabled,\n");
     sb.append("      allowedUsers: cloneAllowedUsers(flag.allowedUsers)\n");
-    sb.append("    }, 'User access updated');\n");
+    sb.append("    }, 'User access updated', { closeForm: false });\n");
     sb.append("  };\n");
 
     // Toggle flag
     sb.append("  window.toggleFlag = function(idx) {\n");
-    sb.append("    var f = flagsData[idx];\n");
+    sb.append("    var f = buildFlagPayload(flagsData[idx]);\n");
     sb.append("    var payload = {\n");
     sb.append("      name: f.name,\n");
     sb.append("      description: f.description || '',\n");
     sb.append("      enabled: !f.enabled,\n");
     sb.append("      allowedUsers: cloneAllowedUsers(f.allowedUsers)\n");
     sb.append("    };\n");
-    sb.append("    saveFlag(payload, 'Flag toggled');\n");
+    sb.append("    flagsData[idx] = normalizeFlag(payload);\n");
+    sb.append("    saveFlag(payload, 'Flag toggled', { closeForm: false });\n");
     sb.append("  };\n");
 
     // Delete flag

@@ -295,7 +295,7 @@ public final class FeatureFlagServlet extends HttpServlet {
           putAllowedUser(
               allowedUsers,
               normalizeAllowedUserEmail(userJson.optString("email", null)),
-              readBoolean(userJson.opt("enabled")));
+              readBoolean(userJson.opt("enabled"), true));
         } else if (value instanceof String userString) {
           addAllowedUserString(allowedUsers, userString);
         }
@@ -311,13 +311,17 @@ public final class FeatureFlagServlet extends HttpServlet {
   }
 
   private static boolean readBoolean(Object rawValue) {
+    return readBoolean(rawValue, false);
+  }
+
+  private static boolean readBoolean(Object rawValue, boolean defaultValue) {
     if (rawValue instanceof Boolean booleanValue) {
       return booleanValue;
     }
     if (rawValue instanceof String stringValue) {
       return "true".equalsIgnoreCase(stringValue.trim());
     }
-    return false;
+    return defaultValue;
   }
 
   private static JSONArray toAllowedUsersJson(Map<String, Boolean> allowedUsers) {
