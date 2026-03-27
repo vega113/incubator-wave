@@ -74,6 +74,11 @@ public final class HtmlRendererFeatureFlagsTest {
                 + "        } else {\n"
                 + "          syncEditingFlag(payload);\n"
                 + "        }"));
+    assertFalse(
+        html.contains(
+            "if (options.closeForm === false) {\n"
+                + "          resetFlagEditingState();\n"
+                + "        }"));
     assertTrue(html.contains("resetFlagEditingState();\n    flagForm.style.display = 'none';"));
     assertTrue(
         html.contains(
