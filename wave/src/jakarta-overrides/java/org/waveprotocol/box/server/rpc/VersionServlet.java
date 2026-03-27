@@ -25,6 +25,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.json.JSONObject;
 
 /**
  * Exposes the server version as a JSON endpoint so that long-lived browser
@@ -43,53 +44,40 @@ import java.io.IOException;
 public final class VersionServlet extends HttpServlet {
   private final String version;
   private final long buildTime;
+  private final JSONObject changelog;
 
   @Inject
-  public VersionServlet(Config config) {
-    this.version = config.hasPath("core.server_version")
-        ? config.getString("core.server_version") : "dev";
-    this.buildTime = System.currentTimeMillis();
+  public VersionServlet(Config config, ChangelogProvider changelogProvider) {
+    this(
+        config.hasPath("core.server_version") ? config.getString("core.server_version") : "dev",
+        System.currentTimeMillis(),
+        changelogProvider.getLatestEntry());
   }
 
   public long getBuildTime() { return buildTime; }
 
   /** Visible-for-testing constructor. */
   public VersionServlet(String version, long buildTime) {
+    this(version, buildTime, null);
+  }
+
+  /** Visible-for-testing constructor. */
+  public VersionServlet(String version, long buildTime, JSONObject changelog) {
     this.version = version;
     this.buildTime = buildTime;
+    this.changelog = changelog != null ? new JSONObject(changelog.toString()) : null;
   }
 
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    JSONObject responseJson = new JSONObject();
+    responseJson.put("version", version);
+    responseJson.put("buildTime", buildTime);
+    if (changelog != null && !changelog.isEmpty()) {
+      responseJson.put("changelog", new JSONObject(changelog.toString()));
+    }
     resp.setContentType("application/json; charset=UTF-8");
     resp.setHeader("Cache-Control", "no-cache, no-store");
-    resp.getWriter().write("{\"version\":\"" + escapeJson(version) + "\",\"buildTime\":" + buildTime + "}");
-  }
-
-  /** JSON string escape covering quotes, backslashes, and control characters. */
-  private static String escapeJson(String s) {
-    if (s == null) {
-      return "";
-    }
-    StringBuilder sb = new StringBuilder(s.length());
-    for (int i = 0; i < s.length(); i++) {
-      char c = s.charAt(i);
-      switch (c) {
-        case '\\': sb.append("\\\\"); break;
-        case '"':  sb.append("\\\""); break;
-        case '\n': sb.append("\\n");  break;
-        case '\r': sb.append("\\r");  break;
-        case '\t': sb.append("\\t");  break;
-        case '\b': sb.append("\\b");  break;
-        case '\f': sb.append("\\f");  break;
-        default:
-          if (c < 0x20) {
-            sb.append(String.format("\\u%04x", (int) c));
-          } else {
-            sb.append(c);
-          }
-      }
-    }
-    return sb.toString();
+    resp.getWriter().write(responseJson.toString());
   }
 }

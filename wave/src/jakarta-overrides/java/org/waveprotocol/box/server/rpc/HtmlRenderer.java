@@ -19,8 +19,13 @@
 package org.waveprotocol.box.server.rpc;
 
 import com.google.wave.api.SearchResult;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Locale;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.rpc.PublicWaveBlipRenderer.BlipInfo;
@@ -1998,6 +2003,7 @@ public final class HtmlRenderer {
     sb.append("  <div style=\"margin-bottom:8px;\">\n");
     sb.append("    <a href=\"/terms\">Terms</a> &middot; ");
     sb.append("<a href=\"/privacy\">Privacy</a> &middot; ");
+    sb.append("<a href=\"/changelog\">What's New</a> &middot; ");
     sb.append("<a href=\"/contact\">Contact</a>\n");
     sb.append("  </div>\n");
     sb.append("  Powered by <a href=\"https://supawave.ai\">SupaWave</a>\n");
@@ -2957,19 +2963,23 @@ public final class HtmlRenderer {
     sb.append("      .then(function(r) { return r.json(); })\n");
     sb.append("      .then(function(data) {\n");
     sb.append("        if (data.version !== currentVersion || data.buildTime !== currentBuildTime) {\n");
-    sb.append("          showUpgradeBanner();\n");
+    sb.append("          showUpgradeBanner(data.changelog || null);\n");
     sb.append("        }\n");
     sb.append("      })\n");
     sb.append("      .catch(function() {})\n");
     sb.append("      .then(function() { pollInFlight = false; });\n");
     sb.append("  }\n");
-    sb.append("  function showUpgradeBanner() {\n");
+    sb.append("  function showUpgradeBanner(entry) {\n");
     sb.append("    if (document.getElementById('upgrade-banner')) return;\n");
     sb.append("    var banner = document.createElement('div');\n");
     sb.append("    banner.id = 'upgrade-banner';\n");
     sb.append("    banner.setAttribute('role', 'alert');\n");
-    sb.append("    var msg = document.createElement('span');\n");
-    sb.append("    msg.textContent = 'A new version of SupaWave is available.';\n");
+    sb.append("    var header = document.createElement('div');\n");
+    sb.append("    header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px;';\n");
+    sb.append("    var title = document.createElement('div');\n");
+    sb.append("    title.style.cssText = 'font-weight:600;font-size:15px;line-height:1.3;';\n");
+    sb.append("    title.textContent = 'SupaWave has been updated';\n");
+    sb.append("    header.appendChild(title);\n");
     sb.append("    var reload = document.createElement('a');\n");
     sb.append("    reload.href = '#';\n");
     sb.append("    reload.textContent = 'Reload';\n");
@@ -2978,16 +2988,34 @@ public final class HtmlRenderer {
     sb.append("    var dismiss = document.createElement('button');\n");
     sb.append("    dismiss.type = 'button';\n");
     sb.append("    dismiss.textContent = '\\u2715';\n");
-    sb.append("    dismiss.style.cssText = 'background:none;border:0;color:white;cursor:pointer;font-size:16px;padding:0;line-height:1;';\n");
+    sb.append("    dismiss.style.cssText = 'background:none;border:0;color:white;cursor:pointer;font-size:16px;padding:0;line-height:1;opacity:0.9;';\n");
     sb.append("    dismiss.setAttribute('aria-label', 'Dismiss');\n");
     sb.append("    dismiss.onclick = function() { banner.remove(); };\n");
-    sb.append("    banner.appendChild(msg);\n");
-    sb.append("    banner.appendChild(reload);\n");
-    sb.append("    banner.appendChild(dismiss);\n");
+    sb.append("    header.appendChild(dismiss);\n");
+    sb.append("    banner.appendChild(header);\n");
+    sb.append("    var summary = document.createElement('div');\n");
+    sb.append("    summary.style.cssText = 'font-size:13px;line-height:1.5;opacity:0.92;margin-bottom:10px;';\n");
+    sb.append("    if (entry && entry.summary) {\n");
+    sb.append("      summary.textContent = entry.title ? entry.title + ': ' + entry.summary : entry.summary;\n");
+    sb.append("    } else {\n");
+    sb.append("      summary.textContent = 'A new version of SupaWave is available.';\n");
+    sb.append("    }\n");
+    sb.append("    banner.appendChild(summary);\n");
+    sb.append("    var actions = document.createElement('div');\n");
+    sb.append("    actions.style.cssText = 'display:flex;gap:14px;align-items:center;flex-wrap:wrap;';\n");
+    sb.append("    actions.appendChild(reload);\n");
+    sb.append("    var whatsNew = document.createElement('a');\n");
+    sb.append("    whatsNew.href = '/changelog';\n");
+    sb.append("    whatsNew.textContent = \"What's New \\u2192\";\n");
+    sb.append("    whatsNew.style.cssText = 'color:white;text-decoration:none;opacity:0.88;';\n");
+    sb.append("    whatsNew.target = '_blank';\n");
+    sb.append("    whatsNew.rel = 'noopener';\n");
+    sb.append("    actions.appendChild(whatsNew);\n");
+    sb.append("    banner.appendChild(actions);\n");
     sb.append("    banner.style.cssText = 'position:fixed;bottom:20px;right:20px;max-width:420px;")
-       .append("background:").append(WAVE_PRIMARY).append(";color:white;padding:12px 20px;")
+       .append("background:").append(WAVE_PRIMARY).append(";color:white;padding:16px 20px;")
        .append("border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:9999;")
-       .append("font-family:system-ui,sans-serif;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';\n");
+       .append("font-family:system-ui,sans-serif;font-size:14px;';\n");
     sb.append("    document.body.appendChild(banner);\n");
     sb.append("  }\n");
     sb.append("  checkVersion();\n");
@@ -3050,6 +3078,7 @@ public final class HtmlRenderer {
       sb.append("        <a href=\"/robot/register/create\">Robot Registration</a>\n");
       sb.append("        <a href=\"/robot/dataapi/token\">API Token</a>\n");
       sb.append("        <a href=\"#\" onclick=\"window.openVersionHistory(); return false;\">Version History</a>\n");
+      sb.append("        <a href=\"/changelog\" target=\"_blank\">What's New</a>\n");
       sb.append("        <a href=\"/contact\">Contact Us</a>\n");
       if ("owner".equals(userRole) || "admin".equals(userRole)) {
         sb.append("        <a href=\"/admin\">Admin</a>\n");
@@ -4606,10 +4635,137 @@ public final class HtmlRenderer {
     sb.append("  <div class=\"footer-links\">\n");
     sb.append("    <a href=\"/terms\">Terms of Service</a>\n");
     sb.append("    <a href=\"/privacy\">Privacy Policy</a>\n");
+    sb.append("    <a href=\"/changelog\">What's New</a>\n");
     sb.append("    <a href=\"/contact\">Contact</a>\n");
     sb.append("  </div>\n");
     sb.append("  <div>&copy; 2025 SupaWave. Powered by <a href=\"https://supawave.ai\">SupaWave</a>.</div>\n");
     sb.append("</footer>\n");
+  }
+
+  public static String renderChangelogPage(JSONArray entries) {
+    StringBuilder sb = new StringBuilder(32768);
+    sb.append("<!DOCTYPE html>\n<html dir=\"ltr\" lang=\"en\">\n<head>\n");
+    sb.append("<meta charset=\"UTF-8\">\n");
+    sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">\n");
+    sb.append("<link rel=\"alternate icon\" href=\"/static/favicon.ico\">\n");
+    sb.append("<title>What's New - SupaWave</title>\n");
+    sb.append("<meta name=\"description\" content=\"Track the latest SupaWave releases, fixes, and improvements.\">\n");
+    sb.append("<meta property=\"og:title\" content=\"What's New - SupaWave\">\n");
+    sb.append("<meta property=\"og:description\" content=\"Track the latest SupaWave releases, fixes, and improvements.\">\n");
+    sb.append("<meta property=\"og:type\" content=\"website\">\n");
+    sb.append(LEGAL_PAGE_CSS);
+    sb.append("<style>\n");
+    sb.append(".changelog-content { max-width: 980px; margin: 0 auto; padding: 40px 32px 56px; }\n");
+    sb.append(".changelog-intro { margin: 0 0 32px; color: ").append(WAVE_TEXT_MUTED).append("; font-size: 16px; line-height: 1.7; }\n");
+    sb.append(".changelog-list { display: grid; gap: 20px; }\n");
+    sb.append(".changelog-card { background: #fff; border: 1px solid ").append(WAVE_BORDER).append("; border-radius: 16px; padding: 28px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); }\n");
+    sb.append(".changelog-date { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(0,119,182,0.09); color: ").append(WAVE_PRIMARY).append("; font-size: 13px; font-weight: 600; margin-bottom: 14px; }\n");
+    sb.append(".changelog-card h2 { margin: 0 0 8px; font-size: 28px; color: ").append(WAVE_TEXT).append("; }\n");
+    sb.append(".changelog-summary { margin: 0 0 18px; color: ").append(WAVE_TEXT_MUTED).append("; font-size: 16px; line-height: 1.6; }\n");
+    sb.append(".changelog-sections { display: grid; gap: 14px; }\n");
+    sb.append(".changelog-section { background: ").append(WAVE_BG).append("; border-radius: 12px; padding: 16px 18px; }\n");
+    sb.append(".changelog-section-title { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 15px; font-weight: 700; color: ").append(WAVE_TEXT).append("; }\n");
+    sb.append(".changelog-section-badge { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 1px solid ").append(WAVE_BORDER).append("; font-size: 14px; }\n");
+    sb.append(".changelog-section ul { margin: 0; padding-left: 22px; }\n");
+    sb.append(".changelog-section li { margin-bottom: 8px; line-height: 1.6; color: ").append(WAVE_TEXT).append("; }\n");
+    sb.append(".changelog-empty { text-align: center; padding: 48px 32px; background: #fff; border: 1px dashed ").append(WAVE_BORDER).append("; border-radius: 16px; color: ").append(WAVE_TEXT_MUTED).append("; }\n");
+    sb.append("@media (max-width: 640px) {\n");
+    sb.append("  .changelog-content { padding: 28px 20px 44px; }\n");
+    sb.append("  .changelog-card { padding: 22px 18px; }\n");
+    sb.append("  .changelog-card h2 { font-size: 24px; }\n");
+    sb.append("}\n");
+    sb.append("</style>\n");
+    sb.append("</head>\n<body>\n");
+    appendLegalHeader(sb);
+    sb.append("<main class=\"changelog-content\">\n");
+    sb.append("<h1>What's New</h1>\n");
+    sb.append("<p class=\"changelog-intro\">Recent SupaWave releases, fixes, and improvements in one place.</p>\n");
+    if (entries.length() == 0) {
+      sb.append("<div class=\"changelog-empty\">\n");
+      sb.append("  <h2>No releases yet</h2>\n");
+      sb.append("  <p>Check back after the next deploy for the latest product updates.</p>\n");
+      sb.append("</div>\n");
+    } else {
+      sb.append("<div class=\"changelog-list\">\n");
+      for (int i = 0; i < entries.length(); i++) {
+        JSONObject entry = entries.optJSONObject(i);
+        if (entry != null) {
+          appendChangelogEntry(sb, entry);
+        }
+      }
+      sb.append("</div>\n");
+    }
+    sb.append("</main>\n");
+    appendLegalFooter(sb);
+    sb.append("</body>\n</html>\n");
+    return sb.toString();
+  }
+
+  private static void appendChangelogEntry(StringBuilder sb, JSONObject entry) {
+    sb.append("<article class=\"changelog-card\">\n");
+    sb.append("  <div class=\"changelog-date\">").append(escapeHtml(formatChangelogDate(entry.optString("date")))).append("</div>\n");
+    sb.append("  <h2>").append(escapeHtml(entry.optString("title", "Untitled release"))).append("</h2>\n");
+    sb.append("  <p class=\"changelog-summary\">").append(escapeHtml(entry.optString("summary", ""))).append("</p>\n");
+    sb.append("  <div class=\"changelog-sections\">\n");
+    JSONArray sections = entry.optJSONArray("sections");
+    if (sections != null) {
+      for (int i = 0; i < sections.length(); i++) {
+        JSONObject section = sections.optJSONObject(i);
+        if (section != null) {
+          appendChangelogSection(sb, section);
+        }
+      }
+    }
+    sb.append("  </div>\n");
+    sb.append("</article>\n");
+  }
+
+  private static void appendChangelogSection(StringBuilder sb, JSONObject section) {
+    String type = section.optString("type", "improvement");
+    sb.append("<section class=\"changelog-section\">\n");
+    sb.append("  <h3 class=\"changelog-section-title\"><span class=\"changelog-section-badge\">")
+        .append(escapeHtml(changelogSectionIcon(type))).append("</span>")
+        .append(escapeHtml(changelogSectionLabel(type))).append("</h3>\n");
+    sb.append("  <ul>\n");
+    JSONArray items = section.optJSONArray("items");
+    if (items != null) {
+      for (int i = 0; i < items.length(); i++) {
+        String item = items.optString(i, "");
+        if (!item.isBlank()) {
+          sb.append("    <li>").append(escapeHtml(item)).append("</li>\n");
+        }
+      }
+    }
+    sb.append("  </ul>\n");
+    sb.append("</section>\n");
+  }
+
+  private static String formatChangelogDate(String date) {
+    try {
+      LocalDate parsedDate = LocalDate.parse(date);
+      return parsedDate.format(DateTimeFormatter.ofPattern("MMMM d, uuuu", Locale.ENGLISH));
+    } catch (DateTimeParseException e) {
+      return date == null || date.isBlank() ? "Release" : date;
+    }
+  }
+
+  private static String changelogSectionLabel(String type) {
+    return switch (type) {
+      case "feature" -> "New";
+      case "fix" -> "Fixed";
+      case "internal" -> "Under the Hood";
+      default -> "Improved";
+    };
+  }
+
+  private static String changelogSectionIcon(String type) {
+    return switch (type) {
+      case "feature" -> "✦";
+      case "fix" -> "✓";
+      case "internal" -> "⚙";
+      default -> "↗";
+    };
   }
 
   /**

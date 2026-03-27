@@ -40,6 +40,8 @@ import org.waveprotocol.box.server.authentication.SessionManagerImpl;
 import org.waveprotocol.box.server.authentication.jwt.JwtKeyRingPersistence;
 import org.waveprotocol.box.server.authentication.jwt.JwtKeyRing;
 import org.waveprotocol.box.server.jakarta.ServerRpcProviderJakartaProvider;
+import org.waveprotocol.box.server.rpc.ChangelogProvider;
+import org.waveprotocol.box.server.rpc.ChangelogServlet;
 import org.waveprotocol.box.server.rpc.ProtoSerializer;
 import org.waveprotocol.box.server.rpc.ServerRpcProvider;
 // RobotRegistrar binding is in JakartaRobotApiBindingsModule
@@ -76,6 +78,8 @@ public class ServerModule extends AbstractModule {
     TypeLiteral<List<String>> certs = new TypeLiteral<List<String>>() {};
     bind(certs).annotatedWith(Names.named("certs")).toInstance(Arrays.<String>asList());
     bind(ProtoSerializer.class).in(Singleton.class);
+    bind(ChangelogProvider.class).in(Singleton.class);
+    bind(ChangelogServlet.class).in(Singleton.class);
     bind(Configuration.class).toInstance(Configuration.getConfiguration());
     bind(SessionManager.class).to(SessionManagerImpl.class).in(Singleton.class);
     // Bind via Provider to avoid Guice eagerly reflecting over ServerRpcProvider's methods
