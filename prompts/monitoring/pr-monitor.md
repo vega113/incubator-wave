@@ -43,11 +43,11 @@ Check all monitored repos for open issues. Spawn background agents to fix action
 - Gate baseline is the latest qualifying **CodeRabbit completion on the current head**, not `prUpdatedAt` and not the latest commit timestamp alone.
 - After CodeRabbit completes on the current head:
   - if no further code changes are needed, add a PR-level `+1` reaction from Codex immediately
-  - then re-dispatch the gate via `/codex-review-gate` or `gh workflow run codex-review-gate.yml --ref <head-ref> -f pr_number=<num>`
+  - then re-run the gate via a PR comment containing `/codex-review-gate`
 - If Codex does not add that PR-level `+1`, the gate auto-passes after 5 minutes of silence, as long as no newer commit exists.
 - New commits invalidate the previous CodeRabbit completion and require a fresh current-head CodeRabbit success.
 - Comments/thread resolutions do NOT restart the 5-minute CodeRabbit-completion window.
-- Re-run failed gates once the 5-minute grace period has elapsed if no thumbs-up was added.
+- Re-run failed gates once the 5-minute grace period has elapsed if no thumbs-up was added; scheduled fallback uses the same PR comment trigger so it does not depend on the PR branch carrying the latest workflow file.
 
 ## Monitored repos
 - vega113/incubator-wave

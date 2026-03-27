@@ -34,10 +34,9 @@ jobs:
     if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
-      actions: write
       checks: read
       contents: read
-      issues: read
+      issues: write
       pull-requests: read
     steps:
       - name: Re-dispatch eligible PR gates
@@ -52,15 +51,13 @@ jobs:
             const codexReactionLogins = new Set([
               "chatgpt-codex-connector",
               "chatgpt-codex-connector[bot]",
-              "codex",
-              "codex[bot]",
               "openai-codex",
               "openai-codex[bot]"
             ]);
 
             const isCodexReactionLogin = (login) => {
               const normalized = (login ?? "").toLowerCase();
-              return codexReactionLogins.has(normalized) || normalized.includes("codex");
+              return codexReactionLogins.has(normalized);
             };
 
             const latestCodeRabbitCompletion = (checkRuns) => {
@@ -80,11 +77,6 @@ jobs:
             for (const pullRequest of openPulls) {
               if (pullRequest.draft) {
                 core.info(`Skipping draft PR #${pullRequest.number}`);
-                continue;
-              }
-
-              if (pullRequest.head.repo?.full_name !== `${owner}/${repo}`) {
-                core.info(`Skipping fork PR #${pullRequest.number}; workflow dispatch cannot target fork refs safely`);
                 continue;
               }
 
@@ -143,17 +135,14 @@ jobs:
                 continue;
               }
 
-              await github.rest.actions.createWorkflowDispatch({
+              await github.rest.issues.createComment({
                 owner,
                 repo,
-                workflow_id: workflowId,
-                ref: pullRequest.head.ref,
-                inputs: {
-                  pr_number: String(pullRequest.number)
-                }
+                issue_number: pullRequest.number,
+                body: "/codex-review-gate\n\nScheduled reevaluation after the 5 minute CodeRabbit grace window."
               });
 
-              core.info(`Dispatched Codex Review Gate for PR #${pullRequest.number} on ${pullRequest.head.ref}`);
+              core.info(`Comment-triggered Codex Review Gate reevaluation for PR #${pullRequest.number}`);
             }
 
   codex-review-gate:
@@ -165,13 +154,16 @@ jobs:
           inputs.pr_number != ''
         ) || (
           (github.event.pull_request != null || github.event.issue.pull_request != null) &&
-          (
-            github.event_name != 'issue_comment' ||
             (
-              github.event.comment.user.login == github.repository_owner &&
-              contains(github.event.comment.body, '/codex-review-gate')
+              github.event_name != 'issue_comment' ||
+              (
+                (
+                  github.event.comment.user.login == github.repository_owner ||
+                  github.event.comment.user.login == 'github-actions[bot]'
+                ) &&
+                contains(github.event.comment.body, '/codex-review-gate')
+              )
             )
-          )
         )
       }}
     runs-on: ubuntu-latest
@@ -197,15 +189,13 @@ jobs:
             const codexReactionLogins = new Set([
               "chatgpt-codex-connector",
               "chatgpt-codex-connector[bot]",
-              "codex",
-              "codex[bot]",
               "openai-codex",
               "openai-codex[bot]"
             ]);
 
             const isCodexReactionLogin = (login) => {
               const normalized = (login ?? "").toLowerCase();
-              return codexReactionLogins.has(normalized) || normalized.includes("codex");
+              return codexReactionLogins.has(normalized);
             };
 
             const query = `

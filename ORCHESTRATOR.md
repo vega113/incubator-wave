@@ -275,7 +275,7 @@ sbt run                        # Run dev server on :9898
   - `Codex Review Gate`
   - `CodeRabbit`
   - resolved review conversations
-- The review gate auto-reevaluates on PR/review/comment events and on a 5-minute schedule fallback that re-dispatches checks onto open PR heads
+- The review gate auto-reevaluates on PR/review/comment events and on a 5-minute schedule fallback that posts the same `/codex-review-gate` trigger comment from the default-branch workflow
 - For current policy, one valid review signal is enough, not both bots
 
 ## Known Fragile Areas
