@@ -37,4 +37,14 @@ public final class BlipMetaDomImplTest extends TestCase {
 
     assertNull(BlipMetaDomImpl.resolveInlineLocatorReference(inlineLocators, "missing-inline"));
   }
+
+  public void testResolveInlineLocatorReferenceReturnsNullWhenInlineLocatorsNull() {
+    assertNull(BlipMetaDomImpl.resolveInlineLocatorReference(null, "inline-2"));
+  }
+
+  public void testResolveInlineLocatorReferenceReturnsNullWhenReferenceNull() {
+    StringSequence inlineLocators = StringSequence.of(java.util.List.of("inline-1", "inline-2"));
+
+    assertNull(BlipMetaDomImpl.resolveInlineLocatorReference(inlineLocators, null));
+  }
 }

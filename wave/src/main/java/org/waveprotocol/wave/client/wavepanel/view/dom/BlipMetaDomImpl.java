@@ -391,7 +391,7 @@ public final class BlipMetaDomImpl implements DomView, IntrinsicBlipMetaView {
   }
 
   static String resolveInlineLocatorReference(StringSequence inlineLocators, String refId) {
-    if (refId == null || inlineLocators == null || inlineLocators.contains(refId)) {
+    if (refId != null && inlineLocators != null && inlineLocators.contains(refId)) {
       return refId;
     }
     return null;
