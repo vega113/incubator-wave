@@ -79,6 +79,14 @@
              <td>Waves with a specific tag</td>
            </tr>
            <tr>
+             <td><code>title:text</code></td>
+             <td>Waves whose title contains text</td>
+           </tr>
+           <tr>
+             <td><code>content:text</code></td>
+             <td>Waves containing text in any blip</td>
+           </tr>
+           <tr>
              <td><em>free text</em></td>
              <td>Search in wave content</td>
            </tr>
@@ -139,6 +147,8 @@
        <span ui:field='exWithTag' class='{css.helpExample}'>with:alice@example.com tag:project</span>
        <span ui:field='exPinnedCreator' class='{css.helpExample}'>in:pinned orderby:creatordesc</span>
        <span ui:field='exCreatorArchive' class='{css.helpExample}'>creator:bob in:archive</span>
+       <span ui:field='exTitle' class='{css.helpExample}'>title:meeting</span>
+       <span ui:field='exContent' class='{css.helpExample}'>content:agenda</span>
      </div>
    </div>
   </g:HTMLPanel>

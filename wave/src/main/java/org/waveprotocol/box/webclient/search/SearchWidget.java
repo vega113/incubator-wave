@@ -123,6 +123,10 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   SpanElement exPinnedCreator;
   @UiField
   SpanElement exCreatorArchive;
+  @UiField
+  SpanElement exTitle;
+  @UiField
+  SpanElement exContent;
 
   private Listener listener;
 
@@ -194,6 +198,8 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     wireExample(exWithTag);
     wireExample(exPinnedCreator);
     wireExample(exCreatorArchive);
+    wireExample(exTitle);
+    wireExample(exContent);
   }
 
   /**

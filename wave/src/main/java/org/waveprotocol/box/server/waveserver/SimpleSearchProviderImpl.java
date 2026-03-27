@@ -269,6 +269,32 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       LOG.info("After tag filter: " + results.size() + " results remain");
     }
 
+    // Extract title filter values (e.g., "title:meeting").
+    final Set<String> titleValues = queryParams.containsKey(TokenQueryType.TITLE)
+        ? queryParams.get(TokenQueryType.TITLE)
+        : Collections.<String>emptySet();
+
+    // Extract content filter values (e.g., "content:agenda").
+    final Set<String> contentValues = queryParams.containsKey(TokenQueryType.CONTENT)
+        ? queryParams.get(TokenQueryType.CONTENT)
+        : Collections.<String>emptySet();
+
+    // Filter by title when the query specifies title: filters.
+    if (!titleValues.isEmpty()) {
+      LOG.info("Title filter active: required terms = " + titleValues
+          + ", candidates before filter = " + results.size());
+      filterByTitle(results, titleValues);
+      LOG.info("After title filter: " + results.size() + " results remain");
+    }
+
+    // Filter by content when the query specifies content: filters.
+    if (!contentValues.isEmpty()) {
+      LOG.info("Content filter active: required terms = " + contentValues
+          + ", candidates before filter = " + results.size());
+      filterByContent(results, contentValues);
+      LOG.info("After content filter: " + results.size() + " results remain");
+    }
+
     List<WaveViewData> sortedResults = sort(queryParams, results);
 
     // Promote pinned waves to the top of results (unless the query is specifically
@@ -568,6 +594,247 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
         it.remove();
       }
     }
+  }
+
+  /**
+   * Filters wave results by title. The title is the text content of the root blip
+   * (the first blip in the conversation manifest). Only waves whose title contains
+   * all of the requested search terms (case-insensitive substring match) are kept.
+   *
+   * @param results the mutable list of wave views to filter in place.
+   * @param requiredTerms the set of title search terms that must all be present.
+   */
+  private void filterByTitle(List<WaveViewData> results, Set<String> requiredTerms) {
+    // Build lowercase search terms for case-insensitive matching.
+    List<String> lowerTerms = new ArrayList<String>();
+    for (String term : requiredTerms) {
+      lowerTerms.add(term.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    Iterator<WaveViewData> it = results.iterator();
+    while (it.hasNext()) {
+      WaveViewData wave = it.next();
+      try {
+        ObservableWaveletData convWavelet = null;
+        for (ObservableWaveletData wd : wave.getWavelets()) {
+          if (org.waveprotocol.wave.model.id.IdUtil.isConversationRootWaveletId(wd.getWaveletId())) {
+            convWavelet = wd;
+            break;
+          }
+        }
+        if (convWavelet == null) {
+          it.remove();
+          continue;
+        }
+
+        String rootBlipId = getRootBlipId(convWavelet);
+        if (rootBlipId == null) {
+          it.remove();
+          continue;
+        }
+
+        org.waveprotocol.wave.model.wave.data.ReadableBlipData rootBlip =
+            convWavelet.getDocument(rootBlipId);
+        if (rootBlip == null) {
+          it.remove();
+          continue;
+        }
+
+        String titleText = extractTextFromBlip(rootBlip)
+            .toLowerCase(java.util.Locale.ROOT);
+
+        boolean matches = true;
+        for (String term : lowerTerms) {
+          if (!titleText.contains(term)) {
+            matches = false;
+            break;
+          }
+        }
+        if (!matches) {
+          it.remove();
+        }
+      } catch (Exception e) {
+        LOG.warning("Failed to check title for wave " + wave.getWaveId(), e);
+        it.remove();
+      }
+    }
+  }
+
+  /**
+   * Filters wave results by content. Searches across ALL blip documents in
+   * all conversational wavelets of each wave. Only waves where at least one
+   * blip contains all of the requested search terms (case-insensitive substring
+   * match) are kept.
+   *
+   * <p>Short-circuits: stops checking blips for a wave as soon as a match is found.
+   *
+   * @param results the mutable list of wave views to filter in place.
+   * @param requiredTerms the set of content search terms that must all be present.
+   */
+  private void filterByContent(List<WaveViewData> results, Set<String> requiredTerms) {
+    // Build lowercase search terms for case-insensitive matching.
+    List<String> lowerTerms = new ArrayList<String>();
+    for (String term : requiredTerms) {
+      lowerTerms.add(term.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    Iterator<WaveViewData> it = results.iterator();
+    while (it.hasNext()) {
+      WaveViewData wave = it.next();
+      try {
+        boolean waveMatches = false;
+
+        // Iterate over all conversational wavelets in this wave.
+        for (ObservableWaveletData wd : wave.getWavelets()) {
+          if (!org.waveprotocol.wave.model.id.IdUtil.isConversationalId(wd.getWaveletId())) {
+            continue;
+          }
+
+          // Iterate over all documents (blips) in the wavelet.
+          for (String docId : wd.getDocumentIds()) {
+            org.waveprotocol.wave.model.wave.data.ReadableBlipData blip =
+                wd.getDocument(docId);
+            if (blip == null) {
+              continue;
+            }
+
+            String blipText = extractTextFromBlip(blip)
+                .toLowerCase(java.util.Locale.ROOT);
+            if (blipText.isEmpty()) {
+              continue;
+            }
+
+            boolean allTermsMatch = true;
+            for (String term : lowerTerms) {
+              if (!blipText.contains(term)) {
+                allTermsMatch = false;
+                break;
+              }
+            }
+            if (allTermsMatch) {
+              waveMatches = true;
+              break; // Short-circuit: one matching blip is enough.
+            }
+          }
+
+          if (waveMatches) {
+            break; // Short-circuit: no need to check other wavelets.
+          }
+        }
+
+        if (!waveMatches) {
+          it.remove();
+        }
+      } catch (Exception e) {
+        LOG.warning("Failed to check content for wave " + wave.getWaveId(), e);
+        it.remove();
+      }
+    }
+  }
+
+  /**
+   * Extracts plain text content from a blip document by walking its DocOp
+   * representation using a DocInitializationCursor and StringBuilder.
+   *
+   * <p>CRITICAL: characters() calls can be split by annotationBoundary()
+   * events, so we always use StringBuilder to accumulate text rather than
+   * relying on individual characters() calls.
+   *
+   * @param blip the blip data to extract text from.
+   * @return the plain text content of the blip.
+   */
+  private static String extractTextFromBlip(
+      org.waveprotocol.wave.model.wave.data.ReadableBlipData blip) {
+    org.waveprotocol.wave.model.document.operation.DocInitialization docOp =
+        blip.getContent().asOperation();
+
+    final StringBuilder textBuilder = new StringBuilder();
+    docOp.apply(new org.waveprotocol.wave.model.document.operation.DocInitializationCursor() {
+      @Override
+      public void elementStart(String type,
+          org.waveprotocol.wave.model.document.operation.Attributes attrs) {
+        // Insert a space for line elements to separate words across lines.
+        if ("line".equals(type) && textBuilder.length() > 0) {
+          textBuilder.append(' ');
+        }
+      }
+
+      @Override
+      public void elementEnd() {
+        // No action needed.
+      }
+
+      @Override
+      public void characters(String chars) {
+        if (chars != null) {
+          textBuilder.append(chars);
+        }
+      }
+
+      @Override
+      public void annotationBoundary(
+          org.waveprotocol.wave.model.document.operation.AnnotationBoundaryMap map) {
+        // Annotation boundaries can appear between characters() calls within
+        // the same element. We simply ignore them and keep accumulating text.
+      }
+    });
+    return textBuilder.toString().trim();
+  }
+
+  /**
+   * Reads the root blip ID from a wavelet's conversation manifest document.
+   * The manifest has the form:
+   * <pre>{@code <conversation><blip id="b+xyz">...</blip>...</conversation>}</pre>
+   * The first {@code <blip>} element's {@code id} attribute is the root blip.
+   *
+   * @param waveletData the conversation root wavelet data.
+   * @return the root blip document ID, or null if not found.
+   */
+  private static String getRootBlipId(ObservableWaveletData waveletData) {
+    org.waveprotocol.wave.model.wave.data.ReadableBlipData manifestDoc =
+        waveletData.getDocument(
+            org.waveprotocol.box.common.DocumentConstants.MANIFEST_DOCUMENT_ID);
+    if (manifestDoc == null) {
+      return null;
+    }
+
+    org.waveprotocol.wave.model.document.operation.DocInitialization docOp =
+        manifestDoc.getContent().asOperation();
+
+    final String[] rootBlipId = {null};
+    docOp.apply(new org.waveprotocol.wave.model.document.operation.DocInitializationCursor() {
+      @Override
+      public void elementStart(String type,
+          org.waveprotocol.wave.model.document.operation.Attributes attrs) {
+        // Only capture the first blip element's ID.
+        if (rootBlipId[0] == null
+            && org.waveprotocol.box.common.DocumentConstants.BLIP.equals(type)
+            && attrs != null) {
+          String id = attrs.get(org.waveprotocol.box.common.DocumentConstants.BLIP_ID);
+          if (id != null) {
+            rootBlipId[0] = id;
+          }
+        }
+      }
+
+      @Override
+      public void elementEnd() {
+        // No action needed.
+      }
+
+      @Override
+      public void characters(String chars) {
+        // No characters expected in manifest.
+      }
+
+      @Override
+      public void annotationBoundary(
+          org.waveprotocol.wave.model.document.operation.AnnotationBoundaryMap map) {
+        // Ignore.
+      }
+    });
+
+    return rootBlipId[0];
   }
 
   /**
