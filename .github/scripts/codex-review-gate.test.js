@@ -20,6 +20,7 @@ const test = require('node:test');
 
 const {
   latestCodeRabbitCompletion,
+  resolveCodeRabbitCompletedAt,
 } = require('./codex-review-gate');
 
 test('latestCodeRabbitCompletion ignores nullish check runs', () => {
@@ -34,4 +35,48 @@ test('latestCodeRabbitCompletion ignores nullish check runs', () => {
 
   assert.equal(result?.name, 'CodeRabbit');
   assert.equal(result?.completed_at, '2026-03-27T16:03:41Z');
+});
+
+test('resolveCodeRabbitCompletedAt uses status context timestamp when REST lacks CodeRabbit', () => {
+  const result = resolveCodeRabbitCompletedAt(
+    [
+      {
+        name: 'Server Build (JDK 17)',
+        conclusion: 'success',
+        completed_at: '2026-03-27T17:13:59Z'
+      }
+    ],
+    [
+      {
+        __typename: 'StatusContext',
+        context: 'CodeRabbit',
+        state: 'SUCCESS',
+        createdAt: '2026-03-27T17:14:10Z'
+      }
+    ]
+  );
+
+  assert.equal(result, Date.parse('2026-03-27T17:14:10Z'));
+});
+
+test('resolveCodeRabbitCompletedAt uses GraphQL check run timestamp when available', () => {
+  const result = resolveCodeRabbitCompletedAt(
+    [
+      {
+        name: 'Server Build (JDK 17)',
+        conclusion: 'success',
+        completed_at: '2026-03-27T17:13:59Z'
+      }
+    ],
+    [
+      {
+        __typename: 'CheckRun',
+        name: 'CodeRabbit',
+        conclusion: 'SUCCESS',
+        completedAt: '2026-03-27T17:14:10Z'
+      }
+    ]
+  );
+
+  assert.equal(result, Date.parse('2026-03-27T17:14:10Z'));
 });

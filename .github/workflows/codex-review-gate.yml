@@ -48,10 +48,41 @@ jobs:
             const repo = context.repo.repo;
             const {
               isCodexReactionLogin,
-              latestCodeRabbitCompletion,
               resolveCodeRabbitCompletedAt,
               reviewGracePeriodMs
             } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/codex-review-gate`);
+
+            const query = `
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    commits(last: 1) {
+                      nodes {
+                        commit {
+                          statusCheckRollup {
+                            contexts(first: 100) {
+                              nodes {
+                                __typename
+                                ... on CheckRun {
+                                  name
+                                  conclusion
+                                  completedAt
+                                }
+                                ... on StatusContext {
+                                  context
+                                  state
+                                  createdAt
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
 
             const openPulls = await github.paginate(github.rest.pulls.list, {
               owner,
@@ -80,8 +111,15 @@ jobs:
                 per_page: 100
               }, (response) => response.data.check_runs);
 
-              const codeRabbitCompletion = latestCodeRabbitCompletion(checkRuns);
-              const codeRabbitCompletedAt = resolveCodeRabbitCompletedAt(checkRuns);
+              const statusResult = await github.graphql(query, {
+                owner,
+                repo,
+                number: pullRequest.number
+              });
+              const statusNodes =
+                statusResult.repository.pullRequest.commits.nodes[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
+
+              const codeRabbitCompletedAt = resolveCodeRabbitCompletedAt(checkRuns, statusNodes);
               if (Number.isNaN(codeRabbitCompletedAt)) {
                 core.info(`Skipping PR #${pullRequest.number}; no successful current-head CodeRabbit completion yet`);
                 continue;
@@ -183,10 +221,32 @@ jobs:
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $number) {
                     isDraft
-                    headRefName
                     headRefOid
                     labels(first: 100) {
                       nodes { name }
+                    }
+                    commits(last: 1) {
+                      nodes {
+                        commit {
+                          statusCheckRollup {
+                            contexts(first: 100) {
+                              nodes {
+                                __typename
+                                ... on CheckRun {
+                                  name
+                                  conclusion
+                                  completedAt
+                                }
+                                ... on StatusContext {
+                                  context
+                                  state
+                                  createdAt
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -221,6 +281,9 @@ jobs:
               return;
             }
 
+            const latestCommit = pullRequest.commits.nodes[0]?.commit ?? null;
+            const statusNodes = latestCommit?.statusCheckRollup?.contexts?.nodes ?? [];
+
             const checkRuns = await github.paginate(github.rest.checks.listForRef, {
               owner,
               repo,
@@ -228,7 +291,7 @@ jobs:
               per_page: 100
             }, (response) => response.data.check_runs);
 
-            const codeRabbitCompletedAt = resolveCodeRabbitCompletedAt(checkRuns);
+            const codeRabbitCompletedAt = resolveCodeRabbitCompletedAt(checkRuns, statusNodes);
 
             if (Number.isNaN(codeRabbitCompletedAt)) {
               core.setFailed("Missing required review signal: successful current-head CodeRabbit completion");

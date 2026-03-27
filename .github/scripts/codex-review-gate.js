@@ -24,9 +24,43 @@ const latestCodeRabbitCompletion = (checkRuns) => {
     .sort((left, right) => Date.parse(right.completed_at) - Date.parse(left.completed_at))[0] ?? null;
 };
 
-const resolveCodeRabbitCompletedAt = (checkRuns) => {
+const latestCodeRabbitStatusCompletion = (statusNodes) => {
+  return statusNodes
+    .filter((node) => {
+      return node != null && typeof node === "object";
+    })
+    .flatMap((node) => {
+      if (node.__typename === "CheckRun" &&
+        codeRabbitNames.has(node.name) &&
+        node.conclusion === "SUCCESS" &&
+        node.completedAt) {
+        return [Date.parse(node.completedAt)];
+      }
+
+      if (node.__typename === "StatusContext" &&
+        node.context === "CodeRabbit" &&
+        node.state === "SUCCESS" &&
+        node.createdAt) {
+        return [Date.parse(node.createdAt)];
+      }
+
+      return [];
+    })
+    .filter((completedAt) => Number.isFinite(completedAt))
+    .sort((left, right) => right - left)[0] ?? NaN;
+};
+
+const resolveCodeRabbitCompletedAt = (checkRuns, statusNodes = []) => {
   const latestCodeRabbitRun = latestCodeRabbitCompletion(checkRuns);
-  return latestCodeRabbitRun ? Date.parse(latestCodeRabbitRun.completed_at) : NaN;
+  const latestCodeRabbitCompletedAt = latestCodeRabbitRun
+    ? Date.parse(latestCodeRabbitRun.completed_at)
+    : NaN;
+
+  if (Number.isFinite(latestCodeRabbitCompletedAt)) {
+    return latestCodeRabbitCompletedAt;
+  }
+
+  return latestCodeRabbitStatusCompletion(statusNodes);
 };
 
 module.exports = {
