@@ -308,6 +308,8 @@ public class ServerMain {
 
     server.addServlet("/terms", LegalServlet.class);
     server.addServlet("/privacy", LegalServlet.class);
+    server.addServlet("/changelog", ChangelogServlet.class);
+    server.addServlet("/changelog/*", ChangelogServlet.class);
 
     // SEO endpoints
     server.addServlet("/robots.txt", RobotsServlet.class);

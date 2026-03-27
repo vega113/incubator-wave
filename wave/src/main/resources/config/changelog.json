@@ -1,0 +1,23 @@
+[
+  {
+    "version": "2026-03-27",
+    "date": "2026-03-27",
+    "title": "Changelog System",
+    "summary": "You can now see what's new after each deploy.",
+    "sections": [
+      {
+        "type": "feature",
+        "items": [
+          "New /changelog page showing release history",
+          "Version upgrade banner now shows the latest release summary"
+        ]
+      },
+      {
+        "type": "improvement",
+        "items": [
+          "Added What's New links to the app menu and landing page"
+        ]
+      }
+    ]
+  }
+]

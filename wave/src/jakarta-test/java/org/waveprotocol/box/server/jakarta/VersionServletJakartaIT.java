@@ -24,6 +24,7 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.json.JSONObject;
 import org.waveprotocol.box.server.rpc.VersionServlet;
 
 import java.net.HttpURLConnection;
@@ -54,7 +55,13 @@ public final class VersionServletJakartaIT {
     context.setContextPath("/");
     context.addServlet(
         new org.eclipse.jetty.ee10.servlet.ServletHolder(
-            new VersionServlet("abc123", 1700000000000L)),
+            new VersionServlet(
+                "abc123",
+                1700000000000L,
+                new JSONObject()
+                    .put("version", "2026-03-27")
+                    .put("title", "Changelog System")
+                    .put("summary", "You can now see what's new after each deploy."))),
         "/version");
     server.setHandler(context);
     server.start();
@@ -74,6 +81,10 @@ public final class VersionServletJakartaIT {
     String body = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
     assertTrue("Should contain version field", body.contains("\"version\":\"abc123\""));
     assertTrue("Should contain buildTime field", body.contains("\"buildTime\":1700000000000"));
+    assertTrue(
+        "Should contain changelog version",
+        body.contains("\"changelog\":{\"version\":\"2026-03-27\""));
+    assertTrue("Should contain changelog title", body.contains("\"title\":\"Changelog System\""));
   }
 
   @Test
