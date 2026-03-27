@@ -118,6 +118,15 @@ git worktrees.
   implementation summary, the review outcome, and the commit list that landed
   the work.
 
+## Changelog
+- Every PR that changes user-facing behavior MUST update `wave/config/changelog.json`
+  before merging.
+- Add a new entry at the top of the array (newest first) with `version` (date),
+  `title`, `summary`, and `sections` (`feature` / `fix`).
+- The changelog is displayed at `/changelog` and in the deploy upgrade banner.
+- Keep entries concise: a 1-2 sentence summary and short bullet-style change
+  lists.
+
 ## Tool Usage Rules
 - Prefer MCP tools over free-form browsing when available.
 - Discover tool schema before use:
