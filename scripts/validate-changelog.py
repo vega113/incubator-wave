@@ -18,12 +18,14 @@
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 
-REQUIRED_KEYS = ("releaseId", "date", "title", "summary", "sections")
+REQUIRED_KEYS = ("releaseId", "version", "date", "title", "summary", "sections")
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def load_changelog(path: Path) -> list[dict]:
@@ -61,9 +63,12 @@ def validate_entry(entry: dict, index: int) -> list[str]:
   release_id = entry.get("releaseId")
   if not isinstance(release_id, str) or not release_id.strip():
     errors.append(f"entry {index} has an invalid releaseId")
+  version = entry.get("version")
+  if not isinstance(version, str) or not version.strip():
+    errors.append(f"entry {index} has an invalid version")
   date = entry.get("date")
-  if not isinstance(date, str) or not date.strip():
-    errors.append(f"entry {index} has an invalid date")
+  if not isinstance(date, str) or not DATE_PATTERN.fullmatch(date):
+    errors.append(f"entry {index} has an invalid date; expected YYYY-MM-DD")
   title = entry.get("title")
   if not isinstance(title, str) or not title.strip():
     errors.append(f"entry {index} has an invalid title")
@@ -82,6 +87,8 @@ def validate_schema(entries: list[dict]) -> list[str]:
   previous_date: str | None = None
   for index, entry in enumerate(entries):
     errors.extend(validate_entry(entry, index))
+    if not isinstance(entry, dict):
+      continue
     release_id = entry.get("releaseId")
     if isinstance(release_id, str):
       if release_id in seen_release_ids:

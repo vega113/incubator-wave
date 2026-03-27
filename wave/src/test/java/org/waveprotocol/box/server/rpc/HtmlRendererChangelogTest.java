@@ -40,10 +40,11 @@ public final class HtmlRendererChangelogTest {
 
     assertTrue(html.contains("var currentBuildCommit = \"abc123build\";"));
     assertTrue(html.contains("var currentReleaseId = \"2026-03-27-unread-only-search-filter\";"));
-    assertTrue(html.contains("fetch('/version?since=' + encodeURIComponent(currentReleaseId)"));
+    assertTrue(html.contains("fetch('/version?since=' + encodeURIComponent(currentReleaseId || '')"));
     assertTrue(html.contains("data.releaseNotesStatus"));
     assertTrue(html.contains("data.releaseNotes || []"));
     assertTrue(!html.contains("data.changelog || null"));
+    assertTrue(html.contains("'/changelog#' + encodeURIComponent(releaseNotes[0].releaseId)"));
     assertTrue(html.contains("What's New"));
   }
 

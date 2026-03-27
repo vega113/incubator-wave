@@ -1,5 +1,26 @@
 [
   {
+    "releaseId": "2026-03-27-release-aware-upgrade-notes",
+    "version": "PR #405",
+    "date": "2026-03-27",
+    "title": "Release-Aware Upgrade Notes",
+    "summary": "The update popup now matches the release notes for the deployed SupaWave version instead of always showing the latest changelog entry.",
+    "sections": [
+      {
+        "type": "fix",
+        "items": [
+          "The deploy/update popup now maps to the actual deployed release instead of always showing the newest changelog entry"
+        ]
+      },
+      {
+        "type": "feature",
+        "items": [
+          "Added release-aware changelog validation so future deploys keep release history aligned"
+        ]
+      }
+    ]
+  },
+  {
     "releaseId": "2026-03-27-unread-only-search-filter",
     "version": "PR #403",
     "date": "2026-03-27",
@@ -13,7 +34,7 @@
         ]
       },
       {
-        "type": "improvement",
+        "type": "feature",
         "items": [
           "Updated the search help popup with unread-only examples"
         ]

@@ -191,13 +191,16 @@ Below are practical, action-focused rules for each MCP server defined in `~/.cod
 
 ## Changelog
 - User-facing releases should prepend a new entry to
-  `wave/config/changelog.json`.
+  `wave/config/changelog.json` and keep
+  `wave/src/main/resources/config/changelog.json` aligned with the same data.
 - Every changelog entry must keep a stable `releaseId` slug, plus `date`,
   `title`, `summary`, and `sections`.
 - Do not rewrite, regroup, or delete older release entries in a feature PR.
 - If a PR needs to revise its own pending release note, only edit the newly
   added top entry for that PR and leave older history untouched.
-- Treat `scripts/validate-changelog.py` as mandatory before merge or deploy.
+- Treat `scripts/validate-changelog.py` as mandatory before merge or deploy,
+  and run it against both changelog file paths before landing user-facing
+  changes.
 
 ## Code Guidelines
 - Do not use FQN in your code, instead import from the appropriate module.

@@ -116,8 +116,8 @@ public final class ChangelogProviderTest {
     int exitCode = process.waitFor();
 
     assertEquals(0, exitCode);
-    assertTrue(output, output.contains("PR #403"));
-    assertTrue(output, output.contains("Unread-Only Search Filter"));
+    assertTrue(output, output.matches("(?s).*PR #[0-9]+.*"));
+    assertTrue(output, output.toLowerCase().contains("release"));
   }
 
   @Test

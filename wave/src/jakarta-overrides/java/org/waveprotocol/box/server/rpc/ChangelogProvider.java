@@ -238,7 +238,7 @@ public final class ChangelogProvider {
     String summary = entry.optString("summary", "").trim();
     JSONArray sections = entry.optJSONArray("sections");
     if (releaseId.isEmpty() || date.isEmpty() || title.isEmpty() || summary.isEmpty()
-        || sections == null) {
+        || sections == null || sections.length() == 0) {
       LOG.warning("Changelog entry is missing required fields: " + entry);
       return false;
     }
