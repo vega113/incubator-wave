@@ -104,7 +104,6 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
 
   /**
    * Builds or retrieves the cached supplement context for a wave.
-   * Returns null if the wave has no conversation root wavelet.
    */
   private WaveSupplementContext getOrBuildContext(
       WaveViewData wave, ParticipantId user,
@@ -131,8 +130,12 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       }
     }
 
+    if (convWavelet == null && !conversationalWavelets.isEmpty()) {
+      convWavelet = conversationalWavelets.get(0);
+    }
+
     if (convWavelet == null) {
-      // No conversation root -- cache a null-supplement context.
+      // No conversational wavelet -- cache a null-supplement context.
       WaveSupplementContext ctx = new WaveSupplementContext(
           null, udw, conversationalWavelets, null, null);
       cache.put(wave.getWaveId(), ctx);
