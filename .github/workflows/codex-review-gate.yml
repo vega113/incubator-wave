@@ -176,7 +176,7 @@ jobs:
     permissions:
       checks: read
       contents: read
-      issues: read
+      actions: write
       pull-requests: read
     steps:
       - name: Evaluate review gate
