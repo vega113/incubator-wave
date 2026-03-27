@@ -589,6 +589,52 @@ public class SimpleSearchProviderImplTest extends TestCase {
         WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
   }
 
+  public void testSearchFilterByUnreadAppliesBeforePagination() throws Exception {
+    WaveletName readFirst = WaveletName.of(WaveId.of(DOMAIN, "read-first"), WAVELET_ID);
+    WaveletName unreadLater = WaveletName.of(WaveId.of(DOMAIN, "unread-later"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(readFirst, USER1, addParticipantToWavelet(USER1, readFirst));
+    appendBlipToWavelet(readFirst, USER1, "b+read-first", "project update");
+
+    waitForDistinctTimestamp();
+
+    submitDeltaToNewWavelet(unreadLater, USER1, addParticipantToWavelet(USER1, unreadLater));
+    appendBlipToWavelet(unreadLater, USER1, "b+unread-later", "project update");
+
+    SearchProvider unreadFilterProvider = new SimpleSearchProviderImpl(
+        DOMAIN,
+        new WaveDigester(new ConversationUtil(idGenerator)) {
+          @Override
+          public Digest build(ParticipantId participant, WaveViewData wave) {
+            Digest original = super.build(participant, wave);
+            int unreadCount = "read-first".equals(wave.getWaveId().getId()) ? 0 : 2;
+            return new Digest(
+                original.getTitle(),
+                original.getSnippet(),
+                original.getWaveId(),
+                original.getParticipants(),
+                original.getLastModified(),
+                original.getCreated(),
+                unreadCount,
+                original.getBlipCount());
+          }
+        },
+        waveMap,
+        waveViewProvider);
+
+    SearchResult firstPage = unreadFilterProvider.search(
+        USER1, "in:inbox unread:true orderby:createdasc", 0, 1);
+    assertEquals(1, firstPage.getNumResults());
+    assertEquals("unread-later",
+        WaveId.deserialise(firstPage.getDigests().get(0).getWaveId()).getId());
+    assertEquals(1, firstPage.getTotalResults());
+
+    SearchResult secondPage = unreadFilterProvider.search(
+        USER1, "in:inbox unread:true orderby:createdasc", 1, 1);
+    assertEquals(0, secondPage.getNumResults());
+    assertEquals(1, secondPage.getTotalResults());
+  }
+
   public void testSearchFilterByUnreadCombinesWithContent() throws Exception {
     WaveletName unreadWave = WaveletName.of(WaveId.of(DOMAIN, "unread-match"), WAVELET_ID);
     WaveletName readWave = WaveletName.of(WaveId.of(DOMAIN, "read-match"), WAVELET_ID);

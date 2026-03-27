@@ -37,6 +37,7 @@ import org.waveprotocol.wave.model.conversation.WaveletBasedConversation;
 import org.waveprotocol.wave.model.document.Document;
 import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.ModernIdSerialiser;
+import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.supplement.PrimitiveSupplement;
 import org.waveprotocol.wave.model.supplement.PrimitiveSupplementImpl;
@@ -95,6 +96,23 @@ public class WaveDigester {
       result.addDigest(build(participant, wave));
     }
 
+    assert result.getDigests().size() == results.size();
+    return result;
+  }
+
+  public SearchResult generateSearchResult(ParticipantId participant, String query,
+      Collection<WaveViewData> results, Map<WaveId, Digest> digestCache) {
+    SearchResult result = new SearchResult(query);
+    if (results == null) {
+      return result;
+    }
+    for (WaveViewData wave : results) {
+      Digest digest = digestCache != null ? digestCache.get(wave.getWaveId()) : null;
+      if (digest == null) {
+        digest = build(participant, wave);
+      }
+      result.addDigest(digest);
+    }
     assert result.getDigests().size() == results.size();
     return result;
   }

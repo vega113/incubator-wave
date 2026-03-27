@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 import com.google.inject.name.Named;
 import com.google.wave.api.SearchResult;
+import com.google.wave.api.SearchResult.Digest;
 
 import org.waveprotocol.box.server.CoreSettingsNames;
 import org.waveprotocol.box.server.waveserver.QueryHelper.InvalidQueryException;
@@ -299,9 +300,11 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       LOG.info("After content filter: " + results.size() + " results remain");
     }
 
+    Map<WaveId, Digest> unreadDigestCache = null;
     if (isUnreadOnlyQuery) {
+      unreadDigestCache = new HashMap<WaveId, Digest>();
       LOG.info("Unread filter active: candidates before filter = " + results.size());
-      filterByUnreadState(results, user);
+      filterByUnreadState(results, user, unreadDigestCache);
       LOG.info("After unread filter: " + results.size() + " results remain");
     }
 
@@ -325,7 +328,9 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
         computeSearchResult(user, startAt, numResults, sortedResults);
     LOG.info("Search response to '" + query + "': " + searchResult.size() + " results"
         + " (total " + totalBeforePagination + "), user: " + user);
-    SearchResult result = digester.generateSearchResult(user, query, searchResult);
+    SearchResult result = unreadDigestCache == null
+        ? digester.generateSearchResult(user, query, searchResult)
+        : digester.generateSearchResult(user, query, searchResult, unreadDigestCache);
     result.setTotalResults(totalBeforePagination);
     return result;
   }
@@ -783,28 +788,6 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
         }
       } catch (Exception e) {
         LOG.warning("Failed to check content for wave " + wave.getWaveId(), e);
-        it.remove();
-      }
-    }
-  }
-
-  /**
-   * Filters wave results by unread state. Only waves whose digests report one or more unread
-   * blips for the current participant are kept.
-   *
-   * @param results the mutable list of wave views to filter in place.
-   * @param user the participant whose unread state should be evaluated.
-   */
-  private void filterByUnreadState(List<WaveViewData> results, ParticipantId user) {
-    Iterator<WaveViewData> it = results.iterator();
-    while (it.hasNext()) {
-      WaveViewData wave = it.next();
-      try {
-        if (digester.build(user, wave).getUnreadCount() <= 0) {
-          it.remove();
-        }
-      } catch (Exception e) {
-        LOG.warning("Failed to check unread state for wave " + wave.getWaveId(), e);
         it.remove();
       }
     }
