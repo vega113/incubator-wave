@@ -101,7 +101,10 @@ public class SearchServlet extends HttpServlet {
     }
     SearchResult searchResult = performSearch(searchRequest, user);
     if (snapshotPublisher != null) {
-      snapshotPublisher.publishBootstrap(user, searchRequest.getQuery(), searchResult);
+      SearchRequest bootstrapRequest = canonicalLiveSearchRequest(searchRequest);
+      SearchResult bootstrapResult = canonicalBootstrapSearchResult(
+          searchRequest, bootstrapRequest, searchResult, user);
+      snapshotPublisher.publishBootstrap(user, bootstrapRequest.getQuery(), bootstrapResult);
     }
     int totalGuess = computeTotalResultsNumberGuess(searchRequest, searchResult);
     SearchResponse searchResponse = serializeSearchResult(searchResult, totalGuess);
@@ -158,6 +161,30 @@ public class SearchServlet extends HttpServlet {
     OperationUtil.executeOperation(operationRequest, operationRegistry, context, user);
     JsonRpcResponse jsonRpcResponse = context.getResponses().get(opId);
     return (SearchResult) jsonRpcResponse.getData().get(ParamsProperty.SEARCH_RESULTS);
+  }
+
+  private SearchResult canonicalBootstrapSearchResult(
+      SearchRequest searchRequest,
+      SearchRequest canonicalRequest,
+      SearchResult searchResult,
+      ParticipantId user) {
+    if (isCanonicalLiveSearchRequest(searchRequest)) {
+      return searchResult;
+    }
+    return performSearch(canonicalRequest, user);
+  }
+
+  private static SearchRequest canonicalLiveSearchRequest(SearchRequest searchRequest) {
+    return SearchRequest.newBuilder()
+        .setQuery(searchRequest.getQuery())
+        .setIndex(0)
+        .setNumResults(SearchWaveletSnapshotPublisher.LIVE_SEARCH_NUM_RESULTS)
+        .build();
+  }
+
+  private static boolean isCanonicalLiveSearchRequest(SearchRequest searchRequest) {
+    return searchRequest.getIndex() == 0
+        && searchRequest.getNumResults() == SearchWaveletSnapshotPublisher.LIVE_SEARCH_NUM_RESULTS;
   }
 
   private static int computeTotalResultsNumberGuess(SearchRequest req, SearchResult res) {

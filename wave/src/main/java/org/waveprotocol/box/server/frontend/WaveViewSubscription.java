@@ -241,7 +241,7 @@ final class WaveViewSubscription {
     } catch (ExecutionException ex) {
       throw new RuntimeException(ex);
     }
-    state.lastVersion = snapshot.committedVersion;
+    state.lastVersion = snapshot.snapshot.getHashedVersion();
     openListener.onUpdate(
         waveletName,
         snapshot,

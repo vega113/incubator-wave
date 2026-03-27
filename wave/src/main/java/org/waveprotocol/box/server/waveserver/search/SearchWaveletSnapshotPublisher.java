@@ -46,6 +46,7 @@ public final class SearchWaveletSnapshotPublisher {
 
   private static final Log LOG = Log.get(SearchWaveletSnapshotPublisher.class);
   private static final String SEARCH_DOCUMENT_ID = "main";
+  public static final int LIVE_SEARCH_NUM_RESULTS = 50;
 
   private final SearchWaveletDispatcher dispatcher;
   private final SearchWaveletManager waveletManager;
