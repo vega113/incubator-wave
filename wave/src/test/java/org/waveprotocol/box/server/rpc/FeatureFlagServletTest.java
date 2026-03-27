@@ -156,6 +156,28 @@ public final class FeatureFlagServletTest {
   }
 
   @Test
+  public void postSaveRejectsUnexpectedAllowedUsersElements() throws Exception {
+    Object[] invalidValues = {123, true, JSONObject.NULL, new JSONArray()};
+    for (Object invalidValue : invalidValues) {
+      StringWriter body = new StringWriter();
+      String[] contentType = new String[1];
+      int[] status = new int[1];
+      JSONObject payload =
+          new JSONObject()
+              .put("name", "new-ui")
+              .put("description", "New UI")
+              .put("enabled", true)
+              .put("allowedUsers", new JSONArray().put(invalidValue));
+
+      servlet.doPost(request(payload.toString(), null), response(body, contentType, status));
+
+      assertEquals(HttpServletResponse.SC_BAD_REQUEST, status[0]);
+      assertEquals("application/json", contentType[0]);
+      assertTrue(body.toString().contains("FeatureFlagServlet allowedUsers parsing"));
+    }
+  }
+
+  @Test
   public void postSaveRejectsUnsupportedAllowedUsersShape() throws Exception {
     StringWriter body = new StringWriter();
     String[] contentType = new String[1];

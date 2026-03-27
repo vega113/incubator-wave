@@ -307,6 +307,8 @@ public final class FeatureFlagServlet extends HttpServlet {
               readBoolean(userJson.opt("enabled")));
         } else if (value instanceof String userString) {
           addAllowedUserString(allowedUsers, userString);
+        } else {
+          throw unexpectedAllowedUsersElement(i, value);
         }
       }
       return allowedUsers;
@@ -328,6 +330,21 @@ public final class FeatureFlagServlet extends HttpServlet {
       return "true".equalsIgnoreCase(stringValue.trim());
     }
     return false;
+  }
+
+  private static IllegalArgumentException unexpectedAllowedUsersElement(int index, Object value) {
+    String type = value == null
+        ? "null"
+        : value == JSONObject.NULL
+            ? "JSONObject.NULL"
+            : value.getClass().getName();
+    String message =
+        "FeatureFlagServlet allowedUsers parsing: unexpected element at index "
+            + index
+            + " of type "
+            + type;
+    LOG.warning(message);
+    return new IllegalArgumentException(message);
   }
 
   private static JSONArray toAllowedUsersJson(Map<String, Boolean> allowedUsers) {
