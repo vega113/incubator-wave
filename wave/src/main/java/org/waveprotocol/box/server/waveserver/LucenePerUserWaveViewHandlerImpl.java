@@ -47,7 +47,6 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ControlledRealTimeReopenThread;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SearcherFactory;
@@ -57,7 +56,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.index.TrackingIndexWriter;
 import org.waveprotocol.box.server.CoreSettingsNames;
 import org.waveprotocol.box.server.executor.ExecutorAnnotations.IndexExecutor;
 import org.waveprotocol.box.server.persistence.lucene.IndexDirectory;
@@ -76,15 +74,11 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
   private static final String DOC_ID = "doc_id";
   private static final Sort LAST_MODIFIED_ASC_SORT =
       new Sort(new SortField(LMT.toString(), SortField.Type.LONG));
-  private static final double MIN_STALE_SEC = 0.025;
-  private static final double MAX_STALE_SEC = 1.0;
   private static final int MAX_WAVES = 10000;
 
   private final StandardAnalyzer analyzer;
   private final IndexWriter indexWriter;
-  private final TrackingIndexWriter trackingIndexWriter;
   private final SearcherManager searcherManager;
-  private final ControlledRealTimeReopenThread<IndexSearcher> reopenThread;
   private final ReadableWaveletDataProvider waveletProvider;
   private final Executor executor;
   private boolean closed;
@@ -100,12 +94,7 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
     try {
       IndexWriterConfig indexConfig = new IndexWriterConfig(analyzer);
       this.indexWriter = new IndexWriter(directory.getDirectory(), indexConfig);
-      this.trackingIndexWriter = new TrackingIndexWriter(indexWriter);
       this.searcherManager = new SearcherManager(indexWriter, new SearcherFactory());
-      this.reopenThread = new ControlledRealTimeReopenThread<>(trackingIndexWriter,
-          searcherManager, MAX_STALE_SEC, MIN_STALE_SEC);
-      this.reopenThread.setName(domain + "-legacy-lucene-reopen");
-      this.reopenThread.start();
     } catch (IOException e) {
       throw new IndexException(e);
     }
@@ -118,7 +107,6 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
     }
     closed = true;
     try {
-      reopenThread.close();
       searcherManager.close();
       analyzer.close();
       indexWriter.close();
@@ -169,11 +157,12 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
   private void updateIndex(ReadableWaveletData wavelet) {
     Preconditions.checkNotNull(wavelet);
     try {
-      trackingIndexWriter.deleteDocuments(docIdTerm(wavelet));
+      indexWriter.deleteDocuments(docIdTerm(wavelet));
       if (!wavelet.getParticipants().isEmpty()) {
-        trackingIndexWriter.addDocument(createDocument(wavelet));
+        indexWriter.addDocument(createDocument(wavelet));
       }
       indexWriter.commit();
+      searcherManager.maybeRefreshBlocking();
     } catch (IOException e) {
       throw new IndexException(String.valueOf(wavelet.getWaveletId()), e);
     }

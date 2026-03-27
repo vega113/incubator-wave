@@ -32,8 +32,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TrackingIndexWriter;
-import org.apache.lucene.search.ControlledRealTimeReopenThread;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -77,9 +75,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber {
   private final WaveDocumentBuilder documentBuilder;
   private final boolean rebuildOnStartup;
   private final IndexWriter indexWriter;
-  private final TrackingIndexWriter trackingIndexWriter;
   private final SearcherManager searcherManager;
-  private final ControlledRealTimeReopenThread<IndexSearcher> reopenThread;
 
   @Inject
   public Lucene9WaveIndexerImpl(WaveMap waveMap, WaveletProvider waveletProvider,
@@ -93,12 +89,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber {
     try {
       this.indexWriter = new IndexWriter(directory.getDirectory(),
           new IndexWriterConfig(new StandardAnalyzer()));
-      this.trackingIndexWriter = new TrackingIndexWriter(indexWriter);
       this.searcherManager = new SearcherManager(indexWriter, new SearcherFactory());
-      this.reopenThread = new ControlledRealTimeReopenThread<>(trackingIndexWriter,
-          searcherManager, 1.0, 0.025);
-      this.reopenThread.setName("lucene9-reopen");
-      this.reopenThread.start();
     } catch (IOException e) {
       throw new IndexException(e);
     }
@@ -136,7 +127,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber {
       searcherManager.maybeRefreshBlocking();
     } catch (IOException e) {
       LOG.log(Level.WARNING, "Failed to refresh lucene9 search index for " + waveletName, e);
-    } catch (WaveServerException | WaveletStateException e) {
+    } catch (WaveServerException e) {
       LOG.log(Level.WARNING, "Failed to update lucene9 search index for " + waveletName, e);
     }
   }
@@ -181,8 +172,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber {
       IOException {
     WaveViewData wave = loadWave(waveId);
     Document document = documentBuilder.build(metadataExtractor.extract(wave), wave);
-    trackingIndexWriter.updateDocument(new Term(Lucene9FieldNames.DOC_ID, waveId.serialise()),
-        document);
+    indexWriter.updateDocument(new Term(Lucene9FieldNames.DOC_ID, waveId.serialise()), document);
   }
 
   private WaveViewData loadWave(WaveId waveId) throws WaveServerException, WaveletStateException {
