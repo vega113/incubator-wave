@@ -46,6 +46,27 @@ public final class SearchPresenterTest extends TestCase {
     assertEquals("creator:bob", SearchPresenter.normalizeSearchQuery("creator:bob"));
   }
 
+  public void testShouldSubmitQueryRejectsRepeatedDefaultSubmission() {
+    assertFalse(SearchWidget.shouldSubmitQuery(
+        "",
+        false,
+        SearchPresenter.DEFAULT_SEARCH));
+  }
+
+  public void testShouldSubmitQueryRejectsDeferredDefaultSubmission() {
+    assertFalse(SearchWidget.shouldSubmitQuery(
+        "",
+        true,
+        null));
+  }
+
+  public void testShouldSubmitQueryAllowsNewProgrammaticQueryAfterDeferredDefault() {
+    assertTrue(SearchWidget.shouldSubmitQuery(
+        "creator:bob",
+        true,
+        SearchPresenter.DEFAULT_SEARCH));
+  }
+
   public void testParseOtSearchDocumentExtractsDigestsAndMetadata() {
     DocInitialization document = DocProviders.POJO.parse(
         "<body>"
