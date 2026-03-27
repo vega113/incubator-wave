@@ -277,6 +277,7 @@ Deploy behavior:
 - set `WAVE_SERVER_VERSION` to the actual deployed build commit (`github.sha`)
 - pass it through the deploy workflow and compose runtime
 - make checkout/fetch behavior explicit enough that both the pushed commit and prior main history are available for validation
+- make rollback restore the rolled-back release's `WAVE_SERVER_VERSION`, not the forward deploy's value
 - preserve existing `buildTime` support for same-release restarts
 
 - [ ] **Step 3: Verify the deploy assets render with the new env var**
@@ -297,6 +298,7 @@ docker compose -f deploy/caddy/compose.yml config >/tmp/caddy-compose.out
 
 Expected:
 - PASS
+- rollback path should derive `WAVE_SERVER_VERSION` from the previous release directory name
 
 ### Task 5: Add CI guardrails against stale changelog rewrites
 
