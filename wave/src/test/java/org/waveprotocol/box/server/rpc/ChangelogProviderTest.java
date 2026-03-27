@@ -20,7 +20,13 @@ package org.waveprotocol.box.server.rpc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import java.io.File;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,5 +69,87 @@ public final class ChangelogProviderTest {
     assertNull(provider.getLatestVersion());
     assertNull(provider.getLatestTitle());
     assertNull(provider.getLatestSummary());
+  }
+
+  @Test
+  public void configPathLoadsEntriesWithoutDependingOnWorkingDirectory() throws Exception {
+    Path tempDir = Files.createTempDirectory("changelog-provider-config");
+    Path changelogFile = tempDir.resolve("custom-changelog.json");
+    Files.writeString(
+        changelogFile,
+        "[{\"version\":\"2026-03-27\",\"date\":\"2026-03-27\",\"title\":\"Changelog System\","
+            + "\"summary\":\"You can now see what's new after each deploy.\","
+            + "\"sections\":[{\"type\":\"feature\",\"items\":[\"New /changelog page\"]}]}]",
+        StandardCharsets.UTF_8);
+
+    Config config = ConfigFactory.parseMap(
+        java.util.Map.of("core.changelog_path", changelogFile.toString()));
+
+    ChangelogProvider provider = new ChangelogProvider(config);
+
+    assertEquals(1, provider.getEntries().length());
+    assertEquals("2026-03-27", provider.getLatestVersion());
+    assertEquals("Changelog System", provider.getLatestTitle());
+    assertEquals("You can now see what's new after each deploy.", provider.getLatestSummary());
+  }
+
+  @Test
+  public void defaultProviderLoadsClasspathChangelogFromDifferentWorkingDirectory() throws Exception {
+    Path tempDir = Files.createTempDirectory("changelog-provider-cwd");
+    Process process =
+        new ProcessBuilder(
+                javaBinary(),
+                "-cp",
+                absoluteClassPath(),
+                ChangelogProviderLaunchProbe.class.getName())
+            .directory(tempDir.toFile())
+            .redirectErrorStream(true)
+            .start();
+
+    String output = readProcessOutput(process);
+    int exitCode = process.waitFor();
+
+    assertEquals(0, exitCode);
+    assertTrue(output, output.contains("2026-03-27"));
+    assertTrue(output, output.contains("Changelog System"));
+  }
+
+  private static String javaBinary() {
+    return Path.of(System.getProperty("java.home"), "bin", "java").toString();
+  }
+
+  private static String absoluteClassPath() {
+    StringBuilder classPath = new StringBuilder();
+    for (String entry : System.getProperty("java.class.path").split(File.pathSeparator)) {
+      if (classPath.length() > 0) {
+        classPath.append(File.pathSeparator);
+      }
+      classPath.append(Path.of(entry).toAbsolutePath().normalize());
+    }
+    return classPath.toString();
+  }
+
+  private static String readProcessOutput(Process process) throws Exception {
+    StringBuilder output = new StringBuilder();
+    try (BufferedReader reader =
+        new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+      String line = reader.readLine();
+      while (line != null) {
+        output.append(line).append(System.lineSeparator());
+        line = reader.readLine();
+      }
+    }
+    return output.toString();
+  }
+}
+
+final class ChangelogProviderLaunchProbe {
+  public static void main(String[] args) {
+    ChangelogProvider provider = new ChangelogProvider();
+    if (provider.getEntries().length() == 0) {
+      throw new IllegalStateException("Expected changelog entries to load from the classpath");
+    }
+    System.out.println(provider.getLatestVersion());
+    System.out.println(provider.getLatestTitle());
   }
 }

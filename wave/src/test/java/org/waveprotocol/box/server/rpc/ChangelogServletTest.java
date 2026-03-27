@@ -86,6 +86,35 @@ public final class ChangelogServletTest {
     assertTrue(body.toString().contains("Changelog System"));
   }
 
+  @Test
+  public void basePathIgnoresJsonAcceptHeader() throws Exception {
+    StringWriter body = new StringWriter();
+    String[] contentType = new String[1];
+    HttpServletRequest request = request("/changelog", null, "application/json");
+    HttpServletResponse response = response(body, contentType);
+
+    servlet.doGet(request, response);
+
+    assertEquals("text/html; charset=UTF-8", contentType[0]);
+    assertTrue(body.toString().contains("<title>What's New - SupaWave</title>"));
+    assertTrue(body.toString().contains("Changelog System"));
+    assertTrue(!body.toString().startsWith("["));
+  }
+
+  @Test
+  public void apiPathRemainsJsonEvenWhenHtmlIsPreferred() throws Exception {
+    StringWriter body = new StringWriter();
+    String[] contentType = new String[1];
+    HttpServletRequest request = request("/changelog", "/api", "text/html");
+    HttpServletResponse response = response(body, contentType);
+
+    servlet.doGet(request, response);
+
+    assertEquals("application/json; charset=UTF-8", contentType[0]);
+    assertTrue(body.toString().startsWith("["));
+    assertTrue(body.toString().contains("\"version\":\"2026-03-27\""));
+  }
+
   private static HttpServletRequest request(String servletPath, String pathInfo, String accept) {
     return (HttpServletRequest)
         Proxy.newProxyInstance(

@@ -39,19 +39,19 @@ public final class ChangelogServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     String pathInfo = req.getPathInfo();
-    if ("/latest".equals(pathInfo)) {
+    if (isLatestPath(pathInfo)) {
       JSONObject latestEntry = changelogProvider.getLatestEntry();
       resp.setStatus(HttpServletResponse.SC_OK);
       resp.setContentType("application/json; charset=UTF-8");
       resp.setHeader("Cache-Control", "no-cache");
       resp.getWriter().write(latestEntry != null ? latestEntry.toString() : "{}");
-    } else if ("/api".equals(pathInfo) || acceptsJson(req)) {
+    } else if (isApiPath(pathInfo)) {
       JSONArray entries = changelogProvider.getEntries();
       resp.setStatus(HttpServletResponse.SC_OK);
       resp.setContentType("application/json; charset=UTF-8");
       resp.setHeader("Cache-Control", "public, max-age=300");
       resp.getWriter().write(entries.toString());
-    } else if (pathInfo == null || "/".equals(pathInfo)) {
+    } else if (isHtmlPath(pathInfo)) {
       resp.setStatus(HttpServletResponse.SC_OK);
       resp.setContentType("text/html; charset=UTF-8");
       resp.getWriter().write(HtmlRenderer.renderChangelogPage(changelogProvider.getEntries()));
@@ -60,8 +60,15 @@ public final class ChangelogServlet extends HttpServlet {
     }
   }
 
-  private static boolean acceptsJson(HttpServletRequest req) {
-    String accept = req.getHeader("Accept");
-    return accept != null && accept.contains("application/json");
+  private static boolean isLatestPath(String pathInfo) {
+    return "/latest".equals(pathInfo);
+  }
+
+  private static boolean isApiPath(String pathInfo) {
+    return "/api".equals(pathInfo);
+  }
+
+  private static boolean isHtmlPath(String pathInfo) {
+    return pathInfo == null || "/".equals(pathInfo);
   }
 }

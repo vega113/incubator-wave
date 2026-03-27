@@ -20,7 +20,9 @@ package org.waveprotocol.box.server.rpc;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.typesafe.config.Config;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,12 +41,16 @@ public final class ChangelogProvider {
   private final String latestSummary;
 
   @Inject
-  public ChangelogProvider() {
-    this(loadEntries(Paths.get("config", "changelog.json")));
+  public ChangelogProvider(Config config) {
+    this(loadDefaultEntries(config));
   }
 
   ChangelogProvider(Path changelogPath) {
     this(loadEntries(changelogPath));
+  }
+
+  public ChangelogProvider() {
+    this(loadDefaultEntries(null));
   }
 
   ChangelogProvider(JSONArray entries) {
@@ -74,6 +80,51 @@ public final class ChangelogProvider {
 
   public String getLatestSummary() {
     return latestSummary;
+  }
+
+  private static JSONArray loadDefaultEntries(Config config) {
+    JSONArray loadedEntries = new JSONArray();
+    if (config != null && config.hasPath("core.changelog_path")) {
+      loadedEntries = loadEntries(resolveConfiguredPath(config.getString("core.changelog_path")));
+    }
+    if (loadedEntries.length() == 0) {
+      loadedEntries = loadEntriesFromClasspath("config/changelog.json");
+    }
+    if (loadedEntries.length() == 0) {
+      loadedEntries = loadEntries(Paths.get("config", "changelog.json"));
+    }
+    return loadedEntries;
+  }
+
+  private static Path resolveConfiguredPath(String changelogPath) {
+    Path configuredPath = Paths.get(changelogPath);
+    if (configuredPath.isAbsolute()) {
+      return configuredPath;
+    }
+    String serverConfigPath = System.getProperty("wave.server.config");
+    if (serverConfigPath != null && !serverConfigPath.isBlank()) {
+      Path configDirectory = Paths.get(serverConfigPath).toAbsolutePath().getParent();
+      if (configDirectory != null) {
+        return configDirectory.resolve(configuredPath).normalize();
+      }
+    }
+    return configuredPath.toAbsolutePath();
+  }
+
+  private static JSONArray loadEntriesFromClasspath(String resourceName) {
+    JSONArray loadedEntries = new JSONArray();
+    try (InputStream inputStream =
+        ChangelogProvider.class.getClassLoader().getResourceAsStream(resourceName)) {
+      if (inputStream != null) {
+        String json = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        loadedEntries = new JSONArray(json);
+      } else {
+        LOG.warning("Changelog resource not found at " + resourceName);
+      }
+    } catch (IOException | RuntimeException e) {
+      LOG.warning("Failed to load changelog resource " + resourceName, e);
+    }
+    return loadedEntries;
   }
 
   private static JSONArray loadEntries(Path changelogPath) {
