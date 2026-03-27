@@ -196,6 +196,7 @@ jobs:
       checks: read
       contents: read
       pull-requests: read
+      statuses: write
     steps:
       - uses: actions/checkout@v4
       - name: Evaluate review gate
@@ -212,6 +213,7 @@ jobs:
             const prNumber = Number(prNumberInput);
             const {
               isCodexReactionLogin,
+              publishCodexReviewGateHeadStatus,
               resolveCodeRabbitCompletedAt,
               reviewGracePeriodMs
             } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/codex-review-gate`);
@@ -271,13 +273,31 @@ jobs:
             }
 
             const labels = pullRequest.labels.nodes.map((label) => label.name);
-            if (labels.includes("codex-reviewed")) {
-              core.info("Review gate passed via `codex-reviewed` label");
+            if (!pullRequest.headRefOid) {
+              core.setFailed(`Pull request #${prNumber} is missing a current head SHA`);
               return;
             }
 
-            if (!pullRequest.headRefOid) {
-              core.setFailed(`Pull request #${prNumber} is missing a current head SHA`);
+            const shouldPublishHeadStatus =
+              context.eventName === "issue_comment" ||
+              context.eventName === "workflow_dispatch";
+            const publishHeadStatus = async (description) => {
+              if (!shouldPublishHeadStatus) {
+                return;
+              }
+
+              await publishCodexReviewGateHeadStatus(github, {
+                owner,
+                repo,
+                sha: pullRequest.headRefOid,
+                state: "success",
+                description
+              });
+            };
+
+            if (labels.includes("codex-reviewed")) {
+              await publishHeadStatus("Review gate passed via codex-reviewed label");
+              core.info("Review gate passed via `codex-reviewed` label");
               return;
             }
 
@@ -312,6 +332,7 @@ jobs:
             });
 
             if (hasCodexThumbsUp) {
+              await publishHeadStatus("Review gate passed via Codex PR-level +1 reaction after CodeRabbit completion");
               core.info("Review gate passed via Codex PR-level +1 reaction after CodeRabbit completion");
               return;
             }
@@ -323,4 +344,5 @@ jobs:
               return;
             }
 
+            await publishHeadStatus("Review gate passed after 5 minutes of Codex inactivity following current-head CodeRabbit completion");
             core.info("Review gate passed after 5 minutes of Codex inactivity following current-head CodeRabbit completion");

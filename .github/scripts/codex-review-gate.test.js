@@ -20,6 +20,7 @@ const test = require('node:test');
 
 const {
   latestCodeRabbitCompletion,
+  publishCodexReviewGateHeadStatus,
   resolveCodeRabbitCompletedAt,
 } = require('./codex-review-gate');
 
@@ -79,4 +80,37 @@ test('resolveCodeRabbitCompletedAt uses GraphQL check run timestamp when availab
   );
 
   assert.equal(result, Date.parse('2026-03-27T17:14:10Z'));
+});
+
+test('publishCodexReviewGateHeadStatus writes a success status on the PR head', async () => {
+  const calls = [];
+  const github = {
+    rest: {
+      repos: {
+        createCommitStatus: async (args) => {
+          calls.push(args);
+          return args;
+        }
+      }
+    }
+  };
+
+  await publishCodexReviewGateHeadStatus(github, {
+    owner: 'vega113',
+    repo: 'incubator-wave',
+    sha: 'bae2f90912a783403a3dad03d9e36fc41f851832',
+    state: 'success',
+    description: 'Codex Review Gate passed via PR comment reevaluation'
+  });
+
+  assert.deepEqual(calls, [
+    {
+      owner: 'vega113',
+      repo: 'incubator-wave',
+      sha: 'bae2f90912a783403a3dad03d9e36fc41f851832',
+      state: 'success',
+      context: 'Codex Review Gate',
+      description: 'Codex Review Gate passed via PR comment reevaluation'
+    }
+  ]);
 });

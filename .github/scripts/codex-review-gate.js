@@ -63,11 +63,23 @@ const resolveCodeRabbitCompletedAt = (checkRuns, statusNodes = []) => {
   return latestCodeRabbitStatusCompletion(statusNodes);
 };
 
+const publishCodexReviewGateHeadStatus = async (github, options) => {
+  return github.rest.repos.createCommitStatus({
+    owner: options.owner,
+    repo: options.repo,
+    sha: options.sha,
+    state: options.state,
+    context: "Codex Review Gate",
+    description: options.description
+  });
+};
+
 module.exports = {
   codeRabbitNames,
   codexReactionLogins,
   isCodexReactionLogin,
   latestCodeRabbitCompletion,
+  publishCodexReviewGateHeadStatus,
   resolveCodeRabbitCompletedAt,
   reviewGracePeriodMs
 };
