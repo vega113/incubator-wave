@@ -38,7 +38,11 @@ public final class HtmlRendererFeatureFlagsTest {
                 + "    resetFlagEditingState();\n"
                 + "    flagForm.style.display = 'none';\n"
                 + "  });"));
-    assertTrue(html.contains("var flag = buildFlagPayload(flagsData[flagIndex]);"));
+    assertTrue(html.contains("var rowFlag = normalizeFlag(flagsData[flagIndex]);"));
+    assertTrue(html.contains("var rowUserEmail = rowFlag.allowedUsers[userIndex].email;"));
+    assertTrue(html.contains("var payload = buildFlagPayload(rowFlag);"));
+    assertTrue(html.contains("var payloadUserFound = false;"));
+    assertTrue(html.contains("payload.allowedUsers.push({ email: rowUserEmail, enabled: nextEnabled });"));
     assertTrue(html.contains("var rowFlag = normalizeFlag(flagsData[idx]);"));
     assertTrue(html.contains("var payload = buildFlagPayload(rowFlag);"));
     assertTrue(html.contains("payload.enabled = !rowFlag.enabled;"));

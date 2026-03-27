@@ -4558,15 +4558,22 @@ public final class HtmlRenderer {
     sb.append("  };\n");
 
     sb.append("  window.toggleAllowedUser = function(flagIndex, userIndex, nextEnabled) {\n");
-    sb.append("    var flag = buildFlagPayload(flagsData[flagIndex]);\n");
-    sb.append("    if (!flag.allowedUsers[userIndex]) { return; }\n");
-    sb.append("    flag.allowedUsers[userIndex].enabled = nextEnabled;\n");
-    sb.append("    saveFlag({\n");
-    sb.append("      name: flag.name,\n");
-    sb.append("      description: flag.description || '',\n");
-    sb.append("      enabled: flag.enabled,\n");
-    sb.append("      allowedUsers: cloneAllowedUsers(flag.allowedUsers)\n");
-    sb.append("    }, 'User access updated', { closeForm: false });\n");
+    sb.append("    var rowFlag = normalizeFlag(flagsData[flagIndex]);\n");
+    sb.append("    if (!rowFlag.allowedUsers[userIndex]) { return; }\n");
+    sb.append("    var rowUserEmail = rowFlag.allowedUsers[userIndex].email;\n");
+    sb.append("    var payload = buildFlagPayload(rowFlag);\n");
+    sb.append("    var payloadUserFound = false;\n");
+    sb.append("    for (var i = 0; i < payload.allowedUsers.length; i++) {\n");
+    sb.append("      if (payload.allowedUsers[i].email === rowUserEmail) {\n");
+    sb.append("        payload.allowedUsers[i].enabled = nextEnabled;\n");
+    sb.append("        payloadUserFound = true;\n");
+    sb.append("        break;\n");
+    sb.append("      }\n");
+    sb.append("    }\n");
+    sb.append("    if (!payloadUserFound) {\n");
+    sb.append("      payload.allowedUsers.push({ email: rowUserEmail, enabled: nextEnabled });\n");
+    sb.append("    }\n");
+    sb.append("    saveFlag(payload, 'User access updated', { closeForm: false });\n");
     sb.append("  };\n");
 
     // Toggle flag
