@@ -67,8 +67,9 @@ public final class HtmlRendererChangelogTest {
     String topBar = HtmlRenderer.renderTopBar("alice", "example.com", "user");
     String landing = HtmlRenderer.renderLandingPage("example.com", "");
 
-    assertTrue(topBar.contains("href=\"/changelog\""));
+    assertTrue(topBar.contains("href=\"/changelog\" target=\"_blank\" rel=\"noopener noreferrer\""));
     assertTrue(landing.contains("href=\"/changelog\">What's New</a>"));
+    assertTrue(!topBar.contains("target=\"_blank\">"));
   }
 
   @Test
@@ -76,7 +77,7 @@ public final class HtmlRendererChangelogTest {
     String topBar = HtmlRenderer.renderTopBar("alice", "example.com", "user");
     String landing = HtmlRenderer.renderLandingPage("example.com", "");
 
-    assertTrue(topBar.contains("href=\"/api-docs\""));
+    assertTrue(topBar.contains("href=\"/api-docs\" target=\"_blank\" rel=\"noopener noreferrer\""));
     assertTrue(landing.contains("href=\"/api-docs\""));
   }
 
