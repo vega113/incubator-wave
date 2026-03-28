@@ -28,7 +28,6 @@ import org.waveprotocol.box.common.comms.DocumentSnapshot;
 import org.waveprotocol.box.common.comms.ProtocolWaveletUpdate;
 import org.waveprotocol.box.common.comms.WaveletSnapshot;
 import org.waveprotocol.box.search.SearchBootstrapUiState;
-import org.waveprotocol.box.common.search.SearchQueryMode;
 import org.waveprotocol.wave.federation.ProtocolHashedVersion;
 import org.waveprotocol.wave.federation.ProtocolWaveletDelta;
 import org.waveprotocol.box.webclient.client.RemoteViewServiceMultiplexer;
@@ -78,6 +77,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -364,6 +364,10 @@ public final class SearchPresenter
     return MobileDetector.isMobile() ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
   }
 
+  private static boolean supportsOtSearch(String query) {
+    return query == null || !query.toLowerCase(Locale.ROOT).contains("tag:");
+  }
+
   static boolean shouldUsePolling(boolean otSearchEnabled, boolean otSearchReady) {
     return !otSearchEnabled || !otSearchReady;
   }
@@ -377,7 +381,7 @@ public final class SearchPresenter
         && SearchBootstrapUiState.allowLoadingSkeletonForSearchStart(search.getMinimumTotal());
     otSearchTimedOut = false;
     renderLoadingSkeletonIfEmpty();
-    if (!SearchQueryMode.supportsOtSearch(queryText)) {
+    if (!supportsOtSearch(queryText)) {
       useOtSearch = false;
       unsubscribeFromSearchWavelet();
       doSearch();
