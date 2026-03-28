@@ -185,7 +185,7 @@ public final class SearchPresenterTest extends TestCase {
     assertEquals(1, scheduler.countTasksScheduled());
   }
 
-  public void testBootstrapOtSearchSubscribesTagQueryToOtSearch() throws Exception {
+  public void testBootstrapOtSearchBypassesOtSearchForTagQuery() throws Exception {
     FakeTimerService scheduler = new FakeTimerService();
     FakeSearch search = new FakeSearch();
     WaveWebSocketClient socket = Mockito.mock(WaveWebSocketClient.class);
@@ -200,7 +200,9 @@ public final class SearchPresenterTest extends TestCase {
 
     presenter.bootstrapOtSearch();
 
-    Mockito.verify(socket).open(Mockito.any());
+    Mockito.verify(socket, Mockito.never()).open(Mockito.any());
+    assertEquals(1, search.findCalls);
+    assertEquals("tag:work", search.lastQuery);
   }
 
   public void testBootstrapOtSearchSubscribesNotagSubstringQueryToOtSearch()
