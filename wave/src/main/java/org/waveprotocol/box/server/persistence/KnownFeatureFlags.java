@@ -39,6 +39,18 @@ public final class KnownFeatureFlags {
     return new ArrayList<>(mergedFlags.values());
   }
 
+  public static boolean isKnownFlag(String name) {
+    if (name == null) {
+      return false;
+    }
+    for (FeatureFlag flag : DEFAULTS) {
+      if (flag != null && name.equals(flag.getName())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private static void addFlags(LinkedHashMap<String, FeatureFlag> mergedFlags,
       List<FeatureFlag> flags) {
     if (flags == null) {

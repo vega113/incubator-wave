@@ -21,6 +21,8 @@ package org.waveprotocol.box.server.rpc;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -68,7 +70,26 @@ public final class FeatureFlagServletTest {
 
     assertTrue(body.contains("\"description\":\"Persisted rollout state\""));
     assertTrue(body.contains("\"enabled\":true"));
-    assertTrue(body.contains("\"allowedUsers\":\"vega@supawave.ai\""));
+    assertTrue(body.contains("\"allowedUsers\":\"vega@supawave.ai:enabled\""));
+  }
+
+  @Test
+  public void deleteRejectsKnownLucene9Flag() throws Exception {
+    FeatureFlagStore store = mock(FeatureFlagStore.class);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpSession session = mock(HttpSession.class);
+    when(request.getSession(false)).thenReturn(session);
+    when(request.getParameter("name")).thenReturn("lucene9");
+
+    StringWriter body = new StringWriter();
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    deleteFlag(request, response, store);
+
+    verify(store, never()).delete("lucene9");
+    verify(response).setStatus(HttpServletResponse.SC_CONFLICT);
+    assertTrue(body.toString().contains("Known feature flags cannot be deleted"));
   }
 
   @Test
@@ -88,18 +109,6 @@ public final class FeatureFlagServletTest {
   }
 
   private String fetchFlagsJson(FeatureFlagStore store) throws Exception {
-    FeatureFlagService service = new FeatureFlagService(store);
-    SessionManager sessionManager = mock(SessionManager.class);
-    when(sessionManager.getLoggedInUser(nullable(WebSession.class))).thenReturn(OWNER);
-
-    AccountStore accountStore = mock(AccountStore.class);
-    HumanAccountData admin = new HumanAccountDataImpl(OWNER);
-    admin.setRole(HumanAccountData.ROLE_OWNER);
-    when(accountStore.getAccount(OWNER)).thenReturn(admin);
-
-    FeatureFlagServlet servlet =
-        new FeatureFlagServlet(store, service, sessionManager, accountStore, "example.com");
-
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpSession session = mock(HttpSession.class);
     when(request.getSession(false)).thenReturn(session);
@@ -109,8 +118,27 @@ public final class FeatureFlagServletTest {
     HttpServletResponse response = mock(HttpServletResponse.class);
     when(response.getWriter()).thenReturn(new PrintWriter(body));
 
-    servlet.doGet(request, response);
+    createServlet(store).doGet(request, response);
 
     return body.toString();
+  }
+
+  private void deleteFlag(
+      HttpServletRequest request, HttpServletResponse response, FeatureFlagStore store)
+      throws Exception {
+    createServlet(store).doDelete(request, response);
+  }
+
+  private FeatureFlagServlet createServlet(FeatureFlagStore store) throws Exception {
+    FeatureFlagService service = new FeatureFlagService(store);
+    SessionManager sessionManager = mock(SessionManager.class);
+    when(sessionManager.getLoggedInUser(nullable(WebSession.class))).thenReturn(OWNER);
+
+    AccountStore accountStore = mock(AccountStore.class);
+    HumanAccountData admin = new HumanAccountDataImpl(OWNER);
+    admin.setRole(HumanAccountData.ROLE_OWNER);
+    when(accountStore.getAccount(OWNER)).thenReturn(admin);
+
+    return new FeatureFlagServlet(store, service, sessionManager, accountStore, "example.com");
   }
 }

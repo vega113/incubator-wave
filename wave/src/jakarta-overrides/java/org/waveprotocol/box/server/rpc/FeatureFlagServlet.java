@@ -202,8 +202,16 @@ public final class FeatureFlagServlet extends HttpServlet {
       sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST, "Missing 'name' parameter");
       return;
     }
+    String trimmedName = name.trim();
+    if (KnownFeatureFlags.isKnownFlag(trimmedName)) {
+      sendJsonError(
+          resp,
+          HttpServletResponse.SC_CONFLICT,
+          "Known feature flags cannot be deleted; save a disabled state instead");
+      return;
+    }
     try {
-      store.delete(name.trim());
+      store.delete(trimmedName);
       service.refreshCache();
       setJsonUtf8(resp);
       resp.getWriter().write("{\"ok\":true}");
