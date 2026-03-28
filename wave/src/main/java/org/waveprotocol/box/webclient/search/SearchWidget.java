@@ -39,6 +39,7 @@ import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.TextBox;
 
+import org.waveprotocol.box.search.SearchWidgetQueryState;
 import org.waveprotocol.wave.client.common.util.QuirksConstants;
 
 /**

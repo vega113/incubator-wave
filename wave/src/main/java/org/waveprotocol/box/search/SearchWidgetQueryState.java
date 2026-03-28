@@ -1,4 +1,4 @@
-package org.waveprotocol.box.webclient.search;
+package org.waveprotocol.box.search;
 
 public final class SearchWidgetQueryState {
 

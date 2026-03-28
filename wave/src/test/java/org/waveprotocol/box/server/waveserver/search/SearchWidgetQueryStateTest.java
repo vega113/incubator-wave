@@ -2,7 +2,7 @@ package org.waveprotocol.box.server.waveserver.search;
 
 import junit.framework.TestCase;
 
-import org.waveprotocol.box.webclient.search.SearchWidgetQueryState;
+import org.waveprotocol.box.search.SearchWidgetQueryState;
 
 public final class SearchWidgetQueryStateTest extends TestCase {
 
