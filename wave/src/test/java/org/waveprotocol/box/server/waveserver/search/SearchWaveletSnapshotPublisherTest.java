@@ -51,6 +51,7 @@ import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -122,17 +123,36 @@ public final class SearchWaveletSnapshotPublisherTest extends TestCase {
   }
 
   public void testPublishUpdateSerializesConcurrentStateTransitions() throws Exception {
+    WaveletProvider waveletProvider = mock(WaveletProvider.class);
+    when(waveletProvider.getWaveletIds(any())).thenReturn(ImmutableSet.of());
+
+    WaveletInfo waveletInfo = WaveletInfo.create(HASH_FACTORY, waveletProvider);
+    ClientFrontendImpl clientFrontend =
+        ClientFrontendImpl.create(waveletProvider, mock(WaveBus.class), waveletInfo);
     SearchWaveletManager waveletManager = new SearchWaveletManager();
     SearchIndexer indexer = new SearchIndexer();
+    SearchWaveletDispatcher dispatcher = new SearchWaveletDispatcher();
+    dispatcher.initialize(waveletInfo);
     BlockingSearchWaveletDataProvider dataProvider =
         new BlockingSearchWaveletDataProvider("example.com/w+old", "example.com/w+new");
     SearchWaveletSnapshotPublisher publisher =
         new SearchWaveletSnapshotPublisher(
-            new SearchWaveletDispatcher(),
+            dispatcher,
             waveletManager,
             indexer,
             dataProvider);
     AtomicReference<Throwable> failure = new AtomicReference<>();
+
+    WaveletName searchWaveletName = waveletManager.computeWaveletName(USER, QUERY);
+    IdFilter filter = IdFilter.of(
+        Collections.singleton(searchWaveletName.waveletId),
+        Collections.<String>emptySet());
+    clientFrontend.openRequest(
+        USER,
+        searchWaveletName.waveId,
+        filter,
+        NO_KNOWN_WAVELETS,
+        mock(OpenListener.class));
 
     Thread olderPublish = new Thread(
         () -> runPublish(
@@ -162,10 +182,40 @@ public final class SearchWaveletSnapshotPublisherTest extends TestCase {
       throw new AssertionError(failure.get());
     }
 
-    WaveletName searchWaveletName = waveletManager.computeWaveletName(USER, QUERY);
     assertEquals(
         "example.com/w+new",
         dataProvider.getCurrentResults(searchWaveletName).get(0).getWaveId());
+  }
+
+  public void testPublishUpdateWithoutLiveSubscriptionDoesNotRetainState() throws Exception {
+    SearchWaveletManager waveletManager = new SearchWaveletManager();
+    SearchIndexer indexer = new SearchIndexer();
+    SearchWaveletDataProvider dataProvider = new SearchWaveletDataProvider();
+    SearchWaveletSnapshotPublisher publisher =
+        new SearchWaveletSnapshotPublisher(
+            new SearchWaveletDispatcher(),
+            waveletManager,
+            indexer,
+            dataProvider);
+
+    publisher.publishUpdate(USER, QUERY, createSearchResult(QUERY, "example.com/w+inactive", 1));
+
+    WaveletName searchWaveletName = waveletManager.computeWaveletName(USER, QUERY);
+    assertEquals(0, waveletManager.getActiveCount());
+    assertEquals(0, indexer.getSubscriptionCount());
+    assertTrue(dataProvider.getCurrentResults(searchWaveletName).isEmpty());
+    assertEquals(0, getPublisherMap(publisher, "waveletVersions").size());
+    assertEquals(0, getPublisherMap(publisher, "publishLocks").size());
+  }
+
+  @SuppressWarnings("unchecked")
+  private static ConcurrentHashMap<String, ?> getPublisherMap(
+      SearchWaveletSnapshotPublisher publisher,
+      String fieldName) throws Exception {
+    java.lang.reflect.Field field =
+        SearchWaveletSnapshotPublisher.class.getDeclaredField(fieldName);
+    field.setAccessible(true);
+    return (ConcurrentHashMap<String, ?>) field.get(publisher);
   }
 
   private static void runPublish(

@@ -82,7 +82,10 @@ public final class SearchWaveletSnapshotPublisher {
   private void publish(ParticipantId user, String query, SearchResult searchResult,
       boolean forceSnapshot) {
     WaveletName computedWaveletName = waveletManager.computeWaveletName(user, query);
-    if (forceSnapshot && !dispatcher.hasSubscription(user, computedWaveletName)) {
+    if (!dispatcher.hasSubscription(user, computedWaveletName)) {
+      if (!forceSnapshot) {
+        pruneInactiveSubscription(user, query, computedWaveletName);
+      }
       return;
     }
     WaveletName searchWaveletName = waveletManager.getOrCreateSearchWavelet(user, query);
@@ -112,6 +115,18 @@ public final class SearchWaveletSnapshotPublisher {
           createSnapshot(searchWaveletName, user, newResults, newTotalCount);
       dispatcher.publishSnapshot(user, searchWaveletName, snapshot);
     }
+  }
+
+  private void pruneInactiveSubscription(
+      ParticipantId user,
+      String query,
+      WaveletName searchWaveletName) {
+    indexer.unregisterSubscription(user, SearchWaveletManager.md5Hex(query));
+    waveletManager.removeSearchWavelet(user, query);
+    dataProvider.clearResults(searchWaveletName);
+    String searchWaveletKey = searchWaveletName.toString();
+    waveletVersions.remove(searchWaveletKey);
+    publishLocks.remove(searchWaveletKey);
   }
 
   private Set<WaveId> collectWaveIds(List<SearchWaveletDataProvider.SearchResultEntry> results) {
