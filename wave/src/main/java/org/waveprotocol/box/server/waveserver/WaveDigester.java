@@ -25,6 +25,7 @@ import com.google.wave.api.ApiIdSerializer;
 import com.google.wave.api.SearchResult;
 import com.google.wave.api.SearchResult.Digest;
 
+import org.waveprotocol.box.common.DocumentConstants;
 import org.waveprotocol.box.common.Snippets;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.waveserver.SimpleSearchProviderImpl.WaveSupplementContext;
@@ -48,6 +49,7 @@ import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl.DefaultFollow
 import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
 import org.waveprotocol.wave.model.util.CollectionUtils;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.data.ReadableBlipData;
 import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
 import org.waveprotocol.wave.model.wave.data.WaveViewData;
 import org.waveprotocol.wave.model.wave.data.WaveletData;
@@ -120,11 +122,65 @@ public class WaveDigester {
 
   int getUnreadCount(WaveSupplementContext context,
       Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
-    if (context == null || context.supplement == null || context.conversations == null) {
+    return countUnread(null, context, waveletAdapters);
+  }
+
+  int countUnread(ParticipantId participant, WaveSupplementContext context,
+      Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
+    if (context == null) {
+      return 0;
+    }
+    PrimitiveSupplement readState = createReadState(participant, context, waveletAdapters);
+    if (readState != null) {
+      return countUnreadFromReadState(readState, context.conversationalWavelets);
+    }
+    if (context.supplement == null || context.conversations == null) {
       return 0;
     }
     return countUnread(context.convWavelet, context.conversationalWavelets, context.supplement,
         context.conversations, waveletAdapters);
+  }
+
+  private int countUnreadFromReadState(PrimitiveSupplement readState,
+      Iterable<? extends ObservableWaveletData> conversationalWavelets) {
+    int unreadCount = 0;
+    for (ObservableWaveletData conversationalWavelet : conversationalWavelets) {
+      WaveletId waveletId = conversationalWavelet.getWaveletId();
+      int lastReadWaveletVersion = readState.getLastReadWaveletVersion(waveletId);
+      for (String documentId : conversationalWavelet.getDocumentIds()) {
+        if (DocumentConstants.MANIFEST_DOCUMENT_ID.equals(documentId)) {
+          continue;
+        }
+        ReadableBlipData blip = conversationalWavelet.getDocument(documentId);
+        if (blip == null) {
+          continue;
+        }
+        long modifiedVersion = blip.getLastModifiedVersion();
+        boolean unreadByBlip = readState.getLastReadBlipVersion(waveletId, documentId)
+            == PrimitiveSupplement.NO_VERSION
+            || readState.getLastReadBlipVersion(waveletId, documentId) < modifiedVersion;
+        boolean unreadByWavelet = lastReadWaveletVersion == PrimitiveSupplement.NO_VERSION
+            || lastReadWaveletVersion < modifiedVersion;
+        if (unreadByBlip && unreadByWavelet) {
+          unreadCount++;
+        }
+      }
+    }
+    return unreadCount;
+  }
+
+  private PrimitiveSupplement createReadState(ParticipantId participant,
+      WaveSupplementContext context,
+      Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
+    if (context.udw != null) {
+      OpBasedWavelet userDataWavelet =
+          getOrCreateReadOnlyWavelet(context.udw, waveletAdapters);
+      return WaveletBasedSupplement.create(userDataWavelet);
+    }
+    if (isExplicitParticipant(participant, context.conversationalWavelets)) {
+      return new PrimitiveSupplementImpl();
+    }
+    return null;
   }
 
   public Digest build(ParticipantId participant, WaveViewData wave) {

@@ -610,7 +610,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       WaveViewData wave = it.next();
       try {
         WaveSupplementContext ctx = getOrBuildContext(wave, user, supplementCache, waveletAdapters);
-        if (digester.getUnreadCount(ctx, waveletAdapters) <= 0) {
+        if (digester.countUnread(user, ctx, waveletAdapters) <= 0) {
           it.remove();
         }
       } catch (Exception e) {

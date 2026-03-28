@@ -623,18 +623,52 @@ public class SimpleSearchProviderImplTest extends TestCase {
         WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
   }
 
+  public void testSearchUnreadTrueReturnsOnlyUnreadWaves() throws Exception {
+    WaveletName unreadWave = WaveletName.of(WaveId.of(DOMAIN, "unread"), WAVELET_ID);
+    WaveletName readWave = WaveletName.of(WaveId.of(DOMAIN, "read"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(unreadWave, USER1, addParticipantToWavelet(USER1, unreadWave));
+    appendBlipToWavelet(unreadWave, USER1, "b+unread", "project update");
+
+    submitDeltaToNewWavelet(readWave, USER1, addParticipantToWavelet(USER1, readWave));
+    appendBlipToWavelet(readWave, USER1, "b+read", "project update");
+
+    SearchProvider unreadFilterProvider =
+        newUnreadAwareSearchProvider(ImmutableMap.of("read", 0, "unread", 2));
+
+    SearchResult results = unreadFilterProvider.search(USER1, "unread:true", 0, 10);
+
+    assertEquals(1, results.getNumResults());
+    assertEquals("unread",
+        WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
+  }
+
+  public void testSearchUnreadTrueReturnsNothingWhenAllWavesAreRead() throws Exception {
+    WaveletName readWave = WaveletName.of(WaveId.of(DOMAIN, "read-only"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(readWave, USER1, addParticipantToWavelet(USER1, readWave));
+    appendBlipToWavelet(readWave, USER1, "b+read", "project update");
+
+    SearchProvider unreadFilterProvider =
+        newUnreadAwareSearchProvider(ImmutableMap.of("read-only", 0));
+
+    SearchResult results = unreadFilterProvider.search(USER1, "unread:true", 0, 10);
+
+    assertEquals(0, results.getNumResults());
+  }
+
   // *** Helpers
 
   private SearchProvider newUnreadAwareSearchProvider(final Map<String, Integer> unreadCounts) {
     ConversationUtil conversationUtil = new ConversationUtil(idGenerator);
     WaveDigester digester = new WaveDigester(conversationUtil) {
       @Override
-      int getUnreadCount(WaveSupplementContext context,
+      int countUnread(ParticipantId participant, WaveSupplementContext context,
           Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
         String waveId = context.convWavelet.getWaveId().getId();
         Integer unreadCount = unreadCounts.get(waveId);
         if (unreadCount == null) {
-          return super.getUnreadCount(context, waveletAdapters);
+          return super.countUnread(participant, context, waveletAdapters);
         }
         return unreadCount.intValue();
       }
