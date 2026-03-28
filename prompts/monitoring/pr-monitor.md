@@ -62,6 +62,7 @@ Check all monitored repos for open issues. Spawn background agents to fix action
 - Comments/thread resolutions do NOT restart the 5-minute CodeRabbit-completion window.
 - Re-run failed gates once the 5-minute grace period has elapsed if no thumbs-up was added; scheduled fallback uses the same PR comment trigger so it does not depend on the PR branch carrying the latest workflow file.
 - For stacked PRs targeting a non-default branch, do not merge just because the 5-minute window elapsed and no threads exist yet; verify explicit Codex coverage on the current `headRefOid` first
+- Do not treat `codex-reviewed` as sufficient for stacked PRs; labels are not commit-scoped
 - If CodeRabbit says `Review skipped` because the base branch is not the default branch, treat that as missing review coverage, not as success
 - After any late-arriving bot review, re-check unresolved threads before merging
 

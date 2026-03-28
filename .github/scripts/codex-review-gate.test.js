@@ -49,11 +49,23 @@ test("fails when review threads are unresolved", () => {
   assert.match(result.message, /unresolved review thread/);
 });
 
-test("passes stacked PRs with Codex label coverage", () => {
+test("rejects stacked PRs with stale Codex labels", () => {
   const result = evaluateCodexReviewGate({
     defaultBranchName: "main",
     pullRequest: buildPullRequest({
       baseRefName: "fix/tag-filter-regression",
+      labels: { nodes: [{ name: "codex-reviewed" }] },
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /explicit Codex coverage/);
+});
+
+test("passes main PRs with Codex label coverage", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    pullRequest: buildPullRequest({
       labels: { nodes: [{ name: "codex-reviewed" }] },
     }),
   });

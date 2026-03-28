@@ -243,7 +243,7 @@ sbt run                        # Run dev server on :9898
 - PR requires one valid bot-review signal and zero unresolved review threads
 - Nitpicks are not optional by default; they need a fix or a reply that explains why no change is needed
 - Do not resolve review threads just to satisfy the gate; leave an explicit reply before resolving an already-addressed thread
-- Stacked PRs targeting non-default branches still need an explicit Codex signal on the current head commit before merge; the main-branch review gate does not protect them at PR-open time
+- Stacked PRs targeting non-default branches still need explicit Codex head-commit coverage before merge; labels alone are not enough
 - Commits reference Beads task IDs
 
 ## Critical Decisions Already Made
@@ -280,7 +280,7 @@ sbt run                        # Run dev server on :9898
   - `CodeRabbit`
   - resolved review conversations
 - The review gate auto-reevaluates correctly after thread resolution
-- Stacked PRs need explicit Codex coverage on the current head commit before merge
+- Stacked PRs need explicit Codex coverage on the current head commit before merge; labels alone are not enough
 - For `main`-branch merges, one valid review signal is enough, not both bots
 
 ## Known Fragile Areas

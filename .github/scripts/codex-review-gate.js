@@ -31,14 +31,15 @@ function evaluatePullRequestGate({ pullRequest, defaultBranchName, nowMs }) {
     statusNodes,
     codeRabbitSkipped,
   });
+  const isStackedPr =
+    typeof pullRequest.baseRefName === "string" &&
+    pullRequest.baseRefName !== defaultBranchName;
   const codexApproved = hasCodexCoverage({
     labels,
     reviewNodes,
     headRefOid,
+    isStackedPr,
   });
-  const isStackedPr =
-    typeof pullRequest.baseRefName === "string" &&
-    pullRequest.baseRefName !== defaultBranchName;
   const latestCommitAt = Date.parse(latestCommit?.committedDate ?? "");
   const commitAgeMs = Number.isFinite(latestCommitAt)
     ? nowMs - latestCommitAt
@@ -111,8 +112,8 @@ function hasCodeRabbitApproval({ labels, statusNodes, codeRabbitSkipped }) {
   return hasLabel || (hasStatus && !codeRabbitSkipped);
 }
 
-function hasCodexCoverage({ labels, reviewNodes, headRefOid }) {
-  const hasLabel = labels.includes(CODEX_REVIEW_LABEL);
+function hasCodexCoverage({ labels, reviewNodes, headRefOid, isStackedPr }) {
+  const hasLabel = labels.includes(CODEX_REVIEW_LABEL) && !isStackedPr;
   const hasHeadReview = reviewNodes.some((review) => {
     const authorLogin = review.author?.login ?? "";
     const reviewedCommitOid = review.commit?.oid ?? "";
