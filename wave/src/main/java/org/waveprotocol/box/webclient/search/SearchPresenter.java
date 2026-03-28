@@ -28,6 +28,7 @@ import org.waveprotocol.box.common.comms.DocumentSnapshot;
 import org.waveprotocol.box.common.comms.ProtocolWaveletUpdate;
 import org.waveprotocol.box.common.comms.WaveletSnapshot;
 import org.waveprotocol.box.search.SearchBootstrapUiState;
+import org.waveprotocol.box.common.search.SearchQueryMode;
 import org.waveprotocol.wave.federation.ProtocolHashedVersion;
 import org.waveprotocol.wave.federation.ProtocolWaveletDelta;
 import org.waveprotocol.box.webclient.client.RemoteViewServiceMultiplexer;
@@ -376,6 +377,14 @@ public final class SearchPresenter
         && SearchBootstrapUiState.allowLoadingSkeletonForSearchStart(search.getMinimumTotal());
     otSearchTimedOut = false;
     renderLoadingSkeletonIfEmpty();
+    if (!SearchQueryMode.supportsOtSearch(queryText)) {
+      useOtSearch = false;
+      unsubscribeFromSearchWavelet();
+      doSearch();
+      scheduler.cancel(searchUpdater);
+      scheduler.scheduleRepeating(searchUpdater, POLLING_INTERVAL_MS, POLLING_INTERVAL_MS);
+      return;
+    }
     subscribeToSearchWavelet(queryText);
     doSearch();
     scheduler.cancel(searchUpdater);
