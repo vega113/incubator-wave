@@ -40,9 +40,11 @@ import org.waveprotocol.box.server.common.CoreWaveletOperationSerializer;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.persistence.memory.MemoryDeltaStore;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
+import org.waveprotocol.wave.model.document.operation.Attributes;
 import org.waveprotocol.wave.federation.Proto.ProtocolSignedDelta;
 import org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta;
 import org.waveprotocol.wave.model.document.operation.impl.DocOpBuilder;
+import org.waveprotocol.wave.model.id.IdConstants;
 import org.waveprotocol.wave.model.id.IdGenerator;
 import org.waveprotocol.wave.model.id.IdURIEncoderDecoder;
 import org.waveprotocol.wave.model.id.WaveId;
@@ -549,6 +551,22 @@ public class SimpleSearchProviderImplTest extends TestCase {
         WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
   }
 
+  public void testSearchFilterByTagReturnsOnlyTaggedWaves() throws Exception {
+    WaveletName taggedWave = WaveletName.of(WaveId.of(DOMAIN, "tagged"), WAVELET_ID);
+    WaveletName untaggedWave = WaveletName.of(WaveId.of(DOMAIN, "untagged"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(taggedWave, USER1, addParticipantToWavelet(USER1, taggedWave));
+    addTagToWavelet(taggedWave, USER1, "work");
+
+    submitDeltaToNewWavelet(untaggedWave, USER1, addParticipantToWavelet(USER1, untaggedWave));
+
+    SearchResult results = searchProvider.search(USER1, "tag:work", 0, 10);
+
+    assertEquals(1, results.getNumResults());
+    assertEquals("tagged",
+        WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
+  }
+
   // *** Helpers
 
   private void submitDeltaToNewWavelet(WaveletName name, ParticipantId user,
@@ -594,6 +612,18 @@ public class SimpleSearchProviderImplTest extends TestCase {
         new WaveletBlipOperation(blipId, new BlipContentOperation(context,
             new DocOpBuilder().characters(text).build()));
     submitDeltaToExistingWavelet(name, user, appendOp);
+  }
+
+  private void addTagToWavelet(WaveletName name, ParticipantId user, String tag) throws Exception {
+    WaveletOperationContext context = new WaveletOperationContext(user, 0, 1);
+    WaveletOperation addTagOp =
+        new WaveletBlipOperation(IdConstants.TAGS_DOC_ID, new BlipContentOperation(context,
+            new DocOpBuilder()
+                .elementStart("tag", Attributes.EMPTY_MAP)
+                .characters(tag)
+                .elementEnd()
+                .build()));
+    submitDeltaToExistingWavelet(name, user, addTagOp);
   }
 
   private void waitForDistinctTimestamp() throws InterruptedException {
