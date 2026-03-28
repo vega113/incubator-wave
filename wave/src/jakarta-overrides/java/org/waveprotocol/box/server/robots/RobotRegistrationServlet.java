@@ -26,6 +26,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.waveprotocol.box.server.CoreSettingsNames;
 import org.waveprotocol.box.server.account.RobotAccountData;
+import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSessions;
 import org.waveprotocol.box.server.rpc.HtmlRenderer;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
@@ -44,20 +46,27 @@ public final class RobotRegistrationServlet extends HttpServlet {
   private static final Log LOG = Log.get(RobotRegistrationServlet.class);
 
   private final RobotRegistrar robotRegistrar;
+  private final SessionManager sessionManager;
   private final String domain;
   private final String analyticsAccount;
 
   @Inject
   public RobotRegistrationServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
+                                  SessionManager sessionManager,
                                   RobotRegistrar robotRegistrar,
                                   Config config) {
     this.robotRegistrar = robotRegistrar;
+    this.sessionManager = sessionManager;
     this.domain = domain;
     this.analyticsAccount = config.getString("administration.analytics_account");
   }
 
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    ParticipantId user = requireUser(req, resp);
+    if (user == null) {
+      return;
+    }
     if (CREATE_PATH.equals(req.getPathInfo())) {
       renderRegistrationPage(req, resp, "");
     } else {
@@ -67,11 +76,24 @@ public final class RobotRegistrationServlet extends HttpServlet {
 
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    ParticipantId user = requireUser(req, resp);
+    if (user == null) {
+      return;
+    }
     if (CREATE_PATH.equals(req.getPathInfo())) {
-      handleRegistration(req, resp);
+      handleRegistration(req, resp, user);
     } else {
       resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
     }
+  }
+
+  private ParticipantId requireUser(HttpServletRequest req, HttpServletResponse resp)
+      throws IOException {
+    ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
+    if (user == null) {
+      resp.sendRedirect("/auth/signin?r=/robot/register/create");
+    }
+    return user;
   }
 
   private void renderRegistrationPage(HttpServletRequest req, HttpServletResponse resp, String message)
@@ -82,7 +104,8 @@ public final class RobotRegistrationServlet extends HttpServlet {
     resp.getWriter().write(HtmlRenderer.renderRobotRegistrationPage(domain, message, analyticsAccount));
   }
 
-  private void handleRegistration(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+  private void handleRegistration(HttpServletRequest req, HttpServletResponse resp, ParticipantId user)
+      throws IOException {
     String username = req.getParameter("username");
     String location = req.getParameter("location");
     String tokenExpiryParam = req.getParameter("token_expiry");
@@ -114,7 +137,7 @@ public final class RobotRegistrationServlet extends HttpServlet {
 
     RobotAccountData robotAccount;
     try {
-      robotAccount = robotRegistrar.registerNew(id, location, tokenExpirySeconds);
+      robotAccount = robotRegistrar.registerNew(id, location, user.getAddress(), tokenExpirySeconds);
     } catch (RobotRegistrationException e) {
       renderRegistrationPage(req, resp, e.getMessage());
       return;

@@ -27,6 +27,7 @@ import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.account.RobotAccountDataImpl;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
+import org.waveprotocol.box.server.robots.RobotCapabilities;
 import org.waveprotocol.box.server.robots.util.RobotsUtil.RobotRegistrationException;
 import org.waveprotocol.wave.model.id.TokenGenerator;
 import org.waveprotocol.wave.model.wave.ParticipantId;
@@ -120,6 +121,13 @@ public class RobotRegistrarImpl implements RobotRegistrar {
   @Override
   public RobotAccountData registerNew(ParticipantId robotId, String location, long tokenExpirySeconds)
       throws RobotRegistrationException, PersistenceException {
+    return registerNew(robotId, location, null, tokenExpirySeconds);
+  }
+
+  @Override
+  public RobotAccountData registerNew(ParticipantId robotId, String location, String ownerAddress,
+      long tokenExpirySeconds)
+      throws RobotRegistrationException, PersistenceException {
     Preconditions.checkNotNull(robotId);
     Preconditions.checkNotNull(location);
     Preconditions.checkArgument(!location.isEmpty());
@@ -128,7 +136,8 @@ public class RobotRegistrarImpl implements RobotRegistrar {
       throw new RobotRegistrationException(robotId.getAddress()
           + " is already in use, please choose another one.");
     }
-    return registerRobot(robotId, location, tokenExpirySeconds);
+    return registerRobot(robotId, location, tokenGenerator.generateToken(TOKEN_LENGTH), null,
+        true, tokenExpirySeconds, ownerAddress);
   }
 
   @Override
@@ -148,6 +157,13 @@ public class RobotRegistrarImpl implements RobotRegistrar {
   @Override
   public RobotAccountData registerOrUpdate(ParticipantId robotId, String location)
       throws RobotRegistrationException, PersistenceException {
+    return registerOrUpdate(robotId, location, null);
+  }
+
+  @Override
+  public RobotAccountData registerOrUpdate(ParticipantId robotId, String location,
+      String ownerAddress)
+      throws RobotRegistrationException, PersistenceException {
     Preconditions.checkNotNull(robotId);
     Preconditions.checkNotNull(location);
     Preconditions.checkArgument(!location.isEmpty());
@@ -156,13 +172,29 @@ public class RobotRegistrarImpl implements RobotRegistrar {
     if (account != null) {
       throwExceptionIfNotRobot(account);
       RobotAccountData robotAccount = account.asRobot();
-      if (robotAccount.getUrl().equals(location)) {
-        return robotAccount;
-      } else {
-        removeRobotAccount(robotAccount);
-      }
+      String resolvedOwnerAddress = resolveOwnerAddress(robotAccount, ownerAddress);
+      return updateRobotAccount(robotAccount, location, robotAccount.getConsumerSecret(),
+          robotAccount.getCapabilities(), robotAccount.isVerified(),
+          robotAccount.getTokenExpirySeconds(), resolvedOwnerAddress);
     }
-    return registerRobot(robotId, location);
+    return registerRobot(robotId, location, tokenGenerator.generateToken(TOKEN_LENGTH), null,
+        true, 0L, ownerAddress);
+  }
+
+  @Override
+  public RobotAccountData rotateSecret(ParticipantId robotId)
+      throws RobotRegistrationException, PersistenceException {
+    Preconditions.checkNotNull(robotId);
+    AccountData account = accountStore.getAccount(robotId);
+    if (account == null) {
+      return null;
+    }
+    throwExceptionIfNotRobot(account);
+    RobotAccountData robotAccount = account.asRobot();
+    return updateRobotAccount(robotAccount, robotAccount.getUrl(),
+        tokenGenerator.generateToken(TOKEN_LENGTH), robotAccount.getCapabilities(),
+        robotAccount.isVerified(), robotAccount.getTokenExpirySeconds(),
+        robotAccount.getOwnerAddress());
   }
 
   /**
@@ -170,21 +202,39 @@ public class RobotRegistrarImpl implements RobotRegistrar {
    */
   private RobotAccountData registerRobot(ParticipantId robotId, String location)
       throws RobotRegistrationException, PersistenceException {
-    return registerRobot(robotId, location, 0L);
+    return registerRobot(robotId, location, tokenGenerator.generateToken(TOKEN_LENGTH), null, true,
+        0L, null);
   }
 
-  private RobotAccountData registerRobot(ParticipantId robotId, String location, long tokenExpirySeconds)
+  private RobotAccountData registerRobot(ParticipantId robotId, String location, String consumerSecret,
+      RobotCapabilities capabilities, boolean verified, long tokenExpirySeconds,
+      String ownerAddress)
       throws RobotRegistrationException, PersistenceException {
     String robotLocation = computeValidateRobotUrl(location);
 
-    RobotAccountData robotAccount =
-        new RobotAccountDataImpl(robotId, robotLocation,
-            tokenGenerator.generateToken(TOKEN_LENGTH), null, true, tokenExpirySeconds);
+    RobotAccountData robotAccount = new RobotAccountDataImpl(robotId, robotLocation,
+        consumerSecret, capabilities, verified, tokenExpirySeconds, ownerAddress);
     accountStore.putAccount(robotAccount);
     for (Listener listener : listeners) {
       listener.onRegistrationSuccess(robotAccount);
     }
     return robotAccount;
+  }
+
+  private RobotAccountData updateRobotAccount(RobotAccountData existingAccount, String location,
+      String consumerSecret, RobotCapabilities capabilities, boolean verified,
+      long tokenExpirySeconds, String ownerAddress)
+      throws RobotRegistrationException, PersistenceException {
+    return registerRobot(existingAccount.getId(), location, consumerSecret, capabilities, verified,
+        tokenExpirySeconds, ownerAddress);
+  }
+
+  private String resolveOwnerAddress(RobotAccountData robotAccount, String ownerAddress) {
+    String resolvedOwnerAddress = robotAccount.getOwnerAddress();
+    if (resolvedOwnerAddress == null || resolvedOwnerAddress.isEmpty()) {
+      resolvedOwnerAddress = ownerAddress;
+    }
+    return resolvedOwnerAddress;
   }
 
   /**

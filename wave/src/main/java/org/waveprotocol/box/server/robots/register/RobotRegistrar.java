@@ -67,6 +67,12 @@ public interface RobotRegistrar {
       throws RobotRegistrationException, PersistenceException;
 
   /**
+   * Registers a new robot account with an owning human account address.
+   */
+  public RobotAccountData registerNew(ParticipantId robotId, String location, String ownerAddress,
+      long tokenExpirySeconds) throws RobotRegistrationException, PersistenceException;
+
+  /**
    * Unregisters a robot by removing it from the account store.
    *
    * @param robotId the id to remove.
@@ -89,6 +95,18 @@ public interface RobotRegistrar {
    * @throws PersistenceException if the persistence layer reports an error.
    */
   public RobotAccountData registerOrUpdate(ParticipantId robotId, String location)
+      throws RobotRegistrationException, PersistenceException;
+
+  /**
+   * Registers a new robot or updates an existing robot while preserving or setting owner metadata.
+   */
+  public RobotAccountData registerOrUpdate(ParticipantId robotId, String location,
+      String ownerAddress) throws RobotRegistrationException, PersistenceException;
+
+  /**
+   * Rotates the robot consumer secret without changing its URL or owner.
+   */
+  public RobotAccountData rotateSecret(ParticipantId robotId)
       throws RobotRegistrationException, PersistenceException;
 
   /** Adds listener. */

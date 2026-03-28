@@ -1,5 +1,27 @@
 [
   {
+    "version": "2026-03-28",
+    "date": "2026-03-28",
+    "title": "Robot Control Room",
+    "summary": "Robot registration, callback updates, secret rotation, and Data API token generation now live together in one dashboard.",
+    "sections": [
+      {
+        "type": "feature",
+        "items": [
+          "New Robot & Data API dashboard at /account/robots for viewing owned robots and registering new ones",
+          "Robot cards now support callback URL updates and secret rotation without leaving the dashboard"
+        ]
+      },
+      {
+        "type": "improvement",
+        "items": [
+          "Robot accounts now track their owning user so the dashboard only shows your registered robots",
+          "The topbar user menu is regrouped into Account, Automation, Product, and Legal sections"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2026-03-27",
     "date": "2026-03-27",
     "title": "Changelog System",

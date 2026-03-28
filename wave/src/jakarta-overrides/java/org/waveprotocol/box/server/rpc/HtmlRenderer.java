@@ -2158,11 +2158,13 @@ public final class HtmlRenderer {
     sb.append("}\n");
     sb.append(".user-menu-toggle:hover { background: rgba(255,255,255,0.22); }\n");
     sb.append(".user-menu-toggle .caret { font-size: 10px; opacity: 0.8; }\n");
-    sb.append(".user-menu-dropdown { display: none; position: absolute; right: 0; top: 100%; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); min-width: 210px; z-index: 1000; padding: 4px 0; margin-top: 6px; border: 1px solid #e2e8f0; }\n");
+    sb.append(".user-menu-dropdown { display: none; position: absolute; right: 0; top: 100%; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); min-width: 248px; z-index: 1000; padding: 4px 0; margin-top: 6px; border: 1px solid #e2e8f0; }\n");
     sb.append(".user-menu-dropdown.open { display: block; }\n");
     sb.append(".user-menu-dropdown .user-info { padding: 10px 16px; border-bottom: 1px solid #e2e8f0; color: #4a5568; font-size: 12px; }\n");
     sb.append(".user-menu-dropdown a { display: block; padding: 8px 16px; color: #333; text-decoration: none; font-size: 13px; transition: background 0.1s; }\n");
     sb.append(".user-menu-dropdown a:hover { background: #f0f4f8; color: ").append(WAVE_PRIMARY).append("; }\n");
+    sb.append(".user-menu-dropdown .section-label { padding: 10px 16px 4px; color: #718096; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }\n");
+    sb.append(".user-menu-dropdown .section-link-strong { font-weight: 700; color: ").append(WAVE_PRIMARY).append("; }\n");
     sb.append(".user-menu-dropdown .divider { border-top: 1px solid #e2e8f0; margin: 4px 0; }\n");
     // Wave panel theme overrides (ocean blue/teal for GWT panels)
     sb.append(WAVE_PANEL_CSS);
@@ -3073,10 +3075,14 @@ public final class HtmlRenderer {
       sb.append("      </button>\n");
       sb.append("      <div class=\"user-menu-dropdown\">\n");
       sb.append("        <div class=\"user-info\">").append(fullAddress).append("</div>\n");
+      sb.append("        <div class=\"section-label\">Account</div>\n");
       sb.append("        <a href=\"/userprofile/edit\">Edit Profile</a>\n");
       sb.append("        <a href=\"/account/settings\">Account Settings</a>\n");
-      sb.append("        <a href=\"/robot/register/create\">Robot Registration</a>\n");
-      sb.append("        <a href=\"/robot/dataapi/token\">API Token</a>\n");
+      sb.append("        <div class=\"divider\"></div>\n");
+      sb.append("        <div class=\"section-label\">Automation</div>\n");
+      sb.append("        <a class=\"section-link-strong\" href=\"/account/robots\">Robot &amp; Data API</a>\n");
+      sb.append("        <div class=\"divider\"></div>\n");
+      sb.append("        <div class=\"section-label\">Product</div>\n");
       sb.append("        <a href=\"#\" onclick=\"window.openVersionHistory(); return false;\">Version History</a>\n");
       sb.append("        <a href=\"/changelog\" target=\"_blank\">What's New</a>\n");
       sb.append("        <a href=\"/contact\">Contact Us</a>\n");
@@ -3084,6 +3090,7 @@ public final class HtmlRenderer {
         sb.append("        <a href=\"/admin\">Admin</a>\n");
       }
       sb.append("        <div class=\"divider\"></div>\n");
+      sb.append("        <div class=\"section-label\">Legal</div>\n");
       sb.append("        <a href=\"/terms\" target=\"_blank\">Terms of Service</a>\n");
       sb.append("        <a href=\"/privacy\" target=\"_blank\">Privacy Policy</a>\n");
       sb.append("        <div class=\"divider\"></div>\n");

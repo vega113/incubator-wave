@@ -48,7 +48,10 @@ public class RobotRegistrarImplTest extends TestCase {
   private final static String OTHER_LOCATION = "http://foo.com:9898/robot/";
   private final static ParticipantId ROBOT_ID = ParticipantId.ofUnsafe("robot@example.com");
   private final static ParticipantId HUMAN_ID = ParticipantId.ofUnsafe("human@example.com");
+  private final static ParticipantId OWNER_ID = ParticipantId.ofUnsafe("owner@example.com");
+  private final static String EXISTING_CONSUMER_TOKEN = "existingtoken";
   private final static String CONSUMER_TOKEN = "sometoken";
+  private final static String OTHER_CONSUMER_TOKEN = "othertoken";
 
   private AccountStore accountStore;
   private TokenGenerator tokenGenerator;
@@ -64,7 +67,9 @@ public class RobotRegistrarImplTest extends TestCase {
     when(accountData.asRobot()).thenReturn(accountData);
     when(accountData.getUrl()).thenReturn(LOCATION);
     when(accountData.getId()).thenReturn(ROBOT_ID);
-    when(tokenGenerator.generateToken(anyInt())).thenReturn(CONSUMER_TOKEN);
+    when(accountData.getOwnerAddress()).thenReturn(OWNER_ID.getAddress());
+    when(accountData.getConsumerSecret()).thenReturn(EXISTING_CONSUMER_TOKEN);
+    when(tokenGenerator.generateToken(anyInt())).thenReturn(CONSUMER_TOKEN, OTHER_CONSUMER_TOKEN);
     registrar = new RobotRegistrarImpl(accountStore, tokenGenerator);
   }
 
@@ -79,6 +84,15 @@ public class RobotRegistrarImplTest extends TestCase {
     assertEquals(LOCATION.substring(0, LOCATION.length() - 1), robotAccountData.getUrl());
     assertEquals(ROBOT_ID, robotAccountData.getId());
     assertEquals(CONSUMER_TOKEN, robotAccountData.getConsumerSecret());
+  }
+
+  public void testRegisterNewStoresOwnerAddress()
+      throws PersistenceException, RobotRegistrationException {
+    RobotAccountData resultAccountData =
+        registrar.registerNew(ROBOT_ID, LOCATION, OWNER_ID.getAddress(), 3600L);
+
+    assertEquals(OWNER_ID.getAddress(), resultAccountData.getOwnerAddress());
+    assertEquals(3600L, resultAccountData.getTokenExpirySeconds());
   }
 
   public void testRegisterNewFailsOnInvalidLocation() throws PersistenceException {
@@ -129,8 +143,8 @@ public class RobotRegistrarImplTest extends TestCase {
   public void testReRegisterSucceedsOnExistingRobotAccount() throws PersistenceException,
       RobotRegistrationException {
     when(accountStore.getAccount(ROBOT_ID)).thenReturn(accountData);
-    AccountData unregisteredAccountData = registrar.registerOrUpdate(ROBOT_ID, OTHER_LOCATION);
-    verify(accountStore).removeAccount(ROBOT_ID);
+    AccountData unregisteredAccountData =
+        registrar.registerOrUpdate(ROBOT_ID, OTHER_LOCATION, OWNER_ID.getAddress());
     verify(accountStore).putAccount(any(RobotAccountData.class));
     assertTrue(unregisteredAccountData.isRobot());
     RobotAccountData robotAccountData = unregisteredAccountData.asRobot();
@@ -138,7 +152,8 @@ public class RobotRegistrarImplTest extends TestCase {
     assertEquals(OTHER_LOCATION.substring(0, OTHER_LOCATION.length() - 1),
         robotAccountData.getUrl());
     assertEquals(ROBOT_ID, robotAccountData.getId());
-    assertEquals(CONSUMER_TOKEN, robotAccountData.getConsumerSecret());
+    assertEquals(EXISTING_CONSUMER_TOKEN, robotAccountData.getConsumerSecret());
+    assertEquals(OWNER_ID.getAddress(), robotAccountData.getOwnerAddress());
   }
 
   public void testReRegisterFailsOnExistingHumanAccount() throws PersistenceException {
@@ -154,7 +169,20 @@ public class RobotRegistrarImplTest extends TestCase {
 
   public void testReRegisterSucceedsOnNonExistingAccount() throws PersistenceException,
       RobotRegistrationException {
-    registrar.registerOrUpdate(ROBOT_ID, OTHER_LOCATION);
+    registrar.registerOrUpdate(ROBOT_ID, OTHER_LOCATION, OWNER_ID.getAddress());
     verify(accountStore).putAccount(any(RobotAccountData.class));
+  }
+
+  public void testRotateSecretSucceedsOnExistingRobotAccount() throws PersistenceException,
+      RobotRegistrationException {
+    when(accountStore.getAccount(ROBOT_ID)).thenReturn(accountData);
+
+    RobotAccountData rotatedAccountData = registrar.rotateSecret(ROBOT_ID);
+
+    verify(accountStore).putAccount(any(RobotAccountData.class));
+    assertEquals(ROBOT_ID, rotatedAccountData.getId());
+    assertEquals(LOCATION.substring(0, LOCATION.length() - 1), rotatedAccountData.getUrl());
+    assertEquals(CONSUMER_TOKEN, rotatedAccountData.getConsumerSecret());
+    assertEquals(OWNER_ID.getAddress(), rotatedAccountData.getOwnerAddress());
   }
 }

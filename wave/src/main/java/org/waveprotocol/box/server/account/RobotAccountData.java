@@ -58,4 +58,10 @@ public interface RobotAccountData extends AccountData {
    * A value of 0 means no expiry (tokens last indefinitely).
    */
   long getTokenExpirySeconds();
+
+  /**
+   * Returns the owning human account address for this robot, or null if the
+   * robot predates ownership tracking.
+   */
+  String getOwnerAddress();
 }
