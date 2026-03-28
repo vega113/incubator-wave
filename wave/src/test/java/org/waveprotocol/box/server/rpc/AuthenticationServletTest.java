@@ -239,6 +239,56 @@ public class AuthenticationServletTest extends TestCase {
     verify(resp, never()).sendRedirect(Mockito.anyString());
   }
 
+  public void testSuspendedUnconfirmedAccountDoesNotResendActivationEmail() throws Exception {
+    AccountStore store = new MemoryStore();
+    HumanAccountDataImpl account =
+        new HumanAccountDataImpl(USER, new PasswordDigest("password".toCharArray()));
+    account.setEmail("frodo@example.com");
+    account.setEmailConfirmed(false);
+    account.setStatus(HumanAccountData.STATUS_SUSPENDED);
+    store.putAccount(account);
+
+    Config config = ConfigFactory.parseMap(ImmutableMap.<String, Object>builder()
+        .put("administration.disable_registration", false)
+        .put("administration.analytics_account", "UA-someid")
+        .put("security.enable_clientauth", false)
+        .put("security.clientauth_cert_domain", "")
+        .put("administration.disable_loginpage", false)
+        .put("security.enable_ssl", false)
+        .put("core.email_confirmation_enabled", true)
+        .put("core.auth_email_send_cooldown_seconds", 300)
+        .put("core.auth_email_send_max_per_address_per_hour", 5)
+        .put("core.auth_email_send_max_per_ip_per_hour", 20)
+        .put("core.public_url", "https://wave.example.com")
+        .build());
+    AuthEmailService authEmailService = new AuthEmailService(
+        store,
+        emailTokenIssuer,
+        mailProvider,
+        Clock.fixed(Instant.parse("2026-03-28T08:00:00Z"), ZoneOffset.UTC),
+        config);
+    servlet = new AuthenticationServlet(store, AuthTestUtil.makeConfiguration(),
+        manager, "example.com", config, browserSessionJwtIssuer, authEmailService);
+
+    PercentEscaper escaper = new PercentEscaper(PercentEscaper.SAFECHARS_URLENCODER, true);
+    String data = "address=" + escaper.escape("frodo@example.com")
+        + "&password=" + escaper.escape("password");
+
+    Reader reader = new StringReader(data);
+    when(req.getReader()).thenReturn(new BufferedReader(reader));
+    when(req.getLocale()).thenReturn(Locale.ENGLISH);
+    PrintWriter writer = mock(PrintWriter.class);
+    when(resp.getWriter()).thenReturn(writer);
+
+    servlet.doPost(req, resp);
+
+    verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
+    verify(writer).write(contains("Your account has been suspended"));
+    verify(mailProvider, never()).sendEmail(Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
+    verify(manager, never()).setLoggedInUser(Mockito.any(), Mockito.any());
+    verify(resp, never()).sendRedirect(Mockito.anyString());
+  }
+
   // *** Utility methods
 
   private void configureRedirectString(String location) {

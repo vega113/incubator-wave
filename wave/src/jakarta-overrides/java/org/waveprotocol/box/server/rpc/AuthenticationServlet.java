@@ -253,15 +253,22 @@ public class AuthenticationServlet extends HttpServlet {
     if (emailConfirmationEnabled && loggedInAddress != null) {
       try {
         AccountData acct = accountStore.getAccount(loggedInAddress);
-        if (acct != null && acct.isHuman() && !acct.asHuman().isEmailConfirmed()) {
-          String message = buildUnconfirmedEmailMessage(
-              authEmailService.sendConfirmationEmail(req, acct.asHuman()));
-          resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
-          resp.setContentType("text/html;charset=utf-8");
-          resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, message,
-              RESPONSE_STATUS_FAILED, isLoginPageDisabled, analyticsAccount,
-              passwordResetEnabled, magicLinkEnabled));
-          return;
+        if (acct != null && acct.isHuman()) {
+          HumanAccountData human = acct.asHuman();
+          if (HumanAccountData.STATUS_SUSPENDED.equals(human.getStatus())) {
+            renderSuspendedAccountMessage(resp);
+            return;
+          }
+          if (!human.isEmailConfirmed()) {
+            String message = buildUnconfirmedEmailMessage(
+                authEmailService.sendConfirmationEmail(req, human));
+            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            resp.setContentType("text/html;charset=utf-8");
+            resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, message,
+                RESPONSE_STATUS_FAILED, isLoginPageDisabled, analyticsAccount,
+                passwordResetEnabled, magicLinkEnabled));
+            return;
+          }
         }
       } catch (PersistenceException e) {
         LOG.severe("Failed to check email confirmation for " + loggedInAddress, e);
@@ -275,12 +282,7 @@ public class AuthenticationServlet extends HttpServlet {
         if (acct != null && acct.isHuman()) {
           HumanAccountData human = acct.asHuman();
           if (HumanAccountData.STATUS_SUSPENDED.equals(human.getStatus())) {
-            String message = "Your account has been suspended. Contact your administrator.";
-            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            resp.setContentType("text/html;charset=utf-8");
-            resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, message,
-                RESPONSE_STATUS_FAILED, isLoginPageDisabled, analyticsAccount,
-                passwordResetEnabled, magicLinkEnabled));
+            renderSuspendedAccountMessage(resp);
             return;
           }
           // Track last login time
@@ -317,6 +319,15 @@ public class AuthenticationServlet extends HttpServlet {
       case THROTTLED, FAILED ->
           "Your email has not been confirmed. Check your inbox or try again in a few minutes.";
     };
+  }
+
+  private void renderSuspendedAccountMessage(HttpServletResponse resp) throws IOException {
+    String message = "Your account has been suspended. Contact your administrator.";
+    resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+    resp.setContentType("text/html;charset=utf-8");
+    resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, message,
+        RESPONSE_STATUS_FAILED, isLoginPageDisabled, analyticsAccount,
+        passwordResetEnabled, magicLinkEnabled));
   }
 
   private ParticipantId getLoggedInUser(Subject subject) throws InvalidParticipantAddress {
