@@ -117,7 +117,7 @@ def build_runner_script(config: LauncherConfig) -> str:
     repo = shlex.quote(config.repo)
     prompt_path = shlex.quote(str(config.prompt_path))
     return f"""#!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 REPO={repo}
 PR_NUMBER={config.pr_number}

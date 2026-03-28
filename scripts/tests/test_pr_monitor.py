@@ -75,6 +75,24 @@ class PrMonitorTest(unittest.TestCase):
         self.assertIn("PR merged at", script)
         self.assertIn("closed without merge", script)
 
+    def test_build_runner_script_fails_fast_if_worktree_cd_fails(self) -> None:
+        config = LauncherConfig(
+            repo="vega113/incubator-wave",
+            pr_number=405,
+            pr_title="Fix monitor reliability",
+            worktree_path=pathlib.Path("/tmp/worktree"),
+            prompt_path=pathlib.Path("/tmp/pr-monitors/prompts/pr405-live-monitor.txt"),
+            log_path=pathlib.Path("/tmp/pr-monitors/logs/pr405-live-monitor.log"),
+            runner_path=pathlib.Path("/tmp/pr-monitors/runners/pr405-live-monitor.sh"),
+            pane_title="PR #405 Fix monitor reliability",
+            pr_head_oid="deadbeef",
+        )
+
+        script = build_runner_script(config)
+
+        self.assertIn("set -euo pipefail", script)
+        self.assertIn("cd \"$WORKTREE\"", script)
+
     def test_build_pane_title_includes_pr_number_and_title(self) -> None:
         self.assertEqual(
             "PR #405 Fix monitor reliability",
