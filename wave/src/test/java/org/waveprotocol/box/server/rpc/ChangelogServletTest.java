@@ -26,6 +26,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Proxy;
+import java.util.HashMap;
+import java.util.Map;
 import org.json.JSONArray;
 import org.junit.Before;
 import org.junit.Test;
@@ -145,6 +147,7 @@ public final class ChangelogServletTest {
 
   private static HttpServletResponse response(StringWriter body, String[] contentType) {
     PrintWriter writer = new PrintWriter(body);
+    Map<String, String> headers = new HashMap<String, String>();
     return (HttpServletResponse)
         Proxy.newProxyInstance(
             ChangelogServletTest.class.getClassLoader(),
@@ -155,7 +158,12 @@ public final class ChangelogServletTest {
                 contentType[0] = (String) args[0];
                 yield null;
               }
-              case "setStatus", "setHeader" -> null;
+              case "setHeader" -> {
+                headers.put((String) args[0], (String) args[1]);
+                yield null;
+              }
+              case "getHeader" -> headers.get((String) args[0]);
+              case "setStatus" -> null;
               case "sendError" -> {
                 throw new AssertionError("Unexpected sendError call");
               }
