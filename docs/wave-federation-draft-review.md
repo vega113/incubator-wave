@@ -1,7 +1,7 @@
 # Wave Federation Draft Review
 
 Date: 2026-03-27
-Source reviewed: `https://github.com/LaPingvino/incubator-wave/blob/federation-spec-draft/docs/wave-federation-spec-draft.md`
+Source reviewed: `https://github.com/LaPingvino/incubator-wave/blob/9db61e4d83d447f7937d842767f6047857316bf9/docs/wave-federation-spec-draft.md`
 
 ## Decision summary
 
