@@ -84,6 +84,19 @@ public final class ApiDocsServletTest {
     assertTrue(body.toString().contains("https://docs.example.com/api/openapi.json"));
   }
 
+  @Test
+  public void unknownEndpointReturnsNotFound() throws Exception {
+    ApiDocsServlet servlet = new ApiDocsServlet();
+    StringWriter body = new StringWriter();
+    ResponseRecorder recorder = new ResponseRecorder();
+    HttpServletRequest request = request("/nope", "https", "docs.example.com");
+    HttpServletResponse response = response(recorder, body);
+
+    servlet.doGet(request, response);
+
+    assertTrue(recorder.status == HttpServletResponse.SC_NOT_FOUND);
+  }
+
   private static HttpServletRequest request(String servletPath, String scheme, String host) {
     InvocationHandler handler =
         (proxy, method, args) -> {
@@ -139,6 +152,10 @@ public final class ApiDocsServletTest {
             return null;
           }
           if ("setHeader".equals(name)) {
+            return null;
+          }
+          if ("sendError".equals(name)) {
+            recorder.status = (Integer) args[0];
             return null;
           }
           return defaultValue(method.getReturnType());
