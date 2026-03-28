@@ -238,7 +238,9 @@ public final class MagicLinkServlet extends HttpServlet {
 
   private void persistLastLogin(AccountData account) {
     try {
-      account.asHuman().setLastLoginTime(System.currentTimeMillis());
+      long now = System.currentTimeMillis();
+      account.asHuman().setLastLoginTime(now);
+      account.asHuman().setLastActivityTime(now);
       accountStore.putAccount(account);
     } catch (PersistenceException e) {
       LOG.severe("Failed to persist last login time for " + account.getId().getAddress(), e);

@@ -269,6 +269,9 @@ public class AuthenticationServlet extends HttpServlet {
                 passwordResetEnabled, magicLinkEnabled));
             return;
           }
+          long now = System.currentTimeMillis();
+          human.setLastLoginTime(now);
+          human.setLastActivityTime(now);
         }
       } catch (PersistenceException e) {
         LOG.severe("Failed to check email confirmation for " + loggedInAddress, e);
@@ -285,8 +288,9 @@ public class AuthenticationServlet extends HttpServlet {
             renderSuspendedAccountMessage(resp);
             return;
           }
-          // Track last login time
-          human.setLastLoginTime(System.currentTimeMillis());
+          long now = System.currentTimeMillis();
+          human.setLastLoginTime(now);
+          human.setLastActivityTime(now);
           accountStore.putAccount(acct);
         }
       } catch (PersistenceException e) {
