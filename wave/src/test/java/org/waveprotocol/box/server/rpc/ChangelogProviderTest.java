@@ -108,6 +108,7 @@ public final class ChangelogProviderTest {
   @Test
   public void defaultProviderLoadsClasspathChangelogFromDifferentWorkingDirectory()
       throws Exception {
+    ChangelogProvider expectedProvider = new ChangelogProvider();
     Path tempDir = Files.createTempDirectory("changelog-provider-cwd");
     Process process =
         new ProcessBuilder(
@@ -124,10 +125,8 @@ public final class ChangelogProviderTest {
 
     assertEquals(0, exitCode);
     assertTrue(output, Pattern.compile("PR #\\d+").matcher(output).find());
-    assertTrue(
-        output,
-        output.toLowerCase().contains("upgrade")
-            || output.toLowerCase().contains("changelog"));
+    assertTrue(output, output.contains(expectedProvider.getLatestVersion()));
+    assertTrue(output, output.contains(expectedProvider.getLatestTitle()));
   }
 
   @Test
