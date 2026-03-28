@@ -28,6 +28,7 @@ import com.typesafe.config.ConfigFactory;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -132,14 +133,36 @@ public final class ChangelogProviderTest {
   @Test
   public void bundledAndFallbackChangelogFilesStayAligned() {
     ChangelogProvider classpathProvider = new ChangelogProvider();
-    ChangelogProvider fallbackProvider =
-        new ChangelogProvider(Path.of("wave", "config", "changelog.json"));
+    ChangelogProvider fallbackProvider = new ChangelogProvider(fallbackChangelogPath());
 
     assertNotNull(classpathProvider.getLatestEntry());
     assertNotNull(fallbackProvider.getLatestEntry());
     assertEquals(
         classpathProvider.getEntries().toString(),
         fallbackProvider.getEntries().toString());
+  }
+
+  @Test
+  public void resolvesFallbackChangelogPathFromModuleRoot() throws Exception {
+    Path tempDir = Files.createTempDirectory("changelog-provider-module-root");
+    Path moduleRoot = tempDir.resolve("wave");
+    Path changelogFile = moduleRoot.resolve("config").resolve("changelog.json");
+
+    Files.createDirectories(changelogFile.getParent());
+    Files.writeString(changelogFile, sampleEntriesJson(), StandardCharsets.UTF_8);
+
+    assertEquals(changelogFile, resolveFallbackChangelogPath(moduleRoot));
+  }
+
+  @Test
+  public void resolvesFallbackChangelogPathFromRepoRoot() throws Exception {
+    Path tempDir = Files.createTempDirectory("changelog-provider-repo-root");
+    Path changelogFile = tempDir.resolve("wave").resolve("config").resolve("changelog.json");
+
+    Files.createDirectories(changelogFile.getParent());
+    Files.writeString(changelogFile, sampleEntriesJson(), StandardCharsets.UTF_8);
+
+    assertEquals(changelogFile, resolveFallbackChangelogPath(tempDir));
   }
 
   @Test
@@ -263,15 +286,60 @@ public final class ChangelogProviderTest {
     return Path.of(System.getProperty("java.home"), "bin", "java").toString();
   }
 
+  static Path fallbackChangelogPath() {
+    return resolveFallbackChangelogPath(Path.of("").toAbsolutePath().normalize());
+  }
+
+  static Path resolveFallbackChangelogPath(Path startDirectory) {
+    Path currentDirectory = startDirectory.toAbsolutePath().normalize();
+    while (currentDirectory != null) {
+      Path moduleConfig = currentDirectory.resolve("config").resolve("changelog.json");
+      if (Files.exists(moduleConfig)) {
+        return moduleConfig;
+      }
+      Path repoConfig = currentDirectory.resolve("wave").resolve("config").resolve("changelog.json");
+      if (Files.exists(repoConfig)) {
+        return repoConfig;
+      }
+      currentDirectory = currentDirectory.getParent();
+    }
+    return startDirectory
+        .toAbsolutePath()
+        .normalize()
+        .resolve("wave")
+        .resolve("config")
+        .resolve("changelog.json");
+  }
+
   private static String absoluteClassPath() {
     StringBuilder classPath = new StringBuilder();
+    appendClassPathEntry(classPath, codeSourcePath(ChangelogProviderTest.class));
+    appendClassPathEntry(classPath, codeSourcePath(ChangelogProvider.class));
     for (String entry : System.getProperty("java.class.path").split(File.pathSeparator)) {
-      if (classPath.length() > 0) {
-        classPath.append(File.pathSeparator);
-      }
-      classPath.append(Path.of(entry).toAbsolutePath().normalize());
+      appendClassPathEntry(classPath, Path.of(entry).toAbsolutePath().normalize());
     }
     return classPath.toString();
+  }
+
+  private static Path codeSourcePath(Class<?> clazz) {
+    try {
+      return Path.of(clazz.getProtectionDomain().getCodeSource().getLocation().toURI())
+          .toAbsolutePath()
+          .normalize();
+    } catch (URISyntaxException e) {
+      throw new IllegalStateException("Failed to resolve code source for " + clazz.getName(), e);
+    }
+  }
+
+  private static void appendClassPathEntry(StringBuilder classPath, Path entry) {
+    String normalizedEntry = entry.toString();
+    if (classPath.indexOf(normalizedEntry) >= 0) {
+      return;
+    }
+    if (classPath.length() > 0) {
+      classPath.append(File.pathSeparator);
+    }
+    classPath.append(normalizedEntry);
   }
 
   private static String readProcessOutput(Process process) throws Exception {
