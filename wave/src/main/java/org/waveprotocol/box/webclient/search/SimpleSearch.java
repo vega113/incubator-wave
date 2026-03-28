@@ -23,6 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.gwt.http.client.Request;
 
+import org.waveprotocol.box.common.DigestStateMerging;
 import org.waveprotocol.box.webclient.search.SearchService.Callback;
 import org.waveprotocol.box.webclient.search.SearchService.DigestSnapshot;
 import org.waveprotocol.wave.client.debug.logger.DomLogger;
@@ -149,12 +150,20 @@ public final class SimpleSearch implements Search, WaveStore.Listener {
 
     @Override
     public int getUnreadCount() {
-      return getDelegate().getUnreadCount();
+      if (dynamicDigest == null) {
+        return staticDigest.getUnreadCount();
+      }
+      return DigestStateMerging.mergeUnreadCount(
+          staticDigest.getUnreadCount(), dynamicDigest.getUnreadCount());
     }
 
     @Override
     public int getBlipCount() {
-      return getDelegate().getBlipCount();
+      if (dynamicDigest == null) {
+        return staticDigest.getBlipCount();
+      }
+      return DigestStateMerging.mergeBlipCount(
+          staticDigest.getBlipCount(), dynamicDigest.getBlipCount());
     }
 
     @Override
