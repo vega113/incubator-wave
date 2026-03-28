@@ -269,20 +269,23 @@ jobs:
               defaultBranchName: result.repository.defaultBranchRef?.name ?? "main",
             });
 
-            if (!evaluation.ok) {
-              core.setFailed(evaluation.message);
-              return;
-            }
-
             if (!pullRequest.headRefOid) {
               core.setFailed(`Pull request #${prNumber} is missing a current head SHA`);
               return;
             }
 
+            const gateState = evaluation.ok ? "success" : "failure";
             await publishCodexReviewGateHeadStatus(github, {
               owner,
               repo,
               sha: pullRequest.headRefOid,
+              state: gateState,
               description: evaluation.message,
             });
+
+            if (!evaluation.ok) {
+              core.setFailed(evaluation.message);
+              return;
+            }
+
             core.info(evaluation.message);

@@ -66,6 +66,7 @@ function shouldRequeueCodexReviewGate({
   return !gateState.isDraft &&
     gateState.unresolvedThreads.length === 0 &&
     !gateState.codexApproved &&
+    !gateState.codeRabbitSkipped &&
     !gateState.isStackedPr &&
     gateState.codeRabbitApproved &&
     gateState.commitAgeMs >= REVIEW_WINDOW_MS &&

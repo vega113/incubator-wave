@@ -197,6 +197,39 @@ test("requeues a CodeRabbit-approved PR after the grace window", () => {
   assert.equal(shouldRequeue, true);
 });
 
+test("does not requeue a CodeRabbit-skipped PR", () => {
+  const shouldRequeue = shouldRequeueCodexReviewGate({
+    defaultBranchName: "main",
+    nowMs: Date.parse("2026-03-28T13:06:00Z"),
+    pullRequest: buildPullRequest({
+      comments: {
+        nodes: [
+          {
+            author: { login: "coderabbitai[bot]" },
+            body: "Review skipped because the base branch is not the default branch",
+          },
+        ],
+      },
+      labels: {
+        nodes: [{ name: "coderabbitai-reviewed" }],
+      },
+      commits: {
+        nodes: [
+          {
+            commit: {
+              oid: "head-oid",
+              committedDate: "2026-03-28T13:00:00Z",
+              statusCheckRollup: { contexts: { nodes: codeRabbitStatus() } },
+            },
+          },
+        ],
+      },
+    }),
+  });
+
+  assert.equal(shouldRequeue, false);
+});
+
 test("publishes Codex Review Gate success on the PR head", async () => {
   const calls = [];
   const github = {
@@ -225,6 +258,39 @@ test("publishes Codex Review Gate success on the PR head", async () => {
       repo: "incubator-wave",
       sha: "head-oid",
       state: "success",
+    },
+  ]);
+});
+
+test("publishes Codex Review Gate failure on the PR head", async () => {
+  const calls = [];
+  const github = {
+    rest: {
+      repos: {
+        createCommitStatus: async (payload) => {
+          calls.push(payload);
+          return payload;
+        },
+      },
+    },
+  };
+
+  await publishCodexReviewGateHeadStatus(github, {
+    description: "Missing required review signal",
+    owner: "vega113",
+    repo: "incubator-wave",
+    sha: "head-oid",
+    state: "failure",
+  });
+
+  assert.deepEqual(calls, [
+    {
+      context: "Codex Review Gate",
+      description: "Missing required review signal",
+      owner: "vega113",
+      repo: "incubator-wave",
+      sha: "head-oid",
+      state: "failure",
     },
   ]);
 });
