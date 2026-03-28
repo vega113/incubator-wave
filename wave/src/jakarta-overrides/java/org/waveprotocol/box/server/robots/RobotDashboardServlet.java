@@ -41,6 +41,8 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -131,7 +133,17 @@ public final class RobotDashboardServlet extends HttpServlet {
       throws IOException {
     ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
     if (user == null) {
-      resp.sendRedirect("/auth/signin?r=" + req.getRequestURI());
+      String requestUri = req.getRequestURI();
+      String contextPath = Strings.nullToEmpty(req.getContextPath());
+      String returnTo = requestUri.startsWith(contextPath)
+          ? requestUri.substring(contextPath.length())
+          : requestUri;
+      String queryString = req.getQueryString();
+      if (!Strings.isNullOrEmpty(queryString)) {
+        returnTo = returnTo + "?" + queryString;
+      }
+      resp.sendRedirect(contextPath + "/auth/signin?r="
+          + URLEncoder.encode(returnTo, StandardCharsets.UTF_8.name()));
     }
     return user;
   }
@@ -459,14 +471,26 @@ public final class RobotDashboardServlet extends HttpServlet {
     if (Strings.isNullOrEmpty(host)) {
       host = firstHeaderValue(req.getHeader("Host"));
     }
-    String scheme = firstHeaderValue(req.getHeader("X-Forwarded-Proto"));
-    if (Strings.isNullOrEmpty(scheme)) {
-      scheme = req.getScheme();
-    }
+    String scheme = derivePublicScheme(req, host);
     if (isTrustedPublicHost(host)) {
       return scheme + "://" + host;
     }
     return "https://" + domain;
+  }
+
+  private String derivePublicScheme(HttpServletRequest req, String host) {
+    String forwardedScheme = normalizeScheme(firstHeaderValue(req.getHeader("X-Forwarded-Proto")));
+    if (!Strings.isNullOrEmpty(forwardedScheme)) {
+      return forwardedScheme;
+    }
+    if (!isLocalHost(host)) {
+      return "https";
+    }
+    String requestScheme = normalizeScheme(req.getScheme());
+    if (!Strings.isNullOrEmpty(requestScheme)) {
+      return requestScheme;
+    }
+    return "http";
   }
 
   private String firstHeaderValue(String headerValue) {
@@ -483,10 +507,17 @@ public final class RobotDashboardServlet extends HttpServlet {
       return false;
     }
     String normalizedHost = normalizeHostName(host);
-    return normalizedHost.equalsIgnoreCase(domain)
-        || normalizedHost.equalsIgnoreCase("localhost")
-        || normalizedHost.equals("127.0.0.1")
-        || normalizedHost.equals("::1");
+    return normalizedHost.equalsIgnoreCase(domain) || isLocalHost(normalizedHost);
+  }
+
+  private boolean isLocalHost(String host) {
+    if (Strings.isNullOrEmpty(host)) {
+      return false;
+    }
+    String normalizedHost = normalizeHostName(host);
+    return "localhost".equalsIgnoreCase(normalizedHost)
+        || "127.0.0.1".equals(normalizedHost)
+        || "::1".equals(normalizedHost);
   }
 
   private String normalizeHostName(String host) {
@@ -500,10 +531,20 @@ public final class RobotDashboardServlet extends HttpServlet {
       }
     } else {
       int portSeparator = normalizedHost.indexOf(':');
-      if (portSeparator >= 0) {
+      if (portSeparator >= 0 && normalizedHost.indexOf(':', portSeparator + 1) < 0) {
         normalizedHost = normalizedHost.substring(0, portSeparator);
       }
     }
     return normalizedHost;
+  }
+
+  private String normalizeScheme(String scheme) {
+    if ("http".equalsIgnoreCase(scheme)) {
+      return "http";
+    }
+    if ("https".equalsIgnoreCase(scheme)) {
+      return "https";
+    }
+    return "";
   }
 }

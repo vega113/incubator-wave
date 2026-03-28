@@ -76,7 +76,19 @@ public class RobotDashboardServletTest extends TestCase {
 
     servlet.doGet(req, resp);
 
-    verify(resp).sendRedirect("/auth/signin?r=/account/robots");
+    verify(resp).sendRedirect("/auth/signin?r=%2Faccount%2Frobots");
+  }
+
+  public void testDoGetRedirectsLoggedOutUsersBackToCurrentRequestWithinContextPath()
+      throws Exception {
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(null);
+    when(req.getContextPath()).thenReturn("/wave");
+    when(req.getRequestURI()).thenReturn("/wave/account/robots");
+    when(req.getQueryString()).thenReturn("source=menu");
+
+    servlet.doGet(req, resp);
+
+    verify(resp).sendRedirect("/wave/auth/signin?r=%2Faccount%2Frobots%3Fsource%3Dmenu");
   }
 
   public void testDoGetRendersOwnedRobotsAndAiPrompt() throws Exception {
@@ -134,6 +146,19 @@ public class RobotDashboardServletTest extends TestCase {
     when(accountStore.getRobotAccountsOwnedBy(OWNER.getAddress())).thenReturn(List.of());
     when(req.getScheme()).thenReturn("http");
     when(req.getHeader("X-Forwarded-Host")).thenReturn("[::1]evil.example");
+
+    servlet.doGet(req, resp);
+
+    assertTrue(outputWriter.toString().contains("SUPAWAVE_BASE_URL=https://example.com"));
+    assertTrue(outputWriter.toString().contains("SUPAWAVE_API_DOCS_URL=https://example.com/api-docs"));
+  }
+
+  public void testDoGetDefaultsPublicPromptUrlsToHttpsWithoutForwardedProto() throws Exception {
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(OWNER);
+    when(accountStore.getRobotAccountsOwnedBy(OWNER.getAddress())).thenReturn(List.of());
+    when(req.getScheme()).thenReturn("http");
+    when(req.getHeader("Host")).thenReturn("example.com");
+    when(req.getHeader("X-Forwarded-Proto")).thenReturn(null);
 
     servlet.doGet(req, resp);
 
