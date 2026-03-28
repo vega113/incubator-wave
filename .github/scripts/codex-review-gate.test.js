@@ -1,176 +1,296 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-const assert = require('node:assert/strict');
-const test = require('node:test');
+const assert = require("node:assert/strict");
+const test = require("node:test");
 
 const {
-  latestCodeRabbitCompletion,
+  evaluateCodexReviewGate,
   publishCodexReviewGateHeadStatus,
-  resolveCodeRabbitCompletedAt,
-  summarizeUnresolvedReviewThreads,
-  unresolvedReviewThreads,
-} = require('./codex-review-gate');
+  shouldRequeueCodexReviewGate,
+} = require("./codex-review-gate");
 
-test('latestCodeRabbitCompletion ignores nullish check runs', () => {
-  const result = latestCodeRabbitCompletion([
-    null,
+function buildPullRequest(overrides = {}) {
+  return {
+    isDraft: false,
+    baseRefName: "main",
+    headRefOid: "head-oid",
+    labels: { nodes: [] },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: "head-oid",
+            committedDate: "2026-03-28T13:00:00Z",
+            statusCheckRollup: { contexts: { nodes: [] } },
+          },
+        },
+      ],
+    },
+    reviews: { nodes: [] },
+    comments: { nodes: [] },
+    reviewThreads: { nodes: [] },
+    ...overrides,
+  };
+}
+
+function codeRabbitStatus() {
+  return [
     {
-      name: 'CodeRabbit',
-      conclusion: 'success',
-      completed_at: '2026-03-27T16:03:41Z'
-    }
-  ]);
+      __typename: "StatusContext",
+      context: "CodeRabbit",
+      state: "SUCCESS",
+    },
+  ];
+}
 
-  assert.equal(result?.name, 'CodeRabbit');
-  assert.equal(result?.completed_at, '2026-03-27T16:03:41Z');
+test("fails when review threads are unresolved", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    pullRequest: buildPullRequest({
+      reviewThreads: { nodes: [{ isResolved: false }] },
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /unresolved review thread/);
 });
 
-test('resolveCodeRabbitCompletedAt uses status context timestamp when REST lacks CodeRabbit', () => {
-  const result = resolveCodeRabbitCompletedAt(
-    [
-      {
-        name: 'Server Build (JDK 17)',
-        conclusion: 'success',
-        completed_at: '2026-03-27T17:13:59Z'
-      }
-    ],
-    [
-      {
-        __typename: 'StatusContext',
-        context: 'CodeRabbit',
-        state: 'SUCCESS',
-        createdAt: '2026-03-27T17:14:10Z'
-      }
-    ]
-  );
+test("rejects stacked PRs with stale Codex labels", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    pullRequest: buildPullRequest({
+      baseRefName: "fix/tag-filter-regression",
+      labels: { nodes: [{ name: "codex-reviewed" }] },
+    }),
+  });
 
-  assert.equal(result, Date.parse('2026-03-27T17:14:10Z'));
+  assert.equal(result.ok, false);
+  assert.match(result.message, /explicit Codex coverage/);
 });
 
-test('resolveCodeRabbitCompletedAt uses GraphQL check run timestamp when available', () => {
-  const result = resolveCodeRabbitCompletedAt(
-    [
-      {
-        name: 'Server Build (JDK 17)',
-        conclusion: 'success',
-        completed_at: '2026-03-27T17:13:59Z'
-      }
-    ],
-    [
-      {
-        __typename: 'CheckRun',
-        name: 'CodeRabbit',
-        conclusion: 'SUCCESS',
-        completedAt: '2026-03-27T17:14:10Z'
-      }
-    ]
-  );
+test("passes main PRs with Codex label coverage", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    pullRequest: buildPullRequest({
+      labels: { nodes: [{ name: "codex-reviewed" }] },
+    }),
+  });
 
-  assert.equal(result, Date.parse('2026-03-27T17:14:10Z'));
+  assert.equal(result.ok, true);
+  assert.match(result.message, /Codex coverage/);
 });
 
-test('unresolvedReviewThreads keeps outdated unresolved threads and drops resolved threads', () => {
-  const result = unresolvedReviewThreads([
-    { isResolved: true, isOutdated: false },
-    { isResolved: false, isOutdated: false },
-    { isResolved: false, isOutdated: true }
-  ]);
+test("rejects stacked PRs when only CodeRabbit is green", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    pullRequest: buildPullRequest({
+      baseRefName: "fix/tag-filter-regression",
+      commits: {
+        nodes: [
+          {
+            commit: {
+              oid: "head-oid",
+              committedDate: "2026-03-28T13:00:00Z",
+              statusCheckRollup: { contexts: { nodes: codeRabbitStatus() } },
+            },
+          },
+        ],
+      },
+    }),
+  });
 
-  assert.deepEqual(result, [
-    { isResolved: false, isOutdated: false },
-    { isResolved: false, isOutdated: true }
-  ]);
+  assert.equal(result.ok, false);
+  assert.match(result.message, /explicit Codex coverage/);
 });
 
-test('summarizeUnresolvedReviewThreads formats author, path, line, and outdated marker', () => {
-  const result = summarizeUnresolvedReviewThreads([
-    {
-      isResolved: false,
-      isOutdated: true,
-      path: '.github/workflows/codex-review-gate.yml',
-      line: 212,
+test("passes stacked PRs when Codex comments on the current head commit", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    pullRequest: buildPullRequest({
+      baseRefName: "fix/tag-filter-regression",
+      reviews: {
+        nodes: [
+          {
+            author: { login: "chatgpt-codex-connector[bot]" },
+            commit: { oid: "head-oid" },
+            state: "APPROVED",
+          },
+        ],
+      },
+    }),
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(result.message, /Codex coverage/);
+});
+
+test("rejects main PRs when CodeRabbit skipped review", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    pullRequest: buildPullRequest({
       comments: {
         nodes: [
           {
-            author: {
-              login: 'coderabbitai'
-            }
-          }
-        ]
-      }
-    },
-    {
-      isResolved: true,
-      path: 'ignored.md',
-      line: 99,
+            author: { login: "coderabbitai[bot]" },
+            body: "Review skipped because the base branch is not the default branch",
+          },
+        ],
+      },
+      commits: {
+        nodes: [
+          {
+            commit: {
+              oid: "head-oid",
+              committedDate: "2026-03-28T13:00:00Z",
+              statusCheckRollup: { contexts: { nodes: codeRabbitStatus() } },
+            },
+          },
+        ],
+      },
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /skipped review/);
+});
+
+test("passes main PRs after the CodeRabbit grace period", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    nowMs: Date.parse("2026-03-28T13:06:00Z"),
+    pullRequest: buildPullRequest({
+      commits: {
+        nodes: [
+          {
+            commit: {
+              oid: "head-oid",
+              committedDate: "2026-03-28T13:00:00Z",
+              statusCheckRollup: { contexts: { nodes: codeRabbitStatus() } },
+            },
+          },
+        ],
+      },
+    }),
+  });
+
+  assert.equal(result.ok, true);
+  assert.match(result.message, /5 minute Codex-review window/);
+});
+
+test("requeues a CodeRabbit-approved PR after the grace window", () => {
+  const shouldRequeue = shouldRequeueCodexReviewGate({
+    defaultBranchName: "main",
+    nowMs: Date.parse("2026-03-28T13:06:00Z"),
+    pullRequest: buildPullRequest({
+      commits: {
+        nodes: [
+          {
+            commit: {
+              oid: "head-oid",
+              committedDate: "2026-03-28T13:00:00Z",
+              statusCheckRollup: { contexts: { nodes: codeRabbitStatus() } },
+            },
+          },
+        ],
+      },
+    }),
+  });
+
+  assert.equal(shouldRequeue, true);
+});
+
+test("does not requeue a CodeRabbit-skipped PR", () => {
+  const shouldRequeue = shouldRequeueCodexReviewGate({
+    defaultBranchName: "main",
+    nowMs: Date.parse("2026-03-28T13:06:00Z"),
+    pullRequest: buildPullRequest({
       comments: {
         nodes: [
           {
-            author: {
-              login: 'ignored'
-            }
-          }
-        ]
-      }
-    },
-    {
-      isResolved: false,
-      comments: {
-        nodes: []
-      }
-    }
-  ]);
+            author: { login: "coderabbitai[bot]" },
+            body: "Review skipped because the base branch is not the default branch",
+          },
+        ],
+      },
+      labels: {
+        nodes: [{ name: "coderabbitai-reviewed" }],
+      },
+      commits: {
+        nodes: [
+          {
+            commit: {
+              oid: "head-oid",
+              committedDate: "2026-03-28T13:00:00Z",
+              statusCheckRollup: { contexts: { nodes: codeRabbitStatus() } },
+            },
+          },
+        ],
+      },
+    }),
+  });
 
-  assert.equal(
-    result,
-    'coderabbitai .github/workflows/codex-review-gate.yml:212 (outdated); unknown general'
-  );
+  assert.equal(shouldRequeue, false);
 });
 
-test('publishCodexReviewGateHeadStatus writes a success status on the PR head', async () => {
+test("publishes Codex Review Gate success on the PR head", async () => {
   const calls = [];
   const github = {
     rest: {
       repos: {
-        createCommitStatus: async (args) => {
-          calls.push(args);
-          return args;
-        }
-      }
-    }
+        createCommitStatus: async (payload) => {
+          calls.push(payload);
+          return payload;
+        },
+      },
+    },
   };
 
   await publishCodexReviewGateHeadStatus(github, {
-    owner: 'vega113',
-    repo: 'incubator-wave',
-    sha: 'bae2f90912a783403a3dad03d9e36fc41f851832',
-    state: 'success',
-    description: 'Codex Review Gate passed via PR comment reevaluation'
+    description: "Review gate passed after the 5 minute Codex-review window using CodeRabbit",
+    owner: "vega113",
+    repo: "incubator-wave",
+    sha: "head-oid",
   });
 
   assert.deepEqual(calls, [
     {
-      owner: 'vega113',
-      repo: 'incubator-wave',
-      sha: 'bae2f90912a783403a3dad03d9e36fc41f851832',
-      state: 'success',
-      context: 'Codex Review Gate',
-      description: 'Codex Review Gate passed via PR comment reevaluation'
-    }
+      context: "Codex Review Gate",
+      description: "Review gate passed after the 5 minute Codex-review window using CodeRabbit",
+      owner: "vega113",
+      repo: "incubator-wave",
+      sha: "head-oid",
+      state: "success",
+    },
+  ]);
+});
+
+test("publishes Codex Review Gate failure on the PR head", async () => {
+  const calls = [];
+  const github = {
+    rest: {
+      repos: {
+        createCommitStatus: async (payload) => {
+          calls.push(payload);
+          return payload;
+        },
+      },
+    },
+  };
+
+  await publishCodexReviewGateHeadStatus(github, {
+    description: "Missing required review signal",
+    owner: "vega113",
+    repo: "incubator-wave",
+    sha: "head-oid",
+    state: "failure",
+  });
+
+  assert.deepEqual(calls, [
+    {
+      context: "Codex Review Gate",
+      description: "Missing required review signal",
+      owner: "vega113",
+      repo: "incubator-wave",
+      sha: "head-oid",
+      state: "failure",
+    },
   ]);
 });
