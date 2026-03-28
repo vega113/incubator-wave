@@ -43,6 +43,7 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Locale;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -128,11 +129,19 @@ public class UserRegistrationServletTest extends TestCase {
     assertTrue(account.asHuman().getPasswordDigest().verify("".toCharArray()));
   }
 
-  public void attemptToRegister(
+  public void testReservedBotSuffixShowsRobotOnlyMessage() throws Exception {
+    String responseBody = attemptToRegister(req, resp, "helper-bot", "internet", false);
+
+    verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
+    assertTrue(responseBody.contains("reserved for robots"));
+    assertNull(store.getAccount(ParticipantId.ofUnsafe("helper-bot@example.com")));
+  }
+
+  public String attemptToRegister(
       HttpServletRequest req, HttpServletResponse resp, String address,
       String password, boolean disabledRegistration) throws IOException {
 
-    AuthEmailService authEmailService = mock(AuthEmailService.class);
+    AuthEmailService authEmailService = null;
 
     Config config1 = ConfigFactory.parseMap(ImmutableMap.<String, Object>of(
       "administration.disable_registration", false,
@@ -151,7 +160,8 @@ public class UserRegistrationServletTest extends TestCase {
     when(req.getParameter("address")).thenReturn(address);
     when(req.getParameter("password")).thenReturn(password);
     when(req.getLocale()).thenReturn(Locale.ENGLISH);
-    PrintWriter writer = mock(PrintWriter.class);
+    StringWriter responseBody = new StringWriter();
+    PrintWriter writer = new PrintWriter(responseBody);
     when(resp.getWriter()).thenReturn(writer);
 
     if (disabledRegistration) {
@@ -160,6 +170,8 @@ public class UserRegistrationServletTest extends TestCase {
       enabledServlet.doPost(req, resp);
     }
 
-    verify(writer, atLeastOnce()).write(anyString());
+    writer.flush();
+    assertFalse(responseBody.toString().isEmpty());
+    return responseBody.toString();
   }
 }

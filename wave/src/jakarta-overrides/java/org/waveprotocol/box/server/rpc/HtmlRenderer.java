@@ -3350,8 +3350,10 @@ public final class HtmlRenderer {
     sb.append("        <input type=\"text\" name=\"username\" id=\"username\">\n");
     sb.append("        <span class=\"domain-suffix\">@").append(escapeHtml(domain)).append("</span>\n");
     sb.append("      </div>\n");
+    sb.append("      <p class=\"hint\">Robot usernames must end with -bot.</p>\n");
     sb.append("      <label for=\"location\">Robot URL</label>\n");
     sb.append("      <input type=\"text\" name=\"location\" id=\"location\">\n");
+    sb.append("      <p class=\"hint\">This callback URL is optional during initial registration. You can add it later when the bot is deployed, and you can update it later if the bot moves. The robot will stay inactive until the callback URL is configured.</p>\n");
     sb.append("      <label for=\"token_expiry\">Token Expiry</label>\n");
     sb.append("      <select name=\"token_expiry\" id=\"token_expiry\" style=\"width:100%;padding:10px 12px;font-size:14px;border:1.5px solid #d0d5dd;border-radius:8px;margin-bottom:14px;background:#fafbfc;\">\n");
     sb.append("        <option value=\"0\" selected>No expiry</option>\n");
@@ -3403,8 +3405,9 @@ public final class HtmlRenderer {
     sb.append("    <div class=\"robot-success-hero\">\n");
     sb.append("      <div class=\"robot-success-pill\">Data API Ready</div>\n");
     sb.append("      <h1>Robot Registered</h1>\n");
-    sb.append("      <p class=\"robot-success-copy\">Your robot is live. Store these Data API credentials now");
-    sb.append(" and keep the secret private.</p>\n");
+    sb.append("      <p class=\"robot-success-copy\">Store these Data API credentials now. You can");
+    sb.append(" add or update the callback URL later without rotating the secret, and the robot");
+    sb.append(" stays inactive until the callback URL is configured.</p>\n");
     sb.append("    </div>\n");
     sb.append("    <div class=\"robot-success-body\">\n");
     sb.append("      <div class=\"robot-credential-grid\">\n");
@@ -3424,7 +3427,8 @@ public final class HtmlRenderer {
     sb.append("        </section>\n");
     sb.append("      </div>\n");
     sb.append("      <div class=\"robot-security-note\"><strong>Heads up:</strong> save the API token");
-    sb.append(" secret in your robot configuration now. Anyone with this value can act as this robot.</div>\n");
+    sb.append(" secret in your robot configuration now. Anyone with this value can act as this robot");
+    sb.append(" after the callback URL is configured.</div>\n");
     sb.append("    <div class=\"footer-link\">\n");
     sb.append("      <a href=\"/\">&larr; Back to SupaWave</a>\n");
     sb.append("    </div>\n");

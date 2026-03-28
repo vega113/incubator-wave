@@ -29,6 +29,7 @@ import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.rpc.HtmlRenderer;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
+import org.waveprotocol.box.server.util.RegistrationSupport;
 import org.waveprotocol.box.server.robots.util.RobotsUtil.RobotRegistrationException;
 import org.waveprotocol.wave.model.wave.InvalidParticipantAddress;
 import org.waveprotocol.wave.model.wave.ParticipantId;
@@ -84,11 +85,11 @@ public final class RobotRegistrationServlet extends HttpServlet {
 
   private void handleRegistration(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     String username = req.getParameter("username");
-    String location = req.getParameter("location");
+    String location = Strings.nullToEmpty(req.getParameter("location")).trim();
     String tokenExpiryParam = req.getParameter("token_expiry");
 
-    if (Strings.isNullOrEmpty(username) || Strings.isNullOrEmpty(location)) {
-      renderRegistrationPage(req, resp, "Please complete all fields.");
+    if (Strings.isNullOrEmpty(username)) {
+      renderRegistrationPage(req, resp, "Please provide a robot username ending with -bot.");
       return;
     }
 
@@ -106,15 +107,19 @@ public final class RobotRegistrationServlet extends HttpServlet {
 
     ParticipantId id;
     try {
-      id = ParticipantId.of(username + "@" + domain);
+      id = RegistrationSupport.checkNewRobotUsername(domain, username);
     } catch (InvalidParticipantAddress e) {
-      renderRegistrationPage(req, resp, "Invalid username specified, use alphanumeric characters only.");
+      renderRegistrationPage(req, resp, e.getMessage());
       return;
     }
 
     RobotAccountData robotAccount;
     try {
-      robotAccount = robotRegistrar.registerNew(id, location, tokenExpirySeconds);
+      if (location.isEmpty()) {
+        robotAccount = robotRegistrar.registerNew(id, location, tokenExpirySeconds);
+      } else {
+        robotAccount = robotRegistrar.registerOrUpdate(id, location, tokenExpirySeconds);
+      }
     } catch (RobotRegistrationException e) {
       renderRegistrationPage(req, resp, e.getMessage());
       return;
