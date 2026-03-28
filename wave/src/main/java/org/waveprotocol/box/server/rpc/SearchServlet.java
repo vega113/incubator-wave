@@ -36,6 +36,7 @@ import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.robots.OperationServiceRegistry;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.rpc.ProtoSerializer.SerializationException;
+import org.waveprotocol.box.server.waveserver.search.SearchWaveletSnapshotPublisher;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.box.stat.Timed;
 import org.waveprotocol.box.webclient.search.SearchService;
@@ -45,6 +46,7 @@ import org.waveprotocol.wave.util.logging.Log;
 import java.io.IOException;
 import java.util.List;
 
+import javax.annotation.Nullable;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -65,6 +67,7 @@ public class SearchServlet extends AbstractSearchServlet {
   private static final Log LOG = Log.get(SearchServlet.class);
 
   private final ProtoSerializer serializer;
+  private final SearchWaveletSnapshotPublisher snapshotPublisher;
 
   /**
    * Constructs SearchResponse which is a protobuf generated class from the
@@ -113,9 +116,11 @@ public class SearchServlet extends AbstractSearchServlet {
   @Inject
   public SearchServlet(SessionManager sessionManager, EventDataConverterManager converterManager,
       @Named("DataApiRegistry") OperationServiceRegistry operationRegistry,
-      WaveletProvider waveletProvider, ConversationUtil conversationUtil, ProtoSerializer serializer) {
+      WaveletProvider waveletProvider, ConversationUtil conversationUtil, ProtoSerializer serializer,
+      SearchWaveletSnapshotPublisher snapshotPublisher) {
     super(conversationUtil, converterManager, waveletProvider, sessionManager, operationRegistry);
     this.serializer = serializer;
+    this.snapshotPublisher = snapshotPublisher;
   }
 
   /**
@@ -137,6 +142,24 @@ public class SearchServlet extends AbstractSearchServlet {
       return;
     }
     SearchResult searchResult = performSearch(searchRequest, user);
+    if (snapshotPublisher != null) {
+      try {
+        boolean hasLiveSubscription =
+            snapshotPublisher.hasLiveSubscription(user, searchRequest.getQuery());
+        if (hasLiveSubscription) {
+          SearchRequest bootstrapRequest = canonicalLiveSearchRequest(searchRequest);
+          SearchResult bootstrapResult = canonicalBootstrapSearchResult(
+              searchRequest, bootstrapRequest, searchResult, user);
+          if (bootstrapResult != null) {
+            snapshotPublisher.publishBootstrap(user, bootstrapRequest.getQuery(), bootstrapResult);
+          }
+        }
+      } catch (RuntimeException e) {
+        LOG.warning(
+            "Skipping live-search bootstrap publish for query " + searchRequest.getQuery(),
+            e);
+      }
+    }
 
     int totalGuess = computeTotalResultsNumberGuess(searchRequest, searchResult);
     LOG.fine("Results: " + searchResult.getNumResults() + ", total: " + totalGuess);
@@ -147,6 +170,38 @@ public class SearchServlet extends AbstractSearchServlet {
     serializeObjectToServlet(searchResponse, ctx, response);
     long elapsedMs = System.currentTimeMillis() - startMs;
     LOG.info("SearchServlet.doGet: took " + elapsedMs + " ms");
+  }
+
+  @Nullable
+  private SearchResult canonicalBootstrapSearchResult(
+      SearchRequest searchRequest,
+      SearchRequest canonicalRequest,
+      SearchResult searchResult,
+      ParticipantId user) {
+    if (isCanonicalLiveSearchRequest(searchRequest)) {
+      return searchResult;
+    }
+    try {
+      return performSearch(canonicalRequest, user);
+    } catch (RuntimeException e) {
+      LOG.warning(
+          "Ignoring canonical bootstrap search failure for query " + searchRequest.getQuery(),
+          e);
+      return null;
+    }
+  }
+
+  private static SearchRequest canonicalLiveSearchRequest(SearchRequest searchRequest) {
+    return SearchRequest.newBuilder()
+        .setQuery(searchRequest.getQuery())
+        .setIndex(0)
+        .setNumResults(SearchWaveletSnapshotPublisher.LIVE_SEARCH_NUM_RESULTS)
+        .build();
+  }
+
+  private static boolean isCanonicalLiveSearchRequest(SearchRequest searchRequest) {
+    return searchRequest.getIndex() == 0
+        && searchRequest.getNumResults() == SearchWaveletSnapshotPublisher.LIVE_SEARCH_NUM_RESULTS;
   }
 
   private int computeTotalResultsNumberGuess(SearchRequest searchRequest, SearchResult searchResult) {

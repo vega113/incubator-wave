@@ -119,7 +119,7 @@ public final class SearchWaveletUpdaterTest extends TestCase {
     }
   }
 
-  public void testExecuteUpdatePreservesUnreadFilterQuery() throws Exception {
+  public void testExecuteUpdatePreservesRawTagQuery() throws Exception {
     SearchWaveletManager waveletManager = mock(SearchWaveletManager.class);
     SearchIndexer indexer = mock(SearchIndexer.class);
     SearchProvider searchProvider = mock(SearchProvider.class);
@@ -128,7 +128,7 @@ public final class SearchWaveletUpdaterTest extends TestCase {
         new SearchWaveletUpdater(waveletManager, indexer, searchProvider, dataProvider, null);
 
     ParticipantId user = ParticipantId.ofUnsafe("alice@example.com");
-    String query = "in:inbox unread:true";
+    String query = "tag:work";
     String queryHash = SearchWaveletManager.md5Hex(query);
     SearchIndexer.SubscriptionKey key = new SearchIndexer.SubscriptionKey(user, queryHash);
     WaveletName searchWaveletName = WaveletName.of(
@@ -173,7 +173,7 @@ public final class SearchWaveletUpdaterTest extends TestCase {
             waveletManager, indexer, searchProvider, dataProvider, publisher);
 
     ParticipantId user = ParticipantId.ofUnsafe("alice@example.com");
-    String query = "in:inbox";
+    String query = "tag:work";
     WaveletName searchWaveletName = waveletManager.computeWaveletName(user, query);
     IdFilter filter = IdFilter.of(
         Collections.singleton(searchWaveletName.waveletId), Collections.<String>emptySet());

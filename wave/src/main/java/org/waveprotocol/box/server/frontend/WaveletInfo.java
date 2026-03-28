@@ -39,6 +39,7 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.util.logging.Log;
 
+import javax.annotation.Nullable;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -214,6 +215,11 @@ public class WaveletInfo {
     } catch (ExecutionException ex) {
       throw new RuntimeException(ex);
     }
+  }
+
+  @Nullable
+  public UserManager getUserManagerIfPresent(ParticipantId participantId) {
+    return perUser.getIfPresent(participantId);
   }
 
   /**

@@ -23,6 +23,9 @@ import com.google.gwt.http.client.Request;
 
 import junit.framework.TestCase;
 
+import org.mockito.Mockito;
+import org.waveprotocol.box.webclient.client.RemoteViewServiceMultiplexer;
+import org.waveprotocol.box.webclient.client.WaveWebSocketClient;
 import org.waveprotocol.wave.model.document.operation.DocInitialization;
 import org.waveprotocol.wave.model.document.operation.DocOp;
 import org.waveprotocol.wave.model.document.operation.impl.DocOpBuilder;
@@ -180,6 +183,70 @@ public final class SearchPresenterTest extends TestCase {
     assertEquals("in:inbox", search.lastQuery);
     assertEquals(30, search.lastSize);
     assertEquals(1, scheduler.countTasksScheduled());
+  }
+
+  public void testBootstrapOtSearchFallsBackToPollingForTagQuery() throws Exception {
+    FakeTimerService scheduler = new FakeTimerService();
+    FakeSearch search = new FakeSearch();
+    WaveWebSocketClient socket = Mockito.mock(WaveWebSocketClient.class);
+    RemoteViewServiceMultiplexer channel =
+        new RemoteViewServiceMultiplexer(socket, "alice@example.com");
+    SearchPresenter presenter = new SearchPresenter(
+        scheduler, search, new FakeSearchPanelView(), NO_OP_ACTION_HANDLER, new FakeProfiles(),
+        channel);
+
+    setBooleanField(presenter, "otSearchEnabled", true);
+    setField(presenter, "queryText", "tag:work");
+
+    presenter.bootstrapOtSearch();
+
+    Mockito.verify(socket, Mockito.never()).open(Mockito.any());
+    assertEquals(1, search.findCalls);
+    assertEquals("tag:work", search.lastQuery);
+    assertEquals(30, search.lastSize);
+    assertEquals(1, scheduler.countTasksScheduled());
+  }
+
+  public void testBootstrapOtSearchSubscribesNotagSubstringQueryToOtSearch()
+      throws Exception {
+    FakeTimerService scheduler = new FakeTimerService();
+    FakeSearch search = new FakeSearch();
+    WaveWebSocketClient socket = Mockito.mock(WaveWebSocketClient.class);
+    RemoteViewServiceMultiplexer channel =
+        new RemoteViewServiceMultiplexer(socket, "alice@example.com");
+    SearchPresenter presenter = new SearchPresenter(
+        scheduler, search, new FakeSearchPanelView(), NO_OP_ACTION_HANDLER, new FakeProfiles(),
+        channel);
+
+    setBooleanField(presenter, "otSearchEnabled", true);
+    setField(presenter, "queryText", "notag:foo");
+
+    presenter.bootstrapOtSearch();
+
+    Mockito.verify(socket).open(Mockito.any());
+    assertEquals(1, search.findCalls);
+    assertEquals("notag:foo", search.lastQuery);
+  }
+
+  public void testBootstrapOtSearchSubscribesMixedCaseTagQueryToOtSearch()
+      throws Exception {
+    FakeTimerService scheduler = new FakeTimerService();
+    FakeSearch search = new FakeSearch();
+    WaveWebSocketClient socket = Mockito.mock(WaveWebSocketClient.class);
+    RemoteViewServiceMultiplexer channel =
+        new RemoteViewServiceMultiplexer(socket, "alice@example.com");
+    SearchPresenter presenter = new SearchPresenter(
+        scheduler, search, new FakeSearchPanelView(), NO_OP_ACTION_HANDLER, new FakeProfiles(),
+        channel);
+
+    setBooleanField(presenter, "otSearchEnabled", true);
+    setField(presenter, "queryText", "TAG:work");
+
+    presenter.bootstrapOtSearch();
+
+    Mockito.verify(socket).open(Mockito.any());
+    assertEquals(1, search.findCalls);
+    assertEquals("TAG:work", search.lastQuery);
   }
 
   public void testOnFolderActionCompletedUsesImmediateDirectSearchWhenOtSearchIsEnabled()

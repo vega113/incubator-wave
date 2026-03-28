@@ -77,6 +77,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -363,6 +364,25 @@ public final class SearchPresenter
     return MobileDetector.isMobile() ? MOBILE_PAGE_SIZE : DESKTOP_PAGE_SIZE;
   }
 
+  private static boolean supportsOtSearch(String query) {
+    boolean supportsOtSearch = true;
+    if (query != null) {
+      supportsOtSearch = !containsTagFilter(query);
+    }
+    return supportsOtSearch;
+  }
+
+  private static boolean containsTagFilter(String query) {
+    String[] tokens = query.split("\\s+");
+    for (String token : tokens) {
+      int separatorIndex = token.indexOf(':');
+      if (separatorIndex > 0 && "tag".equals(token.substring(0, separatorIndex))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   static boolean shouldUsePolling(boolean otSearchEnabled, boolean otSearchReady) {
     return !otSearchEnabled || !otSearchReady;
   }
@@ -376,6 +396,14 @@ public final class SearchPresenter
         && SearchBootstrapUiState.allowLoadingSkeletonForSearchStart(search.getMinimumTotal());
     otSearchTimedOut = false;
     renderLoadingSkeletonIfEmpty();
+    if (!supportsOtSearch(queryText)) {
+      useOtSearch = false;
+      unsubscribeFromSearchWavelet();
+      doSearch();
+      scheduler.cancel(searchUpdater);
+      scheduler.scheduleRepeating(searchUpdater, POLLING_INTERVAL_MS, POLLING_INTERVAL_MS);
+      return;
+    }
     subscribeToSearchWavelet(queryText);
     doSearch();
     scheduler.cancel(searchUpdater);
