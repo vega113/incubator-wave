@@ -175,7 +175,6 @@ public class RobotRegistrarImplTest extends TestCase {
     assertTrue(updatedAccount.isVerified());
     assertEquals(3600L, updatedAccount.getTokenExpirySeconds());
   }
-  }
 
   public void testReRegisterFailsOnExistingHumanAccount() throws PersistenceException {
     when(accountStore.getAccount(HUMAN_ID)).thenReturn(
