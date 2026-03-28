@@ -62,6 +62,10 @@ public class MagicLinkServletTest extends TestCase {
     Config config = ConfigFactory.parseMap(ImmutableMap.<String, Object>builder()
         .put("core.magic_link_enabled", true)
         .put("security.enable_ssl", false)
+        .put("core.auth_email_send_cooldown_seconds", 300)
+        .put("core.auth_email_send_max_per_address_per_hour", 5)
+        .put("core.auth_email_send_max_per_ip_per_hour", 20)
+        .put("core.public_url", "https://wave.example.com")
         .build());
     authEmailService = new AuthEmailService(
         accountStore,

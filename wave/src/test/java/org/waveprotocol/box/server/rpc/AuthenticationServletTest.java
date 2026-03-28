@@ -99,6 +99,10 @@ public class AuthenticationServletTest extends TestCase {
       .put("administration.disable_loginpage", false)
       .put("security.enable_ssl", false)
       .put("core.email_confirmation_enabled", false)
+      .put("core.auth_email_send_cooldown_seconds", 300)
+      .put("core.auth_email_send_max_per_address_per_hour", 5)
+      .put("core.auth_email_send_max_per_ip_per_hour", 20)
+      .put("core.public_url", "https://wave.example.com")
       .build()
     );
     when(browserSessionJwtIssuer.tokenLifetimeSeconds()).thenReturn(1209600L);
@@ -197,6 +201,10 @@ public class AuthenticationServletTest extends TestCase {
         .put("administration.disable_loginpage", false)
         .put("security.enable_ssl", false)
         .put("core.email_confirmation_enabled", true)
+        .put("core.auth_email_send_cooldown_seconds", 300)
+        .put("core.auth_email_send_max_per_address_per_hour", 5)
+        .put("core.auth_email_send_max_per_ip_per_hour", 20)
+        .put("core.public_url", "https://wave.example.com")
         .build());
     AuthEmailService authEmailService = new AuthEmailService(
         store,

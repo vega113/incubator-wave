@@ -43,6 +43,7 @@ public final class AuthEmailService {
   private final long cooldownMillis;
   private final int maxPerAddressPerHour;
   private final int maxPerIpPerHour;
+  private final String publicBaseUrl;
   private final Map<String, ArrayDeque<Long>> addressDispatches = new ConcurrentHashMap<>();
   private final Map<String, ArrayDeque<Long>> ipDispatches = new ConcurrentHashMap<>();
   private final Map<String, Long> addressCooldowns = new ConcurrentHashMap<>();
@@ -60,6 +61,7 @@ public final class AuthEmailService {
     this.cooldownMillis = readCooldownMillis(config);
     this.maxPerAddressPerHour = readLimit(config, "core.auth_email_send_max_per_address_per_hour", 5);
     this.maxPerIpPerHour = readLimit(config, "core.auth_email_send_max_per_ip_per_hour", 20);
+    this.publicBaseUrl = readPublicBaseUrl(config);
   }
 
   public DispatchResult sendConfirmationEmail(HttpServletRequest request, HumanAccountData account) {
@@ -93,7 +95,7 @@ public final class AuthEmailService {
     try {
       String token = issueToken(account, kind);
       String path = buildPath(kind, token);
-      String url = buildAbsoluteUrl(request, path);
+      String url = buildAbsoluteUrl(path);
       String subject = buildSubject(kind);
       String body = buildBody(account, url, kind);
       mailProvider.sendEmail(recipient, subject, body);
@@ -106,8 +108,10 @@ public final class AuthEmailService {
 
   private synchronized boolean tryAcquire(String addressKey, String ipKey) {
     long now = clock.millis();
+    pruneExpiredState(now);
+
     Long lastSentAt = addressCooldowns.get(addressKey);
-    if (lastSentAt != null && now - lastSentAt < cooldownMillis) {
+    if (lastSentAt != null) {
       return false;
     }
 
@@ -129,6 +133,23 @@ public final class AuthEmailService {
     return true;
   }
 
+  private void pruneExpiredState(long now) {
+    pruneDispatchMap(addressDispatches, now);
+    pruneDispatchMap(ipDispatches, now);
+    pruneCooldowns(now);
+  }
+
+  private void pruneDispatchMap(Map<String, ArrayDeque<Long>> dispatches, long now) {
+    dispatches.entrySet().removeIf(entry -> {
+      prune(entry.getValue(), now);
+      return entry.getValue().isEmpty();
+    });
+  }
+
+  private void pruneCooldowns(long now) {
+    addressCooldowns.entrySet().removeIf(entry -> now - entry.getValue() >= cooldownMillis);
+  }
+
   private void prune(ArrayDeque<Long> events, long now) {
     long cutoff = now - HOURLY_WINDOW_MILLIS;
     while (!events.isEmpty() && events.peekFirst() <= cutoff) {
@@ -145,13 +166,6 @@ public final class AuthEmailService {
   }
 
   private String resolveClientKey(HttpServletRequest request) {
-    String forwardedFor = request.getHeader("X-Forwarded-For");
-    if (forwardedFor != null) {
-      String first = forwardedFor.split(",", 2)[0].trim();
-      if (!first.isEmpty()) {
-        return first;
-      }
-    }
     String remoteAddr = request.getRemoteAddr();
     return remoteAddr == null || remoteAddr.isBlank() ? "unknown" : remoteAddr.trim();
   }
@@ -200,18 +214,9 @@ public final class AuthEmailService {
     };
   }
 
-  private String buildAbsoluteUrl(HttpServletRequest request, String path) {
-    String scheme = request.getScheme();
-    String serverName = request.getServerName();
-    int serverPort = request.getServerPort();
-    StringBuilder url = new StringBuilder();
-    url.append(scheme).append("://").append(serverName);
-    if (("http".equals(scheme) && serverPort != 80)
-        || ("https".equals(scheme) && serverPort != 443)) {
-      url.append(":").append(serverPort);
-    }
-    url.append(path);
-    return url.toString();
+  private String buildAbsoluteUrl(String path) {
+    String normalizedPath = path.startsWith("/") ? path : "/" + path;
+    return publicBaseUrl + normalizedPath;
   }
 
   private String normalizeKey(String value) {
@@ -227,5 +232,41 @@ public final class AuthEmailService {
   private int readLimit(Config config, String path, int fallback) {
     int value = config.hasPath(path) ? config.getInt(path) : fallback;
     return Math.max(1, value);
+  }
+
+  private String readPublicBaseUrl(Config config) {
+    if (config.hasPath("core.public_url")) {
+      String configuredUrl = stripTrailingSlash(config.getString("core.public_url").trim());
+      if (!configuredUrl.isEmpty()) {
+        return configuredUrl;
+      }
+    }
+
+    String configuredAddress = readFrontendAddress(config);
+    String scheme = readFrontendScheme(config);
+    return stripTrailingSlash(scheme + "://" + configuredAddress);
+  }
+
+  private String readFrontendAddress(Config config) {
+    if (config.hasPath("core.http_frontend_addresses")
+        && !config.getStringList("core.http_frontend_addresses").isEmpty()) {
+      return config.getStringList("core.http_frontend_addresses").get(0).trim();
+    }
+    if (config.hasPath("core.default_http_frontend_address")) {
+      return config.getString("core.default_http_frontend_address").trim();
+    }
+    return "wave.example.test";
+  }
+
+  private String readFrontendScheme(Config config) {
+    boolean sslEnabled = config.hasPath("security.enable_ssl") && config.getBoolean("security.enable_ssl");
+    return sslEnabled ? "https" : "http";
+  }
+
+  private String stripTrailingSlash(String value) {
+    if (value.endsWith("/")) {
+      return value.substring(0, value.length() - 1);
+    }
+    return value;
   }
 }
