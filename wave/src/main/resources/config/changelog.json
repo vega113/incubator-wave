@@ -1,5 +1,45 @@
 [
   {
+    "version": "2026-03-28",
+    "date": "2026-03-28",
+    "title": "API Docs Discovery",
+    "summary": "API consumers and LLM agents can now discover the SupaWave docs from dedicated llms entrypoints and direct links across the product.",
+    "sections": [
+      {
+        "type": "feature",
+        "items": [
+          "Published `/llms.txt` and `/llms-full.txt` as LLM-friendly API docs entrypoints"
+        ]
+      },
+      {
+        "type": "improvement",
+        "items": [
+          "Added direct `/api-docs` links in the landing-page navigation bar, hero section, footer, and signed-in app menu"
+        ]
+      }
+    ]
+  },
+  {
+    "version": "2026-03-27.1",
+    "date": "2026-03-27",
+    "title": "Unread-Only Search Filter",
+    "summary": "You can now filter the wave list down to waves with unread blips only.",
+    "sections": [
+      {
+        "type": "feature",
+        "items": [
+          "Added the unread:true search filter for inbox, archive, pinned, and combined queries"
+        ]
+      },
+      {
+        "type": "improvement",
+        "items": [
+          "Updated the search help popup with unread-only filter guidance and examples"
+        ]
+      }
+    ]
+  },
+  {
     "version": "2026-03-27",
     "date": "2026-03-27",
     "title": "Search and Discovery",

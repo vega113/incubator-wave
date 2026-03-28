@@ -84,7 +84,13 @@ public final class HtmlRendererChangelogTest {
   public void landingPageNavWrapsControlsOnMobile() {
     String landing = HtmlRenderer.renderLandingPage("example.com", "");
 
-    assertTrue(landing.contains(".nav { padding: 12px 16px; flex-wrap: wrap; gap: 12px; }"));
-    assertTrue(landing.contains(".nav-links { width: 100%; flex-wrap: wrap; justify-content: flex-start; }"));
+    assertTrue(landing.contains("@media (max-width: 640px)"));
+    assertTrue(landing.contains(".nav {"));
+    assertTrue(landing.contains("padding: 12px 16px;"));
+    assertTrue(landing.contains("flex-wrap: wrap;"));
+    assertTrue(landing.contains("gap: 12px;"));
+    assertTrue(landing.contains(".nav-links {"));
+    assertTrue(landing.contains("width: 100%;"));
+    assertTrue(landing.contains("justify-content: flex-start;"));
   }
 }

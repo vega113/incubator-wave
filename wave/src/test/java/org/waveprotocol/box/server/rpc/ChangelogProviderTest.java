@@ -19,6 +19,7 @@
 package org.waveprotocol.box.server.rpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -122,8 +123,26 @@ public final class ChangelogProviderTest {
     int exitCode = process.waitFor();
 
     assertEquals(0, exitCode);
-    assertTrue(output, output.contains("2026-03-27"));
-    assertTrue(output, output.contains("Search and Discovery"));
+    assertTrue(output, output.contains("2026-03-28"));
+    assertTrue(output, output.contains("API Docs Discovery"));
+  }
+
+  @Test
+  public void bundledAndFallbackChangelogFilesStayAlignedForApiDocsRelease() {
+    ChangelogProvider classpathProvider = new ChangelogProvider();
+    ChangelogProvider fallbackProvider = new ChangelogProvider(Path.of("wave", "config", "changelog.json"));
+
+    assertNotNull(classpathProvider.getLatestEntry());
+    assertNotNull(fallbackProvider.getLatestEntry());
+    assertEquals(fallbackProvider.getLatestEntry().toString(), classpathProvider.getLatestEntry().toString());
+    assertEquals("2026-03-28", classpathProvider.getLatestVersion());
+    assertEquals("API Docs Discovery", classpathProvider.getLatestTitle());
+    assertTrue(classpathProvider.getLatestEntry().toString().contains("/llms.txt"));
+    assertTrue(classpathProvider.getLatestEntry().toString().contains("/llms-full.txt"));
+    assertTrue(classpathProvider.getLatestEntry().toString().contains("navigation bar"));
+    assertTrue(classpathProvider.getLatestEntry().toString().contains("hero section"));
+    assertTrue(classpathProvider.getLatestEntry().toString().contains("footer"));
+    assertTrue(classpathProvider.getLatestEntry().toString().contains("app menu"));
   }
 
   private static String javaBinary() {

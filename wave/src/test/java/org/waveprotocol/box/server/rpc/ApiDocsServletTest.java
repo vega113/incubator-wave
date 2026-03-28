@@ -34,7 +34,7 @@ public final class ApiDocsServletTest {
   public void llmsIndexEndpointReturnsRootLevelPointers() throws Exception {
     ApiDocsServlet servlet = new ApiDocsServlet();
     StringWriter body = new StringWriter();
-    ResponseRecorder recorder = new ResponseRecorder(body);
+    ResponseRecorder recorder = new ResponseRecorder();
     HttpServletRequest request = request("/llms.txt", "https", "docs.example.com");
     HttpServletResponse response = response(recorder, body);
 
@@ -50,7 +50,7 @@ public final class ApiDocsServletTest {
   public void llmsFullEndpointReturnsDetailedApiContract() throws Exception {
     ApiDocsServlet servlet = new ApiDocsServlet();
     StringWriter body = new StringWriter();
-    ResponseRecorder recorder = new ResponseRecorder(body);
+    ResponseRecorder recorder = new ResponseRecorder();
     HttpServletRequest request = request("/llms-full.txt", "https", "docs.example.com");
     HttpServletResponse response = response(recorder, body);
 
@@ -160,13 +160,11 @@ public final class ApiDocsServletTest {
   }
 
   private static final class ResponseRecorder {
-    private final StringWriter body;
     private int status;
     private String contentType;
     private String characterEncoding;
 
-    private ResponseRecorder(StringWriter body) {
-      this.body = body;
+    private ResponseRecorder() {
     }
   }
 }
