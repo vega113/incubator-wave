@@ -49,4 +49,24 @@ public final class FocusBlipSelectorEmptyRootTest extends TestCase {
 
     assertNull(selected);
   }
+
+  public void testSelectMostRecentlyModifiedReturnsNullWhenRootThreadHasNoFirstBlip() {
+    ConversationView wave = Mockito.mock(ConversationView.class);
+    ModelAsViewProvider views = Mockito.mock(ModelAsViewProvider.class);
+    ViewTraverser traverser = new ViewTraverser();
+    Conversation conversation = Mockito.mock(Conversation.class);
+    ConversationThread rootThread = Mockito.mock(ConversationThread.class);
+
+    Mockito.when(wave.getRoot()).thenReturn(conversation);
+    Mockito.when(conversation.getRootThread()).thenReturn(rootThread);
+    Mockito.when(rootThread.getFirstBlip()).thenReturn(null);
+    Mockito.doThrow(new NullPointerException("root blip must be present"))
+        .when(views).getBlipView((ConversationBlip) Mockito.isNull());
+
+    FocusBlipSelector selector = FocusBlipSelector.create(wave, views, null, traverser);
+
+    BlipView selected = selector.selectMostRecentlyModified();
+
+    assertNull(selected);
+  }
 }
