@@ -145,6 +145,21 @@ public final class SearchServletTest extends TestCase {
     assertTrue(servlet.didAttemptCanonicalBootstrapSearch());
   }
 
+  public void testDoGetTreatsBootstrapPublishFailureAsBestEffort() throws Exception {
+    TestSearchServlet servlet =
+        createServlet(createPublishFailingSnapshotPublisher("in:inbox"));
+    HttpServletRequest request = requestWithParams(Map.of(
+        "query", "in:inbox",
+        "index", "5",
+        "numResults", "3"));
+    HttpServletResponse response = responseWithWriter();
+
+    servlet.doGet(request, response);
+
+    assertEquals(2, servlet.getPerformedRequests().size());
+    assertTrue(servlet.didAttemptCanonicalBootstrapSearch());
+  }
+
   private static TestSearchServlet createServlet(SearchWaveletSnapshotPublisher snapshotPublisher) {
     SessionManager sessionManager = mock(SessionManager.class);
     when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(USER);
@@ -166,6 +181,51 @@ public final class SearchServletTest extends TestCase {
         new SearchWaveletManager(),
         new SearchIndexer(),
         new SearchWaveletDataProvider());
+  }
+
+  private static SearchWaveletSnapshotPublisher createPublishFailingSnapshotPublisher(
+      String liveQuery) throws Exception {
+    WaveletProvider waveletProvider = mock(WaveletProvider.class);
+    when(waveletProvider.getWaveletIds(any())).thenReturn(ImmutableSet.of());
+
+    WaveletInfo waveletInfo = WaveletInfo.create(HASH_FACTORY, waveletProvider);
+    ClientFrontendImpl clientFrontend =
+        ClientFrontendImpl.create(waveletProvider, mock(WaveBus.class), waveletInfo);
+    SearchWaveletManager waveletManager = new SearchWaveletManager();
+    SearchWaveletDispatcher dispatcher = new SearchWaveletDispatcher();
+    dispatcher.initialize(waveletInfo);
+    SearchWaveletSnapshotPublisher publisher =
+        new SearchWaveletSnapshotPublisher(
+            dispatcher, waveletManager, new SearchIndexer(), new SearchWaveletDataProvider());
+    WaveletName searchWaveletName = waveletManager.computeWaveletName(USER, liveQuery);
+    IdFilter filter = IdFilter.of(
+        Collections.singleton(searchWaveletName.waveletId),
+        Collections.<String>emptySet());
+    OpenListener listener = new OpenListener() {
+      @Override
+      public void onUpdate(
+          WaveletName waveletName,
+          org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot snapshot,
+          List<org.waveprotocol.wave.model.operation.wave.TransformedWaveletDelta> deltas,
+          org.waveprotocol.wave.model.version.HashedVersion committedVersion,
+          Boolean marker,
+          String channelId) {
+        if (snapshot != null) {
+          throw new RuntimeException("publish bootstrap failed");
+        }
+      }
+
+      @Override
+      public void onFailure(String errorMessage) {
+      }
+    };
+    clientFrontend.openRequest(
+        USER,
+        searchWaveletName.waveId,
+        filter,
+        NO_KNOWN_WAVELETS,
+        listener);
+    return publisher;
   }
 
   private static SearchWaveletSnapshotPublisher createActiveSnapshotPublisher(String query)

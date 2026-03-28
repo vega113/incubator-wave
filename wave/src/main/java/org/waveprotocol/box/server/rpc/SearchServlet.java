@@ -143,15 +143,21 @@ public class SearchServlet extends AbstractSearchServlet {
     }
     SearchResult searchResult = performSearch(searchRequest, user);
     if (snapshotPublisher != null) {
-      boolean hasLiveSubscription =
-          snapshotPublisher.hasLiveSubscription(user, searchRequest.getQuery());
-      if (hasLiveSubscription) {
-        SearchRequest bootstrapRequest = canonicalLiveSearchRequest(searchRequest);
-        SearchResult bootstrapResult = canonicalBootstrapSearchResult(
-            searchRequest, bootstrapRequest, searchResult, user);
-        if (bootstrapResult != null) {
-          snapshotPublisher.publishBootstrap(user, bootstrapRequest.getQuery(), bootstrapResult);
+      try {
+        boolean hasLiveSubscription =
+            snapshotPublisher.hasLiveSubscription(user, searchRequest.getQuery());
+        if (hasLiveSubscription) {
+          SearchRequest bootstrapRequest = canonicalLiveSearchRequest(searchRequest);
+          SearchResult bootstrapResult = canonicalBootstrapSearchResult(
+              searchRequest, bootstrapRequest, searchResult, user);
+          if (bootstrapResult != null) {
+            snapshotPublisher.publishBootstrap(user, bootstrapRequest.getQuery(), bootstrapResult);
+          }
         }
+      } catch (RuntimeException e) {
+        LOG.warning(
+            "Skipping live-search bootstrap publish for query " + searchRequest.getQuery(),
+            e);
       }
     }
 
