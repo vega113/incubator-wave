@@ -25,7 +25,7 @@ Create a focused client-side test that builds a wave without a viewer UDW, treat
 
 - [ ] **Step 2: Run the focused test to verify it fails**
 
-Run: `./gradlew -q :wave:test --tests org.waveprotocol.wave.client.StageTwoPublicWaveReadStateTest`
+Run: `sbt -Dsbt.global.base=/tmp/public-wave-unread-sbt-global -Dsbt.boot.directory=/tmp/public-wave-unread-sbt-boot -Dsbt.ivy.home=/Users/vega/.ivy2 -Dcoursier.cache=/Users/vega/devroot/incubator-wave/.coursier-cache -Dsbt.ipcsocket.jni=false -Dsbt.ipcsocket.tmpdir=/tmp -batch "project wave" "set Test / fork := false" "testOnly org.waveprotocol.wave.model.supplement.PublicWaveReadStateBootstrapTest"`
 Expected: FAIL because the bootstrap helper does not exist yet, or because the current client supplement path marks all blips unread for a no-UDW public/shared wave.
 
 ## Chunk 2: Narrow Fix
