@@ -373,19 +373,14 @@ public final class SearchPresenter
   }
 
   private static boolean containsTagFilter(String query) {
-    boolean containsTagFilter = false;
     String[] tokens = query.split("\\s+");
     for (String token : tokens) {
       int separatorIndex = token.indexOf(':');
-      if (separatorIndex > 0) {
-        String tokenName = token.substring(0, separatorIndex).toLowerCase(Locale.ROOT);
-        if ("tag".equals(tokenName)) {
-          containsTagFilter = true;
-          break;
-        }
+      if (separatorIndex > 0 && "tag".equals(token.substring(0, separatorIndex))) {
+        return true;
       }
     }
-    return containsTagFilter;
+    return false;
   }
 
   static boolean shouldUsePolling(boolean otSearchEnabled, boolean otSearchReady) {
