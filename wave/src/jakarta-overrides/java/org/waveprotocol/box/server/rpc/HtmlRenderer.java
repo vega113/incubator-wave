@@ -4329,10 +4329,10 @@ public final class HtmlRenderer {
     sb.append("      } else if (legacyUser.slice(-8) === ':enabled') {\n");
     sb.append("        legacyUser = legacyUser.slice(0, -8);\n");
     sb.append("      }\n");
-    sb.append("      legacyUser = legacyUser.trim();\n");
+    sb.append("      legacyUser = normalizeAllowedUserEmail(legacyUser.trim());\n");
     sb.append("      return legacyUser ? { email: legacyUser, enabled: legacyEnabled } : null;\n");
     sb.append("    }\n");
-    sb.append("    var email = (user.email || '').trim();\n");
+    sb.append("    var email = normalizeAllowedUserEmail((user.email || '').trim());\n");
     sb.append("    if (!email) { return null; }\n");
     sb.append("    return { email: email, enabled: user.enabled !== false };\n");
     sb.append("  }\n");
@@ -4440,8 +4440,8 @@ public final class HtmlRenderer {
     sb.append("    if (!raw) { return; }\n");
     sb.append("    var parts = raw.split(',');\n");
     sb.append("    for (var i = 0; i < parts.length; i++) {\n");
-    sb.append("      var email = normalizeAllowedUserEmail(parts[i]);\n");
-    sb.append("      if (email) { upsertAllowedUser(email, true); }\n");
+    sb.append("      var entry = normalizeAllowedUserEntry(parts[i]);\n");
+    sb.append("      if (entry) { upsertAllowedUser(entry.email, entry.enabled); }\n");
     sb.append("    }\n");
     sb.append("    flagUsersInput.value = '';\n");
     sb.append("    renderFlagUsersEditor();\n");
@@ -4620,8 +4620,10 @@ public final class HtmlRenderer {
     sb.append("        .then(function(r){return r.json();})\n");
     sb.append("        .then(function(data){\n");
     sb.append("          if (data.error) { showToast(data.error, 'error'); return; }\n");
-    sb.append("          resetFlagEditingState();\n");
-    sb.append("          flagForm.style.display = 'none';\n");
+    sb.append("          if (flagEditingName === name) {\n");
+    sb.append("            resetFlagEditingState();\n");
+    sb.append("            flagForm.style.display = 'none';\n");
+    sb.append("          }\n");
     sb.append("          showToast('Flag deleted', 'success');\n");
     sb.append("          fetchFlags();\n");
     sb.append("        }).catch(function(e){ showToast('Failed: ' + e.message, 'error'); });\n");

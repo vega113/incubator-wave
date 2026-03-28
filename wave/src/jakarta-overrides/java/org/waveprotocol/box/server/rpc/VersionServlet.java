@@ -94,9 +94,7 @@ public final class VersionServlet extends HttpServlet {
       responseJson.put("releaseId", currentReleaseId);
     }
     responseJson.put("releaseNotesStatus", releaseRange.getStatus());
-    if (releaseRange.getEntries().length() > 0) {
-      responseJson.put("releaseNotes", releaseRange.getEntries());
-    }
+    responseJson.put("releaseNotes", releaseRange.getEntries());
     resp.setContentType("application/json; charset=UTF-8");
     resp.setHeader("Cache-Control", "no-cache, no-store");
     resp.getWriter().write(responseJson.toString());

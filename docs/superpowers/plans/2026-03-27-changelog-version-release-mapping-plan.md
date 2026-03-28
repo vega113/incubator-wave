@@ -19,7 +19,7 @@
 - Regression mode:
   - A merged backfill branch already existed (`PR #396` / merge `93b4a5de`), but later branches reintroduced an older two-entry or one-entry changelog snapshot, proving that stale-branch merges can silently delete previously released entries.
 - Deployment constraint:
-  - Contabo deploys already have a real build identity (`GitHub.sha`) in [`deploy-contabo.yml`](.github/workflows/deploy-contabo.yml), but that identity is not passed into `WAVE_SERVER_VERSION`.
+  - Contabo deploys already have a real build identity (GitHub Actions `github.sha`) in [`deploy-contabo.yml`](.github/workflows/deploy-contabo.yml), but that identity is not passed into `WAVE_SERVER_VERSION`.
   - The plan must preserve that exact build identity instead of replacing it with a changelog-only key.
 - External pattern references:
   - Keep a Changelog recommends explicit versioned releases and backfilling missed release notes instead of leaving gaps.
@@ -277,7 +277,7 @@ Use a narrow static validation target:
 - [ ] **Step 2: Implement build-commit wiring**
 
 Deploy behavior:
-- set `WAVE_SERVER_VERSION` to the actual deployed build commit (`GitHub.sha`)
+- set `WAVE_SERVER_VERSION` to the actual deployed build commit (GitHub Actions `github.sha`)
 - pass it through the deploy workflow and compose runtime
 - make checkout/fetch behavior explicit enough that both the pushed commit and prior main history are available for validation
 - make rollback restore the rolled-back release's `WAVE_SERVER_VERSION`, not the forward deploy's value

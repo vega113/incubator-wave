@@ -26,12 +26,18 @@ jobs:
           base_ref=""
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             base_ref="${{ github.event.pull_request.base.sha }}"
-          elif [ -n "${{ github.event.before || '' }}" ]; then
+          elif [ -n "${{ github.event.before || '' }}" ] \
+            && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             base_ref="${{ github.event.before }}"
           fi
-          python3 scripts/validate-changelog.py \
-            --changelog wave/config/changelog.json \
-            ${base_ref:+--base-ref "$base_ref"}
+          for changelog in wave/config/changelog.json wave/src/main/resources/config/changelog.json; do
+            if [ -n "$base_ref" ]; then
+              python3 scripts/validate-changelog.py --changelog "$changelog" --base-ref "$base_ref"
+            else
+              python3 scripts/validate-changelog.py --changelog "$changelog"
+            fi
+          done
+          diff -u wave/config/changelog.json wave/src/main/resources/config/changelog.json
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

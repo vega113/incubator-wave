@@ -78,16 +78,24 @@ def validate_entry(entry: dict, index: int) -> list[str]:
   sections = entry.get("sections")
   if not isinstance(sections, list) or len(sections) == 0:
     errors.append(f"entry {index} must contain a non-empty sections array")
-  elif any(
-      not isinstance(section, dict)
-      or section.get("type") not in {"feature", "fix"}
-      or not isinstance(section.get("items"), list)
-      or len(section["items"]) == 0
-      for section in sections
-  ):
-    errors.append(
-        f"entry {index} must use feature/fix section types with non-empty items lists"
-    )
+  else:
+    for section_index, section in enumerate(sections):
+      if not isinstance(section, dict):
+        errors.append(f"entry {index} section {section_index} must be a JSON object")
+        continue
+      items = section.get("items")
+      if section.get("type") not in {"feature", "fix"}:
+        errors.append(
+            f"entry {index} section {section_index} must use a 'feature' or 'fix' type"
+        )
+      if (
+          not isinstance(items, list)
+          or len(items) == 0
+          or not all(isinstance(item, str) and item.strip() for item in items)
+      ):
+        errors.append(
+            f"entry {index} section {section_index} must contain non-empty string items"
+        )
   return errors
 
 
@@ -189,14 +197,17 @@ def main() -> int:
     print(f"changelog validation failed: {exc}", file=sys.stderr)
     return 1
 
-  errors.extend(validate_schema(current_entries))
+  current_schema_errors = validate_schema(current_entries)
+  errors.extend(current_schema_errors)
 
   if args.base_ref:
     try:
       base_entries = load_base_changelog(args.base_ref, changelog_path, repo_root)
       if base_entries_support_release_ids(base_entries):
-        errors.extend(validate_schema(base_entries))
-        errors.extend(validate_against_base(base_entries, current_entries))
+        base_schema_errors = validate_schema(base_entries)
+        errors.extend(base_schema_errors)
+        if not current_schema_errors and not base_schema_errors:
+          errors.extend(validate_against_base(base_entries, current_entries))
       else:
         print(
             "changelog validation note: base changelog is still on the legacy schema; "

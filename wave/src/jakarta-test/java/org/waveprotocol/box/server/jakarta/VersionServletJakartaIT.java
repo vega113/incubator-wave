@@ -124,6 +124,17 @@ public final class VersionServletJakartaIT {
   }
 
   @Test
+  public void returnsEmptyReleaseNotesArrayWhenClientAlreadyHasCurrentRelease() throws Exception {
+    HttpURLConnection conn = TestSupport.openConnection(
+        new URL("http://localhost:" + port + "/version?since=2026-03-27-unread-only-search-filter"));
+    assertEquals(200, conn.getResponseCode());
+    String body = new String(conn.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+    assertTrue(body.contains("\"releaseNotesStatus\":\"same_release\""));
+    assertTrue(body.contains("\"releaseNotes\":[]"));
+  }
+
+  @Test
   public void contentTypeIsJson() throws Exception {
     HttpURLConnection conn = TestSupport.openConnection(
         new URL("http://localhost:" + port + "/version"));
