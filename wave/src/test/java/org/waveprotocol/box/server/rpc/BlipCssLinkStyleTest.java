@@ -19,6 +19,7 @@
 
 package org.waveprotocol.box.server.rpc;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -41,10 +42,11 @@ public final class BlipCssLinkStyleTest {
   @Test
   public void visitedLinksKeepDistinctAffordance() throws Exception {
     String css = loadCss();
+    String visitedRule = extractRule(css, ".contentContainer a:visited");
 
-    assertContains(css, ".contentContainer a:visited {");
-    assertContains(css, "text-decoration-color: #8b7db5;");
-    assertContains(css, "box-shadow: inset 0 -0.22em 0 rgba(139,125,181,0.18);");
+    assertTrue(visitedRule.contains("color: #6b5b95;"));
+    assertTrue(visitedRule.contains("text-decoration-color: #8b7db5;"));
+    assertFalse(visitedRule.contains("box-shadow"));
   }
 
   private static String loadCss() throws IOException {
@@ -60,5 +62,16 @@ public final class BlipCssLinkStyleTest {
 
   private static void assertContains(String css, String expectedSnippet) {
     assertTrue("Expected Blip.css to contain: " + expectedSnippet, css.contains(expectedSnippet));
+  }
+
+  private static String extractRule(String css, String selector) {
+    int selectorIndex = css.indexOf(selector);
+    assertTrue("Expected Blip.css to contain selector: " + selector, selectorIndex >= 0);
+
+    int ruleStart = css.indexOf('{', selectorIndex);
+    int ruleEnd = css.indexOf('}', ruleStart);
+    assertTrue("Expected rule block for selector: " + selector, ruleStart >= 0 && ruleEnd > ruleStart);
+
+    return css.substring(ruleStart + 1, ruleEnd);
   }
 }

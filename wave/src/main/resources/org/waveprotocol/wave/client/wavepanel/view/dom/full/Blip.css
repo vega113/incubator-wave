@@ -275,7 +275,6 @@
 .contentContainer a:visited {
   color: #6b5b95;
   text-decoration-color: #8b7db5;
-  box-shadow: inset 0 -0.22em 0 rgba(139,125,181,0.18);
 }
 
 /* Quasi-deleted / soft-delete state (client-side visual only).
