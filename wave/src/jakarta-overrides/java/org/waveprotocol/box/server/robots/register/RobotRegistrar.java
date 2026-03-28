@@ -26,6 +26,9 @@ public interface RobotRegistrar {
   RobotAccountData registerOrUpdate(ParticipantId robotId, String location)
       throws RobotRegistrationException, PersistenceException;
 
+  RobotAccountData registerOrUpdate(ParticipantId robotId, String location, long tokenExpirySeconds)
+      throws RobotRegistrationException, PersistenceException;
+
   void addRegistrationListener(Listener listener);
 
   void removeRegistrationListener(Listener listener);

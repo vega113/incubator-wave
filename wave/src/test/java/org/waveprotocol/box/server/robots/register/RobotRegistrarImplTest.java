@@ -21,6 +21,7 @@ package org.waveprotocol.box.server.robots.register;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -31,6 +32,7 @@ import junit.framework.TestCase;
 import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.account.RobotAccountData;
+import org.waveprotocol.box.server.account.RobotAccountDataImpl;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.robots.util.RobotsUtil.RobotRegistrationException;
@@ -64,6 +66,9 @@ public class RobotRegistrarImplTest extends TestCase {
     when(accountData.asRobot()).thenReturn(accountData);
     when(accountData.getUrl()).thenReturn(LOCATION);
     when(accountData.getId()).thenReturn(ROBOT_ID);
+    when(accountData.getConsumerSecret()).thenReturn("existing-secret");
+    when(accountData.isVerified()).thenReturn(true);
+    when(accountData.getTokenExpirySeconds()).thenReturn(0L);
     when(tokenGenerator.generateToken(anyInt())).thenReturn(CONSUMER_TOKEN);
     registrar = new RobotRegistrarImpl(accountStore, tokenGenerator);
   }
@@ -101,6 +106,17 @@ public class RobotRegistrarImplTest extends TestCase {
     }
   }
 
+  public void testRegisterNewAllowsPendingRobotWithoutLocation() throws PersistenceException,
+      RobotRegistrationException {
+    RobotAccountData resultAccountData = registrar.registerNew(ROBOT_ID, "", 0L);
+
+    verify(accountStore, atLeastOnce()).getAccount(ROBOT_ID);
+    verify(accountStore).putAccount(any(RobotAccountData.class));
+    assertEquals("", resultAccountData.getUrl());
+    assertFalse(resultAccountData.isVerified());
+    assertEquals(CONSUMER_TOKEN, resultAccountData.getConsumerSecret());
+  }
+
   public void testUnregisterSucceeds() throws PersistenceException, RobotRegistrationException {
     when(accountStore.getAccount(ROBOT_ID)).thenReturn(accountData);
     AccountData unregisteredAccountData = registrar.unregister(ROBOT_ID);
@@ -130,7 +146,7 @@ public class RobotRegistrarImplTest extends TestCase {
       RobotRegistrationException {
     when(accountStore.getAccount(ROBOT_ID)).thenReturn(accountData);
     AccountData unregisteredAccountData = registrar.registerOrUpdate(ROBOT_ID, OTHER_LOCATION);
-    verify(accountStore).removeAccount(ROBOT_ID);
+    verify(accountStore, never()).removeAccount(ROBOT_ID);
     verify(accountStore).putAccount(any(RobotAccountData.class));
     assertTrue(unregisteredAccountData.isRobot());
     RobotAccountData robotAccountData = unregisteredAccountData.asRobot();
@@ -138,7 +154,21 @@ public class RobotRegistrarImplTest extends TestCase {
     assertEquals(OTHER_LOCATION.substring(0, OTHER_LOCATION.length() - 1),
         robotAccountData.getUrl());
     assertEquals(ROBOT_ID, robotAccountData.getId());
-    assertEquals(CONSUMER_TOKEN, robotAccountData.getConsumerSecret());
+    assertEquals("existing-secret", robotAccountData.getConsumerSecret());
+  }
+
+  public void testPendingRobotActivationPreservesExistingSecret() throws PersistenceException,
+      RobotRegistrationException {
+    RobotAccountData pendingAccount =
+        new RobotAccountDataImpl(ROBOT_ID, "", "pending-secret", null, false, 3600L);
+    when(accountStore.getAccount(ROBOT_ID)).thenReturn(pendingAccount);
+
+    RobotAccountData updatedAccount = registrar.registerOrUpdate(ROBOT_ID, OTHER_LOCATION);
+
+    assertEquals("pending-secret", updatedAccount.getConsumerSecret());
+    assertEquals(OTHER_LOCATION.substring(0, OTHER_LOCATION.length() - 1), updatedAccount.getUrl());
+    assertTrue(updatedAccount.isVerified());
+    assertEquals(3600L, updatedAccount.getTokenExpirySeconds());
   }
 
   public void testReRegisterFailsOnExistingHumanAccount() throws PersistenceException {

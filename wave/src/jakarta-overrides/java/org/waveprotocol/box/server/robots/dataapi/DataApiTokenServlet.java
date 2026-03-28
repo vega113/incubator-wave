@@ -353,6 +353,13 @@ public final class DataApiTokenServlet extends HttpServlet {
       return;
     }
 
+    String callbackUrl = robotAccount.getUrl();
+    if (callbackUrl == null || callbackUrl.isEmpty()) {
+      sendError(resp, HttpServletResponse.SC_UNAUTHORIZED, "invalid_client",
+          "Robot callback URL must be configured before requesting tokens");
+      return;
+    }
+
     // Use explicit expiry parameter if provided, else fall back to the robot's configured expiry.
     String expiryParam = req.getParameter("expiry");
     long lifetimeSeconds;
