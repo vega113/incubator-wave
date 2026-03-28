@@ -111,7 +111,7 @@ public final class SearchPresenter
 
   /** How often to repeat the search query. */
   private final static int POLLING_INTERVAL_MS = 15000; // 15s
-  private final static String DEFAULT_SEARCH = "in:inbox";
+  static final String DEFAULT_SEARCH = "in:inbox";
   /** Page size for desktop viewports (width > 768px). */
   private final static int DESKTOP_PAGE_SIZE = 30;
   /** Page size for mobile viewports (width <= 768px) -- smaller for faster initial load. */
@@ -365,6 +365,10 @@ public final class SearchPresenter
 
   static boolean shouldUsePolling(boolean otSearchEnabled, boolean otSearchReady) {
     return !otSearchEnabled || !otSearchReady;
+  }
+
+  void bootstrapOtSearch() {
+    bootstrapOtSearch(false);
   }
 
   void bootstrapOtSearch(boolean allowLoadingSkeleton) {
@@ -810,10 +814,18 @@ public final class SearchPresenter
 
   @Override
   public void onQueryEntered() {
-    String newQuery = searchUi.getSearch().getQuery();
+    String newQuery = normalizeSearchQuery(searchUi.getSearch().getQuery());
     boolean queryChanged = !newQuery.equals(queryText);
     queryText = newQuery;
+    searchUi.getSearch().setQuery(queryText);
     forceRefresh(queryChanged);
+  }
+
+  static String normalizeSearchQuery(String queryText) {
+    if (queryText == null || queryText.trim().isEmpty()) {
+      return DEFAULT_SEARCH;
+    }
+    return queryText;
   }
 
   /**
@@ -840,7 +852,13 @@ public final class SearchPresenter
     if (shouldUsePolling(otSearchEnabled, useOtSearch)) {
       doSearch();
     } else {
-      applyOtSearchResults();
+      if (canProjectOtSearchWindow(querySize, otSearchSnapshot)) {
+        applyOtSearchResults();
+      } else {
+        fallbackToPolling(
+            "OT search cannot serve query window " + querySize + " for query '" + queryText + "'",
+            null);
+      }
     }
   }
 
@@ -1090,7 +1108,13 @@ public final class SearchPresenter
         otSearchSnapshot = parseOtSearchSnapshot(otSearchDocument);
         useOtSearch = true;
         scheduler.cancel(searchUpdater);
-        applyOtSearchResults();
+        if (canProjectOtSearchWindow(querySize, otSearchSnapshot)) {
+          applyOtSearchResults();
+        } else {
+          fallbackToPolling(
+              "OT search snapshot is smaller than requested window for query '" + queryText + "'",
+              null);
+        }
       }
     } catch (RuntimeException e) {
       fallbackToPolling("Failed to process OT search update for query '" + queryText + "'", e);
@@ -1130,6 +1154,14 @@ public final class SearchPresenter
       digests.add(otSearchSnapshot.getDigests().get(i));
     }
     ((SimpleSearch) search).replaceResults(otSearchSnapshot.getTotal(), digests);
+  }
+
+  private static boolean canProjectOtSearchWindow(int requestedSize, OtSearchSnapshot snapshot) {
+    if (requestedSize <= snapshot.getDigests().size()) {
+      return true;
+    }
+    int total = snapshot.getTotal();
+    return total >= 0 && snapshot.getDigests().size() >= total;
   }
 
   private void handleOtSearchNetworkStatus(NetworkStatusEvent event) {
