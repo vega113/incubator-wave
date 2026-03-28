@@ -73,6 +73,7 @@ public class AuthenticationServletTest extends TestCase {
   private static final ParticipantId USER = ParticipantId.ofUnsafe("frodo@example.com");
 
   private AuthenticationServlet servlet;
+  private HumanAccountData account;
 
   @Mock private HttpServletRequest req;
   @Mock private HttpServletResponse resp;
@@ -87,8 +88,7 @@ public class AuthenticationServletTest extends TestCase {
     MockitoAnnotations.initMocks(this);
 
     AccountStore store = new MemoryStore();
-    HumanAccountData account =
-        new HumanAccountDataImpl(USER, new PasswordDigest("password".toCharArray()));
+    account = new HumanAccountDataImpl(USER, new PasswordDigest("password".toCharArray()));
     store.putAccount(account);
 
     Config config = ConfigFactory.parseMap(ImmutableMap.<String, Object>builder()
@@ -148,6 +148,14 @@ public class AuthenticationServletTest extends TestCase {
   public void testValidLoginWorks() throws IOException {
     attemptLogin("frodo@example.com", "password", true);
     verify(resp).sendRedirect("/");
+  }
+
+  public void testValidLoginTracksLastActivity() throws IOException {
+    assertEquals(0L, account.getLastActivityTime());
+
+    attemptLogin("frodo@example.com", "password", true);
+
+    assertTrue(account.getLastActivityTime() > 0L);
   }
 
   public void testUserWithNoDomainGetsDomainAutomaticallyAdded() throws Exception {

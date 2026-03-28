@@ -154,7 +154,7 @@ public class MagicLinkServletTest extends TestCase {
     servlet.doGet(req, resp);
 
     assertTrue(account.isEmailConfirmed());
-    verify(accountStore).putAccount(account);
+    verify(accountStore, Mockito.times(2)).putAccount(account);
     verify(sessionManager).setLoggedInUser(any(WebSession.class), eq(USER));
     verify(resp).sendRedirect("/");
     verify(resp).addHeader(eq("Set-Cookie"), contains(BrowserSessionJwt.COOKIE_NAME + "=browser-jwt"));
@@ -190,6 +190,37 @@ public class MagicLinkServletTest extends TestCase {
     verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
     verify(sessionManager, never()).setLoggedInUser(any(WebSession.class), eq(USER));
     verify(resp, never()).sendRedirect("/");
+  }
+
+  public void testMagicLinkLoginTracksLastActivityBeforeRedirect() throws Exception {
+    HumanAccountDataImpl account =
+        new HumanAccountDataImpl(USER, new PasswordDigest("password".toCharArray()));
+    account.setEmail("frodo@example.com");
+    account.setEmailConfirmed(true);
+    when(accountStore.getAccount(USER)).thenReturn(account);
+    when(req.getParameter("token")).thenReturn("magic-token");
+    when(req.getSession(true)).thenReturn(session);
+    when(req.getHeader("X-Forwarded-Proto")).thenReturn("https");
+    when(browserSessionJwtIssuer.issue(USER)).thenReturn("browser-jwt");
+    when(emailTokenIssuer.validateToken("magic-token", JwtTokenType.MAGIC_LINK))
+        .thenReturn(new JwtClaims(
+            JwtTokenType.MAGIC_LINK,
+            "example.com",
+            USER.getAddress(),
+            "token-id",
+            "key-id",
+            EnumSet.of(JwtAudience.EMAIL),
+            Set.of(),
+            1L,
+            1L,
+            600L,
+            0L));
+
+    servlet.doGet(req, resp);
+
+    assertTrue(account.getLastActivityTime() > 0L);
+    verify(accountStore).putAccount(account);
+    verify(resp).sendRedirect("/");
   }
 
   public void testMagicLinkLoginSucceedsWhenLastLoginPersistenceFails() throws Exception {
