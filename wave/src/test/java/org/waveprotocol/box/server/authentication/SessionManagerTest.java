@@ -69,6 +69,31 @@ public class SessionManagerTest extends TestCase {
     assertSame(account, sessionManager.getLoggedInAccount(session));
   }
 
+  public void testSetLoggedInUserTracksLastActivityImmediately() {
+    WebSession session = mock(WebSession.class);
+    ParticipantId id = ParticipantId.ofUnsafe("tubes@example.com");
+
+    assertEquals(0L, account.getLastActivityTime());
+
+    sessionManager.setLoggedInUser(session, id);
+
+    assertTrue(account.getLastActivityTime() > 0L);
+    Mockito.verify(session).setAttribute("user", id);
+  }
+
+  public void testGetLoggedInUserSkipsFrequentLastActivityWrites() {
+    WebSession session = mock(WebSession.class);
+    ParticipantId id = ParticipantId.ofUnsafe("tubes@example.com");
+    when(session.getAttribute("user")).thenReturn(id);
+    when(session.getAttribute("lastActivityUpdateTime")).thenReturn(System.currentTimeMillis());
+
+    assertEquals(0L, account.getLastActivityTime());
+
+    assertEquals(id, sessionManager.getLoggedInUser(session));
+
+    assertEquals(0L, account.getLastActivityTime());
+  }
+
   public void testUnknownUserReturnsNull() {
     WebSession session = mock(WebSession.class);
     when(session.getAttribute("user")).thenReturn(ParticipantId.ofUnsafe("missing@example.com"));

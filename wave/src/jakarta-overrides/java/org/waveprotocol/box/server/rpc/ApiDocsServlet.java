@@ -2,6 +2,8 @@ package org.waveprotocol.box.server.rpc;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.inject.Inject;
+import com.google.inject.name.Named;
 import jakarta.inject.Singleton;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,12 +19,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import org.waveprotocol.box.server.CoreSettingsNames;
 
 @Singleton
 @SuppressWarnings("serial")
 public final class ApiDocsServlet extends HttpServlet {
-  private static final String DOCS_VERSION = "2026-03-27";
+  private static final String DOCS_VERSION = "2026-03-28";
   private static final String DEFAULT_BASE_URL = "http://127.0.0.1:9898";
+  private static final String API_DOCS_PATH = "/api-docs";
+  private static final String OPENAPI_PATH = "/api/openapi.json";
+  private static final String LLM_ALIAS_PATH = "/api/llm.txt";
+  private static final String LLMS_INDEX_PATH = "/llms.txt";
+  private static final String LLMS_FULL_PATH = "/llms-full.txt";
   private static final String CANONICAL_RPC_PATH = "/robot/dataapi/rpc";
   private static final String RPC_ALIAS_PATH = "/robot/dataapi";
   private static final String TOKEN_PATH = "/robot/dataapi/token";
@@ -38,6 +46,16 @@ public final class ApiDocsServlet extends HttpServlet {
               "Wave and conversation",
               "Search, profile, and folders",
               "Export and import"));
+  private final String configuredDomain;
+
+  public ApiDocsServlet() {
+    this.configuredDomain = "";
+  }
+
+  @Inject
+  public ApiDocsServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String configuredDomain) {
+    this.configuredDomain = configuredDomain == null ? "" : configuredDomain.trim();
+  }
 
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -48,38 +66,65 @@ public final class ApiDocsServlet extends HttpServlet {
 
     String baseUrl = deriveBaseUrl(request);
 
-    if ("/api-docs".equals(servletPath)) {
+    if (API_DOCS_PATH.equals(servletPath)) {
       writeResponse(response, "text/html;charset=utf-8", renderHtml(baseUrl));
       return;
     }
-    if ("/api/openapi.json".equals(servletPath)) {
+    if (OPENAPI_PATH.equals(servletPath)) {
       writeResponse(response, "application/json;charset=utf-8", renderOpenApiJson());
       return;
     }
-    if ("/api/llm.txt".equals(servletPath)) {
-      writeResponse(response, "text/plain;charset=utf-8", renderLlmText(baseUrl));
+    if (LLM_ALIAS_PATH.equals(servletPath) || LLMS_FULL_PATH.equals(servletPath)) {
+      writeResponse(response, "text/plain;charset=utf-8", renderLlmFullText(baseUrl));
+      return;
+    }
+    if (LLMS_INDEX_PATH.equals(servletPath)) {
+      writeResponse(response, "text/plain;charset=utf-8", renderLlmIndexText(baseUrl));
       return;
     }
 
     response.sendError(HttpServletResponse.SC_NOT_FOUND);
   }
 
-  private static String deriveBaseUrl(HttpServletRequest request) {
-    String scheme = request.getHeader("X-Forwarded-Proto");
+  private String deriveBaseUrl(HttpServletRequest request) {
+    String scheme = firstHeaderValue(request.getHeader("X-Forwarded-Proto"));
     if (scheme == null || scheme.isEmpty()) {
       scheme = request.getScheme();
     }
-    String host = request.getHeader("X-Forwarded-Host");
-    if (host != null && host.contains(",")) {
-      host = host.substring(0, host.indexOf(',')).trim();
-    }
+    String host = firstHeaderValue(request.getHeader("X-Forwarded-Host"));
     if (host == null || host.isEmpty()) {
-      host = request.getHeader("Host");
+      host = firstHeaderValue(request.getHeader("Host"));
     }
+    if (isTrustedPublicHost(host)) {
+      return scheme + "://" + host;
+    }
+    if (!configuredDomain.isEmpty()) {
+      return "https://" + configuredDomain;
+    }
+    return DEFAULT_BASE_URL;
+  }
+
+  private String firstHeaderValue(String headerValue) {
+    if (headerValue == null || headerValue.isEmpty()) {
+      return "";
+    }
+    int commaIndex = headerValue.indexOf(',');
+    String singleValue = commaIndex >= 0 ? headerValue.substring(0, commaIndex) : headerValue;
+    return singleValue.trim();
+  }
+
+  private boolean isTrustedPublicHost(String host) {
     if (host == null || host.isEmpty()) {
-      return DEFAULT_BASE_URL;
+      return false;
     }
-    return scheme + "://" + host;
+    String normalizedHost = host;
+    int portSeparator = host.indexOf(':');
+    if (portSeparator >= 0) {
+      normalizedHost = host.substring(0, portSeparator);
+    }
+    return normalizedHost.equalsIgnoreCase(configuredDomain)
+        || normalizedHost.equalsIgnoreCase("localhost")
+        || normalizedHost.equals("127.0.0.1");
   }
 
   private static void writeResponse(HttpServletResponse response, String contentType, String body)
@@ -398,8 +443,9 @@ public final class ApiDocsServlet extends HttpServlet {
     html.append(
         "      <p>Wave's current Data/Robot API is a JWT-protected JSON-RPC transport. The canonical endpoint is <code>/robot/dataapi/rpc</code>; <code>/robot/dataapi</code> stays live as a backward-compatible alias. Responses are always returned as a JSON array in request order.</p>\n");
     html.append("      <div class=\"hero-links\">\n");
-    html.append("        <a href=\"/api/openapi.json\">OpenAPI 3.0 JSON</a>\n");
-    html.append("        <a href=\"/api/llm.txt\">LLM integration index</a>\n");
+    html.append("        <a href=\"").append(OPENAPI_PATH).append("\">OpenAPI 3.0 JSON</a>\n");
+    html.append("        <a href=\"").append(LLMS_INDEX_PATH).append("\">llms.txt index</a>\n");
+    html.append("        <a href=\"").append(LLMS_FULL_PATH).append("\">LLM reference</a>\n");
     html.append("        <a href=\"#operations\">24 supported operations</a>\n");
     html.append("      </div>\n");
     html.append("    </div>\n");
@@ -411,6 +457,7 @@ public final class ApiDocsServlet extends HttpServlet {
     html.append("      <a href=\"#transport\">Transport model</a>\n");
     html.append("      <a href=\"#auth\">Authentication</a>\n");
     html.append("      <a href=\"#token\">Token walkthrough</a>\n");
+    html.append("      <a href=\"#build-with-ai\">Build with AI</a>\n");
     html.append("      <a href=\"#walkthrough\">End-to-end example</a>\n");
     html.append("      <a href=\"#operations\">Operation reference</a>\n");
     html.append("      <a href=\"#errors\">Errors and status codes</a>\n");
@@ -492,6 +539,28 @@ public final class ApiDocsServlet extends HttpServlet {
         .append("</pre>\n");
     html.append("        <div class=\"warning\"><strong>Use short-lived tokens.</strong> The live token endpoint still supports effectively long-lived tokens when <code>expiry &lt;= 0</code> or when a robot account is configured with a zero lifetime. That behavior is high-risk and not shown in any example here.</div>\n");
     html.append("      </section>\n");
+    html.append("      <section id=\"build-with-ai\">\n");
+    html.append("        <h2>Build with AI</h2>\n");
+    html.append("        <p>Google AI Studio / Gemini works best when you give it a short-lived token, the machine-readable docs, and stable environment variable names. Generate a one-hour JWT, paste the prompt below into your preferred LLM, and replace the robot-specific placeholders once you mint the robot secret.</p>\n");
+    html.append("        <pre>");
+    html.append(escape("Google AI Studio / Gemini starter prompt\n\n"
+        + "Build a SupaWave robot for me.\n"
+        + "Use these environment variables exactly:\n"
+        + "SUPAWAVE_BASE_URL=" + baseUrl + "\n"
+        + "SUPAWAVE_API_DOCS_URL=" + baseUrl + "/api-docs\n"
+        + "SUPAWAVE_LLM_DOCS_URL=" + baseUrl + "/api/llm.txt\n"
+        + "SUPAWAVE_DATA_API_URL=" + baseUrl + CANONICAL_RPC_PATH + "\n"
+        + "SUPAWAVE_DATA_API_TOKEN=<1 hour JWT>\n"
+        + "SUPAWAVE_ROBOT_ID=<robot@domain>\n"
+        + "SUPAWAVE_ROBOT_SECRET=<consumer secret>\n"
+        + "SUPAWAVE_ROBOT_CALLBACK_URL=<deployment url>\n\n"
+        + "Read the docs first, prefer minimal JSON payloads, explain security tradeoffs, and keep tokens short-lived."));
+    html.append("</pre>\n");
+    html.append("        <div class=\"reference-grid\">\n");
+    html.append("          <div class=\"grid-card\"><h3>Recommended env vars</h3><pre>SUPAWAVE_BASE_URL\nSUPAWAVE_API_DOCS_URL\nSUPAWAVE_LLM_DOCS_URL\nSUPAWAVE_DATA_API_URL\nSUPAWAVE_DATA_API_TOKEN\nSUPAWAVE_ROBOT_ID\nSUPAWAVE_ROBOT_SECRET\nSUPAWAVE_ROBOT_CALLBACK_URL</pre></div>\n");
+    html.append("          <div class=\"grid-card\"><h3>Minimal common operations</h3><pre>robot.createWavelet\nwavelet.appendBlip\nwavelet.addParticipant\nrobot.fetchWave\nrobot.search</pre></div>\n");
+    html.append("        </div>\n");
+    html.append("      </section>\n");
     html.append("      <section id=\"walkthrough\">\n");
     html.append("        <h2>Complete end-to-end example</h2>\n");
     html.append("        <p>The quickest safe path for a new integration is: get a short-lived token, create a wave, append a root-thread blip, and add a participant. These are separate calls so you can inspect the IDs returned by each step.</p>\n");
@@ -545,7 +614,13 @@ public final class ApiDocsServlet extends HttpServlet {
     html.append("        <p>The runtime Data API is currently unversioned. This documentation set is version stamped at <code>")
         .append(escape(DOCS_VERSION))
         .append("</code> so clients can see which contract snapshot they were built against. Future breaking changes should introduce a versioned runtime path rather than silently changing semantics in place.</p>\n");
-    html.append("        <div class=\"inline-links\"><a href=\"/api/openapi.json\">Machine-readable contract</a><a href=\"/api/llm.txt\">LLM-oriented index</a></div>\n");
+    html.append("        <div class=\"inline-links\"><a href=\"")
+        .append(OPENAPI_PATH)
+        .append("\">Machine-readable contract</a><a href=\"")
+        .append(LLMS_INDEX_PATH)
+        .append("\">llms.txt index</a><a href=\"")
+        .append(LLMS_FULL_PATH)
+        .append("\">LLM reference</a></div>\n");
     html.append("      </section>\n");
     html.append("      <section id=\"legacy\">\n");
     html.append("        <h2>Legacy and unsupported notes</h2>\n");
@@ -926,10 +1001,26 @@ public final class ApiDocsServlet extends HttpServlet {
     return schema;
   }
 
-  private static String renderLlmText(String baseUrl) {
+  private static String renderLlmIndexText(String baseUrl) {
+    StringBuilder text = new StringBuilder(4096);
+    text.append("# SupaWave API Docs\n\n");
+    text.append("> Self-hosted SupaWave Data API documentation for humans, API clients, and LLM agents.\n\n");
+    text.append("- HTML docs: ").append(baseUrl).append(API_DOCS_PATH).append('\n');
+    text.append("- OpenAPI JSON: ").append(baseUrl).append(OPENAPI_PATH).append('\n');
+    text.append("- Full LLM reference: ").append(baseUrl).append(LLMS_FULL_PATH).append('\n');
+    text.append("- Legacy LLM alias: ").append(baseUrl).append(LLM_ALIAS_PATH).append('\n');
+    text.append("- Token endpoint: ").append(baseUrl).append(TOKEN_PATH).append('\n');
+    text.append("- Canonical RPC endpoint: ").append(baseUrl).append(CANONICAL_RPC_PATH).append('\n');
+    return text.toString();
+  }
+
+  private static String renderLlmFullText(String baseUrl) {
     StringBuilder text = new StringBuilder(72000);
-    text.append("SupaWave Data API LLM Index\n");
+    text.append("SupaWave Data API LLM Reference\n");
     text.append("Docs version: ").append(DOCS_VERSION).append('\n');
+    text.append("Index: ").append(baseUrl).append(LLMS_INDEX_PATH).append('\n');
+    text.append("HTML docs: ").append(baseUrl).append(API_DOCS_PATH).append('\n');
+    text.append("OpenAPI JSON: ").append(baseUrl).append(OPENAPI_PATH).append('\n');
     text.append("Canonical RPC path: ").append(CANONICAL_RPC_PATH).append('\n');
     text.append("Alias path: ").append(RPC_ALIAS_PATH).append('\n');
     text.append("Token endpoint: ").append(TOKEN_PATH).append('\n');
@@ -938,6 +1029,25 @@ public final class ApiDocsServlet extends HttpServlet {
 
     text.append("Token acquisition (client_credentials, short-lived example)\n");
     text.append(tokenCurlExample(baseUrl)).append("\n\n");
+
+    text.append("Google AI Studio / Gemini starter prompt\n");
+    text.append("Build a SupaWave robot for me.\n");
+    text.append("Use these environment variables exactly:\n");
+    text.append("SUPAWAVE_BASE_URL=").append(baseUrl).append('\n');
+    text.append("SUPAWAVE_API_DOCS_URL=").append(baseUrl).append("/api-docs\n");
+    text.append("SUPAWAVE_LLM_DOCS_URL=").append(baseUrl).append("/api/llm.txt\n");
+    text.append("SUPAWAVE_DATA_API_URL=").append(baseUrl).append(CANONICAL_RPC_PATH).append('\n');
+    text.append("SUPAWAVE_DATA_API_TOKEN=<1 hour JWT>\n");
+    text.append("SUPAWAVE_ROBOT_ID=<robot@domain>\n");
+    text.append("SUPAWAVE_ROBOT_SECRET=<consumer secret>\n");
+    text.append("SUPAWAVE_ROBOT_CALLBACK_URL=<deployment url>\n\n");
+
+    text.append("Minimal common operations\n");
+    text.append("- robot.createWavelet\n");
+    text.append("- wavelet.appendBlip\n");
+    text.append("- wavelet.addParticipant\n");
+    text.append("- robot.fetchWave\n");
+    text.append("- robot.search\n\n");
 
     text.append("Request envelope\n");
     text.append(json(singleRequestTemplate())).append("\n\n");
@@ -990,6 +1100,8 @@ public final class ApiDocsServlet extends HttpServlet {
     text.append("Compatibility notes\n");
     text.append("- Use ").append(CANONICAL_RPC_PATH).append(" for new integrations.\n");
     text.append("- ").append(RPC_ALIAS_PATH).append(" remains live for compatibility.\n");
+    text.append("- ").append(LLMS_FULL_PATH).append(" is the canonical LLM-friendly reference path.\n");
+    text.append("- ").append(LLM_ALIAS_PATH).append(" remains live as a backward-compatible alias.\n");
     text.append("- Do not advertise wavelet.create or DataApiOAuthServlet as the current public API.\n");
     return text.toString();
   }

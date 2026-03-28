@@ -207,7 +207,7 @@ Capture the intended menu order and grouping in a focused test or deterministic 
 
 - [ ] **Step 2: Run the related test and verify it fails**
 
-Run: `sbt "testOnly org.waveprotocol.box.server.robots.RobotDashboardServletTest"`
+Run: `sbt "testOnly org.waveprotocol.box.server.robots.RobotDashboardServletTest org.waveprotocol.box.server.rpc.HtmlRendererTopBarTest"`
 Expected: FAIL because the current dropdown is a flat list with only legal separators.
 
 - [ ] **Step 3: Update the topbar menu markup and client behavior**
@@ -222,7 +222,7 @@ Point automation links at the new dashboard in `HtmlRenderer` and keep the GWT-s
 
 - [ ] **Step 4: Re-run the related test**
 
-Run: `sbt "testOnly org.waveprotocol.box.server.robots.RobotDashboardServletTest"`
+Run: `sbt "testOnly org.waveprotocol.box.server.robots.RobotDashboardServletTest org.waveprotocol.box.server.rpc.HtmlRendererTopBarTest"`
 Expected: PASS.
 
 - [ ] **Step 5: Commit the menu reorganization slice**
@@ -238,17 +238,18 @@ git commit -m "feat: regroup the user menu around account and automation"
 
 **Files:**
 - Modify: `wave/config/changelog.json`
+- Modify: `wave/src/main/resources/config/changelog.json`
 
-- [ ] **Step 1: Add the user-facing changelog entry**
+- [ ] **Step 1: Add the user-facing changelog entries**
 
-Insert a new top-of-file entry describing the robot management dashboard, callback URL editing, secret rotation, and user-menu cleanup.
+Insert matching top-of-file entries describing the robot management dashboard, callback URL editing, secret rotation, the signed-in user-menu regrouping, and the `/account/robots` route in both shipped changelog files.
 
 - [ ] **Step 2: Run compile and test verification**
 
 Run:
 `sbt wave/compile`
 `sbt compileGwt`
-`sbt "testOnly org.waveprotocol.box.server.robots.register.RobotRegistrarImplTest org.waveprotocol.box.server.robots.RobotDashboardServletTest org.waveprotocol.box.server.robots.dataapi.DataApiTokenServletTest"`
+`sbt "testOnly org.waveprotocol.box.server.robots.register.RobotRegistrarImplTest org.waveprotocol.box.server.robots.RobotDashboardServletTest org.waveprotocol.box.server.rpc.HtmlRendererTopBarTest org.waveprotocol.box.server.robots.dataapi.DataApiTokenServletTest"`
 
 Expected: all commands exit 0.
 
@@ -278,12 +279,13 @@ Run:
 `git diff --stat`
 `git diff -- wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java`
 
-Confirm only the intended robot/dashboard/menu/changelog files changed.
+Confirm only the intended robot/dashboard/menu/changelog files changed, including both changelog paths.
 
 - [ ] **Step 5: Final commit**
 
 ```bash
-git add wave/config/changelog.json
+git add wave/config/changelog.json \
+  wave/src/main/resources/config/changelog.json
 git commit -m "chore: document robot dashboard management"
 ```
 

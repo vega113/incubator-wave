@@ -34,6 +34,7 @@ import org.waveprotocol.wave.model.conversation.WaveletBasedConversation;
 import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
+import org.waveprotocol.wave.model.id.WaveletIdSerializer;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.supplement.SupplementedWave;
 import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl;
@@ -67,6 +68,12 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
 
   private final PerUserWaveViewProvider waveViewProvider;
 
+  private enum FolderState {
+    INBOX,
+    ARCHIVE,
+    MUTE
+  }
+
   @Inject
   public SimpleSearchProviderImpl(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) final String waveDomain,
       WaveDigester digester, final WaveMap waveMap, PerUserWaveViewProvider userWaveViewProvider) {
@@ -82,7 +89,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
    * <p>Each wave's context is computed at most once and cached for the duration
    * of a single search request.
    */
-  private static class WaveSupplementContext {
+  static class WaveSupplementContext {
     final ObservableWaveletData convWavelet;
     final ObservableWaveletData udw;
     final List<ObservableWaveletData> conversationalWavelets;
@@ -104,7 +111,6 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
 
   /**
    * Builds or retrieves the cached supplement context for a wave.
-   * Returns null if the wave has no conversation root wavelet.
    */
   private WaveSupplementContext getOrBuildContext(
       WaveViewData wave, ParticipantId user,
@@ -131,8 +137,12 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       }
     }
 
+    if (convWavelet == null && !conversationalWavelets.isEmpty()) {
+      convWavelet = conversationalWavelets.get(0);
+    }
+
     if (convWavelet == null) {
-      // No conversation root -- cache a null-supplement context.
+      // No conversational wavelet -- cache a null-supplement context.
       WaveSupplementContext ctx = new WaveSupplementContext(
           null, udw, conversationalWavelets, null, null);
       cache.put(wave.getWaveId(), ctx);
@@ -231,6 +241,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     final Set<String> tagValues = queryParams.containsKey(TokenQueryType.TAG)
         ? queryParams.get(TokenQueryType.TAG)
         : Collections.<String>emptySet();
+    final boolean isUnreadOnlyQuery = queryParams.containsKey(TokenQueryType.UNREAD);
 
     LinkedHashMultimap<WaveId, WaveletId> currentUserWavesView =
         createWavesViewToFilter(user, isAllQuery);
@@ -248,7 +259,8 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     // This prevents creating duplicate OpBasedWavelet adapters for the same
     // underlying data, which was the root cause of duplicate init() calls and
     // silent failures in the conversation model chain.
-    boolean needsSupplementFiltering = isInboxQuery || isArchiveQuery || isPinnedQuery;
+    boolean needsSupplementFiltering = isInboxQuery || isArchiveQuery || isPinnedQuery
+        || isUnreadOnlyQuery;
     Map<WaveId, WaveSupplementContext> supplementCache =
         needsSupplementFiltering ? new HashMap<WaveId, WaveSupplementContext>() : null;
     Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters =
@@ -296,6 +308,12 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
           + ", candidates before filter = " + results.size());
       filterByContent(results, contentValues);
       LOG.info("After content filter: " + results.size() + " results remain");
+    }
+
+    if (isUnreadOnlyQuery) {
+      LOG.info("Unread filter active: candidates before filter = " + results.size());
+      filterByUnreadState(results, user, supplementCache, waveletAdapters);
+      LOG.info("After unread filter: " + results.size() + " results remain");
     }
 
     List<WaveViewData> sortedResults = sort(queryParams, results);
@@ -465,22 +483,10 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     while (it.hasNext()) {
       WaveViewData wave = it.next();
       try {
-        WaveSupplementContext ctx = getOrBuildContext(wave, user, supplementCache, waveletAdapters);
-
-        // Waves without a conversation root wavelet or without conversation
-        // structure cannot carry archive state. Treat them as inbox waves:
-        // keep them for inbox queries, remove them for archive queries.
-        if (ctx.supplement == null) {
-          if (!wantInbox) {
-            it.remove();
-          }
-          continue;
-        }
-
-        boolean isInbox = ctx.supplement.isInbox();
-        if (wantInbox && !isInbox) {
+        FolderState folderState = readFolderState(wave, user);
+        if (wantInbox && folderState != FolderState.INBOX) {
           it.remove();
-        } else if (!wantInbox && isInbox) {
+        } else if (!wantInbox && folderState != FolderState.ARCHIVE) {
           it.remove();
         }
       } catch (Exception e) {
@@ -575,6 +581,35 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       } catch (Exception e) {
         LOG.warning("Failed to check pinned state for wave " + wave.getWaveId()
             + ": " + e.getMessage(), e);
+        it.remove();
+      }
+    }
+  }
+
+  /**
+   * Filters wave results by unread state. Only waves with at least one unread blip are kept.
+   *
+   * <p>Reuses the existing supplement cache so unread checks do not rebuild conversation state
+   * independently of inbox/archive/pinned filtering.
+   *
+   * @param results the mutable list of wave views to filter in place.
+   * @param user the participant whose unread state to check.
+   * @param supplementCache shared cache of supplement contexts across filter stages.
+   * @param waveletAdapters shared cache of OpBasedWavelet adapters.
+   */
+  private void filterByUnreadState(List<WaveViewData> results, ParticipantId user,
+      Map<WaveId, WaveSupplementContext> supplementCache,
+      Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
+    Iterator<WaveViewData> it = results.iterator();
+    while (it.hasNext()) {
+      WaveViewData wave = it.next();
+      try {
+        WaveSupplementContext ctx = getOrBuildContext(wave, user, supplementCache, waveletAdapters);
+        if (digester.countUnread(user, ctx, waveletAdapters) <= 0) {
+          it.remove();
+        }
+      } catch (Exception e) {
+        LOG.warning("Failed to check unread state for wave " + wave.getWaveId(), e);
         it.remove();
       }
     }
@@ -954,6 +989,140 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     LOG.info("readTagsFromWaveletData: wave " + waveletData.getWaveId()
         + " tags = " + tags);
     return tags;
+  }
+
+  private FolderState readFolderState(WaveViewData wave, ParticipantId user) {
+    ObservableWaveletData userDataWavelet = null;
+    List<ObservableWaveletData> conversationalWavelets = new ArrayList<ObservableWaveletData>();
+    for (ObservableWaveletData waveletData : wave.getWavelets()) {
+      WaveletId waveletId = waveletData.getWaveletId();
+      if (IdUtil.isUserDataWavelet(user.getAddress(), waveletId)) {
+        userDataWavelet = waveletData;
+      } else if (IdUtil.isConversationalId(waveletId)) {
+        conversationalWavelets.add(waveletData);
+      }
+    }
+    return readFolderStateFromUdw(userDataWavelet, conversationalWavelets);
+  }
+
+  private static FolderState readFolderStateFromUdw(ObservableWaveletData userDataWavelet,
+      List<ObservableWaveletData> conversationalWavelets) {
+    if (readBooleanStateFromUdw(
+        userDataWavelet,
+        org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.MUTED_DOCUMENT,
+        org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.MUTED_TAG,
+        org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.MUTED_ATTR)) {
+      return FolderState.MUTE;
+    }
+    if (conversationalWavelets.isEmpty()) {
+      return FolderState.INBOX;
+    }
+    if (readBooleanStateFromUdw(
+        userDataWavelet,
+        org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.CLEARED_DOCUMENT,
+        org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.CLEARED_TAG,
+        org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.CLEARED_ATTR)) {
+      return FolderState.INBOX;
+    }
+    Map<String, Integer> archiveVersions = readArchiveVersionsFromUdw(userDataWavelet);
+    for (ObservableWaveletData conversationalWavelet : conversationalWavelets) {
+      Integer archivedVersion =
+          archiveVersions.get(WaveletIdSerializer.INSTANCE.toString(conversationalWavelet.getWaveletId()));
+      if (archivedVersion == null
+          || archivedVersion.intValue() < (int) conversationalWavelet.getVersion()) {
+        return FolderState.INBOX;
+      }
+    }
+    return FolderState.ARCHIVE;
+  }
+
+  private static boolean readBooleanStateFromUdw(ObservableWaveletData userDataWavelet,
+      String documentId, String tagName, String attrName) {
+    if (userDataWavelet == null) {
+      return false;
+    }
+    org.waveprotocol.wave.model.wave.data.ReadableBlipData stateDocument =
+        userDataWavelet.getDocument(documentId);
+    if (stateDocument == null) {
+      return false;
+    }
+    org.waveprotocol.wave.model.document.operation.DocInitialization docOp =
+        stateDocument.getContent().asOperation();
+    final boolean[] state = {false};
+    docOp.apply(new org.waveprotocol.wave.model.document.operation.DocInitializationCursor() {
+      @Override
+      public void elementStart(String type,
+          org.waveprotocol.wave.model.document.operation.Attributes attrs) {
+        if (tagName.equals(type)) {
+          String attrValue = attrs == null ? null : attrs.get(attrName);
+          state[0] = attrValue == null || Boolean.parseBoolean(attrValue);
+        }
+      }
+
+      @Override
+      public void elementEnd() {
+      }
+
+      @Override
+      public void characters(String chars) {
+      }
+
+      @Override
+      public void annotationBoundary(
+          org.waveprotocol.wave.model.document.operation.AnnotationBoundaryMap map) {
+      }
+    });
+    return state[0];
+  }
+
+  private static Map<String, Integer> readArchiveVersionsFromUdw(
+      ObservableWaveletData userDataWavelet) {
+    Map<String, Integer> archiveVersions = new HashMap<String, Integer>();
+    if (userDataWavelet == null) {
+      return archiveVersions;
+    }
+    org.waveprotocol.wave.model.wave.data.ReadableBlipData archiveDocument =
+        userDataWavelet.getDocument(
+            org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.ARCHIVING_DOCUMENT);
+    if (archiveDocument == null) {
+      return archiveVersions;
+    }
+    org.waveprotocol.wave.model.document.operation.DocInitialization docOp =
+        archiveDocument.getContent().asOperation();
+    docOp.apply(new org.waveprotocol.wave.model.document.operation.DocInitializationCursor() {
+      @Override
+      public void elementStart(String type,
+          org.waveprotocol.wave.model.document.operation.Attributes attrs) {
+        if (org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.ARCHIVE_TAG.equals(type)
+            && attrs != null) {
+          String waveletId =
+              attrs.get(org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.ID_ATTR);
+          String versionValue =
+              attrs.get(org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.VERSION_ATTR);
+          if (waveletId != null && versionValue != null) {
+            Integer parsedVersion = Integer.valueOf(versionValue);
+            Integer currentVersion = archiveVersions.get(waveletId);
+            if (currentVersion == null || currentVersion.intValue() < parsedVersion.intValue()) {
+              archiveVersions.put(waveletId, parsedVersion);
+            }
+          }
+        }
+      }
+
+      @Override
+      public void elementEnd() {
+      }
+
+      @Override
+      public void characters(String chars) {
+      }
+
+      @Override
+      public void annotationBoundary(
+          org.waveprotocol.wave.model.document.operation.AnnotationBoundaryMap map) {
+      }
+    });
+    return archiveVersions;
   }
 
   /**

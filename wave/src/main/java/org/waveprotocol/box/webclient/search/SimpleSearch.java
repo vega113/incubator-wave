@@ -23,6 +23,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.gwt.http.client.Request;
 
+import org.waveprotocol.box.common.DigestStateMerging;
+import org.waveprotocol.box.common.SearchResultUpdate;
 import org.waveprotocol.box.webclient.search.SearchService.Callback;
 import org.waveprotocol.box.webclient.search.SearchService.DigestSnapshot;
 import org.waveprotocol.wave.client.debug.logger.DomLogger;
@@ -64,6 +66,7 @@ public final class SimpleSearch implements Search, WaveStore.Listener {
     private DigestSnapshot staticDigest;
     /** Optimistic digest from a wave. May be null. */
     private WaveBasedDigest dynamicDigest;
+    private final DigestStateMerging digestStateMerging = new DigestStateMerging();
 
     DigestProxy(DigestSnapshot staticDigest) {
       Preconditions.checkArgument(staticDigest != null);
@@ -85,6 +88,7 @@ public final class SimpleSearch implements Search, WaveStore.Listener {
      */
     void activate(WaveContext wave) {
       Preconditions.checkState(dynamicDigest == null);
+      digestStateMerging.reset();
       dynamicDigest = WaveBasedDigest.create(wave);
       dynamicDigest.addListener(this);
       fireOnChanged();
@@ -102,14 +106,24 @@ public final class SimpleSearch implements Search, WaveStore.Listener {
               getParticipantsSnippet(), getLastModifiedTime(), getUnreadCount(), getBlipCount());
       dynamicDigest.destroy();
       dynamicDigest = null;
+      digestStateMerging.reset();
     }
 
     /**
-     * Updates the static digest. Do nothing if this digest is currently live.
+     * Updates the static digest.
      */
     void update(DigestSnapshot snapshot) {
+      int previousUnreadCount = getUnreadCount();
+      int previousBlipCount = getBlipCount();
       staticDigest = snapshot;
       if (dynamicDigest == null) {
+        fireOnChanged();
+        return;
+      }
+      digestStateMerging.onSnapshotUpdated(
+          staticDigest.getUnreadCount(), staticDigest.getBlipCount(),
+          dynamicDigest.getUnreadCount(), dynamicDigest.getBlipCount());
+      if (previousUnreadCount != getUnreadCount() || previousBlipCount != getBlipCount()) {
         fireOnChanged();
       }
     }
@@ -149,12 +163,20 @@ public final class SimpleSearch implements Search, WaveStore.Listener {
 
     @Override
     public int getUnreadCount() {
-      return getDelegate().getUnreadCount();
+      if (dynamicDigest == null) {
+        return staticDigest.getUnreadCount();
+      }
+      return digestStateMerging.resolveUnreadCount(
+          staticDigest.getUnreadCount(), dynamicDigest.getUnreadCount());
     }
 
     @Override
     public int getBlipCount() {
-      return getDelegate().getBlipCount();
+      if (dynamicDigest == null) {
+        return staticDigest.getBlipCount();
+      }
+      return digestStateMerging.resolveBlipCount(
+          staticDigest.getBlipCount(), dynamicDigest.getBlipCount());
     }
 
     @Override
@@ -178,7 +200,7 @@ public final class SimpleSearch implements Search, WaveStore.Listener {
 
     @Override
     public void onChanged() {
-      // Fan out events from the live digest to this digest's listeners.
+      digestStateMerging.reset();
       fireOnChanged();
     }
 
@@ -327,9 +349,12 @@ public final class SimpleSearch implements Search, WaveStore.Listener {
    * Copies the digest snapshots into this search result's state.
    */
   private void handleSuccess(int total, int from, List<DigestSnapshot> newDigests) {
-    if (this.total == total
-        && from + newDigests.size() <= results.size()
-        && results.subList(from, from + newDigests.size()).hashCode() == newDigests.hashCode()) {
+    if (SearchResultUpdate.isVacuousRefresh(
+        this.total,
+        results,
+        total,
+        newDigests,
+        total == Search.UNKNOWN_SIZE)) {
       log.trace().log("handling vacuous update");
       // Assume no change, but notify listeners that the search is complete.
       fireOnStateChanged();

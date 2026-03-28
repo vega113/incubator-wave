@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.collect.Maps;
 import com.google.wave.api.SearchResult;
+import com.google.wave.api.SearchResult.Digest;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -40,13 +41,18 @@ import org.waveprotocol.box.server.common.CoreWaveletOperationSerializer;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.persistence.memory.MemoryDeltaStore;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
+import org.waveprotocol.box.server.waveserver.SimpleSearchProviderImpl.WaveSupplementContext;
 import org.waveprotocol.wave.federation.Proto.ProtocolSignedDelta;
 import org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta;
 import org.waveprotocol.wave.model.document.operation.impl.DocOpBuilder;
+import org.waveprotocol.wave.model.document.operation.impl.AttributesImpl;
 import org.waveprotocol.wave.model.id.IdGenerator;
+import org.waveprotocol.wave.model.id.IdConstants;
 import org.waveprotocol.wave.model.id.IdURIEncoderDecoder;
+import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
+import org.waveprotocol.wave.model.id.WaveletIdSerializer;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.operation.wave.AddParticipant;
 import org.waveprotocol.wave.model.operation.wave.BlipContentOperation;
@@ -57,8 +63,12 @@ import org.waveprotocol.wave.model.operation.wave.WaveletOperationContext;
 import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.version.HashedVersionFactory;
 import org.waveprotocol.wave.model.version.HashedVersionZeroFactoryImpl;
+import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
+import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
+import org.waveprotocol.wave.model.wave.data.WaveViewData;
+import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
 
 import java.util.Arrays;
@@ -239,6 +249,61 @@ public class SimpleSearchProviderImplTest extends TestCase {
 
     assertEquals(1, results.getNumResults());
     assertEquals(WAVELET_NAME.waveId.serialise(), results.getDigests().get(0).getWaveId());
+  }
+
+  public void testSearchInboxExcludesArchivedWaveWithoutManifest() throws Exception {
+    submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
+    archiveWaveForUser(WAVELET_NAME, USER1);
+
+    SearchResult inboxResults = searchProvider.search(USER1, "in:inbox", 0, 20);
+    SearchResult archiveResults = searchProvider.search(USER1, "in:archive", 0, 20);
+
+    assertEquals(0, inboxResults.getNumResults());
+    assertEquals(1, archiveResults.getNumResults());
+    assertEquals(
+        WAVELET_NAME.waveId.serialise(), archiveResults.getDigests().get(0).getWaveId());
+  }
+
+  public void testSearchInboxIncludesWaveAfterArchiveStateCleared() throws Exception {
+    submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
+    archiveWaveForUser(WAVELET_NAME, USER1);
+    clearArchiveStateForUser(WAVELET_NAME, USER1);
+
+    SearchResult inboxResults = searchProvider.search(USER1, "in:inbox", 0, 20);
+    SearchResult archiveResults = searchProvider.search(USER1, "in:archive", 0, 20);
+
+    assertEquals(1, inboxResults.getNumResults());
+    assertEquals(WAVELET_NAME.waveId.serialise(), inboxResults.getDigests().get(0).getWaveId());
+    assertEquals(0, archiveResults.getNumResults());
+  }
+
+  public void testSearchInboxIncludesWaveAfterLegacyClearedStateWithoutAttr() throws Exception {
+    submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
+    archiveWaveForUser(WAVELET_NAME, USER1);
+    clearArchiveStateForUserWithoutAttr(WAVELET_NAME, USER1);
+
+    SearchResult inboxResults = searchProvider.search(USER1, "in:inbox", 0, 20);
+    SearchResult archiveResults = searchProvider.search(USER1, "in:archive", 0, 20);
+
+    assertEquals(1, inboxResults.getNumResults());
+    assertEquals(WAVELET_NAME.waveId.serialise(), inboxResults.getDigests().get(0).getWaveId());
+    assertEquals(0, archiveResults.getNumResults());
+  }
+
+  public void testSearchInboxExcludesArchivedWaveWhenArchiveEntriesRepeatLowerVersion()
+      throws Exception {
+    submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
+
+    long currentVersion = waveMap.getOrCreateLocalWavelet(WAVELET_NAME).copyWaveletData().getVersion();
+    archiveWaveForUserWithVersions(WAVELET_NAME, USER1, currentVersion, currentVersion - 1L);
+
+    SearchResult inboxResults = searchProvider.search(USER1, "in:inbox", 0, 20);
+    SearchResult archiveResults = searchProvider.search(USER1, "in:archive", 0, 20);
+
+    assertEquals(0, inboxResults.getNumResults());
+    assertEquals(1, archiveResults.getNumResults());
+    assertEquals(
+        WAVELET_NAME.waveId.serialise(), archiveResults.getDigests().get(0).getWaveId());
   }
 
   public void testSearchInboxDoesNotReturnWaveWithoutUser() throws Exception {
@@ -549,7 +614,127 @@ public class SimpleSearchProviderImplTest extends TestCase {
         WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
   }
 
+  public void testSearchFilterByUnreadWorks() throws Exception {
+    WaveletName unreadWave = WaveletName.of(WaveId.of(DOMAIN, "unread"), WAVELET_ID);
+    WaveletName readWave = WaveletName.of(WaveId.of(DOMAIN, "read"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(unreadWave, USER1, addParticipantToWavelet(USER1, unreadWave));
+    appendBlipToWavelet(unreadWave, USER1, "b+unread", "project update");
+
+    submitDeltaToNewWavelet(readWave, USER1, addParticipantToWavelet(USER1, readWave));
+    appendBlipToWavelet(readWave, USER1, "b+read", "project update");
+
+    SearchProvider unreadFilterProvider =
+        newUnreadAwareSearchProvider(ImmutableMap.of("read", 0, "unread", 2));
+
+    SearchResult results = unreadFilterProvider.search(USER1, "in:inbox unread:true", 0, 10);
+
+    assertEquals(1, results.getNumResults());
+    assertEquals("unread",
+        WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
+  }
+
+  public void testSearchFilterByUnreadAppliesBeforePagination() throws Exception {
+    WaveletName readFirst = WaveletName.of(WaveId.of(DOMAIN, "read-first"), WAVELET_ID);
+    WaveletName unreadLater = WaveletName.of(WaveId.of(DOMAIN, "unread-later"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(readFirst, USER1, addParticipantToWavelet(USER1, readFirst));
+    appendBlipToWavelet(readFirst, USER1, "b+read-first", "project update");
+
+    waitForDistinctTimestamp();
+
+    submitDeltaToNewWavelet(unreadLater, USER1, addParticipantToWavelet(USER1, unreadLater));
+    appendBlipToWavelet(unreadLater, USER1, "b+unread-later", "project update");
+
+    SearchProvider unreadFilterProvider =
+        newUnreadAwareSearchProvider(ImmutableMap.of("read-first", 0, "unread-later", 2));
+
+    SearchResult firstPage = unreadFilterProvider.search(
+        USER1, "in:inbox unread:true orderby:createdasc", 0, 1);
+    assertEquals(1, firstPage.getNumResults());
+    assertEquals("unread-later",
+        WaveId.deserialise(firstPage.getDigests().get(0).getWaveId()).getId());
+    assertEquals(1, firstPage.getTotalResults());
+
+    SearchResult secondPage = unreadFilterProvider.search(
+        USER1, "in:inbox unread:true orderby:createdasc", 1, 1);
+    assertEquals(0, secondPage.getNumResults());
+    assertEquals(1, secondPage.getTotalResults());
+  }
+
+  public void testSearchFilterByUnreadCombinesWithContent() throws Exception {
+    WaveletName unreadWave = WaveletName.of(WaveId.of(DOMAIN, "unread-match"), WAVELET_ID);
+    WaveletName readWave = WaveletName.of(WaveId.of(DOMAIN, "read-match"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(unreadWave, USER1, addParticipantToWavelet(USER1, unreadWave));
+    appendBlipToWavelet(unreadWave, USER1, "b+unread", "sprint retro");
+
+    submitDeltaToNewWavelet(readWave, USER1, addParticipantToWavelet(USER1, readWave));
+    appendBlipToWavelet(readWave, USER1, "b+read", "sprint retro");
+
+    SearchProvider unreadFilterProvider =
+        newUnreadAwareSearchProvider(ImmutableMap.of("read-match", 0, "unread-match", 1));
+
+    SearchResult results =
+        unreadFilterProvider.search(USER1, "in:inbox unread:true sprint", 0, 10);
+
+    assertEquals(1, results.getNumResults());
+    assertEquals("unread-match",
+        WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
+  }
+
+  public void testSearchUnreadTrueReturnsOnlyUnreadWaves() throws Exception {
+    WaveletName unreadWave = WaveletName.of(WaveId.of(DOMAIN, "unread"), WAVELET_ID);
+    WaveletName readWave = WaveletName.of(WaveId.of(DOMAIN, "read"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(unreadWave, USER1, addParticipantToWavelet(USER1, unreadWave));
+    appendBlipToWavelet(unreadWave, USER1, "b+unread", "project update");
+
+    submitDeltaToNewWavelet(readWave, USER1, addParticipantToWavelet(USER1, readWave));
+    appendBlipToWavelet(readWave, USER1, "b+read", "project update");
+
+    SearchProvider unreadFilterProvider =
+        newUnreadAwareSearchProvider(ImmutableMap.of("read", 0, "unread", 2));
+
+    SearchResult results = unreadFilterProvider.search(USER1, "unread:true", 0, 10);
+
+    assertEquals(1, results.getNumResults());
+    assertEquals("unread",
+        WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
+  }
+
+  public void testSearchUnreadTrueReturnsNothingWhenAllWavesAreRead() throws Exception {
+    WaveletName readWave = WaveletName.of(WaveId.of(DOMAIN, "read-only"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(readWave, USER1, addParticipantToWavelet(USER1, readWave));
+    appendBlipToWavelet(readWave, USER1, "b+read", "project update");
+
+    SearchProvider unreadFilterProvider =
+        newUnreadAwareSearchProvider(ImmutableMap.of("read-only", 0));
+
+    SearchResult results = unreadFilterProvider.search(USER1, "unread:true", 0, 10);
+
+    assertEquals(0, results.getNumResults());
+  }
+
   // *** Helpers
+
+  private SearchProvider newUnreadAwareSearchProvider(final Map<String, Integer> unreadCounts) {
+    ConversationUtil conversationUtil = new ConversationUtil(idGenerator);
+    WaveDigester digester = new WaveDigester(conversationUtil) {
+      @Override
+      int countUnread(ParticipantId participant, WaveSupplementContext context,
+          Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
+        String waveId = context.convWavelet.getWaveId().getId();
+        Integer unreadCount = unreadCounts.get(waveId);
+        if (unreadCount == null) {
+          return super.countUnread(participant, context, waveletAdapters);
+        }
+        return unreadCount.intValue();
+      }
+    };
+    return new SimpleSearchProviderImpl(DOMAIN, digester, waveMap, waveViewProvider);
+  }
 
   private void submitDeltaToNewWavelet(WaveletName name, ParticipantId user,
       WaveletOperation... ops) throws Exception {
@@ -598,6 +783,77 @@ public class SimpleSearchProviderImplTest extends TestCase {
 
   private void waitForDistinctTimestamp() throws InterruptedException {
     Thread.sleep(5L);
+  }
+
+  private void archiveWaveForUser(WaveletName name, ParticipantId user) throws Exception {
+    long version = waveMap.getOrCreateLocalWavelet(name).copyWaveletData().getVersion();
+    archiveWaveForUserWithVersions(name, user, version);
+  }
+
+  private void archiveWaveForUserWithVersions(WaveletName name, ParticipantId user,
+      long... versions) throws Exception {
+    DocOpBuilder builder = new DocOpBuilder();
+    for (long version : versions) {
+      builder.elementStart(
+          WaveletBasedSupplement.ARCHIVE_TAG,
+          new AttributesImpl(
+              WaveletBasedSupplement.ID_ATTR,
+              WaveletIdSerializer.INSTANCE.toString(name.waveletId),
+              WaveletBasedSupplement.VERSION_ATTR,
+              String.valueOf(version)));
+      builder.elementEnd();
+    }
+    WaveletOperation archiveOperation =
+        new WaveletBlipOperation(
+            WaveletBasedSupplement.ARCHIVING_DOCUMENT,
+            new BlipContentOperation(
+                new WaveletOperationContext(user, 0, 1),
+                builder.build()));
+    submitDeltaToNewWaveletWithoutView(
+        userDataWaveletName(name.waveId, user), user, archiveOperation);
+  }
+
+  private void clearArchiveStateForUser(WaveletName name, ParticipantId user) throws Exception {
+    WaveletName userDataWaveletName = userDataWaveletName(name.waveId, user);
+    WaveletOperation clearOperation =
+        new WaveletBlipOperation(
+            WaveletBasedSupplement.CLEARED_DOCUMENT,
+            new BlipContentOperation(
+                new WaveletOperationContext(user, 0, 1),
+                new DocOpBuilder()
+                    .elementStart(
+                        WaveletBasedSupplement.CLEARED_TAG,
+                        new AttributesImpl(
+                            WaveletBasedSupplement.CLEARED_ATTR,
+                            String.valueOf(true)))
+                    .elementEnd()
+                    .build()));
+    submitDeltaToExistingWavelet(userDataWaveletName, user, clearOperation);
+  }
+
+  private void clearArchiveStateForUserWithoutAttr(WaveletName name, ParticipantId user)
+      throws Exception {
+    WaveletName userDataWaveletName = userDataWaveletName(name.waveId, user);
+    WaveletOperation clearOperation =
+        new WaveletBlipOperation(
+            WaveletBasedSupplement.CLEARED_DOCUMENT,
+            new BlipContentOperation(
+                new WaveletOperationContext(user, 0, 1),
+                new DocOpBuilder()
+                    .elementStart(
+                        WaveletBasedSupplement.CLEARED_TAG,
+                        new AttributesImpl())
+                    .elementEnd()
+                    .build()));
+    submitDeltaToExistingWavelet(userDataWaveletName, user, clearOperation);
+  }
+
+  private WaveletName userDataWaveletName(WaveId waveId, ParticipantId user) {
+    WaveletId userDataWaveletId =
+        WaveletId.of(
+            waveId.getDomain(),
+            IdUtil.join(IdConstants.USER_DATA_WAVELET_PREFIX, user.getAddress()));
+    return WaveletName.of(waveId, userDataWaveletId);
   }
 
   private void addWaveletToUserView(WaveletName name, ParticipantId user) {

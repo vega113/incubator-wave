@@ -67,7 +67,8 @@ public interface RobotRegistrar {
       throws RobotRegistrationException, PersistenceException;
 
   /**
-   * Registers a new robot account with an owning human account address.
+   * Registers a new robot account with ownership metadata and configurable
+   * token expiry.
    */
   public RobotAccountData registerNew(ParticipantId robotId, String location, String ownerAddress,
       long tokenExpirySeconds) throws RobotRegistrationException, PersistenceException;
@@ -98,13 +99,15 @@ public interface RobotRegistrar {
       throws RobotRegistrationException, PersistenceException;
 
   /**
-   * Registers a new robot or updates an existing robot while preserving or setting owner metadata.
+   * Registers a new robot or updates an existing robot while preserving the
+   * owner that originally claimed it.
    */
   public RobotAccountData registerOrUpdate(ParticipantId robotId, String location,
       String ownerAddress) throws RobotRegistrationException, PersistenceException;
 
   /**
-   * Rotates the robot consumer secret without changing its URL or owner.
+   * Rotates the shared secret for an existing robot while keeping its current
+   * callback URL, capabilities, expiry, and owner metadata.
    */
   public RobotAccountData rotateSecret(ParticipantId robotId)
       throws RobotRegistrationException, PersistenceException;

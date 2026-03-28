@@ -1,3 +1,19 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with this
+ * work for additional information regarding copyright ownership. The ASF
+ * licenses this file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package org.waveprotocol.box.server.robots;
 
 import com.google.common.base.Strings;
@@ -18,13 +34,16 @@ import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
 import org.waveprotocol.box.server.robots.util.RobotsUtil.RobotRegistrationException;
 import org.waveprotocol.box.server.rpc.HtmlRenderer;
+import org.waveprotocol.box.server.util.RegistrationSupport;
 import org.waveprotocol.wave.model.id.TokenGenerator;
 import org.waveprotocol.wave.model.wave.InvalidParticipantAddress;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.util.logging.Log;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
@@ -33,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 public final class RobotDashboardServlet extends HttpServlet {
   private static final int XSRF_TOKEN_LENGTH = 12;
   private static final int XSRF_TOKEN_TIMEOUT_HOURS = 12;
+  private static final Log LOG = Log.get(RobotDashboardServlet.class);
 
   private final String domain;
   private final SessionManager sessionManager;
@@ -43,10 +63,8 @@ public final class RobotDashboardServlet extends HttpServlet {
 
   @Inject
   public RobotDashboardServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
-                               SessionManager sessionManager,
-                               AccountStore accountStore,
-                               RobotRegistrar robotRegistrar,
-                               TokenGenerator tokenGenerator) {
+      SessionManager sessionManager, AccountStore accountStore, RobotRegistrar robotRegistrar,
+      TokenGenerator tokenGenerator) {
     this.domain = domain;
     this.sessionManager = sessionManager;
     this.accountStore = accountStore;
@@ -58,10 +76,8 @@ public final class RobotDashboardServlet extends HttpServlet {
         .asMap();
   }
 
-  RobotDashboardServlet(String domain,
-                        SessionManager sessionManager,
-                        AccountStore accountStore,
-                        RobotRegistrar robotRegistrar) {
+  RobotDashboardServlet(String domain, SessionManager sessionManager, AccountStore accountStore,
+      RobotRegistrar robotRegistrar) {
     this.domain = domain;
     this.sessionManager = sessionManager;
     this.accountStore = accountStore;
@@ -76,10 +92,9 @@ public final class RobotDashboardServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     ParticipantId user = requireUser(req, resp);
-    if (user == null) {
-      return;
+    if (user != null) {
+      renderDashboard(req, resp, user, "", null, HttpServletResponse.SC_OK);
     }
-    renderDashboard(resp, user, "", null, HttpServletResponse.SC_OK);
   }
 
   @Override
@@ -89,7 +104,7 @@ public final class RobotDashboardServlet extends HttpServlet {
       return;
     }
     if (!hasValidXsrfToken(user, req)) {
-      renderDashboard(resp, user, "Invalid XSRF token.", null,
+      renderDashboard(req, resp, user, "Invalid XSRF token.", null,
           HttpServletResponse.SC_UNAUTHORIZED);
       return;
     }
@@ -107,49 +122,18 @@ public final class RobotDashboardServlet extends HttpServlet {
       handleRotateSecret(req, resp, user);
       return;
     }
-    renderDashboard(resp, user, "Unknown robot action", null, HttpServletResponse.SC_BAD_REQUEST);
+
+    renderDashboard(req, resp, user, "Unknown robot action.", null,
+        HttpServletResponse.SC_BAD_REQUEST);
   }
 
   private ParticipantId requireUser(HttpServletRequest req, HttpServletResponse resp)
       throws IOException {
     ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
     if (user == null) {
-      resp.sendRedirect("/auth/signin?r=/account/robots");
+      resp.sendRedirect("/auth/signin?r=" + req.getRequestURI());
     }
     return user;
-  }
-
-  private void handleRegister(HttpServletRequest req, HttpServletResponse resp, ParticipantId user)
-      throws IOException {
-    String username = req.getParameter("username");
-    String location = req.getParameter("location");
-    long tokenExpirySeconds = parseTokenExpiry(req.getParameter("token_expiry"));
-    if (Strings.isNullOrEmpty(username) || Strings.isNullOrEmpty(location)) {
-      renderDashboard(resp, user, "Robot username and callback URL are required.", null,
-          HttpServletResponse.SC_BAD_REQUEST);
-      return;
-    }
-
-    ParticipantId robotId;
-    try {
-      robotId = ParticipantId.of(username + "@" + domain);
-    } catch (InvalidParticipantAddress e) {
-      renderDashboard(resp, user, "Robot username is invalid.", null,
-          HttpServletResponse.SC_BAD_REQUEST);
-      return;
-    }
-
-    try {
-      RobotAccountData robotAccount = robotRegistrar.registerNew(robotId, location,
-          user.getAddress(), tokenExpirySeconds);
-      renderDashboard(resp, user, "Robot registered: " + robotAccount.getId().getAddress(),
-          robotAccount.getConsumerSecret(), HttpServletResponse.SC_OK);
-    } catch (RobotRegistrationException e) {
-      renderDashboard(resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
-    } catch (PersistenceException e) {
-      renderDashboard(resp, user, "Robot registration failed.", null,
-          HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-    }
   }
 
   private void handleUpdateUrl(HttpServletRequest req, HttpServletResponse resp, ParticipantId user)
@@ -157,26 +141,27 @@ public final class RobotDashboardServlet extends HttpServlet {
     String robotIdValue = req.getParameter("robotId");
     String location = req.getParameter("location");
     if (Strings.isNullOrEmpty(robotIdValue) || Strings.isNullOrEmpty(location)) {
-      renderDashboard(resp, user, "Robot and callback URL are required.", null,
+      renderDashboard(req, resp, user, "Robot and callback URL are required.", null,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
     if (ownedRobot == null) {
-      renderDashboard(resp, user, "You do not own this robot.", null,
+      renderDashboard(req, resp, user, "You do not own this robot.", null,
           HttpServletResponse.SC_FORBIDDEN);
       return;
     }
 
     try {
-      robotRegistrar.registerOrUpdate(ownedRobot.getId(), location, user.getAddress());
-      renderDashboard(resp, user, "Callback URL updated for " + ownedRobot.getId().getAddress(),
-          null, HttpServletResponse.SC_OK);
+      RobotAccountData updatedRobot =
+          robotRegistrar.registerOrUpdate(ownedRobot.getId(), location, user.getAddress());
+      renderDashboard(req, resp, user, "Callback URL updated for " + ownedRobot.getId().getAddress(),
+          updatedRobot, HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(resp, user, "Callback URL update failed.", null,
+      renderDashboard(req, resp, user, "Callback URL update failed.", null,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -185,27 +170,64 @@ public final class RobotDashboardServlet extends HttpServlet {
       throws IOException {
     String robotIdValue = req.getParameter("robotId");
     if (Strings.isNullOrEmpty(robotIdValue)) {
-      renderDashboard(resp, user, "Robot selection is required.", null,
+      renderDashboard(req, resp, user, "Robot selection is required.", null,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
     if (ownedRobot == null) {
-      renderDashboard(resp, user, "You do not own this robot.", null,
+      renderDashboard(req, resp, user, "You do not own this robot.", null,
           HttpServletResponse.SC_FORBIDDEN);
       return;
     }
 
     try {
       RobotAccountData rotatedRobot = robotRegistrar.rotateSecret(ownedRobot.getId());
-      renderDashboard(resp, user, "Secret rotated for " + ownedRobot.getId().getAddress(),
-          rotatedRobot != null ? rotatedRobot.getConsumerSecret() : null,
+      renderDashboard(
+          req,
+          resp,
+          user,
+          "Secret rotated for " + ownedRobot.getId().getAddress(),
+          rotatedRobot,
           HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(resp, user, "Secret rotation failed.", null,
+      renderDashboard(req, resp, user, "Secret rotation failed.", null,
+          HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  private void handleRegister(HttpServletRequest req, HttpServletResponse resp, ParticipantId user)
+      throws IOException {
+    String username = req.getParameter("username");
+    String location = Strings.nullToEmpty(req.getParameter("location")).trim();
+    long tokenExpirySeconds = parseTokenExpiry(req.getParameter("token_expiry"));
+    if (Strings.isNullOrEmpty(username)) {
+      renderDashboard(req, resp, user, "Robot username is required.", null,
+          HttpServletResponse.SC_BAD_REQUEST);
+      return;
+    }
+
+    ParticipantId robotId;
+    try {
+      robotId = RegistrationSupport.checkNewRobotUsername(domain, username);
+    } catch (InvalidParticipantAddress e) {
+      renderDashboard(req, resp, user, e.getMessage(), null,
+          HttpServletResponse.SC_BAD_REQUEST);
+      return;
+    }
+
+    try {
+      RobotAccountData registeredRobot =
+          robotRegistrar.registerNew(robotId, location, user.getAddress(), tokenExpirySeconds);
+      renderDashboard(req, resp, user, "Robot registered: " + robotId.getAddress(), registeredRobot,
+          HttpServletResponse.SC_OK);
+    } catch (RobotRegistrationException e) {
+      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+    } catch (PersistenceException e) {
+      renderDashboard(req, resp, user, "Robot registration failed.", null,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -217,38 +239,23 @@ public final class RobotDashboardServlet extends HttpServlet {
       AccountData account = accountStore.getAccount(robotId);
       if (account != null && account.isRobot()) {
         RobotAccountData robotAccount = account.asRobot();
-        if (ownerAddress.equals(robotAccount.getOwnerAddress())) {
+        if (Objects.equals(ownerAddress, robotAccount.getOwnerAddress())) {
           ownedRobot = robotAccount;
         }
       }
-    } catch (InvalidParticipantAddress | PersistenceException ignored) {
+    } catch (InvalidParticipantAddress | PersistenceException e) {
+      LOG.severe("Failed to resolve owned robot " + robotIdValue + " for " + ownerAddress, e);
       ownedRobot = null;
     }
     return ownedRobot;
   }
 
-  private long parseTokenExpiry(String tokenExpiryValue) {
-    long tokenExpirySeconds = 0L;
-    if (!Strings.isNullOrEmpty(tokenExpiryValue)) {
-      try {
-        tokenExpirySeconds = Long.parseLong(tokenExpiryValue);
-      } catch (NumberFormatException ignored) {
-        tokenExpirySeconds = 0L;
-      }
-    }
-    if (tokenExpirySeconds < 0L) {
-      tokenExpirySeconds = 0L;
-    }
-    return tokenExpirySeconds;
-  }
-
   private boolean hasValidXsrfToken(ParticipantId user, HttpServletRequest req) {
     String token = req.getParameter("token");
     String expectedToken = xsrfTokens.get(user);
-    boolean validToken = !Strings.isNullOrEmpty(token)
+    return !Strings.isNullOrEmpty(token)
         && !Strings.isNullOrEmpty(expectedToken)
         && token.equals(expectedToken);
-    return validToken;
   }
 
   private String getOrGenerateXsrfToken(ParticipantId user) {
@@ -260,126 +267,220 @@ public final class RobotDashboardServlet extends HttpServlet {
     return token;
   }
 
-  private void renderDashboard(HttpServletResponse resp, ParticipantId user, String message,
-      String rotatedSecret, int statusCode) throws IOException {
-    List<RobotAccountData> ownedRobots;
-    try {
-      ownedRobots = accountStore.getRobotAccountsOwnedBy(user.getAddress());
-      if (ownedRobots == null) {
-        ownedRobots = Collections.emptyList();
+  private long parseTokenExpiry(String tokenExpiryValue) {
+    long tokenExpirySeconds = 3600L;
+    if (!Strings.isNullOrEmpty(tokenExpiryValue)) {
+      try {
+        tokenExpirySeconds = Long.parseLong(tokenExpiryValue);
+      } catch (NumberFormatException ignored) {
+        tokenExpirySeconds = 3600L;
       }
-    } catch (PersistenceException e) {
-      ownedRobots = Collections.emptyList();
     }
+    if (tokenExpirySeconds < 0L) {
+      tokenExpirySeconds = 0L;
+    }
+    return tokenExpirySeconds;
+  }
+
+  private void renderDashboard(HttpServletRequest req, HttpServletResponse resp, ParticipantId user,
+      String message,
+      RobotAccountData highlightedRobot, int statusCode) throws IOException {
+    List<RobotAccountData> ownedRobots = loadOwnedRobots(user.getAddress());
+    List<RobotAccountData> robotsToRender = mergeHighlightedRobot(ownedRobots, highlightedRobot);
     resp.setStatus(statusCode);
     resp.setCharacterEncoding("UTF-8");
     resp.setContentType("text/html; charset=UTF-8");
-    resp.getWriter().write(renderDashboardPage(user.getAddress(), ownedRobots, message,
-        rotatedSecret, getOrGenerateXsrfToken(user)));
+    String baseUrl = derivePublicBaseUrl(req);
+    resp.getWriter().write(renderDashboardPage(user.getAddress(), robotsToRender, message,
+        getOrGenerateXsrfToken(user), baseUrl));
+  }
+
+  private List<RobotAccountData> loadOwnedRobots(String ownerAddress) {
+    List<RobotAccountData> ownedRobots;
+    try {
+      ownedRobots = accountStore.getRobotAccountsOwnedBy(ownerAddress);
+    } catch (PersistenceException e) {
+      ownedRobots = new ArrayList<>();
+    }
+    if (ownedRobots == null) {
+      ownedRobots = new ArrayList<>();
+    }
+    return ownedRobots;
+  }
+
+  private List<RobotAccountData> mergeHighlightedRobot(List<RobotAccountData> ownedRobots,
+      RobotAccountData highlightedRobot) {
+    List<RobotAccountData> robotsToRender = new ArrayList<>(ownedRobots);
+    if (highlightedRobot != null) {
+      boolean replaced = false;
+      for (int i = 0; i < robotsToRender.size(); i++) {
+        if (robotsToRender.get(i).getId().equals(highlightedRobot.getId())) {
+          robotsToRender.set(i, highlightedRobot);
+          replaced = true;
+        }
+      }
+      if (!replaced) {
+        robotsToRender.add(highlightedRobot);
+      }
+    }
+    return robotsToRender;
   }
 
   private String renderDashboardPage(String userAddress, List<RobotAccountData> robots,
-      String message, String rotatedSecret, String xsrfToken) {
+      String message, String xsrfToken, String baseUrl) {
+    RobotAccountData promptRobot = robots.isEmpty() ? null : robots.get(robots.size() - 1);
+    String promptRobotId = promptRobot == null ? "<robot@domain>" : promptRobot.getId().getAddress();
+    String promptRobotSecret =
+        promptRobot == null ? "<consumer secret>" : promptRobot.getConsumerSecret();
+    String promptCallbackUrl = promptRobot == null || promptRobot.getUrl().isEmpty()
+        ? "<deployment url>"
+        : promptRobot.getUrl();
     StringBuilder sb = new StringBuilder(8192);
     sb.append("<!DOCTYPE html><html><head><meta charset=\"UTF-8\">");
     sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
     sb.append("<title>Robot Control Room</title>");
     sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">");
     sb.append("<style>");
-    sb.append("body{margin:0;font-family:Georgia,'Times New Roman',serif;background:linear-gradient(180deg,#f3efe6 0%,#e7dcc8 100%);color:#1f2933;}");
-    sb.append(".shell{max-width:1180px;margin:0 auto;padding:40px 24px 64px;}");
-    sb.append(".hero{display:grid;grid-template-columns:1.3fr .7fr;gap:20px;align-items:start;}");
-    sb.append(".panel{background:rgba(255,255,255,0.84);border:1px solid rgba(84,63,42,0.18);border-radius:24px;box-shadow:0 14px 40px rgba(86,63,41,0.12);backdrop-filter:blur(10px);}");
-    sb.append(".hero-copy{padding:28px 30px;}");
-    sb.append(".eyebrow{display:inline-block;padding:6px 12px;border-radius:999px;background:#1f4b45;color:#f7f3ea;font-size:11px;letter-spacing:.14em;text-transform:uppercase;}");
-    sb.append("h1{margin:18px 0 10px;font-size:46px;line-height:1;font-weight:700;}");
-    sb.append(".lede{margin:0;color:#4c5a66;font-size:18px;line-height:1.6;max-width:44rem;}");
-    sb.append(".hero-notes{padding:24px;display:grid;gap:12px;background:#15322f;color:#f7f3ea;}");
-    sb.append(".hero-notes h2{margin:0;font-size:20px;}");
-    sb.append(".hero-notes p{margin:0;color:rgba(247,243,234,.82);line-height:1.6;}");
-    sb.append(".grid{display:grid;grid-template-columns:1.2fr .8fr;gap:20px;margin-top:22px;}");
-    sb.append(".section{padding:24px 26px;}");
-    sb.append(".section h2{margin:0 0 12px;font-size:24px;}");
-    sb.append(".section p{margin:0 0 16px;color:#52606d;line-height:1.6;}");
-    sb.append(".status{margin:18px 0;padding:12px 14px;border-radius:14px;background:#efe3d0;color:#5c3b12;font-size:14px;}");
-    sb.append(".card-stack{display:grid;gap:14px;}");
-    sb.append(".robot-card{padding:18px;border-radius:18px;background:#f9f6ef;border:1px solid rgba(84,63,42,.12);}");
+    sb.append("body{margin:0;background:linear-gradient(180deg,#e8f8fc 0%,#ffffff 100%);");
+    sb.append("font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#123047;}");
+    sb.append(".shell{max-width:1100px;margin:0 auto;padding:40px 24px 64px;}");
+    sb.append(".hero,.panel{background:rgba(255,255,255,.94);border:1px solid rgba(0,119,182,.12);");
+    sb.append("border-radius:24px;box-shadow:0 22px 44px rgba(2,62,138,.08);}");
+    sb.append(".hero{padding:28px 30px;margin-bottom:20px;}");
+    sb.append(".eyebrow{display:inline-block;padding:6px 12px;border-radius:999px;background:#023e8a;color:#fff;font-size:11px;letter-spacing:.12em;text-transform:uppercase;}");
+    sb.append("h1{margin:16px 0 10px;font-size:44px;line-height:1.04;}");
+    sb.append(".lede{margin:0;max-width:48rem;font-size:17px;line-height:1.7;color:#3d627a;}");
+    sb.append(".grid{display:grid;grid-template-columns:1.2fr .8fr;gap:20px;}");
+    sb.append(".panel{padding:24px 26px;}");
+    sb.append(".status{margin:0 0 18px;padding:12px 14px;border-radius:14px;background:#edf8fb;color:#124663;}");
+    sb.append(".robot-card{padding:16px 18px;border-radius:18px;background:#f7fcfd;border:1px solid rgba(0,119,182,.1);margin-bottom:14px;}");
     sb.append(".robot-card h3{margin:0 0 8px;font-size:20px;}");
-    sb.append(".robot-meta{font-size:13px;color:#6b7280;margin-bottom:12px;}");
-    sb.append(".row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;}");
-    sb.append(".actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}");
-    sb.append("label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;margin-bottom:6px;}");
-    sb.append("input,select,textarea{width:100%;padding:12px 14px;border-radius:14px;border:1px solid rgba(84,63,42,.18);background:#fffdf8;font:inherit;color:#14212b;}");
-    sb.append("textarea{min-height:140px;resize:vertical;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:13px;}");
-    sb.append("button{appearance:none;border:none;border-radius:999px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;}");
-    sb.append(".primary{background:#15322f;color:#f7f3ea;}");
-    sb.append(".secondary{background:#efe3d0;color:#5c3b12;}");
-    sb.append(".danger{background:#7f1d1d;color:#fff4f1;}");
-    sb.append(".empty{padding:24px;border-radius:18px;border:1px dashed rgba(84,63,42,.26);background:rgba(255,252,245,.7);color:#5b6670;}");
-    sb.append(".token-box{margin-top:16px;display:none;}");
-    sb.append(".token-box.visible{display:block;}");
-    sb.append(".token-meta{margin-top:8px;font-size:12px;color:#6b7280;}");
-    sb.append(".rotated{margin-top:14px;padding:14px;border-radius:16px;background:#173f38;color:#f7f3ea;}");
-    sb.append(".rotated strong{display:block;margin-bottom:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(247,243,234,.7);}");
-    sb.append(".top-link{display:inline-flex;align-items:center;gap:8px;text-decoration:none;color:#173f38;font-weight:700;}");
-    sb.append("@media (max-width:900px){.hero,.grid,.row{grid-template-columns:1fr;}h1{font-size:36px;}}");
+    sb.append(".meta{font-size:13px;color:#56738a;line-height:1.6;}");
+    sb.append(".prompt{width:100%;min-height:220px;border-radius:16px;border:1px solid rgba(0,119,182,.16);padding:14px;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:13px;background:#f8fbfc;}");
+    sb.append("label{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#4b6b81;margin:0 0 6px;}");
+    sb.append("input{width:100%;padding:12px 14px;border-radius:14px;border:1px solid rgba(0,119,182,.18);font:inherit;}");
+    sb.append("button{border:none;border-radius:999px;background:#0077b6;color:#fff;padding:12px 18px;font-weight:700;cursor:pointer;}");
+    sb.append(".tiny{font-size:12px;color:#5f8198;line-height:1.6;}");
     sb.append("</style></head><body><div class=\"shell\">");
-    sb.append("<a class=\"top-link\" href=\"/\">&larr; Back to SupaWave</a>");
-    sb.append("<div class=\"hero\">");
-    sb.append("<section class=\"panel hero-copy\"><span class=\"eyebrow\">Robot Control Room</span>");
-    sb.append("<h1>Robot and Data API management in one place.</h1>");
-    sb.append("<p class=\"lede\">Review the robots registered to ").append(HtmlRenderer.escapeHtml(userAddress));
-    sb.append(", update callback URLs without rotating secrets, and issue fresh human Data API tokens when you need to replace a compromised credential.</p>");
+    sb.append("<section class=\"hero\"><span class=\"eyebrow\">Automation</span>");
+    sb.append("<h1>Robot Control Room</h1>");
+    sb.append("<p class=\"lede\">Create a robot, hand an external LLM a SupaWave-ready starter prompt, and come back later to activate the callback URL without rotating the secret.</p>");
+    sb.append("</section>");
+    sb.append("<div class=\"grid\"><section class=\"panel\">");
     if (!Strings.isNullOrEmpty(message)) {
       sb.append("<div class=\"status\">").append(HtmlRenderer.escapeHtml(message)).append("</div>");
     }
-    sb.append("</section>");
-    sb.append("<aside class=\"panel hero-notes\"><h2>What this lane manages</h2>");
-    sb.append("<p>Robot callback URLs stay editable after registration.</p>");
-    sb.append("<p>Secret rotation is isolated as a separate high-risk action.</p>");
-    sb.append("<p>Human Data API tokens can be generated inline without leaving the dashboard.</p>");
-    sb.append("</aside></div>");
-    sb.append("<div class=\"grid\">");
-    sb.append("<section class=\"panel section\"><h2>Registered robots</h2><p>Each robot card exposes a callback URL editor and a dedicated secret-rotation action.</p><div class=\"card-stack\">");
+    for (RobotAccountData robot : robots) {
+      sb.append("<div class=\"robot-card\"><h3>")
+          .append(HtmlRenderer.escapeHtml(robot.getId().getAddress()))
+          .append("</h3><div class=\"meta\">");
+      sb.append("Callback URL: ")
+          .append(HtmlRenderer.escapeHtml(robot.getUrl().isEmpty() ? "Pending" : robot.getUrl()))
+          .append("<br>Secret: ")
+          .append(HtmlRenderer.escapeHtml(robot.getConsumerSecret()))
+          .append("</div>");
+      sb.append("<form method=\"post\" action=\"\">");
+      sb.append("<input type=\"hidden\" name=\"action\" value=\"update-url\">");
+      sb.append("<input type=\"hidden\" name=\"token\" value=\"")
+          .append(HtmlRenderer.escapeHtml(xsrfToken)).append("\">");
+      sb.append("<input type=\"hidden\" name=\"robotId\" value=\"")
+          .append(HtmlRenderer.escapeHtml(robot.getId().getAddress())).append("\">");
+      sb.append("<label for=\"location-").append(HtmlRenderer.escapeHtml(robot.getId().getAddress()))
+          .append("\">Callback URL</label>");
+      sb.append("<input id=\"location-").append(HtmlRenderer.escapeHtml(robot.getId().getAddress()))
+          .append("\" name=\"location\" value=\"")
+          .append(HtmlRenderer.escapeHtml(robot.getUrl())).append("\">");
+      sb.append("<div style=\"margin-top:12px;\"><button type=\"submit\">Save Callback URL</button></div>");
+      sb.append("</form></div>");
+    }
     if (robots.isEmpty()) {
-      sb.append("<div class=\"empty\">No robots are registered for this account yet.</div>");
-    } else {
-      for (RobotAccountData robot : robots) {
-        sb.append("<article class=\"robot-card\"><h3>").append(HtmlRenderer.escapeHtml(robot.getId().getAddress())).append("</h3>");
-        sb.append("<div class=\"robot-meta\">Current callback URL: ").append(HtmlRenderer.escapeHtml(robot.getUrl())).append("</div>");
-        sb.append("<form method=\"post\"><input type=\"hidden\" name=\"action\" value=\"update-url\"><input type=\"hidden\" name=\"token\" value=\"")
-            .append(HtmlRenderer.escapeHtml(xsrfToken)).append("\">");
-        sb.append("<input type=\"hidden\" name=\"robotId\" value=\"").append(HtmlRenderer.escapeHtml(robot.getId().getAddress())).append("\">");
-        sb.append("<label>Callback URL</label><div class=\"row\"><input type=\"text\" name=\"location\" value=\"")
-            .append(HtmlRenderer.escapeHtml(robot.getUrl())).append("\"><button class=\"secondary\" type=\"submit\">Update URL</button></div></form>");
-        sb.append("<form method=\"post\" class=\"actions\"><input type=\"hidden\" name=\"action\" value=\"rotate-secret\"><input type=\"hidden\" name=\"token\" value=\"")
-            .append(HtmlRenderer.escapeHtml(xsrfToken)).append("\">");
-        sb.append("<input type=\"hidden\" name=\"robotId\" value=\"").append(HtmlRenderer.escapeHtml(robot.getId().getAddress())).append("\">");
-        sb.append("<button class=\"danger\" type=\"submit\">Rotate Secret</button></form></article>");
-      }
+      sb.append("<div class=\"robot-card\"><h3>No robots yet</h3><div class=\"meta\">");
+      sb.append("Create a pending robot first, then come back here to activate its callback URL.");
+      sb.append("</div></div>");
     }
-    sb.append("</div>");
-    if (!Strings.isNullOrEmpty(rotatedSecret)) {
-      sb.append("<div class=\"rotated\"><strong>Latest secret</strong>")
-          .append(HtmlRenderer.escapeHtml(rotatedSecret)).append("</div>");
-    }
-    sb.append("</section>");
-    sb.append("<section class=\"panel section\"><h2>Register a robot</h2><p>Create a robot account and decide whether its tokens should expire automatically.</p>");
-    sb.append("<form method=\"post\"><input type=\"hidden\" name=\"action\" value=\"register\"><input type=\"hidden\" name=\"token\" value=\"")
+    sb.append("<div class=\"robot-card\"><h3>Create a robot</h3>");
+    sb.append("<form method=\"post\" action=\"\">");
+    sb.append("<input type=\"hidden\" name=\"action\" value=\"register\">");
+    sb.append("<input type=\"hidden\" name=\"token\" value=\"")
         .append(HtmlRenderer.escapeHtml(xsrfToken)).append("\">");
-    sb.append("<label>Robot username</label><input type=\"text\" name=\"username\" placeholder=\"robot\">");
-    sb.append("<label>Callback URL</label><input type=\"text\" name=\"location\" placeholder=\"https://robot.example.com/callback\">");
-    sb.append("<label>Token expiry</label><select name=\"token_expiry\"><option value=\"0\">No expiry</option><option value=\"3600\">1 hour</option><option value=\"86400\">1 day</option><option value=\"604800\">1 week</option></select>");
-    sb.append("<div class=\"actions\"><button class=\"primary\" type=\"submit\">Register robot</button></div></form>");
-    sb.append("<div class=\"section\" style=\"padding:24px 0 0;\"><h2 style=\"font-size:22px;\">Generate Data API Token</h2><p>Generate a fresh human Data API JWT for this account without leaving the dashboard.</p>");
-    sb.append("<div class=\"actions\"><button class=\"primary\" type=\"button\" onclick=\"generateDataApiToken()\">Generate Data API Token</button><button class=\"secondary\" type=\"button\" onclick=\"copyToken()\">Copy Token</button></div>");
-    sb.append("<div id=\"tokenBox\" class=\"token-box\"><label>Current access token</label><textarea id=\"tokenText\" readonly></textarea><div class=\"token-meta\" id=\"tokenMeta\"></div></div></div>");
-    sb.append("</section></div></div>");
+    sb.append("<label for=\"username\">Robot Username</label>");
+    sb.append("<input id=\"username\" name=\"username\" placeholder=\"helper-bot\">");
+    sb.append("<label for=\"create-location\" style=\"margin-top:12px;\">Callback URL</label>");
+    sb.append("<input id=\"create-location\" name=\"location\" placeholder=\"https://example.com/robot\">");
+    sb.append("<label for=\"token-expiry\" style=\"margin-top:12px;\">Robot Token Expiry</label>");
+    sb.append("<input id=\"token-expiry\" name=\"token_expiry\" value=\"3600\">");
+    sb.append("<div class=\"tiny\">Leave the callback URL empty to mint the secret first and activate the robot after deployment.</div>");
+    sb.append("<div style=\"margin-top:12px;\"><button type=\"submit\">Create Robot</button></div>");
+    sb.append("</form></div>");
+    sb.append("</section><aside class=\"panel\">");
+    sb.append("<h2>Build with AI</h2>");
+    sb.append("<p class=\"tiny\">Google AI Studio / Gemini starter prompt for ")
+        .append(HtmlRenderer.escapeHtml(userAddress)).append(".</p>");
+    sb.append("<textarea id=\"starter-prompt\" class=\"prompt\" readonly>");
+    sb.append("Build a SupaWave robot for me. Use these environment variables:\\n");
+    sb.append("SUPAWAVE_BASE_URL=").append(HtmlRenderer.escapeHtml(baseUrl)).append("\\n");
+    sb.append("SUPAWAVE_DATA_API_URL=").append(HtmlRenderer.escapeHtml(baseUrl)).append("/robot/dataapi/rpc\\n");
+    sb.append("SUPAWAVE_API_DOCS_URL=").append(HtmlRenderer.escapeHtml(baseUrl)).append("/api-docs\\n");
+    sb.append("SUPAWAVE_LLM_DOCS_URL=").append(HtmlRenderer.escapeHtml(baseUrl)).append("/api/llm.txt\\n");
+    sb.append("SUPAWAVE_DATA_API_TOKEN=<generating 1 hour JWT...>\\n");
+    sb.append("SUPAWAVE_ROBOT_ID=").append(HtmlRenderer.escapeHtml(promptRobotId)).append("\\n");
+    sb.append("SUPAWAVE_ROBOT_SECRET=").append(HtmlRenderer.escapeHtml(promptRobotSecret)).append("\\n");
+    sb.append("SUPAWAVE_ROBOT_CALLBACK_URL=").append(HtmlRenderer.escapeHtml(promptCallbackUrl)).append("\\n\\n");
+    sb.append("Use the docs to create or activate the robot, keep tokens short-lived, and explain any missing callback URL step clearly.");
+    sb.append("</textarea>");
+    sb.append("<div id=\"token-status\" class=\"tiny\" style=\"margin-top:10px;\">Generating a one-hour JWT for the starter prompt.</div>");
     sb.append("<script>");
-    sb.append("window.robotDashboardXsrf='").append(HtmlRenderer.escapeHtml(xsrfToken)).append("';");
-    sb.append("function generateDataApiToken(){fetch('/robot/dataapi/token',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'expiry=3600&token='+encodeURIComponent(window.robotDashboardXsrf)}).then(function(r){return r.json();}).then(function(data){var box=document.getElementById('tokenBox');document.getElementById('tokenText').value=data.access_token||'';document.getElementById('tokenMeta').textContent=data.expires_in?'Expires in '+data.expires_in+' seconds':'Token generation failed';box.className='token-box visible';});}");
-    sb.append("function copyToken(){var tokenText=document.getElementById('tokenText');if(!tokenText.value){return;}tokenText.select();tokenText.setSelectionRange(0,tokenText.value.length);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(tokenText.value);}}");
-    sb.append("</script></body></html>");
+    sb.append("(() => {");
+    sb.append("const prompt = document.getElementById('starter-prompt');");
+    sb.append("const status = document.getElementById('token-status');");
+    sb.append("fetch('/robot/dataapi/token',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'expiry=3600'})");
+    sb.append(".then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))");
+    sb.append(".then(data => {");
+    sb.append("prompt.value = prompt.value.replace('<generating 1 hour JWT...>', data.access_token);");
+    sb.append("status.textContent = 'Ready prompt includes a one-hour Data API JWT.';");
+    sb.append("})");
+    sb.append(".catch(() => { status.textContent = 'Sign in again if the one-hour JWT could not be generated automatically.'; });");
+    sb.append("})();");
+    sb.append("</script>");
+    sb.append("</aside></div></div></body></html>");
     return sb.toString();
+  }
+
+  private String derivePublicBaseUrl(HttpServletRequest req) {
+    String host = firstHeaderValue(req.getHeader("X-Forwarded-Host"));
+    if (Strings.isNullOrEmpty(host)) {
+      host = firstHeaderValue(req.getHeader("Host"));
+    }
+    String scheme = firstHeaderValue(req.getHeader("X-Forwarded-Proto"));
+    if (Strings.isNullOrEmpty(scheme)) {
+      scheme = req.getScheme();
+    }
+    if (isTrustedPublicHost(host)) {
+      return scheme + "://" + host;
+    }
+    return "https://" + domain;
+  }
+
+  private String firstHeaderValue(String headerValue) {
+    if (Strings.isNullOrEmpty(headerValue)) {
+      return "";
+    }
+    int commaIndex = headerValue.indexOf(',');
+    String singleValue = commaIndex >= 0 ? headerValue.substring(0, commaIndex) : headerValue;
+    return singleValue.trim();
+  }
+
+  private boolean isTrustedPublicHost(String host) {
+    if (Strings.isNullOrEmpty(host)) {
+      return false;
+    }
+    String normalizedHost = host;
+    int portSeparator = host.indexOf(':');
+    if (portSeparator >= 0) {
+      normalizedHost = host.substring(0, portSeparator);
+    }
+    return normalizedHost.equalsIgnoreCase(domain)
+        || normalizedHost.equalsIgnoreCase("localhost")
+        || normalizedHost.equals("127.0.0.1");
   }
 }

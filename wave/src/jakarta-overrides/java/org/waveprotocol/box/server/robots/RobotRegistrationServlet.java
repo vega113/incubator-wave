@@ -17,6 +17,7 @@
 package org.waveprotocol.box.server.robots;
 
 import com.google.common.base.Strings;
+import com.google.common.cache.CacheBuilder;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
@@ -24,41 +25,65 @@ import com.typesafe.config.Config;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import org.waveprotocol.box.server.CoreSettingsNames;
+import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSessions;
-import org.waveprotocol.box.server.rpc.HtmlRenderer;
+import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
 import org.waveprotocol.box.server.robots.util.RobotsUtil.RobotRegistrationException;
+import org.waveprotocol.box.server.rpc.HtmlRenderer;
+import org.waveprotocol.box.server.util.RegistrationSupport;
+import org.waveprotocol.wave.model.id.TokenGenerator;
 import org.waveprotocol.wave.model.wave.InvalidParticipantAddress;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
-
-import java.io.IOException;
 
 /** Jakarta variant of the robot registration servlet. */
 @SuppressWarnings("serial")
 @Singleton
 public final class RobotRegistrationServlet extends HttpServlet {
   private static final String CREATE_PATH = "/create";
+  private static final int XSRF_TOKEN_LENGTH = 12;
+  private static final int XSRF_TOKEN_TIMEOUT_HOURS = 12;
   private static final Log LOG = Log.get(RobotRegistrationServlet.class);
 
+  private final AccountStore accountStore;
   private final RobotRegistrar robotRegistrar;
   private final SessionManager sessionManager;
   private final String domain;
   private final String analyticsAccount;
+  private final TokenGenerator tokenGenerator;
+  private final ConcurrentMap<ParticipantId, String> xsrfTokens;
 
   @Inject
   public RobotRegistrationServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
-                                  SessionManager sessionManager,
-                                  RobotRegistrar robotRegistrar,
-                                  Config config) {
+      AccountStore accountStore, SessionManager sessionManager, RobotRegistrar robotRegistrar,
+      TokenGenerator tokenGenerator, Config config) {
+    this.accountStore = accountStore;
     this.robotRegistrar = robotRegistrar;
     this.sessionManager = sessionManager;
     this.domain = domain;
     this.analyticsAccount = config.getString("administration.analytics_account");
+    this.tokenGenerator = tokenGenerator;
+    this.xsrfTokens = CacheBuilder.newBuilder()
+        .expireAfterWrite(XSRF_TOKEN_TIMEOUT_HOURS, TimeUnit.HOURS)
+        .<ParticipantId, String>build()
+        .asMap();
+  }
+
+  RobotRegistrationServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
+      AccountStore accountStore, SessionManager sessionManager, RobotRegistrar robotRegistrar,
+      Config config) {
+    this(domain, accountStore, sessionManager, robotRegistrar, length -> "registration-xsrf", config);
   }
 
   @Override
@@ -68,7 +93,7 @@ public final class RobotRegistrationServlet extends HttpServlet {
       return;
     }
     if (CREATE_PATH.equals(req.getPathInfo())) {
-      renderRegistrationPage(req, resp, "");
+      renderRegistrationPage(resp, user, "", HttpServletResponse.SC_OK);
     } else {
       resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
     }
@@ -78,6 +103,10 @@ public final class RobotRegistrationServlet extends HttpServlet {
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     ParticipantId user = requireUser(req, resp);
     if (user == null) {
+      return;
+    }
+    if (!hasValidXsrfToken(user, req)) {
+      renderRegistrationPage(resp, user, "Invalid XSRF token.", HttpServletResponse.SC_UNAUTHORIZED);
       return;
     }
     if (CREATE_PATH.equals(req.getPathInfo())) {
@@ -91,27 +120,40 @@ public final class RobotRegistrationServlet extends HttpServlet {
       throws IOException {
     ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
     if (user == null) {
-      resp.sendRedirect("/auth/signin?r=/robot/register/create");
+      String requestUri = req.getRequestURI();
+      String contextPath = Strings.nullToEmpty(req.getContextPath());
+      String returnTo = requestUri.startsWith(contextPath)
+          ? requestUri.substring(contextPath.length())
+          : requestUri;
+      String queryString = req.getQueryString();
+      if (!Strings.isNullOrEmpty(queryString)) {
+        returnTo = returnTo + "?" + queryString;
+      }
+      resp.sendRedirect(contextPath + "/auth/signin?r="
+          + URLEncoder.encode(returnTo, StandardCharsets.UTF_8.name()));
     }
     return user;
   }
 
-  private void renderRegistrationPage(HttpServletRequest req, HttpServletResponse resp, String message)
-      throws IOException {
+  private void renderRegistrationPage(HttpServletResponse resp, ParticipantId user, String message,
+      int statusCode) throws IOException {
     resp.setCharacterEncoding("UTF-8");
     resp.setContentType("text/html; charset=UTF-8");
-    resp.setStatus(HttpServletResponse.SC_OK);
-    resp.getWriter().write(HtmlRenderer.renderRobotRegistrationPage(domain, message, analyticsAccount));
+    resp.setStatus(statusCode);
+    resp.getWriter().write(HtmlRenderer.renderRobotRegistrationPage(
+        domain, message, analyticsAccount, getOrGenerateXsrfToken(user)));
   }
 
   private void handleRegistration(HttpServletRequest req, HttpServletResponse resp, ParticipantId user)
       throws IOException {
     String username = req.getParameter("username");
-    String location = req.getParameter("location");
+    String location = Strings.nullToEmpty(req.getParameter("location")).trim();
+    String currentSecret = Strings.nullToEmpty(req.getParameter("consumer_secret")).trim();
     String tokenExpiryParam = req.getParameter("token_expiry");
 
-    if (Strings.isNullOrEmpty(username) || Strings.isNullOrEmpty(location)) {
-      renderRegistrationPage(req, resp, "Please complete all fields.");
+    if (Strings.isNullOrEmpty(username)) {
+      renderRegistrationPage(resp, user, "Please provide a robot username ending with -bot.",
+          HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
@@ -129,21 +171,37 @@ public final class RobotRegistrationServlet extends HttpServlet {
 
     ParticipantId id;
     try {
-      id = ParticipantId.of(username + "@" + domain);
+      id = RegistrationSupport.checkNewRobotUsername(domain, username);
     } catch (InvalidParticipantAddress e) {
-      renderRegistrationPage(req, resp, "Invalid username specified, use alphanumeric characters only.");
+      renderRegistrationPage(resp, user, e.getMessage(), HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData robotAccount;
     try {
-      robotAccount = robotRegistrar.registerNew(id, location, user.getAddress(), tokenExpirySeconds);
+      AccountData existingAccount = accountStore.getAccount(id);
+      if (!location.isEmpty() && existingAccount != null && existingAccount.isRobot()) {
+        RobotAccountData existingRobot = existingAccount.asRobot();
+        if (!currentSecretMatches(existingRobot, currentSecret)) {
+          renderRegistrationPage(resp, user,
+              "Provide the current API token secret to activate or update this robot.",
+              HttpServletResponse.SC_BAD_REQUEST);
+          return;
+        }
+        robotAccount = robotRegistrar.registerOrUpdate(id, location, user.getAddress());
+      } else {
+        robotAccount = robotRegistrar.registerNew(id, location, user.getAddress(), tokenExpirySeconds);
+      }
     } catch (RobotRegistrationException e) {
-      renderRegistrationPage(req, resp, e.getMessage());
+      renderRegistrationPage(resp, user, e.getMessage(), HttpServletResponse.SC_BAD_REQUEST);
       return;
     } catch (PersistenceException e) {
       LOG.severe("Failed to retrieve account data for " + id, e);
-      renderRegistrationPage(req, resp, "Failed to retrieve account data for " + id.getAddress());
+      renderRegistrationPage(
+          resp,
+          user,
+          "Failed to retrieve account data for " + id.getAddress(),
+          HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
       return;
     }
 
@@ -152,5 +210,31 @@ public final class RobotRegistrationServlet extends HttpServlet {
     resp.setStatus(HttpServletResponse.SC_OK);
     resp.getWriter().write(HtmlRenderer.renderRobotRegistrationSuccessPage(
         robotAccount.getId().getAddress(), robotAccount.getConsumerSecret(), analyticsAccount));
+  }
+
+  private boolean currentSecretMatches(RobotAccountData robotAccount, String currentSecret) {
+    if (currentSecret.isEmpty()) {
+      return false;
+    }
+    return MessageDigest.isEqual(
+        robotAccount.getConsumerSecret().getBytes(StandardCharsets.UTF_8),
+        currentSecret.getBytes(StandardCharsets.UTF_8));
+  }
+
+  private boolean hasValidXsrfToken(ParticipantId user, HttpServletRequest req) {
+    String token = req.getParameter("token");
+    String expectedToken = xsrfTokens.get(user);
+    return !Strings.isNullOrEmpty(token)
+        && !Strings.isNullOrEmpty(expectedToken)
+        && token.equals(expectedToken);
+  }
+
+  private String getOrGenerateXsrfToken(ParticipantId user) {
+    String token = xsrfTokens.get(user);
+    if (Strings.isNullOrEmpty(token)) {
+      token = tokenGenerator.generateToken(XSRF_TOKEN_LENGTH);
+      xsrfTokens.put(user, token);
+    }
+    return token;
   }
 }

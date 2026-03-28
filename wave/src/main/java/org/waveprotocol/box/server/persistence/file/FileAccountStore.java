@@ -155,15 +155,16 @@ public class FileAccountStore implements AccountStore {
   @Override
   public List<RobotAccountData> getRobotAccountsOwnedBy(String ownerAddress)
       throws PersistenceException {
+    if (ownerAddress == null || ownerAddress.trim().isEmpty()) {
+      return new ArrayList<>();
+    }
     List<RobotAccountData> ownedRobots = new ArrayList<>();
-    synchronized (accounts) {
-      List<AccountData> allAccounts = getAllAccounts();
-      for (AccountData account : allAccounts) {
-        if (account.isRobot()) {
-          RobotAccountData robotAccount = account.asRobot();
-          if (ownerAddress.equals(robotAccount.getOwnerAddress())) {
-            ownedRobots.add(robotAccount);
-          }
+    List<AccountData> allAccounts = getAllAccounts();
+    for (AccountData account : allAccounts) {
+      if (account.isRobot()) {
+        RobotAccountData robotAccount = account.asRobot();
+        if (ownerAddress.equals(robotAccount.getOwnerAddress())) {
+          ownedRobots.add(robotAccount);
         }
       }
     }

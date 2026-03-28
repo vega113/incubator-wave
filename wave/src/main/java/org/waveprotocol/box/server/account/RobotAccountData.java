@@ -60,7 +60,7 @@ public interface RobotAccountData extends AccountData {
   long getTokenExpirySeconds();
 
   /**
-   * Returns the owning human account address for this robot, or null if the
+   * Returns the human account address that owns this robot, or null when the
    * robot predates ownership tracking.
    */
   String getOwnerAddress();

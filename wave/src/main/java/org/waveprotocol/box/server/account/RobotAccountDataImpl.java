@@ -221,10 +221,10 @@ public final class RobotAccountDataImpl implements RobotAccountData {
     return "RobotAccountDataImp" +
         "[id=" + id +
 	",url=" + url +
-	",consumerSecret=" + consumerSecret +
+	",consumerSecret=<redacted>" +
 	",capabilities=" + capabilities +
 	",isVerified=" + isVerified +
-	",ownerAddress=" + ownerAddress +
+	",ownerAddress=<redacted>" +
 	",tokenExpirySeconds=" + tokenExpirySeconds + "]";
   }
 }

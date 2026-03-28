@@ -27,6 +27,7 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Minimal registration helpers for the Jakarta (Jetty 12) profile. Mirrors the
@@ -35,35 +36,43 @@ import java.util.Locale;
  */
 public final class RegistrationSupport {
   private static final Log LOG = Log.get(RegistrationSupport.class);
+  private static final String BOT_SUFFIX = "-bot";
+  private static final Pattern HUMAN_USERNAME_PATTERN = Pattern.compile("[\\w\\.]+");
+  private static final Pattern ROBOT_USERNAME_PATTERN = Pattern.compile("[\\w.-]+");
 
   private RegistrationSupport() {}
 
   public static ParticipantId checkNewUsername(String domain, String username)
       throws InvalidParticipantAddress {
-    if (username == null) {
+    return checkNewHumanUsername(domain, username);
+  }
+
+  public static ParticipantId checkNewHumanUsername(String domain, String username)
+      throws InvalidParticipantAddress {
+    ParticipantId id = normalizeParticipantId(domain, username);
+    String localPart = getLocalPart(id);
+    if (localPart.endsWith(BOT_SUFFIX)) {
       throw new InvalidParticipantAddress(username,
-          "Username portion of address cannot be empty");
+          "Usernames ending with -bot are reserved for robots");
     }
-    String normalized = username.trim().toLowerCase(Locale.ROOT);
-    if (normalized.isEmpty()) {
-      throw new InvalidParticipantAddress(username,
-          "Username portion of address cannot be empty");
-    }
-    ParticipantId id = normalized.contains(ParticipantId.DOMAIN_PREFIX)
-        ? ParticipantId.of(normalized)
-        : ParticipantId.of(normalized + ParticipantId.DOMAIN_PREFIX + domain);
-    if (id.getAddress().indexOf('@') < 1) {
-      throw new InvalidParticipantAddress(username,
-          "Username portion of address cannot be empty");
-    }
-    String[] usernameSplit = id.getAddress().split("@");
-    if (usernameSplit.length != 2 || !usernameSplit[0].matches("[\\w\\.]+")) {
+    if (!HUMAN_USERNAME_PATTERN.matcher(localPart).matches()) {
       throw new InvalidParticipantAddress(username,
           "Only letters (a-z), numbers (0-9), and periods (.) are allowed in Username");
     }
-    if (!id.getDomain().equals(domain)) {
+    return id;
+  }
+
+  public static ParticipantId checkNewRobotUsername(String domain, String username)
+      throws InvalidParticipantAddress {
+    ParticipantId id = normalizeParticipantId(domain, username);
+    String localPart = getLocalPart(id);
+    if (!ROBOT_USERNAME_PATTERN.matcher(localPart).matches()) {
       throw new InvalidParticipantAddress(username,
-          "You can only create users at the " + domain + " domain");
+          "Only letters (a-z), numbers (0-9), hyphens (-), and periods (.) are allowed in Robot Username");
+    }
+    if (!localPart.endsWith(BOT_SUFFIX)) {
+      throw new InvalidParticipantAddress(username,
+          "Robot usernames must end with -bot");
     }
     return id;
   }
@@ -98,5 +107,35 @@ public final class RegistrationSupport {
       return true;
     }
     return createAccount(accountStore, id, password);
+  }
+
+  private static ParticipantId normalizeParticipantId(String domain, String username)
+      throws InvalidParticipantAddress {
+    if (username == null) {
+      throw new InvalidParticipantAddress(username,
+          "Username portion of address cannot be empty");
+    }
+    String normalized = username.trim().toLowerCase(Locale.ROOT);
+    if (normalized.isEmpty()) {
+      throw new InvalidParticipantAddress(username,
+          "Username portion of address cannot be empty");
+    }
+    ParticipantId id = normalized.contains(ParticipantId.DOMAIN_PREFIX)
+        ? ParticipantId.of(normalized)
+        : ParticipantId.of(normalized + ParticipantId.DOMAIN_PREFIX + domain);
+    if (id.getAddress().indexOf('@') < 1) {
+      throw new InvalidParticipantAddress(username,
+          "Username portion of address cannot be empty");
+    }
+    if (!id.getDomain().equals(domain)) {
+      throw new InvalidParticipantAddress(username,
+          "You can only create users at the " + domain + " domain");
+    }
+    return id;
+  }
+
+  private static String getLocalPart(ParticipantId id) {
+    String[] usernameSplit = id.getAddress().split("@", 2);
+    return usernameSplit[0];
   }
 }

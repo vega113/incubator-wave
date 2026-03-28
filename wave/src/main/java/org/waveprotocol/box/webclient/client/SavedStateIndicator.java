@@ -28,6 +28,9 @@ import org.waveprotocol.wave.client.scheduler.SchedulerInstance;
 import org.waveprotocol.wave.client.scheduler.TimerService;
 import org.waveprotocol.wave.client.widget.toast.ToastNotification;
 import org.waveprotocol.wave.concurrencycontrol.common.UnsavedDataListener;
+import org.waveprotocol.wave.concurrencycontrol.common.UnsavedDataListenerFactory;
+import org.waveprotocol.wave.concurrencycontrol.common.WaveletSavingStateTracker;
+import org.waveprotocol.wave.model.id.WaveletId;
 
 import java.util.logging.Logger;
 
@@ -43,7 +46,7 @@ import java.util.logging.Logger;
  * @author danilatos@google.com (Daniel Danilatos)
  * @author yurize@apache.org (Yuri Zelikov)
  */
-public class SavedStateIndicator implements UnsavedDataListener {
+public class SavedStateIndicator implements UnsavedDataListener, UnsavedDataListenerFactory {
 
   private static final Logger LOG = Logger.getLogger(SavedStateIndicator.class.getName());
   private static final SavedStateMessages messages = GWT.create(SavedStateMessages.class);
@@ -66,6 +69,8 @@ public class SavedStateIndicator implements UnsavedDataListener {
 
   /** Persistent-toast id so we can dismiss the correct one. */
   private static final String UNSAVED_TOAST_ID = "unsaved-slow";
+  private static final WaveletId DEFAULT_WAVELET_ID =
+      WaveletId.of("example.com", "conv+saved-state");
 
   private final Scheduler.Task updateTask = new Scheduler.Task() {
     @Override
@@ -90,6 +95,8 @@ public class SavedStateIndicator implements UnsavedDataListener {
 
   private final Element element;
   private final TimerService scheduler;
+  private final WaveletSavingStateTracker stateTracker;
+  private final UnsavedDataListener defaultListener;
 
   private SavedState visibleSavedState = SavedState.SAVED;
   private SavedState currentSavedState = SavedState.SAVED;
@@ -126,6 +133,15 @@ public class SavedStateIndicator implements UnsavedDataListener {
       LOG.warning("SavedStateIndicator: element is null, indicator will not display");
     }
     this.scheduler = SchedulerInstance.getLowPriorityTimer();
+    this.stateTracker = new WaveletSavingStateTracker(
+        new WaveletSavingStateTracker.OverallStateListener() {
+          @Override
+          public void onStateChanged(boolean hasUnsavedData) {
+            setSavedState(hasUnsavedData ? SavedState.UNSAVED : SavedState.SAVED);
+            maybeUpdateDisplay();
+          }
+        });
+    this.defaultListener = stateTracker.create(DEFAULT_WAVELET_ID);
     // Initial display is already correct (SAVED), no need to schedule immediate update.
   }
 
@@ -171,22 +187,22 @@ public class SavedStateIndicator implements UnsavedDataListener {
 
   @Override
   public void onUpdate(UnsavedDataInfo unsavedDataInfo) {
-    if (unsavedDataInfo.estimateUnacknowledgedSize() != 0) {
-      setSavedState(SavedState.UNSAVED);
-    } else {
-      setSavedState(SavedState.SAVED);
-    }
-    maybeUpdateDisplay();
+    defaultListener.onUpdate(unsavedDataInfo);
   }
 
   @Override
   public void onClose(boolean everythingCommitted) {
-    if (everythingCommitted) {
-      setSavedState(SavedState.SAVED);
-    } else {
-      setSavedState(SavedState.UNSAVED);
-    }
-    maybeUpdateDisplay();
+    defaultListener.onClose(everythingCommitted);
+  }
+
+  @Override
+  public UnsavedDataListener create(WaveletId waveletId) {
+    return stateTracker.create(waveletId);
+  }
+
+  @Override
+  public void destroy(WaveletId waveletId) {
+    stateTracker.destroy(waveletId);
   }
 
   // ---- Unsaved-warning timer management ----

@@ -146,6 +146,7 @@ import org.waveprotocol.wave.model.schema.SchemaProvider;
 import org.waveprotocol.wave.model.supplement.LiveSupplementedWaveImpl;
 import org.waveprotocol.wave.model.supplement.ObservablePrimitiveSupplement;
 import org.waveprotocol.wave.model.supplement.ObservableSupplementedWave;
+import org.waveprotocol.wave.model.supplement.PublicWaveReadStateBootstrap;
 import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl.DefaultFollow;
 import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
 import org.waveprotocol.wave.model.util.FuzzingBackOffScheduler;
@@ -516,10 +517,16 @@ public interface StageTwo {
         /** @return the user supplement of the wave. Subclasses may override. */
         protected LocalSupplementedWave createSupplement() {
             Wavelet udw = getWave().getUserData();
+            boolean createdUserData = false;
             if (udw == null) {
                 udw = getWave().createUserData();
+                createdUserData = true;
             }
             ObservablePrimitiveSupplement state = WaveletBasedSupplement.create(udw);
+            if (createdUserData) {
+                PublicWaveReadStateBootstrap.seedIfImplicitPublicViewer(
+                        state, getWave(), getSignedInUser());
+            }
             ObservableSupplementedWave live = new LiveSupplementedWaveImpl(
                     state, getWave(), getSignedInUser(), DefaultFollow.ALWAYS, getConversations());
             return LocalSupplementedWaveImpl.create(getWave(), live);
@@ -573,19 +580,22 @@ public interface StageTwo {
                     .build();
 
             ViewChannelFactory viewFactory = ViewChannelImpl.factory(createWaveViewService(), logger);
-            UnsavedDataListenerFactory unsyncedListeners = new UnsavedDataListenerFactory() {
+            UnsavedDataListenerFactory unsyncedListeners =
+                unsavedDataListener instanceof UnsavedDataListenerFactory
+                    ? (UnsavedDataListenerFactory) unsavedDataListener
+                    : new UnsavedDataListenerFactory() {
 
-                private final UnsavedDataListener listener = unsavedDataListener;
+                        private final UnsavedDataListener listener = unsavedDataListener;
 
-                @Override
-                public UnsavedDataListener create(WaveletId waveletId) {
-                    return listener;
-                }
+                        @Override
+                        public UnsavedDataListener create(WaveletId waveletId) {
+                            return listener;
+                        }
 
-                @Override
-                public void destroy(WaveletId waveletId) {
-                }
-            };
+                        @Override
+                        public void destroy(WaveletId waveletId) {
+                        }
+                    };
 
             WaveletId udwId = getIdGenerator().newUserDataWaveletId(getSignedInUser().getAddress());
             final IdFilter filter = IdFilter.of(Collections.singleton(udwId),

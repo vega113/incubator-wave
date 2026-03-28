@@ -1438,6 +1438,7 @@ public final class HtmlRenderer {
       + "  border-radius: 12px;\n"
       + "  box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);\n"
       + "}\n"
+      + ".card-wide { max-width: 720px; }\n"
       + ".card h1 {\n"
       + "  font-size: 22px; margin: 0 0 6px; font-weight: 600; color: #1a1a2e;\n"
       + "}\n"
@@ -1498,10 +1499,158 @@ public final class HtmlRenderer {
       + ".footer-link a { color: " + WAVE_PRIMARY + "; text-decoration: none; font-weight: 500; }\n"
       + ".footer-link a:hover { text-decoration: underline; }\n"
       + ".buttons { display: flex; gap: 8px; margin-top: 8px; }\n"
+      + ".robot-success-card {\n"
+      + "  padding: 0;\n"
+      + "  overflow: hidden;\n"
+      + "  background:\n"
+      + "    linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(245,250,255,0.96) 100%);\n"
+      + "}\n"
+      + ".robot-success-hero {\n"
+      + "  position: relative;\n"
+      + "  overflow: hidden;\n"
+      + "  padding: 28px 28px 24px;\n"
+      + "  background:\n"
+      + "    radial-gradient(circle at top right, rgba(144,224,239,0.72) 0%, rgba(144,224,239,0) 44%),\n"
+      + "    linear-gradient(140deg, #023e8a 0%, #0077b6 44%, #00b4d8 100%);\n"
+      + "  color: #fff;\n"
+      + "}\n"
+      + ".robot-success-hero::after {\n"
+      + "  content: '';\n"
+      + "  position: absolute;\n"
+      + "  right: -8%;\n"
+      + "  bottom: -72px;\n"
+      + "  width: 320px;\n"
+      + "  height: 160px;\n"
+      + "  border-radius: 50%;\n"
+      + "  background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 72%);\n"
+      + "  transform: rotate(-10deg);\n"
+      + "}\n"
+      + ".robot-success-pill {\n"
+      + "  display: inline-flex;\n"
+      + "  align-items: center;\n"
+      + "  gap: 8px;\n"
+      + "  padding: 7px 12px;\n"
+      + "  border: 1px solid rgba(255,255,255,0.22);\n"
+      + "  border-radius: 999px;\n"
+      + "  background: rgba(255,255,255,0.14);\n"
+      + "  font-size: 12px;\n"
+      + "  font-weight: 700;\n"
+      + "  letter-spacing: 0.08em;\n"
+      + "  text-transform: uppercase;\n"
+      + "  backdrop-filter: blur(10px);\n"
+      + "}\n"
+      + ".robot-success-pill::before {\n"
+      + "  content: '';\n"
+      + "  width: 8px;\n"
+      + "  height: 8px;\n"
+      + "  border-radius: 50%;\n"
+      + "  background: #caf0f8;\n"
+      + "  box-shadow: 0 0 0 5px rgba(202,240,248,0.18);\n"
+      + "}\n"
+      + ".robot-success-hero h1 {\n"
+      + "  margin: 16px 0 10px;\n"
+      + "  color: #fff;\n"
+      + "  font-size: 32px;\n"
+      + "  letter-spacing: -0.04em;\n"
+      + "}\n"
+      + ".robot-success-copy {\n"
+      + "  position: relative;\n"
+      + "  z-index: 1;\n"
+      + "  margin: 0;\n"
+      + "  max-width: 36rem;\n"
+      + "  color: rgba(255,255,255,0.9);\n"
+      + "  font-size: 15px;\n"
+      + "  line-height: 1.6;\n"
+      + "}\n"
+      + ".robot-success-body {\n"
+      + "  padding: 24px 28px 28px;\n"
+      + "}\n"
+      + ".robot-credential-grid {\n"
+      + "  display: grid;\n"
+      + "  grid-template-columns: repeat(2, minmax(0, 1fr));\n"
+      + "  gap: 16px;\n"
+      + "}\n"
+      + ".robot-credential-card {\n"
+      + "  position: relative;\n"
+      + "  min-width: 0;\n"
+      + "  padding: 18px;\n"
+      + "  border: 1px solid rgba(0,119,182,0.12);\n"
+      + "  border-radius: 18px;\n"
+      + "  background:\n"
+      + "    linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(232,244,248,0.96) 100%);\n"
+      + "  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 16px 36px rgba(2,62,138,0.09);\n"
+      + "}\n"
+      + ".robot-credential-card::before {\n"
+      + "  content: '';\n"
+      + "  position: absolute;\n"
+      + "  inset: 0;\n"
+      + "  border-radius: inherit;\n"
+      + "  background: linear-gradient(140deg, rgba(144,224,239,0.18), rgba(255,255,255,0));\n"
+      + "  pointer-events: none;\n"
+      + "}\n"
+      + ".robot-credential-label {\n"
+      + "  position: relative;\n"
+      + "  z-index: 1;\n"
+      + "  display: block;\n"
+      + "  margin-bottom: 6px;\n"
+      + "  color: #0f172a;\n"
+      + "  font-size: 13px;\n"
+      + "  font-weight: 700;\n"
+      + "  letter-spacing: 0.04em;\n"
+      + "  text-transform: uppercase;\n"
+      + "}\n"
+      + ".robot-credential-caption {\n"
+      + "  position: relative;\n"
+      + "  z-index: 1;\n"
+      + "  margin: 0;\n"
+      + "  color: " + WAVE_TEXT_MUTED + ";\n"
+      + "  font-size: 13px;\n"
+      + "  line-height: 1.5;\n"
+      + "}\n"
+      + ".robot-credential-value {\n"
+      + "  position: relative;\n"
+      + "  z-index: 1;\n"
+      + "  display: block;\n"
+      + "  margin-top: 14px;\n"
+      + "  padding: 14px 15px;\n"
+      + "  border-radius: 14px;\n"
+      + "  background: linear-gradient(180deg, #0f172a 0%, #172554 100%);\n"
+      + "  color: #eff6ff;\n"
+      + "  font-family: 'SFMono-Regular', 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;\n"
+      + "  font-size: 13px;\n"
+      + "  line-height: 1.65;\n"
+      + "  white-space: normal;\n"
+      + "  overflow-wrap: anywhere;\n"
+      + "  word-break: break-word;\n"
+      + "  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);\n"
+      + "}\n"
+      + ".robot-security-note {\n"
+      + "  margin-top: 18px;\n"
+      + "  padding: 16px 18px;\n"
+      + "  border: 1px solid rgba(0,119,182,0.12);\n"
+      + "  border-radius: 16px;\n"
+      + "  background: rgba(255,255,255,0.72);\n"
+      + "  color: #334155;\n"
+      + "  font-size: 14px;\n"
+      + "  line-height: 1.6;\n"
+      + "}\n"
+      + "@media (max-width: 640px) {\n"
+      + "  .robot-credential-grid { grid-template-columns: 1fr; }\n"
+      + "}\n"
       + "@media (max-width: 480px) {\n"
       + "  .page-wrapper { padding: 24px 12px 180px; }\n"
       + "  .card { padding: 24px 20px; }\n"
       + "  .brand-name { font-size: 24px; }\n"
+      + "  .card-wide { max-width: 100%; }\n"
+      + "  .robot-success-card { padding: 0; }\n"
+      + "  .robot-success-hero { padding: 24px 20px 20px; }\n"
+      + "  .robot-success-hero h1 { font-size: 28px; }\n"
+      + "  .robot-success-body { padding: 20px; }\n"
+      + "  .robot-credential-card { padding: 16px; }\n"
+      + "  .robot-credential-value {\n"
+      + "    padding: 13px 14px;\n"
+      + "    font-size: 12px;\n"
+      + "  }\n"
       + "}\n"
       + "</style>\n";
 
@@ -1906,7 +2055,9 @@ public final class HtmlRenderer {
 
     // Responsive
     sb.append("@media (max-width: 640px) {\n");
-    sb.append("  .nav { padding: 12px 16px; }\n");
+    sb.append("  .nav { padding: 12px 16px; flex-wrap: wrap; gap: 12px; }\n");
+    sb.append("  .nav-links { width: 100%; flex-wrap: wrap; justify-content: flex-start; }\n");
+    sb.append("  .nav-link { text-align: center; }\n");
     sb.append("  .hero { padding: 48px 20px 120px; }\n");
     sb.append("  .hero h1 { font-size: 32px; }\n");
     sb.append("  .hero .tagline { font-size: 18px; }\n");
@@ -1928,6 +2079,7 @@ public final class HtmlRenderer {
     sb.append("  <div class=\"nav-links\">\n");
     sb.append("    <a href=\"/auth/signin\" class=\"nav-link nav-link-signin\">Sign In</a>\n");
     sb.append("    <a href=\"/auth/register\" class=\"nav-link nav-link-register\">Register</a>\n");
+    sb.append("    <a href=\"/api-docs\" class=\"nav-link nav-link-signin\">API Docs</a>\n");
     sb.append("  </div>\n");
     sb.append("</nav>\n");
 
@@ -1943,6 +2095,7 @@ public final class HtmlRenderer {
     sb.append("    <div class=\"hero-buttons\">\n");
     sb.append("      <a href=\"/auth/register\" class=\"hero-btn hero-btn-primary\">Get Started</a>\n");
     sb.append("      <a href=\"/auth/signin\" class=\"hero-btn hero-btn-secondary\">Sign In</a>\n");
+    sb.append("      <a href=\"/api-docs\" class=\"hero-btn hero-btn-secondary\">API Docs</a>\n");
     sb.append("      <a href=\"/public\" class=\"hero-btn hero-btn-secondary\">Explore Public Waves</a>\n");
     sb.append("    </div>\n");
     sb.append("  </div>\n");
@@ -1991,8 +2144,8 @@ public final class HtmlRenderer {
     sb.append("          <path d=\"M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z\"/>\n");
     sb.append("        </svg>\n");
     sb.append("      </div>\n");
-    sb.append("      <h3>Open &amp; Federated</h3>\n");
-    sb.append("      <p>Built on an open protocol. Self-host your own server and communicate across federated SupaWave instances.</p>\n");
+    sb.append("      <h3>Robot &amp; Data API</h3>\n");
+    sb.append("      <p>Register robots and mint Data API tokens for integrations, bots, and scripted workflows on your SupaWave server.</p>\n");
     sb.append("    </div>\n");
 
     sb.append("  </div>\n");
@@ -2004,6 +2157,7 @@ public final class HtmlRenderer {
     sb.append("    <a href=\"/terms\">Terms</a> &middot; ");
     sb.append("<a href=\"/privacy\">Privacy</a> &middot; ");
     sb.append("<a href=\"/changelog\">What's New</a> &middot; ");
+    sb.append("<a href=\"/api-docs\">API Docs</a> &middot; ");
     sb.append("<a href=\"/contact\">Contact</a>\n");
     sb.append("  </div>\n");
     sb.append("  Powered by <a href=\"https://supawave.ai\">SupaWave</a>\n");
@@ -2026,13 +2180,14 @@ public final class HtmlRenderer {
    * @param websocketAddress the websocket host:port for the client to connect to
    * @param topBarHtml       pre-rendered top-bar HTML fragment
    * @param analyticsAccount Google Analytics account ID (may be null/empty)
-   * @param serverVersion    server version string
+   * @param buildCommit      deployed build commit
    * @param serverBuildTime  server build timestamp
+   * @param currentReleaseId current changelog release key
    * @param prerenderedHtml  SSR Phase 5: pre-rendered wave snapshot HTML, or null
    */
   public static String renderWaveClientPage(JSONObject sessionJson, JSONObject clientFlags,
       String websocketAddress, String topBarHtml, String analyticsAccount,
-      String serverVersion, long serverBuildTime, String prerenderedHtml) {
+      String buildCommit, long serverBuildTime, String currentReleaseId, String prerenderedHtml) {
     StringBuilder sb = new StringBuilder(4096);
     sb.append("<!DOCTYPE html>\n<html>\n<head>\n");
     sb.append("<meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\n");
@@ -2158,13 +2313,11 @@ public final class HtmlRenderer {
     sb.append("}\n");
     sb.append(".user-menu-toggle:hover { background: rgba(255,255,255,0.22); }\n");
     sb.append(".user-menu-toggle .caret { font-size: 10px; opacity: 0.8; }\n");
-    sb.append(".user-menu-dropdown { display: none; position: absolute; right: 0; top: 100%; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); min-width: 248px; z-index: 1000; padding: 4px 0; margin-top: 6px; border: 1px solid #e2e8f0; }\n");
+    sb.append(".user-menu-dropdown { display: none; position: absolute; right: 0; top: 100%; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); min-width: 210px; z-index: 1000; padding: 4px 0; margin-top: 6px; border: 1px solid #e2e8f0; }\n");
     sb.append(".user-menu-dropdown.open { display: block; }\n");
     sb.append(".user-menu-dropdown .user-info { padding: 10px 16px; border-bottom: 1px solid #e2e8f0; color: #4a5568; font-size: 12px; }\n");
     sb.append(".user-menu-dropdown a { display: block; padding: 8px 16px; color: #333; text-decoration: none; font-size: 13px; transition: background 0.1s; }\n");
     sb.append(".user-menu-dropdown a:hover { background: #f0f4f8; color: ").append(WAVE_PRIMARY).append("; }\n");
-    sb.append(".user-menu-dropdown .section-label { padding: 10px 16px 4px; color: #718096; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }\n");
-    sb.append(".user-menu-dropdown .section-link-strong { font-weight: 700; color: ").append(WAVE_PRIMARY).append("; }\n");
     sb.append(".user-menu-dropdown .divider { border-top: 1px solid #e2e8f0; margin: 4px 0; }\n");
     // Wave panel theme overrides (ocean blue/teal for GWT panels)
     sb.append(WAVE_PANEL_CSS);
@@ -2615,7 +2768,7 @@ public final class HtmlRenderer {
     // -- Lightbox overlay for image attachments --
     appendLightboxFragment(sb);
     // -- Version upgrade detection polling --
-    appendVersionCheckScript(sb, serverVersion, serverBuildTime);
+    appendVersionCheckScript(sb, buildCommit, serverBuildTime, currentReleaseId);
     sb.append("</body>\n</html>\n");
     return sb.toString();
   }
@@ -2952,26 +3105,28 @@ public final class HtmlRenderer {
    * (i.e. the server has been upgraded while the client page is still open).
    */
   private static void appendVersionCheckScript(StringBuilder sb,
-      String serverVersion, long serverBuildTime) {
+      String buildCommit, long serverBuildTime, String currentReleaseId) {
     sb.append("<script>\n");
     sb.append("(function() {\n");
-    sb.append("  var currentVersion = ").append(escapeJsonString(serverVersion)).append(";\n");
+    sb.append("  var currentBuildCommit = ").append(escapeJsonString(buildCommit)).append(";\n");
     sb.append("  var currentBuildTime = ").append(serverBuildTime).append(";\n");
+    sb.append("  var currentReleaseId = ")
+        .append(escapeJsonString(currentReleaseId)).append(";\n");
     sb.append("  var pollInFlight = false;\n");
     sb.append("  function checkVersion() {\n");
     sb.append("    if (pollInFlight) return;\n");
     sb.append("    pollInFlight = true;\n");
-    sb.append("    fetch('/version', {cache: 'no-store'})\n");
+    sb.append("    fetch('/version?since=' + encodeURIComponent(currentReleaseId || ''), {cache: 'no-store'})\n");
     sb.append("      .then(function(r) { return r.json(); })\n");
     sb.append("      .then(function(data) {\n");
-    sb.append("        if (data.version !== currentVersion || data.buildTime !== currentBuildTime) {\n");
-    sb.append("          showUpgradeBanner(data.changelog || null);\n");
+    sb.append("        if (data.buildCommit !== currentBuildCommit || data.buildTime !== currentBuildTime) {\n");
+    sb.append("          showUpgradeBanner(data.releaseNotesStatus, data.releaseNotes || []);\n");
     sb.append("        }\n");
     sb.append("      })\n");
     sb.append("      .catch(function() {})\n");
     sb.append("      .then(function() { pollInFlight = false; });\n");
     sb.append("  }\n");
-    sb.append("  function showUpgradeBanner(entry) {\n");
+    sb.append("  function showUpgradeBanner(status, releaseNotes) {\n");
     sb.append("    if (document.getElementById('upgrade-banner')) return;\n");
     sb.append("    var banner = document.createElement('div');\n");
     sb.append("    banner.id = 'upgrade-banner';\n");
@@ -2997,17 +3152,33 @@ public final class HtmlRenderer {
     sb.append("    banner.appendChild(header);\n");
     sb.append("    var summary = document.createElement('div');\n");
     sb.append("    summary.style.cssText = 'font-size:13px;line-height:1.5;opacity:0.92;margin-bottom:10px;';\n");
-    sb.append("    if (entry && entry.summary) {\n");
-    sb.append("      summary.textContent = entry.title ? entry.title + ': ' + entry.summary : entry.summary;\n");
+    sb.append("    if (status === 'exact' && releaseNotes.length > 0) {\n");
+    sb.append("      var firstRelease = releaseNotes[0];\n");
+    sb.append("      summary.textContent = firstRelease.title ? firstRelease.title + ': ' + firstRelease.summary : firstRelease.summary;\n");
     sb.append("    } else {\n");
     sb.append("      summary.textContent = 'A new version of SupaWave is available.';\n");
     sb.append("    }\n");
     sb.append("    banner.appendChild(summary);\n");
+    sb.append("    if (status === 'exact' && releaseNotes.length > 1) {\n");
+    sb.append("      var extraReleases = document.createElement('ul');\n");
+    sb.append("      extraReleases.style.cssText = 'margin:0 0 10px 18px;padding:0;font-size:13px;line-height:1.5;';\n");
+    sb.append("      for (var i = 1; i < releaseNotes.length; i++) {\n");
+    sb.append("        var release = releaseNotes[i];\n");
+    sb.append("        var item = document.createElement('li');\n");
+    sb.append("        item.textContent = release.title || 'Recent SupaWave update';\n");
+    sb.append("        extraReleases.appendChild(item);\n");
+    sb.append("      }\n");
+    sb.append("      banner.appendChild(extraReleases);\n");
+    sb.append("    }\n");
     sb.append("    var actions = document.createElement('div');\n");
     sb.append("    actions.style.cssText = 'display:flex;gap:14px;align-items:center;flex-wrap:wrap;';\n");
     sb.append("    actions.appendChild(reload);\n");
     sb.append("    var whatsNew = document.createElement('a');\n");
-    sb.append("    whatsNew.href = '/changelog';\n");
+    sb.append("    if (status === 'exact' && releaseNotes.length > 0 && releaseNotes[0].releaseId) {\n");
+    sb.append("      whatsNew.href = '/changelog#release-' + encodeURIComponent(releaseNotes[0].releaseId);\n");
+    sb.append("    } else {\n");
+    sb.append("      whatsNew.href = '/changelog';\n");
+    sb.append("    }\n");
     sb.append("    whatsNew.textContent = \"What's New \\u2192\";\n");
     sb.append("    whatsNew.style.cssText = 'color:white;text-decoration:none;opacity:0.88;';\n");
     sb.append("    whatsNew.target = '_blank';\n");
@@ -3081,10 +3252,11 @@ public final class HtmlRenderer {
       sb.append("        <div class=\"divider\"></div>\n");
       sb.append("        <div class=\"section-label\">Automation</div>\n");
       sb.append("        <a class=\"section-link-strong\" href=\"/account/robots\">Robot &amp; Data API</a>\n");
+      sb.append("        <a href=\"/api-docs\" target=\"_blank\">API Docs</a>\n");
       sb.append("        <div class=\"divider\"></div>\n");
       sb.append("        <div class=\"section-label\">Product</div>\n");
       sb.append("        <a href=\"#\" onclick=\"window.openVersionHistory(); return false;\">Version History</a>\n");
-      sb.append("        <a href=\"/changelog\" target=\"_blank\">What's New</a>\n");
+      sb.append("        <a href=\"/changelog\" target=\"_blank\" rel=\"noopener noreferrer\">What's New</a>\n");
       sb.append("        <a href=\"/contact\">Contact Us</a>\n");
       if ("owner".equals(userRole) || "admin".equals(userRole)) {
         sb.append("        <a href=\"/admin\">Admin</a>\n");
@@ -3156,9 +3328,15 @@ public final class HtmlRenderer {
    */
   public static String renderRobotRegistrationPage(String domain, String message,
       String analyticsAccount) {
+    return renderRobotRegistrationPage(domain, message, analyticsAccount, "");
+  }
+
+  public static String renderRobotRegistrationPage(String domain, String message,
+      String analyticsAccount, String xsrfToken) {
     StringBuilder sb = new StringBuilder(2048);
     sb.append("<!DOCTYPE html>\n<html>\n<head>\n");
     sb.append("<meta charset=\"UTF-8\">\n");
+    sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     sb.append("<title>Robot Registration</title>\n");
     sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">\n");
     sb.append("<link rel=\"alternate icon\" href=\"/static/favicon.ico\">\n");
@@ -3177,13 +3355,23 @@ public final class HtmlRenderer {
       sb.append("    <p><b>").append(escapeHtml(message)).append("</b></p>\n");
     }
     sb.append("    <form method=\"post\" action=\"\">\n");
+    if (xsrfToken != null && !xsrfToken.isEmpty()) {
+      sb.append("      <input type=\"hidden\" name=\"token\" value=\"")
+          .append(escapeHtml(xsrfToken))
+          .append("\">\n");
+    }
     sb.append("      <label for=\"username\">Robot Username</label>\n");
     sb.append("      <div class=\"input-group\">\n");
     sb.append("        <input type=\"text\" name=\"username\" id=\"username\">\n");
     sb.append("        <span class=\"domain-suffix\">@").append(escapeHtml(domain)).append("</span>\n");
     sb.append("      </div>\n");
+    sb.append("      <p class=\"hint\">Robot usernames must end with -bot.</p>\n");
     sb.append("      <label for=\"location\">Robot URL</label>\n");
     sb.append("      <input type=\"text\" name=\"location\" id=\"location\">\n");
+    sb.append("      <p class=\"hint\">This callback URL is optional during initial registration. You can add it later when the bot is deployed, and you can update it later if the bot moves. The robot will stay inactive until the callback URL is configured.</p>\n");
+    sb.append("      <label for=\"consumer_secret\">Current API Token Secret</label>\n");
+    sb.append("      <input type=\"password\" name=\"consumer_secret\" id=\"consumer_secret\">\n");
+    sb.append("      <p class=\"hint\">Leave this empty for a brand new robot. To activate or update an existing pending robot, enter the current API token secret you were given when the robot was first created.</p>\n");
     sb.append("      <label for=\"token_expiry\">Token Expiry</label>\n");
     sb.append("      <select name=\"token_expiry\" id=\"token_expiry\" style=\"width:100%;padding:10px 12px;font-size:14px;border:1.5px solid #d0d5dd;border-radius:8px;margin-bottom:14px;background:#fafbfc;\">\n");
     sb.append("        <option value=\"0\" selected>No expiry</option>\n");
@@ -3218,6 +3406,7 @@ public final class HtmlRenderer {
     StringBuilder sb = new StringBuilder(2048);
     sb.append("<!DOCTYPE html>\n<html>\n<head>\n");
     sb.append("<meta charset=\"UTF-8\">\n");
+    sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
     sb.append("<title>Robot Successfully Registered</title>\n");
     sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">\n");
     sb.append("<link rel=\"alternate icon\" href=\"/static/favicon.ico\">\n");
@@ -3230,16 +3419,37 @@ public final class HtmlRenderer {
     sb.append("    ").append(WAVE_LOGO_SVG);
     sb.append("    <div class=\"brand-name\">SupaWave</div>\n");
     sb.append("  </div>\n");
-    sb.append("  <div class=\"card\">\n");
-    sb.append("    <h1>Robot Registered</h1>\n");
-    sb.append("    <p>Your robot has been successfully registered. Please take note of the consumer\n");
-    sb.append("    token and token secret to use for the Active API.</p>\n");
-    sb.append("    <table>\n");
-    sb.append("      <tr><td><b>Consumer Token</b></td><td>").append(escapeHtml(token)).append("</td></tr>\n");
-    sb.append("      <tr><td><b>Consumer Token Secret</b></td><td>").append(escapeHtml(tokenSecret)).append("</td></tr>\n");
-    sb.append("    </table>\n");
+    sb.append("  <div class=\"card card-wide robot-success-card\">\n");
+    sb.append("    <div class=\"robot-success-hero\">\n");
+    sb.append("      <div class=\"robot-success-pill\">Data API Ready</div>\n");
+    sb.append("      <h1>Robot Registered</h1>\n");
+    sb.append("      <p class=\"robot-success-copy\">Store these Data API credentials now. You can");
+    sb.append(" add or update the callback URL later without rotating the secret, and the robot");
+    sb.append(" stays inactive until the callback URL is configured.</p>\n");
+    sb.append("    </div>\n");
+    sb.append("    <div class=\"robot-success-body\">\n");
+    sb.append("      <div class=\"robot-credential-grid\">\n");
+    sb.append("        <section class=\"robot-credential-card\">\n");
+    sb.append("          <span class=\"robot-credential-label\">API Token</span>\n");
+    sb.append("          <p class=\"robot-credential-caption\">Use this as the robot identity");
+    sb.append(" when you configure your robot client.</p>\n");
+    sb.append("          <code class=\"robot-credential-value\">").append(escapeHtml(token));
+    sb.append("</code>\n");
+    sb.append("        </section>\n");
+    sb.append("        <section class=\"robot-credential-card\">\n");
+    sb.append("          <span class=\"robot-credential-label\">API Token Secret</span>\n");
+    sb.append("          <p class=\"robot-credential-caption\">Keep this private. It is required");
+    sb.append(" to authenticate this robot.</p>\n");
+    sb.append("          <code class=\"robot-credential-value\">").append(escapeHtml(tokenSecret));
+    sb.append("</code>\n");
+    sb.append("        </section>\n");
+    sb.append("      </div>\n");
+    sb.append("      <div class=\"robot-security-note\"><strong>Heads up:</strong> save the API token");
+    sb.append(" secret in your robot configuration now. Anyone with this value can act as this robot");
+    sb.append(" after the callback URL is configured.</div>\n");
     sb.append("    <div class=\"footer-link\">\n");
     sb.append("      <a href=\"/\">&larr; Back to SupaWave</a>\n");
+    sb.append("    </div>\n");
     sb.append("    </div>\n");
     sb.append("  </div>\n"); // .card
     sb.append("</div>\n"); // .page-wrapper
@@ -3920,7 +4130,8 @@ public final class HtmlRenderer {
     sb.append("        </div>\n");
     sb.append("        <div style=\"flex: 2; min-width: 200px;\">\n");
     sb.append("          <label style=\"display:block; font-size:12px; font-weight:600; color:").append(WAVE_TEXT_MUTED).append("; margin-bottom:4px;\">Allowed Users (comma-separated)</label>\n");
-    sb.append("          <input type=\"text\" id=\"flagUsers\" class=\"search-box\" style=\"width:100%;\" placeholder=\"user1@example.com, user2@example.com\" autocomplete=\"off\">\n");
+    sb.append("          <input type=\"text\" id=\"flagUsers\" class=\"search-box\" style=\"width:100%;\" placeholder=\"e.g. vega (will become vega@").append(escapeHtml(domain)).append(")\" autocomplete=\"off\">\n");
+    sb.append("          <div id=\"flagUsersEditor\" style=\"margin-top:12px;\"></div>\n");
     sb.append("        </div>\n");
     sb.append("        <div style=\"display: flex; gap: 8px;\">\n");
     sb.append("          <button class=\"action-btn success\" id=\"flagSaveBtn\">Save</button>\n");
@@ -3960,6 +4171,7 @@ public final class HtmlRenderer {
     sb.append("  'use strict';\n");
     sb.append("  var callerRole = ").append(escapeJsonString(callerRole)).append(";\n");
     sb.append("  var currentUser = ").append(escapeJsonString(currentUser)).append(";\n");
+    sb.append("  var flagUserDomain = ").append(escapeJsonString(domain)).append(";\n");
     sb.append("  var state = { search: '', sortBy: 'username', sortDir: 'asc', page: 0, pageSize: 50, users: [], total: 0, loading: false };\n");
     sb.append("  var tbody = document.getElementById('userTableBody');\n");
     sb.append("  var statsBar = document.getElementById('statsBar');\n");
@@ -4293,13 +4505,186 @@ public final class HtmlRenderer {
     sb.append("  var flagDescInput = document.getElementById('flagDesc');\n");
     sb.append("  var flagEnabledInput = document.getElementById('flagEnabled');\n");
     sb.append("  var flagUsersInput = document.getElementById('flagUsers');\n");
+    sb.append("  var flagUsersEditor = document.getElementById('flagUsersEditor');\n");
     sb.append("  var flagEditingName = null;\n");
+    sb.append("  var flagUsersModel = [];\n");
+
+    sb.append("  function normalizeAllowedUserEmail(email) {\n");
+    sb.append("    var trimmed = (email || '').trim();\n");
+    sb.append("    if (!trimmed) { return ''; }\n");
+    sb.append("    if (trimmed.indexOf('@') === -1) { return trimmed + '@' + flagUserDomain; }\n");
+    sb.append("    return trimmed;\n");
+    sb.append("  }\n");
+
+    sb.append("  function normalizeAllowedUserEntry(user) {\n");
+    sb.append("    if (!user) { return null; }\n");
+    sb.append("    if (typeof user === 'string') {\n");
+    sb.append("      var legacyUser = user.trim();\n");
+    sb.append("      var legacyEnabled = true;\n");
+    sb.append("      if (legacyUser.slice(-9) === ':disabled') {\n");
+    sb.append("        legacyUser = legacyUser.slice(0, -9);\n");
+    sb.append("        legacyEnabled = false;\n");
+    sb.append("      } else if (legacyUser.slice(-8) === ':enabled') {\n");
+    sb.append("        legacyUser = legacyUser.slice(0, -8);\n");
+    sb.append("      }\n");
+    sb.append("      legacyUser = normalizeAllowedUserEmail(legacyUser.trim());\n");
+    sb.append("      return legacyUser ? { email: legacyUser, enabled: legacyEnabled } : null;\n");
+    sb.append("    }\n");
+    sb.append("    var email = normalizeAllowedUserEmail((user.email || '').trim());\n");
+    sb.append("    if (!email) { return null; }\n");
+    sb.append("    return { email: email, enabled: user.enabled !== false };\n");
+    sb.append("  }\n");
+
+    sb.append("  function normalizeAllowedUsers(users) {\n");
+    sb.append("    var normalized = [];\n");
+    sb.append("    if (Array.isArray(users)) {\n");
+    sb.append("      for (var i = 0; i < users.length; i++) {\n");
+    sb.append("        var entry = normalizeAllowedUserEntry(users[i]);\n");
+    sb.append("        if (entry) { normalized.push(entry); }\n");
+    sb.append("      }\n");
+    sb.append("      return normalized;\n");
+    sb.append("    }\n");
+    sb.append("    if (typeof users === 'string' && users.trim()) {\n");
+    sb.append("      var parts = users.split(',');\n");
+    sb.append("      for (var j = 0; j < parts.length; j++) {\n");
+    sb.append("        var legacy = normalizeAllowedUserEntry(parts[j]);\n");
+    sb.append("        if (legacy) { normalized.push(legacy); }\n");
+    sb.append("      }\n");
+    sb.append("    }\n");
+    sb.append("    return normalized;\n");
+    sb.append("  }\n");
+
+    sb.append("  function cloneAllowedUsers(users) {\n");
+    sb.append("    return normalizeAllowedUsers(users).map(function(user) {\n");
+    sb.append("      return { email: user.email, enabled: user.enabled !== false };\n");
+    sb.append("    });\n");
+    sb.append("  }\n");
+
+    sb.append("  function normalizeFlag(flag) {\n");
+    sb.append("    return {\n");
+    sb.append("      name: flag.name || '',\n");
+    sb.append("      description: flag.description || '',\n");
+    sb.append("      enabled: !!flag.enabled,\n");
+    sb.append("      allowedUsers: cloneAllowedUsers(flag.allowedUsers || [])\n");
+    sb.append("    };\n");
+    sb.append("  }\n");
+
+    sb.append("  function upsertAllowedUser(email, enabled) {\n");
+    sb.append("    for (var i = 0; i < flagUsersModel.length; i++) {\n");
+    sb.append("      if (flagUsersModel[i].email === email) {\n");
+    sb.append("        flagUsersModel[i].enabled = enabled;\n");
+    sb.append("        return;\n");
+    sb.append("      }\n");
+    sb.append("    }\n");
+    sb.append("    flagUsersModel.push({ email: email, enabled: enabled });\n");
+    sb.append("  }\n");
+
+    sb.append("  function setFlagUsersModel(users) {\n");
+    sb.append("    flagUsersModel = cloneAllowedUsers(users);\n");
+    sb.append("    renderFlagUsersEditor();\n");
+    sb.append("  }\n");
+
+    sb.append("  function resetFlagEditingState() {\n");
+    sb.append("    flagEditingName = null;\n");
+    sb.append("  }\n");
+
+    sb.append("  function syncEditingFlag(flag) {\n");
+    sb.append("    if (flagEditingName !== flag.name) { return; }\n");
+    sb.append("    flagNameInput.value = flag.name;\n");
+    sb.append("    flagNameInput.disabled = true;\n");
+    sb.append("    flagDescInput.value = flag.description || '';\n");
+    sb.append("    flagEnabledInput.checked = !!flag.enabled;\n");
+    sb.append("    flagUsersInput.value = '';\n");
+    sb.append("    setFlagUsersModel(flag.allowedUsers || []);\n");
+    sb.append("    flagForm.style.display = 'block';\n");
+    sb.append("  }\n");
+
+    sb.append("  function renderFlagUsersCell(users, flagIndex) {\n");
+    sb.append("    var normalized = normalizeAllowedUsers(users);\n");
+    sb.append("    if (!normalized.length) {\n");
+    sb.append("      return '<span style=\"font-size:12px;opacity:.7;\">No user overrides</span>';\n");
+    sb.append("    }\n");
+    sb.append("    var html = '';\n");
+    sb.append("    for (var i = 0; i < normalized.length; i++) {\n");
+    sb.append("      var user = normalized[i];\n");
+    sb.append("      html += '<div style=\"display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;\">';\n");
+    sb.append("      html += '<span style=\"font-size:12px;word-break:break-all;\">' + esc(user.email) + '</span>';\n");
+    sb.append("      html += '<label style=\"font-size:12px;white-space:nowrap;\"><input type=\"checkbox\" onchange=\"toggleAllowedUser(' + flagIndex + ',' + i + ', this.checked)\"' + (user.enabled ? ' checked' : '') + '> enabled</label>';\n");
+    sb.append("      html += '</div>';\n");
+    sb.append("    }\n");
+    sb.append("    return html;\n");
+    sb.append("  }\n");
+
+    sb.append("  function renderFlagUsersEditor() {\n");
+    sb.append("    var html = '';\n");
+    sb.append("    if (!flagUsersModel.length) {\n");
+    sb.append("      html = '<div style=\"font-size:12px;opacity:.7;\">No users added yet</div>';\n");
+    sb.append("    } else {\n");
+    sb.append("      for (var i = 0; i < flagUsersModel.length; i++) {\n");
+    sb.append("        var user = flagUsersModel[i];\n");
+    sb.append("        html += '<div style=\"display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;padding:8px 10px;border:1px solid rgba(0,0,0,.08);border-radius:10px;\">';\n");
+    sb.append("        html += '<span style=\"font-size:12px;word-break:break-all;\">' + esc(user.email) + '</span>';\n");
+    sb.append("        html += '<div style=\"display:flex;align-items:center;gap:8px;\">';\n");
+    sb.append("        html += '<label style=\"font-size:12px;white-space:nowrap;\"><input type=\"checkbox\" onchange=\"toggleEditingAllowedUser(' + i + ')\"' + (user.enabled ? ' checked' : '') + '> enabled</label>';\n");
+    sb.append("        html += '<button type=\"button\" class=\"action-btn danger\" onclick=\"removeEditingAllowedUser(' + i + ')\">Remove</button>';\n");
+    sb.append("        html += '</div></div>';\n");
+    sb.append("      }\n");
+    sb.append("    }\n");
+    sb.append("    flagUsersEditor.innerHTML = html;\n");
+    sb.append("  }\n");
+
+    sb.append("  function addPendingFlagUsers() {\n");
+    sb.append("    var raw = flagUsersInput.value.trim();\n");
+    sb.append("    if (!raw) { return; }\n");
+    sb.append("    var parts = raw.split(',');\n");
+    sb.append("    for (var i = 0; i < parts.length; i++) {\n");
+    sb.append("      var entry = normalizeAllowedUserEntry(parts[i]);\n");
+    sb.append("      if (entry) { upsertAllowedUser(entry.email, entry.enabled); }\n");
+    sb.append("    }\n");
+    sb.append("    flagUsersInput.value = '';\n");
+    sb.append("    renderFlagUsersEditor();\n");
+    sb.append("  }\n");
+
+    sb.append("  function buildFlagPayload(baseFlag) {\n");
+    sb.append("    var flag = normalizeFlag(baseFlag);\n");
+    sb.append("    if (flagEditingName === flag.name && flagForm.style.display !== 'none') {\n");
+    sb.append("      addPendingFlagUsers();\n");
+    sb.append("      flag.description = flagDescInput.value.trim();\n");
+    sb.append("      flag.enabled = flagEnabledInput.checked;\n");
+    sb.append("      flag.allowedUsers = cloneAllowedUsers(flagUsersModel);\n");
+    sb.append("    }\n");
+    sb.append("    return flag;\n");
+    sb.append("  }\n");
+
+    sb.append("  function saveFlag(payload, successMessage, options) {\n");
+    sb.append("    options = options || {};\n");
+    sb.append("    fetch('/admin/flags', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })\n");
+    sb.append("      .then(function(r){return r.json();})\n");
+    sb.append("      .then(function(data){\n");
+    sb.append("        if (data.error) {\n");
+    sb.append("          showToast(data.error, 'error');\n");
+    sb.append("          if (options.closeForm === false) { fetchFlags(); }\n");
+    sb.append("          return;\n");
+    sb.append("        }\n");
+    sb.append("        showToast(successMessage, 'success');\n");
+    sb.append("        if (options.closeForm !== false) {\n");
+    sb.append("          flagForm.style.display = 'none';\n");
+    sb.append("          resetFlagEditingState();\n");
+    sb.append("        } else {\n");
+    sb.append("          syncEditingFlag(payload);\n");
+    sb.append("        }\n");
+    sb.append("        fetchFlags();\n");
+    sb.append("      }).catch(function(e){\n");
+    sb.append("        showToast('Failed: ' + e.message, 'error');\n");
+    sb.append("        if (options.closeForm === false) { fetchFlags(); }\n");
+    sb.append("      });\n");
+    sb.append("  }\n");
 
     // Fetch flags
     sb.append("  function fetchFlags() {\n");
     sb.append("    flagsLoaded = true;\n");
     sb.append("    fetch('/admin/flags').then(function(r){return r.json();}).then(function(data){\n");
-    sb.append("      flagsData = data.flags || [];\n");
+    sb.append("      flagsData = (data.flags || []).map(normalizeFlag);\n");
     sb.append("      renderFlags();\n");
     sb.append("    }).catch(function(e){\n");
     sb.append("      showToast('Failed to load flags: ' + e.message, 'error');\n");
@@ -4321,7 +4706,7 @@ public final class HtmlRenderer {
     sb.append("        html += '<td><strong>' + esc(f.name) + '</strong></td>';\n");
     sb.append("        html += '<td>' + esc(f.description) + '</td>';\n");
     sb.append("        html += '<td>' + enabledBadge + '</td>';\n");
-    sb.append("        html += '<td style=\"max-width:260px;word-break:break-all;font-size:12px;\">' + esc(f.allowedUsers || '') + '</td>';\n");
+    sb.append("        html += '<td style=\"max-width:280px;\">' + renderFlagUsersCell(f.allowedUsers, i) + '</td>';\n");
     sb.append("        html += '<td>';\n");
     sb.append("        html += '<button class=\"action-btn\" onclick=\"editFlag(' + i + ')\">Edit</button>';\n");
     sb.append("        html += '<button class=\"action-btn\" onclick=\"toggleFlag(' + i + ')\">' + (f.enabled ? 'Disable' : 'Enable') + '</button>';\n");
@@ -4335,17 +4720,19 @@ public final class HtmlRenderer {
 
     // Show add form
     sb.append("  document.getElementById('addFlagBtn').addEventListener('click', function() {\n");
-    sb.append("    flagEditingName = null;\n");
+    sb.append("    resetFlagEditingState();\n");
     sb.append("    flagNameInput.value = '';\n");
     sb.append("    flagNameInput.disabled = false;\n");
     sb.append("    flagDescInput.value = '';\n");
     sb.append("    flagEnabledInput.checked = false;\n");
     sb.append("    flagUsersInput.value = '';\n");
+    sb.append("    setFlagUsersModel([]);\n");
     sb.append("    flagForm.style.display = 'block';\n");
     sb.append("  });\n");
 
     // Cancel form
     sb.append("  document.getElementById('flagCancelBtn').addEventListener('click', function() {\n");
+    sb.append("    resetFlagEditingState();\n");
     sb.append("    flagForm.style.display = 'none';\n");
     sb.append("  });\n");
 
@@ -4354,20 +4741,14 @@ public final class HtmlRenderer {
     sb.append("    var name = flagNameInput.value.trim();\n");
     sb.append("    if (!name) { showToast('Flag name is required', 'error'); return; }\n");
     sb.append("    if (!/^[a-zA-Z0-9._-]+$/.test(name)) { showToast('Flag name may only contain letters, digits, dots, hyphens, and underscores', 'error'); return; }\n");
-    sb.append("    var payload = JSON.stringify({\n");
+    sb.append("    addPendingFlagUsers();\n");
+    sb.append("    var payload = {\n");
     sb.append("      name: name,\n");
     sb.append("      description: flagDescInput.value.trim(),\n");
-    sb.append("      enabled: flagEnabledInput.checked ? 'true' : 'false',\n");
-    sb.append("      allowedUsers: flagUsersInput.value.trim()\n");
-    sb.append("    });\n");
-    sb.append("    fetch('/admin/flags', { method: 'POST', headers: {'Content-Type':'application/json'}, body: payload })\n");
-    sb.append("      .then(function(r){return r.json();})\n");
-    sb.append("      .then(function(data){\n");
-    sb.append("        if (data.error) { showToast(data.error, 'error'); return; }\n");
-    sb.append("        showToast('Flag saved successfully', 'success');\n");
-    sb.append("        flagForm.style.display = 'none';\n");
-    sb.append("        fetchFlags();\n");
-    sb.append("      }).catch(function(e){ showToast('Failed: ' + e.message, 'error'); });\n");
+    sb.append("      enabled: flagEnabledInput.checked,\n");
+    sb.append("      allowedUsers: cloneAllowedUsers(flagUsersModel)\n");
+    sb.append("    };\n");
+    sb.append("    saveFlag(payload, 'Flag saved successfully');\n");
     sb.append("  });\n");
 
     // Edit flag (global function for onclick)
@@ -4378,26 +4759,46 @@ public final class HtmlRenderer {
     sb.append("    flagNameInput.disabled = true;\n");
     sb.append("    flagDescInput.value = f.description || '';\n");
     sb.append("    flagEnabledInput.checked = f.enabled;\n");
-    sb.append("    flagUsersInput.value = f.allowedUsers || '';\n");
+    sb.append("    flagUsersInput.value = '';\n");
+    sb.append("    setFlagUsersModel(f.allowedUsers || []);\n");
     sb.append("    flagForm.style.display = 'block';\n");
+    sb.append("  };\n");
+
+    sb.append("  window.toggleEditingAllowedUser = function(userIndex) {\n");
+    sb.append("    flagUsersModel[userIndex].enabled = !flagUsersModel[userIndex].enabled;\n");
+    sb.append("    renderFlagUsersEditor();\n");
+    sb.append("  };\n");
+
+    sb.append("  window.removeEditingAllowedUser = function(userIndex) {\n");
+    sb.append("    flagUsersModel.splice(userIndex, 1);\n");
+    sb.append("    renderFlagUsersEditor();\n");
+    sb.append("  };\n");
+
+    sb.append("  window.toggleAllowedUser = function(flagIndex, userIndex, nextEnabled) {\n");
+    sb.append("    var rowFlag = normalizeFlag(flagsData[flagIndex]);\n");
+    sb.append("    if (!rowFlag.allowedUsers[userIndex]) { return; }\n");
+    sb.append("    var rowUserEmail = rowFlag.allowedUsers[userIndex].email;\n");
+    sb.append("    var payload = buildFlagPayload(rowFlag);\n");
+    sb.append("    var payloadUserFound = false;\n");
+    sb.append("    for (var i = 0; i < payload.allowedUsers.length; i++) {\n");
+    sb.append("      if (payload.allowedUsers[i].email === rowUserEmail) {\n");
+    sb.append("        payload.allowedUsers[i].enabled = nextEnabled;\n");
+    sb.append("        payloadUserFound = true;\n");
+    sb.append("        break;\n");
+    sb.append("      }\n");
+    sb.append("    }\n");
+    sb.append("    if (!payloadUserFound) {\n");
+    sb.append("      payload.allowedUsers.push({ email: rowUserEmail, enabled: nextEnabled });\n");
+    sb.append("    }\n");
+    sb.append("    saveFlag(payload, 'User access updated', { closeForm: false });\n");
     sb.append("  };\n");
 
     // Toggle flag
     sb.append("  window.toggleFlag = function(idx) {\n");
-    sb.append("    var f = flagsData[idx];\n");
-    sb.append("    var payload = JSON.stringify({\n");
-    sb.append("      name: f.name,\n");
-    sb.append("      description: f.description || '',\n");
-    sb.append("      enabled: f.enabled ? 'false' : 'true',\n");
-    sb.append("      allowedUsers: f.allowedUsers || ''\n");
-    sb.append("    });\n");
-    sb.append("    fetch('/admin/flags', { method: 'POST', headers: {'Content-Type':'application/json'}, body: payload })\n");
-    sb.append("      .then(function(r){return r.json();})\n");
-    sb.append("      .then(function(data){\n");
-    sb.append("        if (data.error) { showToast(data.error, 'error'); return; }\n");
-    sb.append("        showToast('Flag toggled', 'success');\n");
-    sb.append("        fetchFlags();\n");
-    sb.append("      }).catch(function(e){ showToast('Failed: ' + e.message, 'error'); });\n");
+    sb.append("    var rowFlag = normalizeFlag(flagsData[idx]);\n");
+    sb.append("    var payload = buildFlagPayload(rowFlag);\n");
+    sb.append("    payload.enabled = !rowFlag.enabled;\n");
+    sb.append("    saveFlag(payload, 'Flag toggled', { closeForm: false });\n");
     sb.append("  };\n");
 
     // Delete flag
@@ -4417,6 +4818,10 @@ public final class HtmlRenderer {
     sb.append("        .then(function(r){return r.json();})\n");
     sb.append("        .then(function(data){\n");
     sb.append("          if (data.error) { showToast(data.error, 'error'); return; }\n");
+    sb.append("          if (flagEditingName === name) {\n");
+    sb.append("            resetFlagEditingState();\n");
+    sb.append("            flagForm.style.display = 'none';\n");
+    sb.append("          }\n");
     sb.append("          showToast('Flag deleted', 'success');\n");
     sb.append("          fetchFlags();\n");
     sb.append("        }).catch(function(e){ showToast('Failed: ' + e.message, 'error'); });\n");
@@ -4710,7 +5115,12 @@ public final class HtmlRenderer {
   }
 
   private static void appendChangelogEntry(StringBuilder sb, JSONObject entry) {
-    sb.append("<article class=\"changelog-card\">\n");
+    sb.append("<article class=\"changelog-card\"");
+    String releaseId = entry.optString("releaseId", "");
+    if (!releaseId.isBlank()) {
+      sb.append(" id=\"release-").append(escapeHtml(releaseId)).append("\"");
+    }
+    sb.append(">\n");
     sb.append("  <div class=\"changelog-date\">").append(escapeHtml(formatChangelogDate(entry.optString("date")))).append("</div>\n");
     sb.append("  <h2>").append(escapeHtml(entry.optString("title", "Untitled release"))).append("</h2>\n");
     sb.append("  <p class=\"changelog-summary\">").append(escapeHtml(entry.optString("summary", ""))).append("</p>\n");

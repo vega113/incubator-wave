@@ -23,6 +23,7 @@ import com.google.common.base.Strings;
 import com.google.inject.Inject;
 import com.typesafe.config.Config;
 import org.waveprotocol.box.server.account.AccountData;
+import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.wave.model.wave.ParticipantId;
@@ -38,6 +39,8 @@ import org.waveprotocol.box.server.authentication.WebSession;
  */
 public final class SessionManagerImpl implements SessionManager {
   private static final String USER_FIELD = "user";
+  private static final String LAST_ACTIVITY_UPDATE_FIELD = "lastActivityUpdateTime";
+  private static final long LAST_ACTIVITY_UPDATE_INTERVAL_MS = 60000L;
 
   private final AccountStore accountStore;
   private static final Log LOG = Log.get(SessionManagerImpl.class);
@@ -56,11 +59,15 @@ public final class SessionManagerImpl implements SessionManager {
 
   @Override
   public ParticipantId getLoggedInUser(WebSession session) {
+    ParticipantId user = null;
     if (session != null) {
-      return (ParticipantId) session.getAttribute(USER_FIELD);
-    } else {
-      return null;
+      Object value = session.getAttribute(USER_FIELD);
+      if (value instanceof ParticipantId) {
+        user = (ParticipantId) value;
+        refreshLastActivity(session, user, false);
+      }
     }
+    return user;
   }
 
   @Override
@@ -83,6 +90,7 @@ public final class SessionManagerImpl implements SessionManager {
     Preconditions.checkNotNull(session, "Session is null");
     Preconditions.checkNotNull(id, "Participant id is null");
     session.setAttribute(USER_FIELD, id);
+    refreshLastActivity(session, id, true);
   }
 
   @Override
@@ -139,5 +147,34 @@ public final class SessionManagerImpl implements SessionManager {
       LOG.info("Jetty 12 session lookup failed (ignored)", t);
       return null;
     }
+  }
+
+  private void refreshLastActivity(WebSession session, ParticipantId user, boolean force) {
+    long now = System.currentTimeMillis();
+    if (!shouldRefreshLastActivity(session, now, force)) {
+      return;
+    }
+    try {
+      AccountData account = accountStore.getAccount(user);
+      if (account != null && account.isHuman()) {
+        HumanAccountData human = account.asHuman();
+        human.setLastActivityTime(now);
+        accountStore.putAccount(account);
+        session.setAttribute(LAST_ACTIVITY_UPDATE_FIELD, now);
+      }
+    } catch (PersistenceException e) {
+      LOG.warning("Failed to track last activity for " + user, e);
+    }
+  }
+
+  private boolean shouldRefreshLastActivity(WebSession session, long now, boolean force) {
+    if (force) {
+      return true;
+    }
+    Object previous = session.getAttribute(LAST_ACTIVITY_UPDATE_FIELD);
+    if (previous instanceof Number) {
+      return now - ((Number) previous).longValue() >= LAST_ACTIVITY_UPDATE_INTERVAL_MS;
+    }
+    return true;
   }
 }
