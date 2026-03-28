@@ -39,6 +39,7 @@ import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.TextBox;
 
+import org.waveprotocol.box.search.SearchWidgetQueryState;
 import org.waveprotocol.wave.client.common.util.QuirksConstants;
 
 /**
@@ -250,7 +251,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   public void setQuery(String text) {
     if (!shouldDeferDefaultQueryUpdate(text)) {
       if (SearchWidgetQueryState.shouldClearDeferredDefaultQueryUpdate(
-          suppressNextChange, text)) {
+          suppressNextChange, text, SearchPresenter.DEFAULT_SEARCH)) {
         lastSubmittedQuery = null;
         suppressNextChange = false;
       }
