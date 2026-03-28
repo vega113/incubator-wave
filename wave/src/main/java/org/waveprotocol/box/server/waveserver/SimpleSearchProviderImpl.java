@@ -1100,7 +1100,11 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
           String versionValue =
               attrs.get(org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.VERSION_ATTR);
           if (waveletId != null && versionValue != null) {
-            archiveVersions.put(waveletId, Integer.valueOf(versionValue));
+            Integer parsedVersion = Integer.valueOf(versionValue);
+            Integer currentVersion = archiveVersions.get(waveletId);
+            if (currentVersion == null || currentVersion.intValue() < parsedVersion.intValue()) {
+              archiveVersions.put(waveletId, parsedVersion);
+            }
           }
         }
       }

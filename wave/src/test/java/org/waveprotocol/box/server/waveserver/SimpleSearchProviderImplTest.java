@@ -290,6 +290,22 @@ public class SimpleSearchProviderImplTest extends TestCase {
     assertEquals(0, archiveResults.getNumResults());
   }
 
+  public void testSearchInboxExcludesArchivedWaveWhenArchiveEntriesRepeatLowerVersion()
+      throws Exception {
+    submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
+
+    long currentVersion = waveMap.getOrCreateLocalWavelet(WAVELET_NAME).copyWaveletData().getVersion();
+    archiveWaveForUserWithVersions(WAVELET_NAME, USER1, currentVersion, currentVersion - 1L);
+
+    SearchResult inboxResults = searchProvider.search(USER1, "in:inbox", 0, 20);
+    SearchResult archiveResults = searchProvider.search(USER1, "in:archive", 0, 20);
+
+    assertEquals(0, inboxResults.getNumResults());
+    assertEquals(1, archiveResults.getNumResults());
+    assertEquals(
+        WAVELET_NAME.waveId.serialise(), archiveResults.getDigests().get(0).getWaveId());
+  }
+
   public void testSearchInboxDoesNotReturnWaveWithoutUser() throws Exception {
     submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
 
@@ -771,21 +787,28 @@ public class SimpleSearchProviderImplTest extends TestCase {
 
   private void archiveWaveForUser(WaveletName name, ParticipantId user) throws Exception {
     long version = waveMap.getOrCreateLocalWavelet(name).copyWaveletData().getVersion();
+    archiveWaveForUserWithVersions(name, user, version);
+  }
+
+  private void archiveWaveForUserWithVersions(WaveletName name, ParticipantId user,
+      long... versions) throws Exception {
+    DocOpBuilder builder = new DocOpBuilder();
+    for (long version : versions) {
+      builder.elementStart(
+          WaveletBasedSupplement.ARCHIVE_TAG,
+          new AttributesImpl(
+              WaveletBasedSupplement.ID_ATTR,
+              WaveletIdSerializer.INSTANCE.toString(name.waveletId),
+              WaveletBasedSupplement.VERSION_ATTR,
+              String.valueOf(version)));
+      builder.elementEnd();
+    }
     WaveletOperation archiveOperation =
         new WaveletBlipOperation(
             WaveletBasedSupplement.ARCHIVING_DOCUMENT,
             new BlipContentOperation(
                 new WaveletOperationContext(user, 0, 1),
-                new DocOpBuilder()
-                    .elementStart(
-                        WaveletBasedSupplement.ARCHIVE_TAG,
-                        new AttributesImpl(
-                            WaveletBasedSupplement.ID_ATTR,
-                            WaveletIdSerializer.INSTANCE.toString(name.waveletId),
-                            WaveletBasedSupplement.VERSION_ATTR,
-                            String.valueOf(version)))
-                    .elementEnd()
-                    .build()));
+                builder.build()));
     submitDeltaToNewWaveletWithoutView(
         userDataWaveletName(name.waveId, user), user, archiveOperation);
   }
