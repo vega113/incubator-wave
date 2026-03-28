@@ -203,7 +203,8 @@ So the missed comments still matter if the stacked OT-search-native line is revi
 
 1. Added this investigation record.
 2. Tightened the monitoring prompt so stacked PRs require an explicit Codex signal on the current head commit before merge, and CodeRabbit `Review skipped` is not treated as sufficient.
-3. Updated orchestration documentation to call out that `main`-branch review gates do not protect stacked PRs.
+3. Added a hard Codex Review Gate enforcement path so stacked PRs cannot rely on prompt-only guidance.
+4. Updated orchestration documentation to call out that stacked PRs need explicit Codex head-commit coverage.
 
 ## Recommended Follow-Up
 
