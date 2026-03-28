@@ -406,12 +406,12 @@ public class WebClient implements EntryPoint {
     setupUi();
     setupStatistics();
 
-    restoreLastWaveFromStorage();
-    History.fireCurrentHistoryState();
-    LOG.info("SimpleWebClient.onModuleLoad() done");
-
-    // Export JSNI function for creating direct waves from profile card popup
     exportCreateDirectWave();
+    if (!maybeHandleDirectMessageIntent()) {
+      restoreLastWaveFromStorage();
+      History.fireCurrentHistoryState();
+    }
+    LOG.info("SimpleWebClient.onModuleLoad() done");
   }
 
   /**
@@ -424,6 +424,34 @@ public class WebClient implements EntryPoint {
     $wnd.__createDirectWave = function(address) {
       self.@org.waveprotocol.box.webclient.client.WebClient::createDirectWave(Ljava/lang/String;)(address);
     };
+  }-*/;
+
+  private boolean maybeHandleDirectMessageIntent() {
+    if (Session.get().isLoggedIn() == false || channel == null) {
+      return false;
+    }
+    String dmAddress = Location.getParameter("dm");
+    if (dmAddress == null || dmAddress.isEmpty()) {
+      return false;
+    }
+    clearDirectMessageIntent();
+    createDirectWave(dmAddress);
+    return true;
+  }
+
+  private native void clearDirectMessageIntent() /*-{
+    if ($wnd.history && $wnd.history.replaceState) {
+      var pathname = $wnd.location.pathname || '/';
+      var search = $wnd.location.search || '';
+      var hash = $wnd.location.hash || '';
+      search = search.replace(/([?&])dm=[^&]*&?/, '$1');
+      search = search.replace(/[?&]$/, '');
+      search = search.replace(/\?&/, '?');
+      if (search === '?') {
+        search = '';
+      }
+      $wnd.history.replaceState({}, '', pathname + search + hash);
+    }
   }-*/;
 
   /**

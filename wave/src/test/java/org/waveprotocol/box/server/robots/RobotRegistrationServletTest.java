@@ -196,6 +196,16 @@ public final class RobotRegistrationServletTest {
   }
 
   @Test
+  public void testCreateDoesNotTreatBearerTokenAsSessionAuth() throws Exception {
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(null);
+    when(req.getHeader("Authorization")).thenReturn("Bearer fake-token");
+
+    servlet.doGet(req, resp);
+
+    verify(resp).sendRedirect("/auth/signin?r=%2Frobot%2Fregister%2Fcreate");
+  }
+
+  @Test
   public void testCreateRejectsInvalidXsrfToken() throws Exception {
     when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(OWNER_ID);
     servlet.doGet(req, resp);
