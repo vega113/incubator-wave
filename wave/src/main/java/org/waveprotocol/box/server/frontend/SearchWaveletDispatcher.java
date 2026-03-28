@@ -51,6 +51,7 @@ public final class SearchWaveletDispatcher {
     if (currentWaveletInfo == null) {
       return false;
     }
-    return currentWaveletInfo.getUserManager(user).hasSubscription(waveletName);
+    UserManager userManager = currentWaveletInfo.getUserManagerIfPresent(user);
+    return userManager != null && userManager.hasSubscription(waveletName);
   }
 }

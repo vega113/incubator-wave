@@ -66,7 +66,7 @@ public final class SearchWaveletSnapshotPublisherTest extends TestCase {
   private static final HashedVersionFactory HASH_FACTORY =
       new HashedVersionFactoryImpl(URI_CODEC);
   private static final ParticipantId USER = ParticipantId.ofUnsafe("user@example.com");
-  private static final String QUERY = "in:inbox";
+  private static final String QUERY = "tag:work";
   private static final java.util.Collection<WaveletVersion> NO_KNOWN_WAVELETS =
       Collections.<WaveletVersion>emptySet();
 
@@ -134,10 +134,10 @@ public final class SearchWaveletSnapshotPublisherTest extends TestCase {
         ClientFrontendImpl.create(waveletProvider, mock(WaveBus.class), waveletInfo);
     SearchWaveletManager waveletManager = new SearchWaveletManager();
     SearchIndexer indexer = new SearchIndexer();
-    SearchWaveletDispatcher dispatcher = new SearchWaveletDispatcher();
-    dispatcher.initialize(waveletInfo);
     BlockingSearchWaveletDataProvider dataProvider =
         new BlockingSearchWaveletDataProvider("example.com/w+old", "example.com/w+new");
+    SearchWaveletDispatcher dispatcher = new SearchWaveletDispatcher();
+    dispatcher.initialize(waveletInfo);
     SearchWaveletSnapshotPublisher publisher =
         new SearchWaveletSnapshotPublisher(
             dispatcher,
@@ -151,12 +151,7 @@ public final class SearchWaveletSnapshotPublisherTest extends TestCase {
         Collections.singleton(searchWaveletName.waveletId),
         Collections.<String>emptySet());
     clientFrontend.openRequest(
-        USER,
-        searchWaveletName.waveId,
-        filter,
-        NO_KNOWN_WAVELETS,
-        mock(OpenListener.class));
-
+        USER, searchWaveletName.waveId, filter, NO_KNOWN_WAVELETS, mock(OpenListener.class));
     Thread olderPublish = new Thread(
         () -> runPublish(
             publisher,

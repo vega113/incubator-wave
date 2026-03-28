@@ -62,7 +62,6 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -76,26 +75,31 @@ public final class SearchServletTest extends TestCase {
   private static final Collection<WaveletVersion> NO_KNOWN_WAVELETS =
       Collections.<WaveletVersion>emptySet();
 
-  public void testDoGetSkipsCanonicalBootstrapSearchWithoutLiveSubscription() throws Exception {
+  public void testDoGetRequestsCanonicalBootstrapSearchWithoutLiveSubscription()
+      throws Exception {
     TestSearchServlet servlet = createServlet(createSnapshotPublisher());
     HttpServletRequest request = requestWithParams(Map.of(
-        "query", "in:inbox",
+        "query", "tag:work",
         "index", "5",
         "numResults", "3"));
     HttpServletResponse response = responseWithWriter();
 
     servlet.doGet(request, response);
 
-    assertEquals(1, servlet.getPerformedRequests().size());
+    assertEquals(2, servlet.getPerformedRequests().size());
     assertEquals(5, servlet.getPerformedRequests().get(0).getIndex());
     assertEquals(3, servlet.getPerformedRequests().get(0).getNumResults());
+    assertEquals(0, servlet.getPerformedRequests().get(1).getIndex());
+    assertEquals(
+        SearchWaveletSnapshotPublisher.LIVE_SEARCH_NUM_RESULTS,
+        servlet.getPerformedRequests().get(1).getNumResults());
   }
 
   public void testDoGetRequeriesCanonicalLiveSearchWindowForActiveSubscription() throws Exception {
     TestSearchServlet servlet =
-        createServlet(createActiveSnapshotPublisher("in:inbox"));
+        createServlet(createActiveSnapshotPublisher("tag:work"));
     HttpServletRequest request = requestWithParams(Map.of(
-        "query", "in:inbox",
+        "query", "tag:work",
         "index", "5",
         "numResults", "3"));
     HttpServletResponse response = responseWithWriter();
@@ -113,9 +117,9 @@ public final class SearchServletTest extends TestCase {
 
   public void testDoGetSkipsDuplicateCanonicalBootstrapSearch() throws Exception {
     TestSearchServlet servlet =
-        createServlet(createActiveSnapshotPublisher("in:inbox"));
+        createServlet(createActiveSnapshotPublisher("tag:work"));
     HttpServletRequest request = requestWithParams(Map.of(
-        "query", "in:inbox",
+        "query", "tag:work",
         "index", "0",
         "numResults", "50"));
     HttpServletResponse response = responseWithWriter();

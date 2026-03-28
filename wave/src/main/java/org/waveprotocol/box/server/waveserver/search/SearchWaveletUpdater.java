@@ -233,6 +233,11 @@ public class SearchWaveletUpdater implements WaveBus.Subscriber {
         return;
       }
 
+      if (snapshotPublisher != null) {
+        snapshotPublisher.publishUpdate(user, rawQuery, searchResult);
+        return;
+      }
+
       // Convert SearchResult digests to our SearchResultEntry list
       List<SearchWaveletDataProvider.SearchResultEntry> newResults =
           convertSearchResult(searchResult);
