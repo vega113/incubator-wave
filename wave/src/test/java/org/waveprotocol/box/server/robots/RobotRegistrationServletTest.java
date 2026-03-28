@@ -98,8 +98,7 @@ public final class RobotRegistrationServletTest {
 
     servlet.doPost(req, resp);
 
-    verify(registrar, never())
-        .registerNew(eq(ParticipantId.ofUnsafe("helper@example.com")), anyString(), anyString(), anyLong());
+    verify(registrar, never()).registerNew(any(), anyString(), anyString(), anyLong());
     assertTrue(responseBody.toString().contains("must end with -bot"));
   }
 
