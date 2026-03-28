@@ -73,6 +73,22 @@ public final class FeatureFlagServletTest {
     assertTrue(body.contains("\"allowedUsers\":\"vega@supawave.ai\""));
   }
 
+  @Test
+  public void storedUnrelatedFlagCoexistsWithLucene9Placeholder() throws Exception {
+    FeatureFlagStore store = mock(FeatureFlagStore.class);
+    when(store.getAll()).thenReturn(Collections.singletonList(
+        new FeatureFlag(
+            "ot-search",
+            "Operational transform search updates",
+            false,
+            Collections.emptySet())));
+
+    String body = fetchFlagsJson(store);
+
+    assertTrue(body.contains("\"name\":\"lucene9\""));
+    assertTrue(body.contains("\"name\":\"ot-search\""));
+  }
+
   private String fetchFlagsJson(FeatureFlagStore store) throws Exception {
     FeatureFlagService service = new FeatureFlagService(store);
     SessionManager sessionManager = mock(SessionManager.class);
