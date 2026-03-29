@@ -30,8 +30,8 @@ public final class HtmlRendererTopBarTest extends TestCase {
     String topBarHtml = HtmlRenderer.renderTopBar("vega", "example.com", "admin");
 
     assertTrue(topBarHtml.contains("section-label\">Account"));
-    assertTrue(topBarHtml.contains("section-label\">Automation"));
-    assertTrue(topBarHtml.contains("section-label\">Product"));
+    assertTrue(topBarHtml.contains("section-label\">Automation / APIs"));
+    assertTrue(topBarHtml.contains("section-label\">Product / Support"));
     assertTrue(topBarHtml.contains("section-label\">Legal"));
     assertTrue(topBarHtml.contains("href=\"/admin\""));
   }

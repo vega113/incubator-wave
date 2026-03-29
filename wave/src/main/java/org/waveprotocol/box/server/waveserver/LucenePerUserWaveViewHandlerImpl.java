@@ -36,6 +36,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.LinkedHashSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
@@ -122,27 +123,28 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
   @Override
   public ListenableFuture<Void> onParticipantAdded(WaveletName waveletName,
       ParticipantId participant) {
-    return submitUpdate(waveletName, "update");
+    return submitUpdate(waveletName, null, "update");
   }
 
   @Override
   public ListenableFuture<Void> onParticipantRemoved(WaveletName waveletName,
       ParticipantId participant) {
-    return submitUpdate(waveletName, "update");
+    return submitUpdate(waveletName, participant, "remove");
   }
 
   @Override
   public ListenableFuture<Void> onWaveInit(WaveletName waveletName) {
-    return submitUpdate(waveletName, "initialize");
+    return submitUpdate(waveletName, null, "initialize");
   }
 
-  private ListenableFuture<Void> submitUpdate(final WaveletName waveletName, final String action) {
+  private ListenableFuture<Void> submitUpdate(
+      final WaveletName waveletName, final ParticipantId removedParticipant, final String action) {
     Preconditions.checkNotNull(waveletName);
     ListenableFutureTask<Void> task = ListenableFutureTask.create(new Callable<Void>() {
       @Override
       public Void call() throws Exception {
         try {
-          updateIndex(waveletProvider.getReadableWaveletData(waveletName));
+          updateIndex(waveletProvider.getReadableWaveletData(waveletName), removedParticipant);
         } catch (WaveServerException e) {
           LOG.log(Level.SEVERE, "Failed to " + action + " index for " + waveletName, e);
           throw e;
@@ -154,12 +156,16 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
     return task;
   }
 
-  private void updateIndex(ReadableWaveletData wavelet) {
+  private void updateIndex(ReadableWaveletData wavelet, ParticipantId removedParticipant) {
     Preconditions.checkNotNull(wavelet);
     try {
+      LinkedHashSet<ParticipantId> participants = new LinkedHashSet<>(wavelet.getParticipants());
+      if (removedParticipant != null) {
+        participants.remove(removedParticipant);
+      }
       indexWriter.deleteDocuments(docIdTerm(wavelet));
-      if (!wavelet.getParticipants().isEmpty()) {
-        indexWriter.addDocument(createDocument(wavelet));
+      if (!participants.isEmpty()) {
+        indexWriter.addDocument(createDocument(wavelet, participants));
       }
       indexWriter.commit();
       searcherManager.maybeRefreshBlocking();
@@ -168,7 +174,8 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
     }
   }
 
-  private static Document createDocument(ReadableWaveletData wavelet) {
+  private static Document createDocument(
+      ReadableWaveletData wavelet, Iterable<ParticipantId> participants) {
     Document document = new Document();
     document.add(new StringField(DOC_ID, createDocId(wavelet), Store.YES));
     document.add(new StringField(WAVEID.toString(), wavelet.getWaveId().serialise(), Store.YES));
@@ -176,7 +183,7 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
         Store.YES));
     document.add(new LongPoint(LMT.toString(), wavelet.getLastModifiedTime()));
     document.add(new NumericDocValuesField(LMT.toString(), wavelet.getLastModifiedTime()));
-    for (ParticipantId participant : wavelet.getParticipants()) {
+    for (ParticipantId participant : participants) {
       document.add(new StringField(WITH.toString(), participant.getAddress(), Store.YES));
     }
     return document;
