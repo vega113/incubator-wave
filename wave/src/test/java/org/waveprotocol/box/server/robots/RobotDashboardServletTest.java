@@ -419,6 +419,21 @@ public class RobotDashboardServletTest extends TestCase {
     assertTrue(outputWriter.toString().contains("hash"));
   }
 
+  public void testDoPostRejectsVerifyFromDifferentOwner() throws Exception {
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(OWNER);
+    when(accountStore.getRobotAccountsOwnedBy(OWNER.getAddress())).thenReturn(List.of());
+    servlet.doGet(req, resp);
+    outputWriter.getBuffer().setLength(0);
+    when(req.getParameter("action")).thenReturn("verify");
+    when(req.getParameter("token")).thenReturn("dashboard-xsrf");
+    when(req.getParameter("robotId")).thenReturn(ROBOT.getAddress());
+
+    servlet.doPost(req, resp);
+
+    verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
+    assertTrue(outputWriter.toString().contains("You do not own this robot"));
+  }
+
   public void testDoPostDeletesOwnedRobot() throws Exception {
     RobotAccountData existingRobot = new RobotAccountDataImpl(ROBOT, "", "secret", null, false,
         3600L, OWNER.getAddress(), "", 111L, 222L, false);
