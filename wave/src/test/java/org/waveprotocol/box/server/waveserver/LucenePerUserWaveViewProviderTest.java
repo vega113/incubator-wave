@@ -22,6 +22,7 @@ package org.waveprotocol.box.server.waveserver;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -32,14 +33,13 @@ import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 
 import java.io.IOException;
-import java.util.concurrent.Executors;
 
 /**
  * @author yurize@apache.org (Yuri Zelikov)
  */
 public class LucenePerUserWaveViewProviderTest extends PerUserWaveViewProviderTestBase {
 
-  private final IndexDirectory directory = new RAMIndexDirectory();
+  private IndexDirectory directory;
 
   @Mock private ReadableWaveletData waveletData;
   @Mock private TextCollator textCollator;
@@ -49,6 +49,7 @@ public class LucenePerUserWaveViewProviderTest extends PerUserWaveViewProviderTe
 
   @Override
   protected void setUp() throws Exception {
+    directory = new RAMIndexDirectory();
     super.setUp();
     when(waveletData.getWaveId()).thenReturn(WAVE_ID);
     when(waveletData.getWaveletId()).thenReturn(WAVELET_ID);
@@ -62,7 +63,7 @@ public class LucenePerUserWaveViewProviderTest extends PerUserWaveViewProviderTe
   protected PerUserWaveViewHandler createPerUserWaveViewHandler() {
     handler =
         new LucenePerUserWaveViewHandlerImpl(directory, waveletProvider, DOMAIN,
-          Executors.newCachedThreadPool());
+          MoreExecutors.directExecutor());
     return handler;
   }
 
