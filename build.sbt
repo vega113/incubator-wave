@@ -775,7 +775,19 @@ lazy val pst = Project("pst", file("pst"))
     }
   )
 
-lazy val wave = Project("wave", file(".")).aggregate(pst)
+lazy val wave = Project("wave", file("."))
+  .settings(
+    Compile / resourceGenerators += Def.task {
+      val targetDir = (Compile / resourceManaged).value / "config"
+      IO.createDirectory(targetDir)
+      val sourceFile = baseDirectory.value / "wave" / "config" / "changelog.json"
+      if (!sourceFile.exists()) sys.error("Missing source changelog.json at " + sourceFile)
+      val targetFile = targetDir / "changelog.json"
+      IO.copyFile(sourceFile, targetFile)
+      Seq(targetFile)
+    }
+  )
+  .aggregate(pst)
 lazy val root = wave
 
 lazy val prepareProtosForPB = taskKey[Unit]("Stage .protodevel/.proto into target/proto-pb-src for sbt-protoc")
