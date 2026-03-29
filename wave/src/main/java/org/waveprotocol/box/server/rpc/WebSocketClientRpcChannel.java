@@ -96,9 +96,12 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
       }
     };
     clientChannel = new WebSocketChannelImpl(callback);
+    CompletableFuture<WebSocketClient> connectFuture =
+        openWebSocketAsync(clientChannel, requireInetSocketAddress(serverAddress));
     try {
-      socketClient = openWebSocketAsync(clientChannel, (InetSocketAddress) serverAddress).get();
+      socketClient = connectFuture.get();
     } catch (InterruptedException e) {
+      connectFuture.cancel(true);
       Thread.currentThread().interrupt();
       throw new IOException("WebSocket connection interrupted", e);
     } catch (ExecutionException e) {
@@ -148,6 +151,15 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
     clientChannel.sendMessage(sequenceNo, request, responsePrototype);
   }
 
+  private InetSocketAddress requireInetSocketAddress(SocketAddress serverAddress)
+      throws IOException {
+    if (serverAddress instanceof InetSocketAddress) {
+      return (InetSocketAddress) serverAddress;
+    }
+    throw new IOException(
+        "Unsupported server address type: " + serverAddress.getClass().getName());
+  }
+
   private CompletableFuture<WebSocketClient> openWebSocketAsync(WebSocketChannel clientChannel,
       InetSocketAddress inetAddress) {
     if (inetAddress == null || inetAddress.getPort() <= 0) {
@@ -180,13 +192,23 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
     final double jitterFraction = Double.parseDouble(System.getProperty("wave.websocket.jitterFraction", "0.2"));
 
     CompletableFuture<WebSocketClient> resultFuture = new CompletableFuture<>();
-    attemptConnect(clientChannel, uri, 1, attempts, 1000, maxBackoffMs, jitterFraction, connectTimeoutMs, connectWaitMs, null, resultFuture);
+    attemptConnect(
+        clientChannel,
+        uri,
+        1,
+        attempts,
+        1000,
+        maxBackoffMs,
+        jitterFraction,
+        connectTimeoutMs,
+        connectWaitMs,
+        resultFuture);
     return resultFuture;
   }
 
   private void attemptConnect(WebSocketChannel clientChannel, URI uri, int attempt, int maxAttempts,
-      long backoffMs, int maxBackoffMs, double jitterFraction, int connectTimeoutMs, int connectWaitMs,
-      Exception lastException, CompletableFuture<WebSocketClient> resultFuture) {
+      long backoffMs, int maxBackoffMs, double jitterFraction, int connectTimeoutMs,
+      int connectWaitMs, CompletableFuture<WebSocketClient> resultFuture) {
     if (resultFuture.isDone()) {
       return;
     }
@@ -220,7 +242,7 @@ public class WebSocketClientRpcChannel implements ClientRpcChannel {
         }
         final long nextBackoffMs = Math.min(backoffMs * 2, maxBackoffMs);
         RETRY_EXECUTOR.schedule(() -> attemptConnect(clientChannel, uri, attempt + 1, maxAttempts,
-            nextBackoffMs, maxBackoffMs, jitterFraction, connectTimeoutMs, connectWaitMs, ex, resultFuture),
+            nextBackoffMs, maxBackoffMs, jitterFraction, connectTimeoutMs, connectWaitMs, resultFuture),
             sleepMs, TimeUnit.MILLISECONDS);
       } else {
         resultFuture.completeExceptionally(new IOException("WebSocket connection failed after " + maxAttempts + " attempts", ex));
