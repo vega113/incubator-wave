@@ -21,6 +21,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
+import com.google.wave.api.robot.CapabilityFetchException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,6 +32,7 @@ import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSessions;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
+import org.waveprotocol.box.server.robots.passive.RobotCapabilityFetcher;
 import org.waveprotocol.box.server.robots.register.RobotRegistrar;
 import org.waveprotocol.box.server.robots.util.RobotsUtil.RobotRegistrationException;
 import org.waveprotocol.box.server.rpc.HtmlRenderer;
@@ -61,17 +63,19 @@ public final class RobotDashboardServlet extends HttpServlet {
   private final SessionManager sessionManager;
   private final AccountStore accountStore;
   private final RobotRegistrar robotRegistrar;
+  private final RobotCapabilityFetcher capabilityFetcher;
   private final TokenGenerator tokenGenerator;
   private final ConcurrentMap<ParticipantId, String> xsrfTokens;
 
   @Inject
   public RobotDashboardServlet(@Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
       SessionManager sessionManager, AccountStore accountStore, RobotRegistrar robotRegistrar,
-      TokenGenerator tokenGenerator) {
+      RobotCapabilityFetcher capabilityFetcher, TokenGenerator tokenGenerator) {
     this.domain = domain;
     this.sessionManager = sessionManager;
     this.accountStore = accountStore;
     this.robotRegistrar = robotRegistrar;
+    this.capabilityFetcher = capabilityFetcher;
     this.tokenGenerator = tokenGenerator;
     this.xsrfTokens = CacheBuilder.newBuilder()
         .expireAfterWrite(XSRF_TOKEN_TIMEOUT_HOURS, TimeUnit.HOURS)
@@ -80,11 +84,12 @@ public final class RobotDashboardServlet extends HttpServlet {
   }
 
   RobotDashboardServlet(String domain, SessionManager sessionManager, AccountStore accountStore,
-      RobotRegistrar robotRegistrar) {
+      RobotRegistrar robotRegistrar, RobotCapabilityFetcher capabilityFetcher) {
     this.domain = domain;
     this.sessionManager = sessionManager;
     this.accountStore = accountStore;
     this.robotRegistrar = robotRegistrar;
+    this.capabilityFetcher = capabilityFetcher;
     this.tokenGenerator = length -> "dashboard-xsrf";
     this.xsrfTokens = CacheBuilder.newBuilder()
         .expireAfterWrite(XSRF_TOKEN_TIMEOUT_HOURS, TimeUnit.HOURS)
@@ -96,7 +101,7 @@ public final class RobotDashboardServlet extends HttpServlet {
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     ParticipantId user = requireUser(req, resp);
     if (user != null) {
-      renderDashboard(req, resp, user, "", null, HttpServletResponse.SC_OK);
+      renderDashboard(req, resp, user, "", null, false, HttpServletResponse.SC_OK);
     }
   }
 
@@ -107,7 +112,7 @@ public final class RobotDashboardServlet extends HttpServlet {
       return;
     }
     if (!hasValidXsrfToken(user, req)) {
-      renderDashboard(req, resp, user, "Invalid XSRF token.", null,
+      renderDashboard(req, resp, user, "Invalid XSRF token.", null, false,
           HttpServletResponse.SC_UNAUTHORIZED);
       return;
     }
@@ -129,6 +134,10 @@ public final class RobotDashboardServlet extends HttpServlet {
       handleRotateSecret(req, resp, user);
       return;
     }
+    if ("verify".equals(action)) {
+      handleVerify(req, resp, user);
+      return;
+    }
     if ("set-paused".equals(action)) {
       handleSetPaused(req, resp, user);
       return;
@@ -138,7 +147,7 @@ public final class RobotDashboardServlet extends HttpServlet {
       return;
     }
 
-    renderDashboard(req, resp, user, "Unknown robot action.", null,
+    renderDashboard(req, resp, user, "Unknown robot action.", null, false,
         HttpServletResponse.SC_BAD_REQUEST);
   }
 
@@ -166,14 +175,14 @@ public final class RobotDashboardServlet extends HttpServlet {
     String robotIdValue = req.getParameter("robotId");
     String location = req.getParameter("location");
     if (Strings.isNullOrEmpty(robotIdValue) || Strings.isNullOrEmpty(location)) {
-      renderDashboard(req, resp, user, "Robot and callback URL are required.", null,
+      renderDashboard(req, resp, user, "Robot and callback URL are required.", null, false,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
     if (ownedRobot == null) {
-      renderDashboard(req, resp, user, "You do not own this robot.", null,
+      renderDashboard(req, resp, user, "You do not own this robot.", null, false,
           HttpServletResponse.SC_FORBIDDEN);
       return;
     }
@@ -182,11 +191,12 @@ public final class RobotDashboardServlet extends HttpServlet {
       RobotAccountData updatedRobot =
           robotRegistrar.registerOrUpdate(ownedRobot.getId(), location, user.getAddress());
       renderDashboard(req, resp, user, "Callback URL updated for " + ownedRobot.getId().getAddress(),
-          updatedRobot, HttpServletResponse.SC_OK);
+          updatedRobot, false, HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, false,
+          HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(req, resp, user, "Callback URL update failed.", null,
+      renderDashboard(req, resp, user, "Callback URL update failed.", null, false,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -196,14 +206,14 @@ public final class RobotDashboardServlet extends HttpServlet {
     String robotIdValue = req.getParameter("robotId");
     String description = Strings.nullToEmpty(req.getParameter("description")).trim();
     if (Strings.isNullOrEmpty(robotIdValue)) {
-      renderDashboard(req, resp, user, "Robot selection is required.", null,
+      renderDashboard(req, resp, user, "Robot selection is required.", null, false,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
     if (ownedRobot == null) {
-      renderDashboard(req, resp, user, "You do not own this robot.", null,
+      renderDashboard(req, resp, user, "You do not own this robot.", null, false,
           HttpServletResponse.SC_FORBIDDEN);
       return;
     }
@@ -212,11 +222,12 @@ public final class RobotDashboardServlet extends HttpServlet {
       RobotAccountData updatedRobot = robotRegistrar.updateDescription(ownedRobot.getId(),
           description);
       renderDashboard(req, resp, user, "Description updated for " + ownedRobot.getId().getAddress(),
-          updatedRobot, HttpServletResponse.SC_OK);
+          updatedRobot, false, HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, false,
+          HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(req, resp, user, "Description update failed.", null,
+      renderDashboard(req, resp, user, "Description update failed.", null, false,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -225,14 +236,14 @@ public final class RobotDashboardServlet extends HttpServlet {
       throws IOException {
     String robotIdValue = req.getParameter("robotId");
     if (Strings.isNullOrEmpty(robotIdValue)) {
-      renderDashboard(req, resp, user, "Robot selection is required.", null,
+      renderDashboard(req, resp, user, "Robot selection is required.", null, false,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
     if (ownedRobot == null) {
-      renderDashboard(req, resp, user, "You do not own this robot.", null,
+      renderDashboard(req, resp, user, "You do not own this robot.", null, false,
           HttpServletResponse.SC_FORBIDDEN);
       return;
     }
@@ -245,11 +256,44 @@ public final class RobotDashboardServlet extends HttpServlet {
           user,
           "Secret rotated for " + ownedRobot.getId().getAddress(),
           rotatedRobot,
+          true,
           HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, false,
+          HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(req, resp, user, "Secret rotation failed.", null,
+      renderDashboard(req, resp, user, "Secret rotation failed.", null, false,
+          HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  private void handleVerify(HttpServletRequest req, HttpServletResponse resp, ParticipantId user)
+      throws IOException {
+    String robotIdValue = req.getParameter("robotId");
+    if (Strings.isNullOrEmpty(robotIdValue)) {
+      renderDashboard(req, resp, user, "Robot selection is required.", null, false,
+          HttpServletResponse.SC_BAD_REQUEST);
+      return;
+    }
+
+    RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
+    if (ownedRobot == null) {
+      renderDashboard(req, resp, user, "You do not own this robot.", null, false,
+          HttpServletResponse.SC_FORBIDDEN);
+      return;
+    }
+
+    try {
+      RobotAccountData refreshedRobot =
+          capabilityFetcher.fetchCapabilities(ownedRobot, buildActiveApiUrl(req));
+      accountStore.putAccount(refreshedRobot);
+      renderDashboard(req, resp, user, formatVerificationMessage(refreshedRobot), refreshedRobot,
+          false, HttpServletResponse.SC_OK);
+    } catch (CapabilityFetchException e) {
+      renderDashboard(req, resp, user, "Robot verification failed: " + e.getMessage(), null, false,
+          HttpServletResponse.SC_BAD_REQUEST);
+    } catch (PersistenceException e) {
+      renderDashboard(req, resp, user, "Robot verification could not be saved.", null, false,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -259,14 +303,14 @@ public final class RobotDashboardServlet extends HttpServlet {
     String robotIdValue = req.getParameter("robotId");
     String pausedValue = req.getParameter("paused");
     if (Strings.isNullOrEmpty(robotIdValue) || Strings.isNullOrEmpty(pausedValue)) {
-      renderDashboard(req, resp, user, "Robot and paused state are required.", null,
+      renderDashboard(req, resp, user, "Robot and paused state are required.", null, false,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
     if (ownedRobot == null) {
-      renderDashboard(req, resp, user, "You do not own this robot.", null,
+      renderDashboard(req, resp, user, "You do not own this robot.", null, false,
           HttpServletResponse.SC_FORBIDDEN);
       return;
     }
@@ -277,11 +321,12 @@ public final class RobotDashboardServlet extends HttpServlet {
       String message = paused
           ? "Robot paused: " + ownedRobot.getId().getAddress()
           : "Robot unpaused: " + ownedRobot.getId().getAddress();
-      renderDashboard(req, resp, user, message, updatedRobot, HttpServletResponse.SC_OK);
+      renderDashboard(req, resp, user, message, updatedRobot, false, HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, false,
+          HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(req, resp, user, "Robot pause update failed.", null,
+      renderDashboard(req, resp, user, "Robot pause update failed.", null, false,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -290,26 +335,33 @@ public final class RobotDashboardServlet extends HttpServlet {
       throws IOException {
     String robotIdValue = req.getParameter("robotId");
     if (Strings.isNullOrEmpty(robotIdValue)) {
-      renderDashboard(req, resp, user, "Robot selection is required.", null,
+      renderDashboard(req, resp, user, "Robot selection is required.", null, false,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     RobotAccountData ownedRobot = findOwnedRobot(robotIdValue, user.getAddress());
     if (ownedRobot == null) {
-      renderDashboard(req, resp, user, "You do not own this robot.", null,
+      renderDashboard(req, resp, user, "You do not own this robot.", null, false,
           HttpServletResponse.SC_FORBIDDEN);
+      return;
+    }
+
+    if (!"yes".equals(req.getParameter("confirm_delete"))) {
+      renderDashboard(req, resp, user, "Confirm robot deletion before continuing.", ownedRobot,
+          false, HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
     try {
       robotRegistrar.unregister(ownedRobot.getId());
       renderDashboard(req, resp, user, "Robot deleted: " + ownedRobot.getId().getAddress(), null,
-          HttpServletResponse.SC_OK);
+          false, HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, false,
+          HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(req, resp, user, "Robot deletion failed.", null,
+      renderDashboard(req, resp, user, "Robot deletion failed.", null, false,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -320,7 +372,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     String location = Strings.nullToEmpty(req.getParameter("location")).trim();
     long tokenExpirySeconds = parseTokenExpiry(req.getParameter("token_expiry"));
     if (Strings.isNullOrEmpty(username)) {
-      renderDashboard(req, resp, user, "Robot username is required.", null,
+      renderDashboard(req, resp, user, "Robot username is required.", null, false,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
@@ -329,7 +381,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     try {
       robotId = RegistrationSupport.checkNewRobotUsername(domain, username);
     } catch (InvalidParticipantAddress e) {
-      renderDashboard(req, resp, user, e.getMessage(), null,
+      renderDashboard(req, resp, user, e.getMessage(), null, false,
           HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
@@ -338,11 +390,11 @@ public final class RobotDashboardServlet extends HttpServlet {
       RobotAccountData registeredRobot =
           robotRegistrar.registerNew(robotId, location, user.getAddress(), tokenExpirySeconds);
       renderDashboard(req, resp, user, "Robot registered: " + robotId.getAddress(), registeredRobot,
-          HttpServletResponse.SC_OK);
+          true, HttpServletResponse.SC_OK);
     } catch (RobotRegistrationException e) {
-      renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
+      renderDashboard(req, resp, user, e.getMessage(), null, false, HttpServletResponse.SC_BAD_REQUEST);
     } catch (PersistenceException e) {
-      renderDashboard(req, resp, user, "Robot registration failed.", null,
+      renderDashboard(req, resp, user, "Robot registration failed.", null, false,
           HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -398,8 +450,8 @@ public final class RobotDashboardServlet extends HttpServlet {
   }
 
   private void renderDashboard(HttpServletRequest req, HttpServletResponse resp, ParticipantId user,
-      String message,
-      RobotAccountData highlightedRobot, int statusCode) throws IOException {
+      String message, RobotAccountData highlightedRobot, boolean revealPromptSecret,
+      int statusCode) throws IOException {
     List<RobotAccountData> ownedRobots = loadOwnedRobots(user.getAddress());
     List<RobotAccountData> robotsToRender = mergeHighlightedRobot(ownedRobots, highlightedRobot);
     resp.setStatus(statusCode);
@@ -407,7 +459,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     resp.setContentType("text/html; charset=UTF-8");
     String baseUrl = derivePublicBaseUrl(req);
     resp.getWriter().write(renderDashboardPage(user.getAddress(), robotsToRender, message,
-        getOrGenerateXsrfToken(user), baseUrl));
+        getOrGenerateXsrfToken(user), baseUrl, highlightedRobot, revealPromptSecret));
   }
 
   private List<RobotAccountData> loadOwnedRobots(String ownerAddress) {
@@ -442,11 +494,16 @@ public final class RobotDashboardServlet extends HttpServlet {
   }
 
   private String renderDashboardPage(String userAddress, List<RobotAccountData> robots,
-      String message, String xsrfToken, String baseUrl) {
-    RobotAccountData promptRobot = robots.isEmpty() ? null : robots.get(robots.size() - 1);
+      String message, String xsrfToken, String baseUrl, RobotAccountData highlightedRobot,
+      boolean revealPromptSecret) {
+    RobotAccountData promptRobot = highlightedRobot != null
+        ? highlightedRobot
+        : (robots.isEmpty() ? null : robots.get(robots.size() - 1));
     String promptRobotId = promptRobot == null ? "<robot@domain>" : promptRobot.getId().getAddress();
-    String promptRobotSecret =
-        promptRobot == null ? "<consumer secret>" : promptRobot.getConsumerSecret();
+    String promptRobotSecret = promptRobot == null
+        ? "<consumer secret>"
+        : revealPromptSecret ? promptRobot.getConsumerSecret()
+            : maskSecret(promptRobot.getConsumerSecret());
     String promptCallbackUrl = promptRobot == null || promptRobot.getUrl().isEmpty()
         ? "<deployment url>"
         : promptRobot.getUrl();
@@ -549,12 +606,23 @@ public final class RobotDashboardServlet extends HttpServlet {
       sb.append("<div style=\"margin-top:12px;\"><button type=\"submit\">")
           .append(robot.isPaused() ? "Unpause Robot" : "Pause Robot").append("</button></div>");
       sb.append("</form>");
-      sb.append("<form method=\"post\" action=\"\" style=\"margin-top:10px;\" onsubmit=\"return confirm('Delete this robot?');\">");
+      sb.append("<form method=\"post\" action=\"\" style=\"margin-top:10px;\">");
+      sb.append("<input type=\"hidden\" name=\"action\" value=\"verify\">");
+      sb.append("<input type=\"hidden\" name=\"token\" value=\"")
+          .append(HtmlRenderer.escapeHtml(xsrfToken)).append("\">");
+      sb.append("<input type=\"hidden\" name=\"robotId\" value=\"")
+          .append(HtmlRenderer.escapeHtml(robot.getId().getAddress())).append("\">");
+      sb.append("<div style=\"margin-top:12px;\"><button type=\"submit\">Verify Capabilities</button></div>");
+      sb.append("</form>");
+      sb.append("<form method=\"post\" action=\"\" style=\"margin-top:10px;\">");
       sb.append("<input type=\"hidden\" name=\"action\" value=\"delete\">");
       sb.append("<input type=\"hidden\" name=\"token\" value=\"")
           .append(HtmlRenderer.escapeHtml(xsrfToken)).append("\">");
       sb.append("<input type=\"hidden\" name=\"robotId\" value=\"")
           .append(HtmlRenderer.escapeHtml(robot.getId().getAddress())).append("\">");
+      sb.append("<label style=\"margin-top:10px;display:flex;gap:8px;align-items:flex-start;text-transform:none;font-size:13px;letter-spacing:normal;color:#5f8198;\">");
+      sb.append("<input type=\"checkbox\" name=\"confirm_delete\" value=\"yes\" required style=\"width:auto;margin-top:3px;\">");
+      sb.append("<span>Confirm deletion of this robot.</span></label>");
       sb.append("<div style=\"margin-top:12px;\"><button type=\"submit\">Delete Robot</button></div>");
       sb.append("</form>");
       sb.append("</div>");
@@ -616,10 +684,10 @@ public final class RobotDashboardServlet extends HttpServlet {
     if (Strings.isNullOrEmpty(secret)) {
       return "<empty>";
     }
-    if (secret.length() <= 8) {
-      return secret;
+    if (secret.length() <= 4) {
+      return "<redacted>";
     }
-    return secret.substring(0, 4) + "\u2026" + secret.substring(secret.length() - 4);
+    return secret.substring(0, 2) + "\u2026" + secret.substring(secret.length() - 2);
   }
 
   private String formatTimestamp(long timestampMillis) {
@@ -627,6 +695,25 @@ public final class RobotDashboardServlet extends HttpServlet {
       return "Legacy / not set";
     }
     return Instant.ofEpochMilli(timestampMillis).toString() + " (" + timestampMillis + ")";
+  }
+
+  private String formatVerificationMessage(RobotAccountData robot) {
+    int capabilityCount = robot.getCapabilities() == null
+        ? 0
+        : robot.getCapabilities().getCapabilitiesMap().size();
+    String capabilitiesHash = robot.getCapabilities() == null
+        ? "unknown"
+        : robot.getCapabilities().getCapabilitiesHash();
+    String protocolVersion = robot.getCapabilities() == null
+        ? "unknown"
+        : robot.getCapabilities().getProtocolVersion().toString();
+    return "Robot capabilities verified for " + robot.getId().getAddress() + " ("
+        + capabilityCount + " capabilities, hash " + capabilitiesHash + ", protocol "
+        + protocolVersion + ").";
+  }
+
+  private String buildActiveApiUrl(HttpServletRequest req) {
+    return derivePublicBaseUrl(req) + "/robot/rpc";
   }
 
   private String derivePublicBaseUrl(HttpServletRequest req) {
