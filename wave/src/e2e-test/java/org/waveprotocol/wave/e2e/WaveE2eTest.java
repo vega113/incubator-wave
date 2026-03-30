@@ -354,14 +354,12 @@ class WaveE2eTest {
      */
     private static JsonObject makeAddParticipantDelta(String author, String newParticipant,
                                                        int version, String historyHash) {
-        JsonObject addPartOp = new JsonObject();
-        addPartOp.addProperty("1", newParticipant);
-
-        JsonObject opWrapper = new JsonObject();
-        opWrapper.add("1", addPartOp);
+        // WaveletOperation field "1" = add_participant (plain string, not nested object)
+        JsonObject op = new JsonObject();
+        op.addProperty("1", newParticipant);
 
         JsonArray ops = new JsonArray();
-        ops.add(opWrapper);
+        ops.add(op);
 
         JsonObject delta = new JsonObject();
         delta.add("1", makeHashedVersion(version, historyHash));

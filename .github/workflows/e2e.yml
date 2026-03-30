@@ -36,8 +36,6 @@ jobs:
         run: sbt --batch Universal/stage
 
       - name: Run E2E tests
-        env:
-          WAVE_E2E_BASE_URL: http://localhost:9898
         run: bash scripts/wave-e2e.sh
 
       - name: Upload E2E results
