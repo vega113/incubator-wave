@@ -18,6 +18,9 @@ package org.waveprotocol.box.server.robots;
 
 import com.google.common.base.Strings;
 import com.google.common.cache.CacheBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.wave.api.robot.CapabilityFetchException;
@@ -486,31 +489,23 @@ public final class RobotDashboardServlet extends HttpServlet {
   }
 
   static String extractJsonString(String json, String key) {
-    String search = "\"" + key + "\"";
-    int idx = json.indexOf(search);
-    if (idx < 0) return "";
-    idx = json.indexOf(":", idx + search.length());
-    if (idx < 0) return "";
-    idx = json.indexOf("\"", idx + 1);
-    if (idx < 0) return "";
-    int end = json.indexOf("\"", idx + 1);
-    if (end < 0) return "";
-    return json.substring(idx + 1, end);
+    try {
+      JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+      JsonElement el = obj.get(key);
+      return (el != null && !el.isJsonNull()) ? el.getAsString() : "";
+    } catch (Exception e) {
+      return "";
+    }
   }
 
   static long extractJsonLong(String json, String key, long defaultVal) {
-    String search = "\"" + key + "\"";
-    int idx = json.indexOf(search);
-    if (idx < 0) return defaultVal;
-    idx = json.indexOf(":", idx + search.length());
-    if (idx < 0) return defaultVal;
-    StringBuilder num = new StringBuilder();
-    for (int i = idx + 1; i < json.length(); i++) {
-      char c = json.charAt(i);
-      if (Character.isDigit(c) || c == '-') num.append(c);
-      else if (num.length() > 0) break;
+    try {
+      JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+      JsonElement el = obj.get(key);
+      return (el != null && !el.isJsonNull()) ? el.getAsLong() : defaultVal;
+    } catch (Exception e) {
+      return defaultVal;
     }
-    try { return Long.parseLong(num.toString()); } catch (NumberFormatException e) { return defaultVal; }
   }
 
   private static String escapeJsonValue(String value) {
