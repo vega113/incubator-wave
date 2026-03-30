@@ -1039,7 +1039,7 @@ Compile / compile := (Compile / compile)
   .value
 
 // Ensure `run` has a config in place
-Compile / run := (Compile / run).dependsOn(prepareServerConfig).evaluated
+Compile / run := (Compile / run).dependsOn(prepareServerConfig, compileGwt).evaluated
 
 // =============================================================================
 // Phase 6: GWT Compilation Bridge
@@ -1147,3 +1147,6 @@ ThisBuild / compileGwt := {
 
 // Wire compileGwt to run after compileJava (GWT needs compiled classes)
 compileGwt := (compileGwt).dependsOn(Compile / compile).value
+Universal / mappings := (Universal / mappings).dependsOn(compileGwt).value
+Universal / stage := (Universal / stage).dependsOn(compileGwt).value
+Universal / packageBin := (Universal / packageBin).dependsOn(compileGwt).value
