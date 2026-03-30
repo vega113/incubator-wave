@@ -58,7 +58,7 @@ final class WaveLockValidator {
 
       String blipId = ((WaveletBlipOperation) op).getBlipId();
       if (IdConstants.LOCK_DOC_ID.equals(blipId)) {
-        if (!author.equals(creator)) {
+        if (author == null || !author.equals(creator)) {
           return "Only the wave creator may change the lock state.";
         }
         continue;
