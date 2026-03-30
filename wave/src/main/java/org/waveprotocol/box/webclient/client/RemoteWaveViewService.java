@@ -40,7 +40,6 @@ import org.waveprotocol.wave.concurrencycontrol.channel.WaveViewService;
 import org.waveprotocol.wave.concurrencycontrol.common.ResponseCode;
 import org.waveprotocol.wave.federation.ProtocolHashedVersion;
 import org.waveprotocol.wave.federation.ProtocolWaveletDelta;
-import org.waveprotocol.wave.federation.jso.ProtocolHashedVersionJsoImpl;
 import org.waveprotocol.wave.federation.jso.ProtocolWaveletDeltaJsoImpl;
 import org.waveprotocol.wave.model.document.operation.DocInitialization;
 import org.waveprotocol.wave.model.document.operation.impl.DocOpUtil;
@@ -501,46 +500,33 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
     } else {
       List<TransformedWaveletDelta> parsed = new ArrayList<TransformedWaveletDelta>();
       for (int i = 0; i < deltas.size(); i++) {
-        ProtocolHashedVersion thisEnd = //
+        ProtocolWaveletDelta delta = deltas.get(i);
+        ProtocolHashedVersion thisEnd =
             i < deltas.size() - 1 ? deltas.get(i + 1).getHashedVersion() : end;
-        // Guard against null end version: derive from the delta's own hashed version
-        // plus its operation count when the next version is unavailable.
-        if (thisEnd == null) {
-          ProtocolHashedVersion deltaVersion = deltas.get(i).getHashedVersion();
-          if (deltaVersion != null) {
-            long appliedAt = (long) deltaVersion.getVersion();
-            int opCount = deltas.get(i).getOperationSize();
-            thisEnd = createUnsignedVersion(appliedAt + opCount);
-          }
-        }
-        parsed.add(deserialize(deltas.get(i), thisEnd));
+        HashedVersion endVersion = thisEnd != null
+            ? WaveletOperationSerializer.deserialize(thisEnd)
+            : computeDerivedEndVersion(delta);
+        parsed.add(WaveletOperationSerializer.deserialize(delta, endVersion));
       }
       return parsed;
     }
   }
 
   /**
-   * Creates a ProtocolHashedVersion with only a version number (unsigned).
+   * Derives an end version from a delta's applied-at version + operation count.
+   * Used when the next delta's hashed version or the update's resultingVersion
+   * is absent. Throws if the delta itself has no hashed version, since there is
+   * then no safe basis for a fallback.
    */
-  private static ProtocolHashedVersion createUnsignedVersion(long version) {
-    ProtocolHashedVersionJsoImpl v = ProtocolHashedVersionJsoImpl.create();
-    v.setVersion(version);
-    v.setHistoryHash(new org.waveprotocol.wave.communication.Blob(""));
-    return v;
-  }
-
-  private static TransformedWaveletDelta deserialize(ProtocolWaveletDelta delta,
-      ProtocolHashedVersion end) {
-    HashedVersion endVersion;
-    if (end != null) {
-      endVersion = deserialize(end);
-    } else {
-      // Fallback: compute end version from delta's applied-at version + op count
-      long appliedAt = (long) delta.getHashedVersion().getVersion();
-      int opCount = delta.getOperationSize();
-      endVersion = HashedVersion.unsigned(appliedAt + opCount);
+  private static HashedVersion computeDerivedEndVersion(ProtocolWaveletDelta delta) {
+    ProtocolHashedVersion deltaVersion = delta.getHashedVersion();
+    if (deltaVersion == null) {
+      throw new IllegalArgumentException(
+          "Missing end version and delta hashed version when deserializing wavelet delta");
     }
-    return WaveletOperationSerializer.deserialize(delta, endVersion);
+    long appliedAt = (long) deltaVersion.getVersion();
+    int opCount = delta.getOperationSize();
+    return HashedVersion.unsigned(appliedAt + opCount);
   }
 
   private ObservableWaveletData deserialize(WaveId waveId, WaveletSnapshot snapshot) {

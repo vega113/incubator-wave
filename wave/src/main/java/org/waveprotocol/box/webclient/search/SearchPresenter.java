@@ -30,6 +30,7 @@ import org.waveprotocol.box.common.comms.WaveletSnapshot;
 import org.waveprotocol.box.search.SearchBootstrapUiState;
 import org.waveprotocol.wave.federation.ProtocolHashedVersion;
 import org.waveprotocol.wave.federation.ProtocolWaveletDelta;
+import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.box.webclient.client.RemoteViewServiceMultiplexer;
 import org.waveprotocol.box.webclient.client.Session;
 import org.waveprotocol.box.webclient.client.WaveWebSocketCallback;
@@ -1368,10 +1369,21 @@ public final class SearchPresenter
     }
     List<TransformedWaveletDelta> parsed = new ArrayList<TransformedWaveletDelta>();
     for (int i = 0; i < deltas.size(); i++) {
+      ProtocolWaveletDelta delta = deltas.get(i);
       ProtocolHashedVersion thisEnd =
           i < deltas.size() - 1 ? deltas.get(i + 1).getHashedVersion() : end;
-      parsed.add(WaveletOperationSerializer.deserialize(deltas.get(i),
-          WaveletOperationSerializer.deserialize(thisEnd)));
+      HashedVersion endVersion;
+      if (thisEnd != null) {
+        endVersion = WaveletOperationSerializer.deserialize(thisEnd);
+      } else {
+        ProtocolHashedVersion deltaVersion = delta.getHashedVersion();
+        if (deltaVersion == null) {
+          throw new IllegalArgumentException(
+              "Missing end version and delta hashed version when deserializing wavelet delta");
+        }
+        endVersion = HashedVersion.unsigned((long) deltaVersion.getVersion() + delta.getOperationSize());
+      }
+      parsed.add(WaveletOperationSerializer.deserialize(delta, endVersion));
     }
     return parsed;
   }
