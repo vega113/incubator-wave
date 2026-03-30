@@ -30,6 +30,7 @@ import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.authentication.PasswordDigest;
+import org.waveprotocol.box.server.authentication.email.PublicBaseUrlResolver;
 import org.waveprotocol.box.server.authentication.jwt.EmailTokenIssuer;
 import org.waveprotocol.box.server.authentication.jwt.JwtClaims;
 import org.waveprotocol.box.server.authentication.jwt.JwtTokenType;
@@ -88,7 +89,7 @@ public final class PasswordResetServlet extends HttpServlet {
         ? config.getString("core.email_from_address") : "noreply@wave.example.test";
     this.passwordResetEnabled = !config.hasPath("core.password_reset_enabled")
         || config.getBoolean("core.password_reset_enabled");
-    this.publicBaseUrl = readPublicBaseUrl(config);
+    this.publicBaseUrl = PublicBaseUrlResolver.resolve(config);
   }
 
   @Override
@@ -257,56 +258,6 @@ public final class PasswordResetServlet extends HttpServlet {
 
   private String buildResetUrl(String token) {
     return publicBaseUrl + "/auth/password-reset?token=" + token;
-  }
-
-  private String readPublicBaseUrl(Config config) {
-    if (config.hasPath("core.public_url")) {
-      String configuredUrl = stripTrailingSlash(config.getString("core.public_url").trim());
-      if (!configuredUrl.isEmpty()) {
-        return configuredUrl;
-      }
-    }
-
-    String configuredAddress = readFrontendAddress(config);
-    String scheme = readFrontendScheme(config);
-    return stripTrailingSlash(scheme + "://" + configuredAddress);
-  }
-
-  private String readFrontendAddress(Config config) {
-    if (config.hasPath("core.http_frontend_public_address")) {
-      String publicAddress = config.getString("core.http_frontend_public_address").trim();
-      if (!publicAddress.isEmpty()) {
-        return publicAddress;
-      }
-    }
-    if (config.hasPath("core.http_frontend_addresses")
-        && !config.getStringList("core.http_frontend_addresses").isEmpty()) {
-      for (String address : config.getStringList("core.http_frontend_addresses")) {
-        String trimmedAddress = address.trim();
-        if (!trimmedAddress.isEmpty()) {
-          return trimmedAddress;
-        }
-      }
-    }
-    if (config.hasPath("core.default_http_frontend_address")) {
-      String defaultAddress = config.getString("core.default_http_frontend_address").trim();
-      if (!defaultAddress.isEmpty()) {
-        return defaultAddress;
-      }
-    }
-    return "wave.example.test";
-  }
-
-  private String readFrontendScheme(Config config) {
-    boolean sslEnabled = config.hasPath("security.enable_ssl") && config.getBoolean("security.enable_ssl");
-    return sslEnabled ? "https" : "http";
-  }
-
-  private String stripTrailingSlash(String value) {
-    if (value.endsWith("/")) {
-      return value.substring(0, value.length() - 1);
-    }
-    return value;
   }
 
   private String renderResetEmail(String address, String resetUrl) {
