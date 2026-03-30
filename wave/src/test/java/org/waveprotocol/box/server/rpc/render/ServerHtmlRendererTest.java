@@ -66,6 +66,7 @@ public class ServerHtmlRendererTest extends TestCase {
     assertNull(ServerHtmlRenderer.sanitizeUri("data:text/html;base64,PHNjcmlwdA==", true));
     assertNull(ServerHtmlRenderer.sanitizeUri("vbscript:msgbox(1)", true));
     assertNull(ServerHtmlRenderer.sanitizeUri("mailto:user@example.com", false));
+    assertNull(ServerHtmlRenderer.sanitizeUri("//example.com/x", true));
   }
 
   // =========================================================================

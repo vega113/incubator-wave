@@ -644,6 +644,12 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
 
     String scheme = parsedUri.getScheme();
     if (scheme == null) {
+      // Reject protocol-relative URLs like //evil.example/path, which have no scheme
+      // but do have an authority and are resolved by browsers using the current scheme.
+      if (parsedUri.getAuthority() != null || trimmedUri.startsWith("//")) {
+        return null;
+      }
+      // Allow true relative, query-only, or fragment-only URLs.
       return trimmedUri;
     }
 
