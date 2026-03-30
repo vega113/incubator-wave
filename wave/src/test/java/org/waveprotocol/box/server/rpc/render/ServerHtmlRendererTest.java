@@ -53,6 +53,22 @@ public class ServerHtmlRendererTest extends TestCase {
     assertEquals("Hello world", ServerHtmlRenderer.escapeHtml("Hello world"));
   }
 
+  public void testSanitizeUriAllowsSafeSchemes() {
+    assertEquals("https://example.com", ServerHtmlRenderer.sanitizeUri("https://example.com", true));
+    assertEquals("http://example.com", ServerHtmlRenderer.sanitizeUri("http://example.com", false));
+    assertEquals("/waves/123", ServerHtmlRenderer.sanitizeUri("/waves/123", false));
+    assertEquals("mailto:user@example.com", ServerHtmlRenderer.sanitizeUri("mailto:user@example.com", true));
+    assertEquals("tel:+15555550100", ServerHtmlRenderer.sanitizeUri("tel:+15555550100", true));
+  }
+
+  public void testSanitizeUriRejectsUnsafeSchemes() {
+    assertNull(ServerHtmlRenderer.sanitizeUri("javascript:alert(1)", true));
+    assertNull(ServerHtmlRenderer.sanitizeUri("data:text/html;base64,PHNjcmlwdA==", true));
+    assertNull(ServerHtmlRenderer.sanitizeUri("vbscript:msgbox(1)", true));
+    assertNull(ServerHtmlRenderer.sanitizeUri("mailto:user@example.com", false));
+    assertNull(ServerHtmlRenderer.sanitizeUri("//example.com/x", true));
+  }
+
   // =========================================================================
   // Tests for renderWave with empty / missing data
   // =========================================================================
