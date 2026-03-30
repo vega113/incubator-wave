@@ -53,7 +53,8 @@ class WaveWebSocketClient {
      * even if they arrive before WaveWebSocketClient construction completes.
      */
     static WaveWebSocketClient connect(String baseUrl, String jsessionid) throws Exception {
-        String wsUrl = baseUrl.replace("http://", "ws://")
+        String wsUrl = baseUrl.replaceAll("/+$", "")
+                              .replace("http://", "ws://")
                               .replace("https://", "wss://") + "/socket";
 
         LinkedBlockingDeque<String> queue = new LinkedBlockingDeque<>();
