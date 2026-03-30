@@ -551,6 +551,24 @@ public final class RobotDashboardServlet extends HttpServlet {
     appendTokenSection(sb);
     sb.append("</aside></div></div>");
     appendScripts(sb);
+    // Animated wave background fixed to bottom of page (matches main app)
+    sb.append("<div class=\"wave-bg\"><svg viewBox=\"0 0 1440 150\" preserveAspectRatio=\"none\">");
+    sb.append("<path d=\"M0,50 C360,150 1080,-50 1440,50 L1440,150 L0,150 Z\" fill=\"rgba(0,119,182,0.15)\">");
+    sb.append("<animate attributeName=\"d\" dur=\"8s\" repeatCount=\"indefinite\" ");
+    sb.append("values=\"M0,50 C360,150 1080,-50 1440,50 L1440,150 L0,150 Z;");
+    sb.append("M0,80 C360,-20 1080,120 1440,30 L1440,150 L0,150 Z;");
+    sb.append("M0,50 C360,150 1080,-50 1440,50 L1440,150 L0,150 Z\"/></path>");
+    sb.append("<path d=\"M0,80 C480,0 960,120 1440,40 L1440,150 L0,150 Z\" fill=\"rgba(0,180,216,0.10)\">");
+    sb.append("<animate attributeName=\"d\" dur=\"10s\" repeatCount=\"indefinite\" ");
+    sb.append("values=\"M0,80 C480,0 960,120 1440,40 L1440,150 L0,150 Z;");
+    sb.append("M0,40 C480,120 960,0 1440,80 L1440,150 L0,150 Z;");
+    sb.append("M0,80 C480,0 960,120 1440,40 L1440,150 L0,150 Z\"/></path>");
+    sb.append("<path d=\"M0,100 C320,60 720,130 1440,70 L1440,150 L0,150 Z\" fill=\"rgba(144,224,239,0.08)\">");
+    sb.append("<animate attributeName=\"d\" dur=\"12s\" repeatCount=\"indefinite\" ");
+    sb.append("values=\"M0,100 C320,60 720,130 1440,70 L1440,150 L0,150 Z;");
+    sb.append("M0,70 C320,130 720,60 1440,100 L1440,150 L0,150 Z;");
+    sb.append("M0,100 C320,60 720,130 1440,70 L1440,150 L0,150 Z\"/></path>");
+    sb.append("</svg></div>");
     sb.append("</body></html>");
     return sb.toString();
   }
@@ -558,41 +576,59 @@ public final class RobotDashboardServlet extends HttpServlet {
   private void appendStyles(StringBuilder sb) {
     sb.append("<style>");
     sb.append("*,*::before,*::after{box-sizing:border-box;}");
-    sb.append("body{margin:0;background:linear-gradient(180deg,#e8f8fc 0%,#ffffff 100%);");
-    sb.append("font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a2e;}");
-    // Top bar
+    sb.append("body{margin:0;min-height:100vh;");
+    sb.append("font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a2e;");
+    sb.append("background:#f4fbfe;}");
+    // Animated wave background (bottom of page, matches main app)
+    sb.append(".wave-bg{position:fixed;bottom:0;left:0;width:100%;height:180px;z-index:0;pointer-events:none;}");
+    sb.append(".wave-bg svg{width:100%;height:100%;}");
+    // Top bar — matches main app topbar
     sb.append(".topbar{display:flex;align-items:center;justify-content:space-between;");
-    sb.append("padding:0 24px;height:48px;background:#0077b6;color:#fff;position:sticky;top:0;z-index:100;}");
-    sb.append(".topbar a{color:#fff;text-decoration:none;}");
+    sb.append("padding:0 24px;height:48px;background:linear-gradient(135deg,#023e6b 0%,#0077b6 100%);");
+    sb.append("color:#fff;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(2,62,138,.15);}");
+    sb.append(".topbar a{color:#fff;text-decoration:none;transition:opacity .15s;}");
     sb.append(".topbar-brand{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;}");
-    sb.append(".topbar-brand svg{width:22px;height:22px;}");
-    sb.append(".topbar-nav{display:flex;align-items:center;gap:16px;font-size:13px;}");
-    sb.append(".topbar-nav a{opacity:.85;transition:opacity .15s;}");
-    sb.append(".topbar-nav a:hover{opacity:1;}");
+    sb.append(".topbar-nav{display:flex;align-items:center;gap:6px;font-size:13px;}");
+    sb.append(".topbar-nav a{padding:6px 14px;border-radius:999px;opacity:.85;}");
+    sb.append(".topbar-nav a:hover{opacity:1;background:rgba(255,255,255,.12);}");
+    sb.append(".topbar-back{background:rgba(255,255,255,.15);opacity:1 !important;font-weight:600;}");
+    sb.append(".topbar-back:hover{background:rgba(255,255,255,.25) !important;}");
     sb.append(".topbar-user{display:flex;align-items:center;gap:8px;font-size:13px;}");
-    sb.append(".topbar-avatar{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.2);");
-    sb.append("display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}");
+    sb.append(".topbar-avatar{width:28px;height:28px;border-radius:50%;");
+    sb.append("background:linear-gradient(135deg,#0077b6,#00b4d8);");
+    sb.append("display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;");
+    sb.append("box-shadow:0 0 0 2px rgba(255,255,255,.3);}");
     // Shell
-    sb.append(".shell{max-width:1140px;margin:0 auto;padding:32px 24px 64px;}");
-    sb.append(".hero,.panel{background:rgba(255,255,255,.96);border:1px solid rgba(0,119,182,.1);");
-    sb.append("border-radius:20px;box-shadow:0 12px 32px rgba(2,62,138,.06);}");
-    sb.append(".hero{padding:28px 30px;margin-bottom:20px;}");
-    sb.append(".eyebrow{display:inline-block;padding:5px 12px;border-radius:999px;background:#023e8a;");
-    sb.append("color:#fff;font-size:11px;letter-spacing:.12em;text-transform:uppercase;}");
-    sb.append("h1{margin:14px 0 8px;font-size:36px;line-height:1.1;color:#0a1628;}");
+    sb.append(".shell{max-width:1140px;margin:0 auto;padding:0 24px 80px;position:relative;z-index:1;}");
+    // Hero — gradient banner matching Wave landing page
+    sb.append(".hero{position:relative;overflow:hidden;");
+    sb.append("background:linear-gradient(135deg,#0077b6 0%,#00b4d8 50%,#90e0ef 100%);");
+    sb.append("padding:36px 36px 56px;margin-bottom:24px;color:#fff;border-radius:0 0 24px 24px;}");
+    sb.append(".hero-inner{position:relative;z-index:2;max-width:1140px;margin:0 auto;}");
+    sb.append(".eyebrow{display:inline-block;padding:5px 12px;border-radius:999px;");
+    sb.append("background:rgba(255,255,255,.18);backdrop-filter:blur(4px);");
+    sb.append("color:#fff;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;}");
+    sb.append("h1{margin:14px 0 8px;font-size:36px;line-height:1.1;color:#fff;}");
+    sb.append(".lede{margin:0;max-width:48rem;font-size:16px;line-height:1.65;color:rgba(255,255,255,.88);}");
+    // Hero wave divider (bottom of hero, same as landing page)
+    sb.append(".hero-wave{position:absolute;bottom:-2px;left:0;width:100%;z-index:1;line-height:0;}");
+    sb.append(".hero-wave svg{width:100%;height:auto;}");
+    // Headings inside panels
     sb.append("h2{margin:0 0 14px;font-size:22px;color:#0a1628;}");
-    sb.append(".lede{margin:0;max-width:48rem;font-size:16px;line-height:1.65;color:#3d627a;}");
-    // Grid
+    // Grid & panels
     sb.append(".grid{display:grid;grid-template-columns:1.15fr .85fr;gap:20px;}");
     sb.append("@media(max-width:860px){.grid{grid-template-columns:1fr;}}");
-    sb.append(".panel{padding:24px 26px;}");
+    sb.append(".panel{background:rgba(255,255,255,.97);border:1px solid rgba(0,119,182,.08);");
+    sb.append("border-radius:20px;box-shadow:0 8px 28px rgba(2,62,138,.05);padding:24px 26px;}");
     // Status
-    sb.append(".status{margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#edf8fb;color:#124663;font-size:14px;}");
+    sb.append(".status{margin:0 0 16px;padding:12px 14px;border-radius:12px;");
+    sb.append("background:linear-gradient(135deg,#edf8fb,#e0f4fa);color:#124663;font-size:14px;");
+    sb.append("border-left:4px solid #0077b6;}");
     sb.append(".status strong{color:#023e8a;}");
     // Robot cards
     sb.append(".robot-card{padding:18px 20px;border-radius:16px;background:#f7fcfd;");
-    sb.append("border:1px solid rgba(0,119,182,.08);margin-bottom:14px;transition:box-shadow .15s;}");
-    sb.append(".robot-card:hover{box-shadow:0 4px 16px rgba(0,119,182,.08);}");
+    sb.append("border:1px solid rgba(0,119,182,.08);margin-bottom:14px;transition:all .2s;}");
+    sb.append(".robot-card:hover{box-shadow:0 6px 20px rgba(0,119,182,.1);transform:translateY(-1px);}");
     sb.append(".robot-card h3{margin:0 0 6px;font-size:18px;color:#023e8a;}");
     sb.append(".meta{font-size:13px;color:#56738a;line-height:1.7;}");
     sb.append(".meta-row{display:flex;gap:6px;align-items:baseline;}");
@@ -604,12 +640,12 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append(".edit-section{margin-top:14px;padding-top:14px;border-top:1px solid rgba(0,119,182,.08);}");
     sb.append("label{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#4b6b81;margin:0 0 5px;font-weight:600;}");
     sb.append("input[type=text],input:not([type]){width:100%;padding:10px 12px;border-radius:10px;");
-    sb.append("border:1px solid rgba(0,119,182,.18);font:inherit;font-size:14px;transition:border-color .15s;}");
+    sb.append("border:1px solid rgba(0,119,182,.18);font:inherit;font-size:14px;transition:border-color .15s,box-shadow .15s;}");
     sb.append("input[type=text]:focus,input:not([type]):focus{outline:none;border-color:#0077b6;box-shadow:0 0 0 3px rgba(0,119,182,.1);}");
     // Buttons
     sb.append(".btn{border:none;border-radius:999px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}");
-    sb.append(".btn-primary{background:#0077b6;color:#fff;}");
-    sb.append(".btn-primary:hover{background:#005f8f;box-shadow:0 4px 12px rgba(0,119,182,.25);}");
+    sb.append(".btn-primary{background:linear-gradient(135deg,#0077b6,#00b4d8);color:#fff;}");
+    sb.append(".btn-primary:hover{background:linear-gradient(135deg,#005f8f,#0098b8);box-shadow:0 4px 14px rgba(0,119,182,.3);transform:translateY(-1px);}");
     sb.append(".btn-secondary{background:transparent;color:#0077b6;border:1.5px solid #0077b6;}");
     sb.append(".btn-secondary:hover{background:#f0f8ff;}");
     sb.append(".btn-ghost{background:transparent;color:#56738a;border:1.5px solid rgba(0,119,182,.15);}");
@@ -644,15 +680,27 @@ public final class RobotDashboardServlet extends HttpServlet {
   private void appendTopBar(StringBuilder sb, String userAddress) {
     String firstLetter = userAddress.isEmpty() ? "?" : userAddress.substring(0, 1).toUpperCase();
     sb.append("<nav class=\"topbar\">");
+    // Brand with SupaWave logo (matches main app)
     sb.append("<a href=\"/\" class=\"topbar-brand\">");
-    sb.append("<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\">");
-    sb.append("<path d=\"M2 12c2-4 6-7 10-7s8 3 10 7c-2 4-6 7-10 7s-8-3-10-7z\"/>");
-    sb.append("<circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>");
+    sb.append("<svg width=\"24\" height=\"24\" viewBox=\"0 0 48 48\" fill=\"none\" style=\"vertical-align:middle;\">");
+    sb.append("<defs><linearGradient id=\"tb-bg\" x1=\"0\" y1=\"0\" x2=\"48\" y2=\"48\" gradientUnits=\"userSpaceOnUse\">");
+    sb.append("<stop offset=\"0%\" stop-color=\"#90e0ef\"/><stop offset=\"100%\" stop-color=\"#00b4d8\"/>");
+    sb.append("</linearGradient></defs>");
+    sb.append("<circle cx=\"24\" cy=\"24\" r=\"24\" fill=\"url(#tb-bg)\"/>");
+    sb.append("<path d=\"M8 28 Q14 16 20 28 Q24 36 28 28 Q34 16 40 28\" stroke=\"white\" stroke-width=\"3\" stroke-linecap=\"round\" fill=\"none\">");
+    sb.append("<animate attributeName=\"d\" dur=\"4s\" repeatCount=\"indefinite\" ");
+    sb.append("values=\"M8 28 Q14 16 20 28 Q24 36 28 28 Q34 16 40 28;M8 30 Q14 20 20 30 Q24 36 28 30 Q34 20 40 30;M8 28 Q14 16 20 28 Q24 36 28 28 Q34 16 40 28\"/>");
+    sb.append("</path></svg>");
     sb.append("SupaWave</a>");
+    // Navigation with prominent Back to Waves
     sb.append("<div class=\"topbar-nav\">");
-    sb.append("<a href=\"/\">Waves</a>");
+    sb.append("<a href=\"/\" class=\"topbar-back\">");
+    sb.append("<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" style=\"vertical-align:-2px;margin-right:4px;\">");
+    sb.append("<path d=\"M19 12H5M12 5l-7 7 7 7\"/></svg>");
+    sb.append("Back to Waves</a>");
     sb.append("<a href=\"/api-docs\" target=\"_blank\" rel=\"noopener noreferrer\">API Docs</a>");
     sb.append("</div>");
+    // User
     sb.append("<div class=\"topbar-user\">");
     sb.append("<span>").append(HtmlRenderer.escapeHtml(userAddress)).append("</span>");
     sb.append("<span class=\"topbar-avatar\">").append(HtmlRenderer.escapeHtml(firstLetter)).append("</span>");
@@ -661,10 +709,22 @@ public final class RobotDashboardServlet extends HttpServlet {
   }
 
   private void appendHero(StringBuilder sb) {
-    sb.append("<section class=\"hero\"><span class=\"eyebrow\">Automation</span>");
+    sb.append("<section class=\"hero\">");
+    sb.append("<div class=\"hero-inner\">");
+    sb.append("<span class=\"eyebrow\">Automation</span>");
     sb.append("<h1>Robot Control Room</h1>");
     sb.append("<p class=\"lede\">Register robots, manage their endpoints, ");
     sb.append("and generate LLM-ready starter prompts with short-lived API tokens.</p>");
+    sb.append("</div>");
+    // Animated wave divider at bottom of hero (matches landing page)
+    sb.append("<div class=\"hero-wave\">");
+    sb.append("<svg viewBox=\"0 0 1440 120\" preserveAspectRatio=\"none\">");
+    sb.append("<path d=\"M0,40 C360,120 1080,0 1440,60 L1440,120 L0,120 Z\" fill=\"#f4fbfe\">");
+    sb.append("<animate attributeName=\"d\" dur=\"8s\" repeatCount=\"indefinite\" ");
+    sb.append("values=\"M0,40 C360,120 1080,0 1440,60 L1440,120 L0,120 Z;");
+    sb.append("M0,70 C360,0 1080,100 1440,30 L1440,120 L0,120 Z;");
+    sb.append("M0,40 C360,120 1080,0 1440,60 L1440,120 L0,120 Z\"/>");
+    sb.append("</path></svg></div>");
     sb.append("</section>");
   }
 
