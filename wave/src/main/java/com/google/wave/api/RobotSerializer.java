@@ -73,12 +73,6 @@ public class RobotSerializer {
   private final ProtocolVersion defaultProtocolVersion;
 
   /**
-   * An instance of {@link JsonParser} to parse JSON string into
-   * {@link JsonElement}.
-   */
-  // JsonParser is used via static methods (parseString) since Gson 2.8.6+
-
-  /**
    * Constructor. Note that the defaultprotocol version must occur in the map
    * of {@link Gson}s.
    *
@@ -94,7 +88,6 @@ public class RobotSerializer {
     }
     this.gsons = gsons;
     this.defaultProtocolVersion = defaultProtocolVersion;
-    // JsonParser now used via static methods
   }
 
   /**
