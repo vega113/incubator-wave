@@ -135,7 +135,9 @@ public final class Snippets {
           @Override
           public void elementStart(String type, Attributes attrs) {
             if (type.equals(DocumentConstants.LINE)) {
-              func.apply(resultBuilder);
+              if (resultBuilder.length() < safeMaxLength) {
+                func.apply(resultBuilder);
+              }
             }
           }
 

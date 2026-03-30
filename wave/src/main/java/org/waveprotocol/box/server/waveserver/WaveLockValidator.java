@@ -72,7 +72,9 @@ final class WaveLockValidator {
         if (rootBlipId == null) {
           rootBlipId = readRootBlipId(snapshot);
         }
-        if (rootBlipId != null && rootBlipId.equals(blipId)) {
+        // Fail closed: if the root blip ID cannot be determined, deny edits
+        // rather than allowing them to proceed without enforcing the lock.
+        if (rootBlipId == null || rootBlipId.equals(blipId)) {
           return "The root blip is locked. Editing is not allowed here.";
         }
       }
