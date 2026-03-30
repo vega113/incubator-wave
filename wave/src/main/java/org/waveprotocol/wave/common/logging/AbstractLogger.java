@@ -180,6 +180,7 @@ public abstract class AbstractLogger implements LoggerBundle {
 
     @SuppressWarnings("deprecation") // Implementing deprecated interface method
     @Override
+    @SuppressWarnings("deprecation")
     public void logXml(String xml) {
       handleClientErrors(level, null, xml);
       if (shouldLog()) {
