@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public final class DataApiTokenServletTest {
   private static final ParticipantId ROBOT_ID = ParticipantId.ofUnsafe("helper-bot@example.com");
+  private static final ParticipantId OWNER = ParticipantId.ofUnsafe("owner@example.com");
 
   @Mock private SessionManager sessionManager;
   @Mock private AccountStore accountStore;
@@ -60,16 +61,47 @@ public final class DataApiTokenServletTest {
   }
 
   @Test
-  public void testClientCredentialsAllowsLegacyRobotWithCallbackUrl() throws Exception {
+  public void testClientCredentialsAllowsVerifiedRobotWithCallbackUrl() throws Exception {
     when(req.getParameter("grant_type")).thenReturn("client_credentials");
     when(req.getParameter("client_id")).thenReturn(ROBOT_ID.getAddress());
-    when(req.getParameter("client_secret")).thenReturn("legacy-secret");
+    when(req.getParameter("client_secret")).thenReturn("verified-secret");
     when(accountStore.getAccount(ROBOT_ID)).thenReturn(
-        new RobotAccountDataImpl(ROBOT_ID, "https://example.com/robot", "legacy-secret", null, false, 0L));
+        new RobotAccountDataImpl(ROBOT_ID, "https://example.com/robot", "verified-secret", null,
+            true, 0L, OWNER.getAddress(), "", 111L, 222L, false));
 
     servlet.doPost(req, resp);
 
     verify(resp).setStatus(HttpServletResponse.SC_OK);
     assertTrue(responseBody.toString().contains("access_token"));
+  }
+
+  @Test
+  public void testClientCredentialsRejectsPausedRobot() throws Exception {
+    when(req.getParameter("grant_type")).thenReturn("client_credentials");
+    when(req.getParameter("client_id")).thenReturn(ROBOT_ID.getAddress());
+    when(req.getParameter("client_secret")).thenReturn("paused-secret");
+    when(accountStore.getAccount(ROBOT_ID)).thenReturn(
+        new RobotAccountDataImpl(ROBOT_ID, "https://example.com/robot", "paused-secret", null,
+            true, 0L, OWNER.getAddress(), "", 111L, 222L, true));
+
+    servlet.doPost(req, resp);
+
+    verify(resp).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    assertTrue(responseBody.toString().contains("paused"));
+  }
+
+  @Test
+  public void testClientCredentialsRejectsManagedUnverifiedRobot() throws Exception {
+    when(req.getParameter("grant_type")).thenReturn("client_credentials");
+    when(req.getParameter("client_id")).thenReturn(ROBOT_ID.getAddress());
+    when(req.getParameter("client_secret")).thenReturn("managed-secret");
+    when(accountStore.getAccount(ROBOT_ID)).thenReturn(
+        new RobotAccountDataImpl(ROBOT_ID, "https://example.com/robot", "managed-secret", null,
+            false, 0L, OWNER.getAddress(), "", 111L, 222L, false));
+
+    servlet.doPost(req, resp);
+
+    verify(resp).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    assertTrue(responseBody.toString().contains("verified"));
   }
 }
