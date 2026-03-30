@@ -46,7 +46,6 @@ import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 
 import org.waveprotocol.wave.model.id.WaveId;
 
-import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -395,7 +394,7 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
       if (href == null && attrs != null) {
         href = attrs.get("url");
       }
-      String safeHref = sanitizeUri(href, true);
+      String safeHref = sanitizeUrl(href, true);
       if (safeHref != null) {
         sb.append("<a href=\"").append(escapeAttr(safeHref)).append("\" rel=\"nofollow\">");
       } else if (href != null) {
@@ -414,7 +413,7 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
       if (src == null && attrs != null) {
         src = attrs.get("attachment");
       }
-      String safeSrc = sanitizeUri(src, false);
+      String safeSrc = sanitizeUrl(src, false);
       if (safeSrc != null) {
         sb.append("<img src=\"").append(escapeAttr(safeSrc)).append("\" />");
       }
@@ -625,42 +624,39 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
     return escapeHtml(text);
   }
 
-  static String sanitizeUri(String uri, boolean allowMailtoAndTel) {
-    if (uri == null) {
+  static String sanitizeUrl(String candidateUrl, boolean allowMailto) {
+    if (candidateUrl == null) {
       return null;
     }
-
-    String trimmedUri = uri.trim();
-    if (trimmedUri.isEmpty()) {
+    String trimmedUrl = candidateUrl.trim();
+    if (trimmedUrl.isEmpty()) {
       return null;
     }
-
-    URI parsedUri;
-    try {
-      parsedUri = URI.create(trimmedUri);
-    } catch (IllegalArgumentException e) {
+    // Reject protocol-relative URLs like //evil.example/path; browsers resolve
+    // these using the current page scheme and they are a common open-redirect vector.
+    if (trimmedUrl.startsWith("//")) {
       return null;
     }
-
-    String scheme = parsedUri.getScheme();
-    if (scheme == null) {
-      // Reject protocol-relative URLs like //evil.example/path, which have no scheme
-      // but do have an authority and are resolved by browsers using the current scheme.
-      if (parsedUri.getAuthority() != null || trimmedUri.startsWith("//")) {
-        return null;
-      }
-      // Allow true relative, query-only, or fragment-only URLs.
-      return trimmedUri;
+    // Extract scheme by scanning for the first ':'.  Using indexOf instead of
+    // java.net.URI keeps the check permissive enough to accept URLs that contain
+    // spaces or other characters that URI strictly rejects
+    // (e.g. "https://example.com/search?q=hello world").
+    int colonIdx = trimmedUrl.indexOf(':');
+    String normalizedScheme = colonIdx > 0
+        ? trimmedUrl.substring(0, colonIdx).toLowerCase(Locale.ROOT)
+        : null;
+    // No scheme → relative URL (path, query, or fragment) — always safe.
+    if (normalizedScheme == null) {
+      return trimmedUrl;
     }
-
-    String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
-    if ("http".equals(normalizedScheme) || "https".equals(normalizedScheme)) {
-      return trimmedUri;
-    }
-    if (allowMailtoAndTel && ("mailto".equals(normalizedScheme) || "tel".equals(normalizedScheme))) {
-      return trimmedUri;
-    }
-    return null;
+    boolean allowed = "http".equals(normalizedScheme)
+        || "https".equals(normalizedScheme)
+        || "ftp".equals(normalizedScheme)
+        || (allowMailto && "mailto".equals(normalizedScheme))
+        // wave:// and waveid:// are internal Wave reference schemes used for
+        // in-app navigation; clients convert them to safe fragment URLs.
+        || (allowMailto && ("wave".equals(normalizedScheme) || "waveid".equals(normalizedScheme)));
+    return allowed ? trimmedUrl : null;
   }
 
   /** Extracts a human-readable name from a wave address (e.g., "user@example.com" -> "user"). */
