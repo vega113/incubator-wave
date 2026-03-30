@@ -441,6 +441,11 @@ public final class PublicWaveBlipRenderer {
     if (trimmedUrl.isEmpty()) {
       return null;
     }
+    // Reject protocol-relative URLs like //evil.example/path — java.net.URI parses
+    // these with scheme=null, which would make them appear safe to the check below.
+    if (trimmedUrl.startsWith("//")) {
+      return null;
+    }
 
     URI parsedUri;
     try {

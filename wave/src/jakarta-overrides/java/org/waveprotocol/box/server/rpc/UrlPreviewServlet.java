@@ -176,7 +176,11 @@ public class UrlPreviewServlet extends HttpServlet {
   private static String fetchUrl(String targetUrl) throws IOException {
     URL currentUrl = URI.create(targetUrl).toURL();
     int redirectCount = 0;
-    while (redirectCount < MAX_REDIRECTS) {
+    // Use <= so that we follow up to MAX_REDIRECTS redirect hops and then request
+    // the terminal URL.  With <, a chain of exactly MAX_REDIRECTS redirects would
+    // never have its destination fetched (the loop exits after the last hop is
+    // recorded, before the destination is requested).
+    while (redirectCount <= MAX_REDIRECTS) {
       validateUrlForPreview(currentUrl);
       HttpURLConnection conn = openPreviewConnection(currentUrl);
       try {

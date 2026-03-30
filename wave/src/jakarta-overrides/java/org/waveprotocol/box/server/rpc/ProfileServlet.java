@@ -426,9 +426,11 @@ public final class ProfileServlet extends HttpServlet {
         if (isAllowedProfileImageMimeType(mimeType)) {
           return profileImageId;
         }
-      } else {
-        return "/userprofile/image/" + profileImageId;
       }
+      // Non-data-URL values are not supported for direct inline serving; fall
+      // through to the participant-address-based endpoint which looks up the
+      // stored data URL from the account, or falls back to Gravatar.
+      return "/userprofile/image/" + account.getId().getAddress();
     }
     // Use the profile fetcher to get the default image URL
     return profilesFetcher.fetchProfile(account.getId().getAddress()).getImageUrl();
