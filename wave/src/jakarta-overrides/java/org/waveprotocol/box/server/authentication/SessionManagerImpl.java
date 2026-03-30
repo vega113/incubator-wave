@@ -21,7 +21,6 @@ package org.waveprotocol.box.server.authentication;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.inject.Inject;
-import com.typesafe.config.Config;
 import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.persistence.AccountStore;
@@ -29,6 +28,7 @@ import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.escapers.PercentEscaper;
 import org.waveprotocol.wave.util.logging.Log;
+import org.eclipse.jetty.ee10.servlet.SessionHandler;
 
 import org.waveprotocol.box.server.authentication.WebSession;
 
@@ -42,15 +42,13 @@ public final class SessionManagerImpl implements SessionManager {
 
   private final AccountStore accountStore;
   private static final Log LOG = Log.get(SessionManagerImpl.class);
-  private final org.eclipse.jetty.ee10.servlet.SessionHandler sessionHandler;
+  private final SessionHandler sessionHandler;
 
   @Inject
   public SessionManagerImpl(AccountStore accountStore,
-                            org.eclipse.jetty.ee10.servlet.SessionHandler sessionHandler,
-                            Config config) {
+                            SessionHandler sessionHandler) {
     Preconditions.checkNotNull(accountStore, "Null account store");
     Preconditions.checkNotNull(sessionHandler, "Null session handler");
-    Preconditions.checkNotNull(config, "Null config");
     this.accountStore = accountStore;
     this.sessionHandler = sessionHandler;
   }
@@ -112,20 +110,21 @@ public final class SessionManagerImpl implements SessionManager {
 
   @Override
   public WebSession getSessionFromToken(String token) {
+    WebSession session = null;
     try {
-      if (token == null) {
-        return null;
+      if (token != null) {
+        Object jettySession = findJettySession(normalizeToken(token));
+        if (jettySession != null) {
+          jakarta.servlet.http.HttpSession httpSession = extractHttpSession(jettySession);
+          if (httpSession != null) {
+            session = WebSessions.wrap(httpSession);
+          }
+        }
       }
-      Object jettySession = findJettySession(normalizeToken(token));
-      if (jettySession == null) {
-        return null;
-      }
-      jakarta.servlet.http.HttpSession httpSession = extractHttpSession(jettySession);
-      return httpSession == null ? null : WebSessions.wrap(httpSession);
     } catch (Throwable t) {
       LOG.info("Jetty 12 session lookup failed (ignored)", t);
-      return null;
     }
+    return session;
   }
 
   private Object findJettySession(String sessionId) throws ReflectiveOperationException {

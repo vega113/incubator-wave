@@ -18,12 +18,10 @@
  */
 package org.waveprotocol.box.server.jakarta;
 
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.SessionHandler;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.session.SessionHandler;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -52,7 +50,7 @@ import static org.junit.Assert.*;
 public class SessionLookupEmbeddedIT {
   private Server server;
   private int port;
-  private org.eclipse.jetty.ee10.servlet.SessionHandler eeSessionHandler;
+  private SessionHandler eeSessionHandler;
 
   @Before
   public void start() throws Exception {
@@ -62,7 +60,7 @@ public class SessionLookupEmbeddedIT {
       c.setPort(0);
       server.addConnector(c);
 
-      eeSessionHandler = new org.eclipse.jetty.ee10.servlet.SessionHandler();
+      eeSessionHandler = new SessionHandler();
 
       ServletContextHandler ctx = new ServletContextHandler(ServletContextHandler.SESSIONS);
       ctx.setContextPath("/");
@@ -105,19 +103,21 @@ public class SessionLookupEmbeddedIT {
     assertFalse(sid.isEmpty());
 
     // 2) Build SessionManagerImpl with the same SessionHandler
-    Config cfg = ConfigFactory.empty();
     AccountStore store = Mockito.mock(AccountStore.class);
     // Construct Jakarta override SessionManagerImpl via reflection to avoid tight coupling
     Class<?> smClass = Class.forName("org.waveprotocol.box.server.authentication.SessionManagerImpl");
     SessionManager sm = (SessionManager) smClass
         .getConstructor(org.waveprotocol.box.server.persistence.AccountStore.class,
-                        org.eclipse.jetty.ee10.servlet.SessionHandler.class,
-                        com.typesafe.config.Config.class)
-        .newInstance(store, eeSessionHandler, cfg);
+                        SessionHandler.class)
+        .newInstance(store, eeSessionHandler);
 
     // 3) Lookup by token
     WebSession session = sm.getSessionFromToken(sid);
-    // Should resolve to a non-null WebSession wrapper
     assertNotNull(session);
+    assertEquals("ok", session.getAttribute("marker"));
+
+    WebSession routedSession = sm.getSessionFromToken(sid + ".node0");
+    assertNotNull(routedSession);
+    assertEquals("ok", routedSession.getAttribute("marker"));
   }
 }

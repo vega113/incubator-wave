@@ -88,13 +88,13 @@ public class WaveWebSocketEndpoint {
       connection.handleText(data);
     } catch (Throwable t) {
       if (isInvalidAuthTokenError(t)) {
-        LOG.info("WebSocket rejected unauthenticated message: auth token invalid");
+        LOG.info("WebSocket rejected unauthenticated message: " + INVALID_AUTH_TOKEN_MESSAGE);
         detachConnection(session);
         closeQuietly(session, invalidAuthCloseReason());
-        return;
+      } else {
+        LOG.warning("WebSocket message handling failed", t);
+        closeQuietly(session);
       }
-      LOG.warning("WebSocket message handling failed", t);
-      closeQuietly(session);
     }
   }
 

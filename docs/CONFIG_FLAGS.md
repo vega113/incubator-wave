@@ -1,7 +1,7 @@
 # Configuration Flags Reference (server + tests)
 
 Status: Living Document
-Updated: 2025-09-02
+Updated: 2026-03-30
 
 This page documents configuration flags and environment variables recently added or used during modernization. It also tracks temporary flags/classes and their planned removal.
 
