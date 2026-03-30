@@ -220,7 +220,7 @@ public class FileAccountStore implements AccountStore {
     }
 
     String email = account.asHuman().getEmail();
-    if (email == null || email.isEmpty()) {
+    if (email == null || email.isBlank()) {
       return;
     }
 
@@ -237,7 +237,12 @@ public class FileAccountStore implements AccountStore {
       return;
     }
 
-    emailToParticipant.remove(normalizeEmail(email));
+    String normalizedEmail = normalizeEmail(email);
+    // Only remove the mapping if it still points to this account, to avoid
+    // clobbering another account's mapping when emails are reassigned.
+    if (account.getId().equals(emailToParticipant.get(normalizedEmail))) {
+      emailToParticipant.remove(normalizedEmail);
+    }
   }
 
   private String normalizeEmail(String email) {

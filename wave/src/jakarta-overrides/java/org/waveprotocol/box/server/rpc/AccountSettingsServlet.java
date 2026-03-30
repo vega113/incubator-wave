@@ -341,8 +341,8 @@ public final class AccountSettingsServlet extends HttpServlet {
     resp.getWriter().write("{\"error\":\"" + message.replace("\"", "\\\"") + "\"}");
   }
 
-  private static boolean isTrustedSameOriginRequest(HttpServletRequest req) {
-    String expectedOrigin = getExpectedOrigin(req);
+  private boolean isTrustedSameOriginRequest(HttpServletRequest req) {
+    String expectedOrigin = getExpectedOrigin();
     String origin = req.getHeader("Origin");
     if (origin != null && !origin.isEmpty()) {
       return expectedOrigin.equals(origin);
@@ -354,16 +354,29 @@ public final class AccountSettingsServlet extends HttpServlet {
     return referer.startsWith(expectedOrigin + "/");
   }
 
-  private static String getExpectedOrigin(HttpServletRequest req) {
-    String scheme = req.getScheme();
-    String serverName = req.getServerName();
-    int serverPort = req.getServerPort();
-    StringBuilder origin = new StringBuilder();
-    origin.append(scheme).append("://").append(serverName);
-    if (("http".equals(scheme) && serverPort != 80)
-        || ("https".equals(scheme) && serverPort != 443)) {
-      origin.append(":").append(serverPort);
+  /**
+   * Returns the expected request origin derived from the configured {@code publicBaseUrl}.
+   * Using the public URL (rather than the raw request host/port) ensures correct
+   * behaviour in proxied deployments where the servlet container sees an internal
+   * address instead of the public-facing one.
+   */
+  private String getExpectedOrigin() {
+    // publicBaseUrl already has any trailing slash stripped; extract just the origin portion.
+    try {
+      java.net.URI uri = java.net.URI.create(publicBaseUrl);
+      int port = uri.getPort();
+      String scheme = uri.getScheme();
+      StringBuilder origin = new StringBuilder();
+      origin.append(scheme).append("://").append(uri.getHost());
+      if (port != -1
+          && !(("http".equals(scheme) && port == 80)
+               || ("https".equals(scheme) && port == 443))) {
+        origin.append(":").append(port);
+      }
+      return origin.toString();
+    } catch (IllegalArgumentException e) {
+      // Fallback: use publicBaseUrl directly as origin (no path component expected)
+      return publicBaseUrl;
     }
-    return origin.toString();
   }
 }

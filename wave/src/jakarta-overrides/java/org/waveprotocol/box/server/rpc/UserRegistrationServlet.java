@@ -202,10 +202,8 @@ public final class UserRegistrationServlet extends HttpServlet {
    */
   private boolean persistAccountWithOwnerAssignment(HumanAccountDataImpl account) {
     try {
-      synchronized (accountStore) {
-        assignOwnerIfFirst(account);
-        accountStore.putAccount(account);
-      }
+      assignOwnerIfFirst(account);
+      accountStore.putAccount(account);
       return true;
     } catch (PersistenceException e) {
       LOG.severe("Failed to create account for " + account.getId(), e);

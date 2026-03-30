@@ -261,6 +261,16 @@ public class UrlPreviewServlet extends HttpServlet {
         throw new MalformedURLException("Blocked address");
       }
     }
+    // KNOWN LIMITATION — DNS rebinding / TOCTOU gap (see GitHub issue #511):
+    // The DNS resolution performed above is disconnected from the actual TCP connection made by
+    // HttpURLConnection.openConnection() below.  An attacker who controls their own DNS server can
+    // arrange for the first resolution (used in this validation) to return a safe public IP while
+    // a subsequent resolution (used by the JVM's HTTP client) returns an internal/loopback address.
+    // This gap cannot be closed with Java's standard HttpURLConnection because it does not expose
+    // an API for connecting to a caller-supplied pre-resolved InetAddress.
+    // A proper fix requires replacing HttpURLConnection with a custom SocketFactory or an HTTP
+    // client library that supports explicit IP pinning (e.g. OkHttp with a custom DNS resolver
+    // that validates each resolved address before the socket is opened).
   }
 
   private static boolean isBlockedHostName(String host) {

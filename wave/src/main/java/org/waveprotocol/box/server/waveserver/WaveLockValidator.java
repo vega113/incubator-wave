@@ -90,7 +90,7 @@ final class WaveLockValidator {
     DocInitialization content;
     try {
       content = lockDoc.getContent().asOperation();
-    } catch (Throwable ignored) {
+    } catch (Exception ignored) {
       return WaveLockState.UNLOCKED;
     }
     if (content == null) {
@@ -135,7 +135,7 @@ final class WaveLockValidator {
     DocInitialization content;
     try {
       content = manifestDoc.getContent().asOperation();
-    } catch (Throwable ignored) {
+    } catch (Exception ignored) {
       return null;
     }
     if (content == null) {

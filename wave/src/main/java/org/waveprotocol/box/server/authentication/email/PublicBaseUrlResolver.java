@@ -29,10 +29,16 @@ public final class PublicBaseUrlResolver {
     }
     if (config.hasPath("core.http_frontend_addresses")
         && !config.getStringList("core.http_frontend_addresses").isEmpty()) {
-      return config.getStringList("core.http_frontend_addresses").get(0).trim();
+      String addr = config.getStringList("core.http_frontend_addresses").get(0).trim();
+      if (!addr.isEmpty()) {
+        return addr;
+      }
     }
     if (config.hasPath("core.default_http_frontend_address")) {
-      return config.getString("core.default_http_frontend_address").trim();
+      String addr = config.getString("core.default_http_frontend_address").trim();
+      if (!addr.isEmpty()) {
+        return addr;
+      }
     }
     return "wave.example.test";
   }
