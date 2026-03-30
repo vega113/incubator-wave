@@ -18,10 +18,15 @@
  */
 package com.google.wave.api;
 
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.google.wave.api.JsonRpcConstant.ParamsProperty;
 import com.google.wave.api.OperationRequest.Parameter;
+import com.google.wave.api.impl.DocumentModifyAction.BundledAnnotation;
 import com.google.wave.api.impl.DocumentModifyQuery;
 
 import junit.framework.TestCase;
@@ -29,6 +34,9 @@ import junit.framework.TestCase;
 import java.lang.reflect.Field;
 import java.util.List;
 
+/**
+ * Tests for {@link BlipContentRefs}.
+ */
 public class BlipContentRefsTest extends TestCase {
 
   public void testAllWithTextTarget() throws Exception {
@@ -60,5 +68,27 @@ public class BlipContentRefsTest extends TestCase {
     DocumentModifyQuery query = (DocumentModifyQuery) param.getValue();
     assertEquals(target, query.getTextMatch());
     assertEquals(maxResult, query.getMaxRes());
+  }
+
+  public void testInsertBlipContentDelegatesToNullAnnotations() {
+    Blip blip = mock(Blip.class);
+    when(blip.length()).thenReturn(10);
+    when(blip.getContent()).thenReturn("1234567890");
+
+    BlipContentRefs refs = BlipContentRefs.range(blip, 1, 2);
+    BlipContentRefs spiedRefs = spy(refs);
+
+    BlipContent arg1 = Plaintext.of("hello");
+    BlipContent arg2 = Plaintext.of("world");
+    BlipContent[] args = new BlipContent[]{arg1, arg2};
+
+    // Prevent actual execution on the deeper `insert` method by mocking the delegation target
+    doReturn(spiedRefs).when(spiedRefs).insert((List<BundledAnnotation>) null, args);
+
+    // This is the target method we are testing
+    spiedRefs.insert(args);
+
+    // Verify it delegates correctly to the method taking a List<BundledAnnotation>
+    verify(spiedRefs).insert((List<BundledAnnotation>) null, args);
   }
 }
