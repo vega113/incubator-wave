@@ -61,12 +61,13 @@ public final class DataApiTokenServletTest {
   }
 
   @Test
-  public void testClientCredentialsAllowsLegacyRobotWithCallbackUrl() throws Exception {
+  public void testClientCredentialsAllowsVerifiedRobotWithCallbackUrl() throws Exception {
     when(req.getParameter("grant_type")).thenReturn("client_credentials");
     when(req.getParameter("client_id")).thenReturn(ROBOT_ID.getAddress());
-    when(req.getParameter("client_secret")).thenReturn("legacy-secret");
+    when(req.getParameter("client_secret")).thenReturn("verified-secret");
     when(accountStore.getAccount(ROBOT_ID)).thenReturn(
-        new RobotAccountDataImpl(ROBOT_ID, "https://example.com/robot", "legacy-secret", null, false, 0L));
+        new RobotAccountDataImpl(ROBOT_ID, "https://example.com/robot", "verified-secret", null,
+            true, 0L, OWNER.getAddress(), "", 111L, 222L, false));
 
     servlet.doPost(req, resp);
 
