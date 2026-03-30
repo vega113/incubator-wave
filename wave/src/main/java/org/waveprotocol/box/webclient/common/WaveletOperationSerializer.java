@@ -269,7 +269,14 @@ public class WaveletOperationSerializer {
    * POJO.
    */
   public static HashedVersion deserialize(ProtocolHashedVersion hashedVersion) {
-    byte[] hash = Codec.decode(hashedVersion.getHistoryHash().getData());
+    if (hashedVersion == null) {
+      return HashedVersion.unsigned(0);
+    }
+    Blob historyHash = hashedVersion.getHistoryHash();
+    if (historyHash == null || historyHash.getData() == null) {
+      return HashedVersion.unsigned((long) hashedVersion.getVersion());
+    }
+    byte[] hash = Codec.decode(historyHash.getData());
     return HashedVersion.of((long) hashedVersion.getVersion(), hash);
   }
 

@@ -40,6 +40,7 @@ import org.waveprotocol.wave.concurrencycontrol.channel.WaveViewService;
 import org.waveprotocol.wave.concurrencycontrol.common.ResponseCode;
 import org.waveprotocol.wave.federation.ProtocolHashedVersion;
 import org.waveprotocol.wave.federation.ProtocolWaveletDelta;
+import org.waveprotocol.wave.federation.jso.ProtocolHashedVersionJsoImpl;
 import org.waveprotocol.wave.federation.jso.ProtocolWaveletDeltaJsoImpl;
 import org.waveprotocol.wave.model.document.operation.DocInitialization;
 import org.waveprotocol.wave.model.document.operation.impl.DocOpUtil;
@@ -502,15 +503,44 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
       for (int i = 0; i < deltas.size(); i++) {
         ProtocolHashedVersion thisEnd = //
             i < deltas.size() - 1 ? deltas.get(i + 1).getHashedVersion() : end;
+        // Guard against null end version: derive from the delta's own hashed version
+        // plus its operation count when the next version is unavailable.
+        if (thisEnd == null) {
+          ProtocolHashedVersion deltaVersion = deltas.get(i).getHashedVersion();
+          if (deltaVersion != null) {
+            long appliedAt = (long) deltaVersion.getVersion();
+            int opCount = deltas.get(i).getOperationSize();
+            thisEnd = createUnsignedVersion(appliedAt + opCount);
+          }
+        }
         parsed.add(deserialize(deltas.get(i), thisEnd));
       }
       return parsed;
     }
   }
 
+  /**
+   * Creates a ProtocolHashedVersion with only a version number (unsigned).
+   */
+  private static ProtocolHashedVersion createUnsignedVersion(long version) {
+    ProtocolHashedVersionJsoImpl v = ProtocolHashedVersionJsoImpl.create();
+    v.setVersion(version);
+    v.setHistoryHash(new org.waveprotocol.wave.communication.Blob(""));
+    return v;
+  }
+
   private static TransformedWaveletDelta deserialize(ProtocolWaveletDelta delta,
       ProtocolHashedVersion end) {
-    return WaveletOperationSerializer.deserialize(delta, deserialize(end));
+    HashedVersion endVersion;
+    if (end != null) {
+      endVersion = deserialize(end);
+    } else {
+      // Fallback: compute end version from delta's applied-at version + op count
+      long appliedAt = (long) delta.getHashedVersion().getVersion();
+      int opCount = delta.getOperationSize();
+      endVersion = HashedVersion.unsigned(appliedAt + opCount);
+    }
+    return WaveletOperationSerializer.deserialize(delta, endVersion);
   }
 
   private ObservableWaveletData deserialize(WaveId waveId, WaveletSnapshot snapshot) {
@@ -574,6 +604,9 @@ public final class RemoteWaveViewService implements WaveViewService, WaveWebSock
   }
 
   private static HashedVersion deserialize(ProtocolHashedVersion version) {
+    if (version == null) {
+      return null;
+    }
     return WaveletOperationSerializer.deserialize(version);
   }
 }
