@@ -46,8 +46,10 @@ import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 
 import org.waveprotocol.wave.model.id.WaveId;
 
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
@@ -393,8 +395,11 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
       if (href == null && attrs != null) {
         href = attrs.get("url");
       }
-      if (href != null) {
-        sb.append("<a href=\"").append(escapeAttr(href)).append("\" rel=\"nofollow\">");
+      String safeHref = sanitizeUri(href, true);
+      if (safeHref != null) {
+        sb.append("<a href=\"").append(escapeAttr(safeHref)).append("\" rel=\"nofollow\">");
+      } else if (href != null) {
+        sb.append("<a rel=\"nofollow\">");
       } else {
         sb.append("<a>");
       }
@@ -409,8 +414,9 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
       if (src == null && attrs != null) {
         src = attrs.get("attachment");
       }
-      if (src != null) {
-        sb.append("<img src=\"").append(escapeAttr(src)).append("\" />");
+      String safeSrc = sanitizeUri(src, false);
+      if (safeSrc != null) {
+        sb.append("<img src=\"").append(escapeAttr(safeSrc)).append("\" />");
       }
       return;
     }
@@ -617,6 +623,38 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
   static String escapeAttr(String text) {
     // Same as escapeHtml -- covers all necessary attribute escaping.
     return escapeHtml(text);
+  }
+
+  static String sanitizeUri(String uri, boolean allowMailtoAndTel) {
+    if (uri == null) {
+      return null;
+    }
+
+    String trimmedUri = uri.trim();
+    if (trimmedUri.isEmpty()) {
+      return null;
+    }
+
+    URI parsedUri;
+    try {
+      parsedUri = URI.create(trimmedUri);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+
+    String scheme = parsedUri.getScheme();
+    if (scheme == null) {
+      return trimmedUri;
+    }
+
+    String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
+    if ("http".equals(normalizedScheme) || "https".equals(normalizedScheme)) {
+      return trimmedUri;
+    }
+    if (allowMailtoAndTel && ("mailto".equals(normalizedScheme) || "tel".equals(normalizedScheme))) {
+      return trimmedUri;
+    }
+    return null;
   }
 
   /** Extracts a human-readable name from a wave address (e.g., "user@example.com" -> "user"). */
