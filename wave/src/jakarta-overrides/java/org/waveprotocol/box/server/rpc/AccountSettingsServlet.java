@@ -110,6 +110,10 @@ public final class AccountSettingsServlet extends HttpServlet {
     req.setCharacterEncoding("UTF-8");
     HumanAccountData caller = getAuthenticatedUser(req, resp);
     if (caller == null) return;
+    if (!isTrustedSameOriginRequest(req)) {
+      sendJsonError(resp, HttpServletResponse.SC_FORBIDDEN, "CSRF validation failed");
+      return;
+    }
 
     String pathInfo = req.getPathInfo();
     if (pathInfo == null) pathInfo = "";
@@ -335,5 +339,31 @@ public final class AccountSettingsServlet extends HttpServlet {
     resp.setStatus(status);
     setJsonUtf8(resp);
     resp.getWriter().write("{\"error\":\"" + message.replace("\"", "\\\"") + "\"}");
+  }
+
+  private static boolean isTrustedSameOriginRequest(HttpServletRequest req) {
+    String expectedOrigin = getExpectedOrigin(req);
+    String origin = req.getHeader("Origin");
+    if (origin != null && !origin.isEmpty()) {
+      return expectedOrigin.equals(origin);
+    }
+    String referer = req.getHeader("Referer");
+    if (referer == null || referer.isEmpty()) {
+      return false;
+    }
+    return referer.startsWith(expectedOrigin + "/");
+  }
+
+  private static String getExpectedOrigin(HttpServletRequest req) {
+    String scheme = req.getScheme();
+    String serverName = req.getServerName();
+    int serverPort = req.getServerPort();
+    StringBuilder origin = new StringBuilder();
+    origin.append(scheme).append("://").append(serverName);
+    if (("http".equals(scheme) && serverPort != 80)
+        || ("https".equals(scheme) && serverPort != 443)) {
+      origin.append(":").append(serverPort);
+    }
+    return origin.toString();
   }
 }
