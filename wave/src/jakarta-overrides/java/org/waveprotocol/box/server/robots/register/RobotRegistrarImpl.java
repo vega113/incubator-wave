@@ -178,6 +178,25 @@ public final class RobotRegistrarImpl implements RobotRegistrar {
   }
 
   @Override
+  public RobotAccountData updateUrl(ParticipantId robotId, String location)
+      throws RobotRegistrationException, PersistenceException {
+    Preconditions.checkNotNull(robotId);
+    Preconditions.checkNotNull(location);
+    AccountData account = accountStore.getAccount(robotId);
+    if (account == null) {
+      return null;
+    }
+    throwExceptionIfNotRobot(account);
+    RobotAccountData robotAccount = account.asRobot();
+    String normalizedLocation = computeValidateRobotUrl(location);
+    if (robotAccount.getUrl().equals(normalizedLocation)) {
+      return robotAccount;
+    }
+    return updateRobotAccount(robotAccount, normalizedLocation, robotAccount.getOwnerAddress(),
+        robotAccount.getTokenExpirySeconds());
+  }
+
+  @Override
   public RobotAccountData updateDescription(ParticipantId robotId, String description)
       throws RobotRegistrationException, PersistenceException {
     Preconditions.checkNotNull(robotId);

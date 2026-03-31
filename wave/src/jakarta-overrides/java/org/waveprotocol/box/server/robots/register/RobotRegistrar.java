@@ -40,6 +40,14 @@ public interface RobotRegistrar {
       long tokenExpirySeconds) throws RobotRegistrationException, PersistenceException;
 
   /**
+   * Updates the callback URL for an existing robot. Never creates a new account.
+   *
+   * @return the updated robot, or {@code null} when the robot account does not exist
+   */
+  RobotAccountData updateUrl(ParticipantId robotId, String location)
+      throws RobotRegistrationException, PersistenceException;
+
+  /**
    * Updates the description for an existing robot.
    *
    * @return the updated robot, or {@code null} when the robot account does not exist

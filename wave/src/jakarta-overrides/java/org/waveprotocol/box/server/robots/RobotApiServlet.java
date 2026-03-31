@@ -348,8 +348,11 @@ public final class RobotApiServlet extends HttpServlet {
       return;
     }
     try {
-      RobotAccountData updated =
-          robotRegistrar.registerOrUpdate(robot.getId(), url, user.getAddress());
+      RobotAccountData updated = robotRegistrar.updateUrl(robot.getId(), url);
+      if (updated == null) {
+        sendError(resp, 404, "Robot not found", "NOT_FOUND");
+        return;
+      }
       sendJson(resp, 200, robotToJson(updated, true));
     } catch (RobotRegistrationException e) {
       sendError(resp, 400, e.getMessage(), "UPDATE_ERROR");
@@ -392,6 +395,10 @@ public final class RobotApiServlet extends HttpServlet {
     String description = descEl.getAsString().trim();
     try {
       RobotAccountData updated = robotRegistrar.updateDescription(robot.getId(), description);
+      if (updated == null) {
+        sendError(resp, 404, "Robot not found", "NOT_FOUND");
+        return;
+      }
       sendJson(resp, 200, robotToJson(updated, true));
     } catch (RobotRegistrationException e) {
       sendError(resp, 400, e.getMessage(), "UPDATE_ERROR");
@@ -455,6 +462,10 @@ public final class RobotApiServlet extends HttpServlet {
       // to avoid overwriting concurrent changes (secret rotation, description edits, etc.)
       RobotAccountData refreshed = capabilityFetcher.fetchCapabilities(robot, "");
       RobotAccountData verified = robotRegistrar.markVerified(robot.getId(), refreshed.getCapabilities());
+      if (verified == null) {
+        sendError(resp, 404, "Robot not found", "NOT_FOUND");
+        return;
+      }
       sendJson(resp, 200, robotToJson(verified, true));
     } catch (CapabilityFetchException e) {
       sendError(resp, 502, "Verification failed: " + e.getMessage(), "VERIFY_ERROR");
@@ -488,6 +499,10 @@ public final class RobotApiServlet extends HttpServlet {
     boolean paused = "true".equalsIgnoreCase(pausedStr);
     try {
       RobotAccountData updated = robotRegistrar.setPaused(robot.getId(), paused);
+      if (updated == null) {
+        sendError(resp, 404, "Robot not found", "NOT_FOUND");
+        return;
+      }
       sendJson(resp, 200, robotToJson(updated, true));
     } catch (RobotRegistrationException e) {
       sendError(resp, 400, e.getMessage(), "UPDATE_ERROR");
