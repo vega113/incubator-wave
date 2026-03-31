@@ -244,10 +244,28 @@ public final class RobotApiServlet extends HttpServlet {
     String body = readBody(req, resp);
     if (body == null) return;
 
+    JsonObject obj;
+    try {
+      obj = JsonParser.parseString(body).getAsJsonObject();
+    } catch (Exception e) {
+      sendError(resp, 400, "Invalid JSON body", "VALIDATION_ERROR");
+      return;
+    }
+
     String username = jsonString(body, "username");
     String description = jsonString(body, "description");
-    String callbackUrl = jsonString(body, "callbackUrl");
     long tokenExpiry = Math.max(0L, jsonLong(body, "tokenExpiry", 3600L));
+
+    // callbackUrl is optional but must be a string when provided
+    String callbackUrl = "";
+    if (obj.has("callbackUrl") && !obj.get("callbackUrl").isJsonNull()) {
+      JsonElement urlEl = obj.get("callbackUrl");
+      if (!urlEl.isJsonPrimitive() || !urlEl.getAsJsonPrimitive().isString()) {
+        sendError(resp, 400, "callbackUrl must be a string", "VALIDATION_ERROR");
+        return;
+      }
+      callbackUrl = urlEl.getAsString();
+    }
 
     if (Strings.isNullOrEmpty(username)) {
       sendError(resp, 400, "username is required", "VALIDATION_ERROR");
@@ -263,7 +281,7 @@ public final class RobotApiServlet extends HttpServlet {
     }
 
     try {
-      String location = Strings.nullToEmpty(callbackUrl).trim();
+      String location = callbackUrl.trim();
       RobotAccountData registered =
           robotRegistrar.registerNew(robotId, location, user.getAddress(), tokenExpiry);
       if (!Strings.isNullOrEmpty(description)) {
