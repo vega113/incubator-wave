@@ -133,7 +133,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
           try {
             upsertWave(waveId);
             count++;
-          } catch (Exception e) {
+          } catch (WaveServerException | WaveletStateException | IOException e) {
             if (fullRebuild) {
               throw e;
             }
