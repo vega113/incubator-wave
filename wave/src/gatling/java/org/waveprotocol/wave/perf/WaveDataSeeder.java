@@ -13,9 +13,9 @@ import java.net.http.WebSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -95,20 +95,32 @@ public class WaveDataSeeder {
         String jsessionid = login();
         System.out.println("OK");
 
-        // Step 3: Discover existing perf wave IDs as a set so gaps from previous
-        // partial runs are detected and backfilled (highest-index check is not enough:
-        // w+perf0010 can be missing even when w+perf0020 exists).
+        // Step 3: Discover existing perf waves with blip counts so both missing waves
+        // AND waves created but not fully blipped (mid-run failure) are detected.
         System.out.print("Checking existing perf waves... ");
-        Set<Integer> existingIndices = discoverPerfIndices(jsessionid);
-        System.out.println(existingIndices.size() + " w+perf waves found.");
+        Map<Integer, Integer> existingWaves = discoverPerfWaves(jsessionid);
+        System.out.println(existingWaves.size() + " w+perf waves found.");
 
         List<Integer> missing = new ArrayList<>();
+        List<Integer> underSeeded = new ArrayList<>();
         for (int i = 1; i <= numWaves; i++) {
-            if (!existingIndices.contains(i)) missing.add(i);
+            if (!existingWaves.containsKey(i)) {
+                missing.add(i);
+            } else if (existingWaves.get(i) < blipsPerWave) {
+                underSeeded.add(i);
+            }
+        }
+
+        // Under-seeded waves cannot be repaired by re-creating (the wave ID already
+        // exists at a version > 0). Fail loudly so the operator can delete and retry.
+        if (!underSeeded.isEmpty()) {
+            throw new RuntimeException(
+                    "Under-seeded waves detected (blips < " + blipsPerWave + "): " + underSeeded
+                    + " — delete these waves and re-run to fix.");
         }
 
         if (missing.isEmpty()) {
-            System.out.println("All " + numWaves + " perf waves already exist. Done.");
+            System.out.println("All " + numWaves + " perf waves exist with sufficient blips. Done.");
             return;
         }
 
@@ -130,11 +142,13 @@ public class WaveDataSeeder {
             }
         }
 
-        // Step 5: Verify
+        // Step 5: Verify — re-check both count and blip completeness
         System.out.println();
         System.out.print("Verifying... ");
-        int finalCount = discoverPerfIndices(jsessionid).size();
-        System.out.println(finalCount + " w+perf waves in inbox.");
+        Map<Integer, Integer> finalWaves = discoverPerfWaves(jsessionid);
+        long finalComplete = finalWaves.entrySet().stream()
+                .filter(e -> e.getKey() <= numWaves && e.getValue() >= blipsPerWave).count();
+        System.out.println(finalComplete + "/" + numWaves + " w+perf waves complete.");
         System.out.println();
         int failed = missing.size() - created;
         System.out.println("=== Seeding complete: " + created + " waves created"
@@ -176,16 +190,16 @@ public class WaveDataSeeder {
     }
 
     /**
-     * Pages through the inbox and returns the set of numeric indices of all existing
-     * {@code w+perfNNNN} wave IDs.  Returns an empty set if no perf waves exist.
+     * Pages through the inbox and returns a map from w+perfNNNN index to the blip count
+     * reported in the search digest (proto field "6").  Returns an empty map if none exist.
      *
-     * <p>Using a set rather than the highest index makes seeding gap-safe: a partial
-     * run that created w+perf0001–0009 and w+perf0011–0020 (skipping 0010) will be
-     * detected and only w+perf0010 will be backfilled on the next run.
+     * <p>Tracking blip counts (not just wave IDs) lets the caller detect waves that were
+     * created but not fully blipped due to a mid-run failure, so they can be flagged
+     * rather than silently treated as complete.
      */
-    private Set<Integer> discoverPerfIndices(String jsessionid) throws Exception {
+    private Map<Integer, Integer> discoverPerfWaves(String jsessionid) throws Exception {
         final int PAGE_SIZE = 100;
-        Set<Integer> indices = new HashSet<>();
+        Map<Integer, Integer> waves = new HashMap<>();
         int index = 0;
         while (true) {
             HttpRequest req = HttpRequest.newBuilder()
@@ -199,26 +213,29 @@ public class WaveDataSeeder {
             if (resp.statusCode() != 200) {
                 System.err.println("Warning: inbox search returned HTTP " + resp.statusCode()
                         + " for JSESSIONID=" + jsessionid);
-                return indices;
+                return waves;
             }
             JsonObject result = GSON.fromJson(resp.body(), JsonObject.class);
             if (!result.has("3") || !result.get("3").isJsonArray()) break;
             JsonArray digests = result.get("3").getAsJsonArray();
             for (int i = 0; i < digests.size(); i++) {
                 JsonObject digest = digests.get(i).getAsJsonObject();
-                // Digest field "3" is the serialized waveId, e.g. "local.net/w+perf0007"
+                // Field "3" = serialized waveId, e.g. "local.net/w+perf0007"
                 if (!digest.has("3")) continue;
                 String waveId = digest.get("3").getAsString();
                 int slash = waveId.lastIndexOf('/');
                 String local = slash >= 0 ? waveId.substring(slash + 1) : waveId;
                 if (local.matches("w\\+perf\\d+")) {
-                    indices.add(Integer.parseInt(local.substring("w+perf".length())));
+                    int perfIdx = Integer.parseInt(local.substring("w+perf".length()));
+                    // Field "6" = blipCount in the Digest proto
+                    int blipCount = digest.has("6") ? digest.get("6").getAsInt() : 0;
+                    waves.put(perfIdx, blipCount);
                 }
             }
             if (digests.size() < PAGE_SIZE) break;
             index += PAGE_SIZE;
         }
-        return indices;
+        return waves;
     }
 
     private int countInboxWaves(String jsessionid) throws Exception {
