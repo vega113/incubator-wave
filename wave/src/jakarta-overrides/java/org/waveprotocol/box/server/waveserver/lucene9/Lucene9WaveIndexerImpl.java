@@ -121,6 +121,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
       } else {
         LOG.info("Lucene9 index is empty, performing initial build");
       }
+      boolean fullRebuild = existingDocs > 0 && rebuildOnStartup || existingDocs == 0;
       waveMap.loadAllWavelets();
       try {
         org.waveprotocol.box.common.ExceptionalIterator<WaveId, WaveServerException> waveIds =
@@ -133,12 +134,15 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
             upsertWave(waveId);
             count++;
           } catch (Exception e) {
+            if (fullRebuild) {
+              throw e;
+            }
             errors++;
             LOG.log(Level.WARNING, "Failed to index wave " + waveId + ", skipping", e);
           }
         }
         if (errors > 0) {
-          LOG.warning("Lucene9 index repair completed with " + errors
+          LOG.warning("Lucene9 incremental repair: " + errors
               + " errors out of " + (count + errors) + " waves");
         }
         indexWriter.commit();
