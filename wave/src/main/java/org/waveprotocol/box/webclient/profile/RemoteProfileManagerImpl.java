@@ -19,6 +19,8 @@
 
 package org.waveprotocol.box.webclient.profile;
 
+import com.google.gwt.core.client.Scheduler;
+
 import org.waveprotocol.box.profile.ProfileResponse;
 import org.waveprotocol.box.profile.ProfileResponse.FetchedProfile;
 import org.waveprotocol.wave.client.account.ProfileManager;
@@ -28,9 +30,16 @@ import org.waveprotocol.wave.client.debug.logger.DomLogger;
 import org.waveprotocol.wave.common.logging.LoggerBundle;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 /**
  * A {@link ProfileManager} that returns profiles fetched from the server.
- * 
+ *
+ * Batches individual profile requests into a single HTTP call using
+ * {@link Scheduler#scheduleDeferred} so that all profiles requested in the
+ * same browser event-loop turn are fetched together.
+ *
  * @author yurize@apache.org (Yuri Zelikov)
  */
 public final class RemoteProfileManagerImpl extends AbstractProfileManager<ProfileImpl> implements
@@ -39,15 +48,17 @@ public final class RemoteProfileManagerImpl extends AbstractProfileManager<Profi
   private final static LoggerBundle LOG = new DomLogger("fetchProfiles");
   private final FetchProfilesServiceImpl fetchProfilesService;
 
+  /** Addresses waiting to be fetched in the next batch. */
+  private final Set<String> pendingAddresses = new LinkedHashSet<String>();
+  private boolean flushScheduled = false;
+
   /**
    * Deserializes {@link ProfileResponse} and updates the profiles.
    */
   static void deserializeResponseAndUpdateProfiles(RemoteProfileManagerImpl manager,
       ProfileResponse profileResponse) {
-    int i = 0;
     for (FetchedProfile fetchedProfile : profileResponse.getProfiles()) {
       deserializeAndUpdateProfile(manager, fetchedProfile);
-      i++;
     }
   }
 
@@ -77,16 +88,37 @@ public final class RemoteProfileManagerImpl extends AbstractProfileManager<Profi
     if (profile == null) {
       profile = new ProfileImpl(this, participantId);
       profiles.put(address, profile);
-      LOG.trace().log("Fetching profile: " + address);
-      fetchProfilesService.fetch(this, address);
+      pendingAddresses.add(address);
+      scheduleFlush();
     }
     return profile;
+  }
+
+  private void scheduleFlush() {
+    if (!flushScheduled) {
+      flushScheduled = true;
+      Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
+        @Override
+        public void execute() {
+          flushPendingProfiles();
+        }
+      });
+    }
+  }
+
+  private void flushPendingProfiles() {
+    flushScheduled = false;
+    if (!pendingAddresses.isEmpty()) {
+      String[] addresses = pendingAddresses.toArray(new String[0]);
+      pendingAddresses.clear();
+      LOG.trace().log("Batch fetching " + addresses.length + " profiles");
+      fetchProfilesService.fetch(RemoteProfileManagerImpl.this, addresses);
+    }
   }
 
   @Override
   public void onFailure(String message) {
     LOG.error().log(message);
-    // TODO (user) Try to re-fetch the profile.
   }
 
   @Override

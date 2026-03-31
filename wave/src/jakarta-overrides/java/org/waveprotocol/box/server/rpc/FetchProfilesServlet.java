@@ -112,7 +112,7 @@ public final class FetchProfilesServlet extends HttpServlet {
     ProfileResponse profileResponse = builder.build();
     response.setStatus(HttpServletResponse.SC_OK);
     response.setContentType("application/json");
-    response.setHeader("Cache-Control", "no-store");
+    response.setHeader("Cache-Control", "private, max-age=120");
     try {
       response.getWriter().append(serializer.toJson(profileResponse).toString());
     } catch (ProtoSerializer.SerializationException e) {

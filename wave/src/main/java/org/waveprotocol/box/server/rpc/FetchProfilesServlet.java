@@ -191,9 +191,9 @@ public final class FetchProfilesServlet extends HttpServlet {
     } else {
       resp.setStatus(HttpServletResponse.SC_OK);
       resp.setContentType("application/json");
-      // This is to make sure the fetched data is fresh - since the w3c spec    
-      // is rarely respected.      
-      resp.setHeader("Cache-Control", "no-store");
+      // Allow browser to cache profiles briefly — avatars and names rarely
+      // change, and this avoids redundant fetches on page reload.
+      resp.setHeader("Cache-Control", "private, max-age=120");
       try {
         // FIXME (user) Returning JSON directly from an HTTP GET is vulnerable   
         // to XSSI attacks. Issue https://issues.apache.org/jira/browse/WAVE-135
