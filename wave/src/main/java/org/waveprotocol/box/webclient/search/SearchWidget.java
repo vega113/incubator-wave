@@ -102,6 +102,8 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   @UiField
   Element helpCloseButton;
   @UiField
+  Element helpColumnsDiv;
+  @UiField
   SpanElement exInbox;
   @UiField
   SpanElement exArchive;
@@ -172,6 +174,9 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
         String display = visible ? "none" : "block";
         helpPanel.getStyle().setProperty("display", display);
         helpBackdrop.getStyle().setProperty("display", display);
+        if (!visible) {
+          applyResponsiveColumns();
+        }
       }
     });
 
@@ -211,6 +216,18 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     wireExample(exCreatorArchive);
     wireExample(exTitle);
     wireExample(exContent);
+  }
+
+  /** Stacks help columns vertically on narrow viewports (≤600 px). */
+  private void applyResponsiveColumns() {
+    int windowWidth = com.google.gwt.user.client.Window.getClientWidth();
+    if (windowWidth <= 600) {
+      helpColumnsDiv.getStyle().setProperty("flexDirection", "column");
+      helpColumnsDiv.getStyle().setProperty("gap", "8px");
+    } else {
+      helpColumnsDiv.getStyle().clearProperty("flexDirection");
+      helpColumnsDiv.getStyle().clearProperty("gap");
+    }
   }
 
   /**
