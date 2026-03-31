@@ -102,6 +102,12 @@ public class ReindexService {
    * Records a startup reindex result so the dashboard can display it.
    */
   public void recordStartupReindex(int waveCount) {
+    // Only record if no admin reindex is already running
+    State current = this.state.get();
+    if (current == State.RUNNING) {
+      LOG.info("Skipping startup reindex recording — admin reindex already running");
+      return;
+    }
     this.triggeredBy = "startup";
     this.startTimeMs = System.currentTimeMillis();
     this.endTimeMs = System.currentTimeMillis();

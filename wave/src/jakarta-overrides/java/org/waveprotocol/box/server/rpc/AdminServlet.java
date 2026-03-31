@@ -72,7 +72,8 @@ import java.util.Locale;
 public final class AdminServlet extends HttpServlet {
   private static final Log LOG = Log.get(AdminServlet.class);
 
-  private static final long SERVER_START_TIME = System.currentTimeMillis();
+  private static final long SERVER_START_TIME =
+      java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime();
 
   /** Config keys safe to expose in the admin dashboard. */
   private static final String[] SAFE_CONFIG_KEYS = {
@@ -90,6 +91,8 @@ public final class AdminServlet extends HttpServlet {
   private final WaveletProvider waveletProvider;
   private final FeatureFlagService featureFlagService;
   private final @Nullable Lucene9WaveIndexerImpl lucene9Indexer;
+  private volatile int cachedWaveCount = -1;
+  private volatile long lastWaveCountTimeMs;
   private final String publicBaseUrl;
 
   @Inject

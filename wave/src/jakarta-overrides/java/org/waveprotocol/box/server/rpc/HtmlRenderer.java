@@ -4898,8 +4898,8 @@ public final class HtmlRenderer {
     sb.append("  }\n");
 
     sb.append("  function loadOpsStatus() {\n");
-    sb.append("    opsLoaded = true;\n");
     sb.append("    fetch('/admin/api/ops/status').then(function(r){return r.json();}).then(function(d){\n");
+    sb.append("      opsLoaded = true;\n");
     sb.append("      var si = d.searchIndex || {};\n");
     sb.append("      document.getElementById('opsSearchType').textContent = si.type || '\\u2014';\n");
     sb.append("      document.getElementById('opsLucene9Flag').textContent = si.lucene9FlagEnabled ? 'enabled' : 'disabled';\n");
@@ -4915,7 +4915,8 @@ public final class HtmlRenderer {
     sb.append("      for (var k in cfg) { html += '<tr><td>' + esc(k) + '</td><td>' + esc(cfg[k]) + '</td></tr>'; }\n");
     sb.append("      document.getElementById('opsConfigBody').innerHTML = html || '<tr><td colspan=\"2\">No config</td></tr>';\n");
     sb.append("      var btn = document.getElementById('reindexBtn');\n");
-    sb.append("      btn.disabled = si.type !== 'lucene';\n");
+    sb.append("      var reindexRunning = d.lastReindex && d.lastReindex.state === 'RUNNING';\n");
+    sb.append("      btn.disabled = si.type !== 'lucene' || reindexRunning;\n");
     sb.append("      document.getElementById('reindexStatus').textContent = fmtRI(d.lastReindex);\n");
     sb.append("      if (d.lastReindex && d.lastReindex.state === 'RUNNING') startReindexPoll();\n");
     sb.append("    }).catch(function(e){\n");
