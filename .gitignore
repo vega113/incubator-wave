@@ -39,6 +39,7 @@ war/WEB-INF
 
 ### Build output — GWT compiled files
 war/webclient/
+war/org*
 wave/war/WEB-INF/
 wave/war/webclient/
 wave/war/org*
