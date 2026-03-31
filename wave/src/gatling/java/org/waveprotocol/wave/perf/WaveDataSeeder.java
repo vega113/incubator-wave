@@ -118,7 +118,7 @@ public class WaveDataSeeder {
                 System.out.println("OK (" + blipsPerWave + " blips)");
                 created++;
             } catch (Exception e) {
-                System.out.println("FAILED: " + e.getMessage());
+                System.err.println("FAILED: " + e.getMessage());
             }
         }
 
@@ -128,7 +128,12 @@ public class WaveDataSeeder {
         int finalCount = countInboxWaves(jsessionid);
         System.out.println(finalCount + " waves in inbox.");
         System.out.println();
-        System.out.println("=== Seeding complete: " + created + " waves created ===");
+        int failed = toCreate - created;
+        System.out.println("=== Seeding complete: " + created + " waves created"
+                + (failed > 0 ? ", " + failed + " failed" : "") + " ===");
+        if (failed > 0) {
+            throw new RuntimeException(failed + " wave(s) failed to create — aborting perf run");
+        }
     }
 
     private int register() throws Exception {
