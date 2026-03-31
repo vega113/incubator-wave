@@ -12,7 +12,10 @@ import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -92,26 +95,29 @@ public class WaveDataSeeder {
         String jsessionid = login();
         System.out.println("OK");
 
-        // Step 3: Discover existing perf waves by ID (not inbox count, which includes non-perf
-        // waves and breaks retryability when waves fail mid-run).
+        // Step 3: Discover existing perf wave IDs as a set so gaps from previous
+        // partial runs are detected and backfilled (highest-index check is not enough:
+        // w+perf0010 can be missing even when w+perf0020 exists).
         System.out.print("Checking existing perf waves... ");
-        int highestPerfIdx = discoverHighestPerfIndex(jsessionid);
-        System.out.println("highest w+perf index = " + highestPerfIdx + ".");
+        Set<Integer> existingIndices = discoverPerfIndices(jsessionid);
+        System.out.println(existingIndices.size() + " w+perf waves found.");
 
-        if (highestPerfIdx >= numWaves) {
-            System.out.println("Already have w+perf up to index " + highestPerfIdx
-                    + " (>= " + numWaves + "). Done.");
+        List<Integer> missing = new ArrayList<>();
+        for (int i = 1; i <= numWaves; i++) {
+            if (!existingIndices.contains(i)) missing.add(i);
+        }
+
+        if (missing.isEmpty()) {
+            System.out.println("All " + numWaves + " perf waves already exist. Done.");
             return;
         }
 
-        int toCreate = numWaves - highestPerfIdx;
-        System.out.println("Creating " + toCreate + " more waves...");
+        System.out.println("Creating " + missing.size() + " missing waves...");
         System.out.println();
 
-        // Step 4: Create waves via WebSocket
+        // Step 4: Create missing waves via WebSocket
         int created = 0;
-        for (int i = 0; i < toCreate; i++) {
-            int waveNum = highestPerfIdx + i + 1;
+        for (int waveNum : missing) {
             String waveLocal = String.format("w+perf%04d", waveNum);
             System.out.print("  Wave " + waveNum + "/" + numWaves + " (" + waveLocal + ")... ");
 
@@ -127,10 +133,10 @@ public class WaveDataSeeder {
         // Step 5: Verify
         System.out.println();
         System.out.print("Verifying... ");
-        int finalIdx = discoverHighestPerfIndex(jsessionid);
-        System.out.println("highest w+perf index = " + finalIdx + ".");
+        int finalCount = discoverPerfIndices(jsessionid).size();
+        System.out.println(finalCount + " w+perf waves in inbox.");
         System.out.println();
-        int failed = toCreate - created;
+        int failed = missing.size() - created;
         System.out.println("=== Seeding complete: " + created + " waves created"
                 + (failed > 0 ? ", " + failed + " failed" : "") + " ===");
         if (failed > 0) {
@@ -170,16 +176,16 @@ public class WaveDataSeeder {
     }
 
     /**
-     * Pages through the inbox and returns the highest numeric index among existing
-     * {@code w+perfNNNN} wave IDs.  Returns 0 if no perf waves exist.
+     * Pages through the inbox and returns the set of numeric indices of all existing
+     * {@code w+perfNNNN} wave IDs.  Returns an empty set if no perf waves exist.
      *
-     * <p>Using the highest perf index rather than the total inbox count makes seeding
-     * idempotent and retryable: non-perf waves in the inbox no longer skew the starting
-     * offset, and a failed mid-run retry resumes from the correct wave number.
+     * <p>Using a set rather than the highest index makes seeding gap-safe: a partial
+     * run that created w+perf0001–0009 and w+perf0011–0020 (skipping 0010) will be
+     * detected and only w+perf0010 will be backfilled on the next run.
      */
-    private int discoverHighestPerfIndex(String jsessionid) throws Exception {
+    private Set<Integer> discoverPerfIndices(String jsessionid) throws Exception {
         final int PAGE_SIZE = 100;
-        int highest = 0;
+        Set<Integer> indices = new HashSet<>();
         int index = 0;
         while (true) {
             HttpRequest req = HttpRequest.newBuilder()
@@ -193,7 +199,7 @@ public class WaveDataSeeder {
             if (resp.statusCode() != 200) {
                 System.err.println("Warning: inbox search returned HTTP " + resp.statusCode()
                         + " for JSESSIONID=" + jsessionid);
-                return highest;
+                return indices;
             }
             JsonObject result = GSON.fromJson(resp.body(), JsonObject.class);
             if (!result.has("3") || !result.get("3").isJsonArray()) break;
@@ -206,14 +212,13 @@ public class WaveDataSeeder {
                 int slash = waveId.lastIndexOf('/');
                 String local = slash >= 0 ? waveId.substring(slash + 1) : waveId;
                 if (local.matches("w\\+perf\\d+")) {
-                    int idx = Integer.parseInt(local.substring("w+perf".length()));
-                    if (idx > highest) highest = idx;
+                    indices.add(Integer.parseInt(local.substring("w+perf".length())));
                 }
             }
             if (digests.size() < PAGE_SIZE) break;
             index += PAGE_SIZE;
         }
-        return highest;
+        return indices;
     }
 
     private int countInboxWaves(String jsessionid) throws Exception {
