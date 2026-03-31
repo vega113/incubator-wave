@@ -460,6 +460,7 @@ public final class ApiDocsServlet extends HttpServlet {
     html.append("      <a href=\"#build-with-ai\">Build with AI</a>\n");
     html.append("      <a href=\"#walkthrough\">End-to-end example</a>\n");
     html.append("      <a href=\"#operations\">Operation reference</a>\n");
+    html.append("      <a href=\"#robots\">Robot Management API</a>\n");
     html.append("      <a href=\"#errors\">Errors and status codes</a>\n");
     html.append("      <a href=\"#versioning\">Versioning</a>\n");
     html.append("      <a href=\"#legacy\">Legacy notes</a>\n");
@@ -622,6 +623,29 @@ public final class ApiDocsServlet extends HttpServlet {
         .append(LLMS_FULL_PATH)
         .append("\">LLM reference</a></div>\n");
     html.append("      </section>\n");
+    html.append("      <section id=\"robots\">\n");
+    html.append("        <h2>Robot Management API</h2>\n");
+    html.append("        <p>REST API for programmatic robot management. All endpoints require a <code>Authorization: Bearer &lt;token&gt;</code> header with a <code>data-api-access</code> JWT.</p>\n");
+    html.append("        <p>Base path: <code>/api/robots</code></p>\n");
+    html.append("        <table><thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead><tbody>\n");
+    html.append("        <tr><td><code>GET</code></td><td><code>/api/robots</code></td><td>List all robots owned by the authenticated user</td></tr>\n");
+    html.append("        <tr><td><code>POST</code></td><td><code>/api/robots</code></td><td>Register a new robot. Body: <code>{\"username\",\"description\",\"callbackUrl\",\"tokenExpiry\"}</code></td></tr>\n");
+    html.append("        <tr><td><code>GET</code></td><td><code>/api/robots/{id}</code></td><td>Get robot details</td></tr>\n");
+    html.append("        <tr><td><code>PUT</code></td><td><code>/api/robots/{id}/url</code></td><td>Update callback URL. Body: <code>{\"url\":\"...\"}</code></td></tr>\n");
+    html.append("        <tr><td><code>PUT</code></td><td><code>/api/robots/{id}/description</code></td><td>Update description. Body: <code>{\"description\":\"...\"}</code></td></tr>\n");
+    html.append("        <tr><td><code>POST</code></td><td><code>/api/robots/{id}/rotate</code></td><td>Rotate consumer secret (returns new secret)</td></tr>\n");
+    html.append("        <tr><td><code>POST</code></td><td><code>/api/robots/{id}/verify</code></td><td>Test bot (fetches capabilities from callback URL)</td></tr>\n");
+    html.append("        <tr><td><code>PUT</code></td><td><code>/api/robots/{id}/paused</code></td><td>Pause/unpause. Body: <code>{\"paused\":\"true|false\"}</code></td></tr>\n");
+    html.append("        <tr><td><code>DELETE</code></td><td><code>/api/robots/{id}</code></td><td>Soft delete (pauses robot, clears callback URL)</td></tr>\n");
+    html.append("        </tbody></table>\n");
+    html.append("        <h3>Registration example</h3>\n");
+    html.append("        <pre>curl -X POST ").append(escape(baseUrl)).append("/api/robots \\\n");
+    html.append("  -H \"Authorization: Bearer $TOKEN\" \\\n");
+    html.append("  -H \"Content-Type: application/json\" \\\n");
+    html.append("  -d '{\"username\":\"my-bot\",\"description\":\"My robot\",\"tokenExpiry\":3600}'</pre>\n");
+    html.append("        <h3>Response</h3>\n");
+    html.append("        <pre>{\"id\":\"my-bot@domain\",\"secret\":\"...\",\"status\":\"active\",\"callbackUrl\":\"\",\"description\":\"My robot\",\"tokenExpirySeconds\":3600,\"createdAt\":\"...\"}</pre>\n");
+    html.append("      </section>\n");
     html.append("      <section id=\"legacy\">\n");
     html.append("        <h2>Legacy and unsupported notes</h2>\n");
     html.append("        <ul>\n");
@@ -708,6 +732,14 @@ public final class ApiDocsServlet extends HttpServlet {
     paths.put(CANONICAL_RPC_PATH, rpcPathObject(true));
     paths.put(RPC_ALIAS_PATH, rpcPathObject(false));
     paths.put(TOKEN_PATH, tokenPathObject());
+    // Robot Management API paths
+    paths.put("/api/robots", robotsCollectionPath());
+    paths.put("/api/robots/{id}", robotsItemPath());
+    paths.put("/api/robots/{id}/url", robotsUrlPath());
+    paths.put("/api/robots/{id}/description", robotsDescriptionPath());
+    paths.put("/api/robots/{id}/rotate", robotsRotatePath());
+    paths.put("/api/robots/{id}/verify", robotsVerifyPath());
+    paths.put("/api/robots/{id}/paused", robotsPausedPath());
     document.put("paths", paths);
 
     Map<String, Object> components = orderedMap();
@@ -732,6 +764,20 @@ public final class ApiDocsServlet extends HttpServlet {
                     "client_id", orderedMap("type", "string"),
                     "client_secret", orderedMap("type", "string"),
                     "expiry", orderedMap("type", "integer", "format", "int64", "example", 3600))));
+    // Robot Management API schemas
+    schemas.put("Robot", robotSchema(false));
+    schemas.put("RobotDetailed", robotSchema(true));
+    schemas.put("RobotRegistration", robotRegistrationSchema());
+    schemas.put("RobotList", orderedMap("type", "array", "items", orderedMap("$ref", "#/components/schemas/RobotDetailed")));
+    schemas.put("RobotDeleteResponse", orderedMap("type", "object", "properties",
+        orderedMap("deleted", orderedMap("type", "boolean"),
+                   "paused", orderedMap("type", "boolean"),
+                   "id", orderedMap("type", "string"))));
+    schemas.put("RobotRotateResponse", orderedMap("type", "object", "properties",
+        orderedMap("id", orderedMap("type", "string"),
+                   "secret", orderedMap("type", "string", "description", "New consumer secret — only returned once"),
+                   "maskedSecret", orderedMap("type", "string"),
+                   "status", orderedMap("type", "string"))));
     for (OperationDoc operation : OPERATIONS) {
       schemas.put(operation.requestSchemaName, requestSchema(operation));
       schemas.put(operation.responseSchemaName, responseSchema(operation));
@@ -850,6 +896,183 @@ public final class ApiDocsServlet extends HttpServlet {
                             "application/json",
                             orderedMap("schema", orderedMap("$ref", "#/components/schemas/TokenErrorResponse"))))));
     return orderedMap("get", get, "post", post);
+  }
+
+  // ── Robot Management API path helpers ──────────────────────────────
+
+  private static List<Object> robotIdParam() {
+    return list(orderedMap(
+        "name", "id",
+        "in", "path",
+        "required", true,
+        "schema", orderedMap("type", "string"),
+        "description", "Robot participant ID (e.g. my-bot@example.com) or just the username part"));
+  }
+
+  private static Map<String, Object> robotBearerSecurity() {
+    return orderedMap("security", list(orderedMap("BearerAuth", list())));
+  }
+
+  private static Map<String, Object> robotsCollectionPath() {
+    Map<String, Object> get = orderedMap();
+    get.put("summary", "List owned robots");
+    get.put("description", "Returns all robots owned by the authenticated user, including token expiry and masked secret.");
+    get.put("security", list(orderedMap("BearerAuth", list())));
+    get.put("responses", orderedMap(
+        "200", orderedMap("description", "Array of robot objects",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotList")))),
+        "401", orderedMap("description", "Missing or invalid bearer token.")));
+
+    Map<String, Object> post = orderedMap();
+    post.put("summary", "Register a new robot");
+    post.put("security", list(orderedMap("BearerAuth", list())));
+    post.put("requestBody", orderedMap("required", true, "content", orderedMap("application/json",
+        orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotRegistration")))));
+    post.put("responses", orderedMap(
+        "201", orderedMap("description", "Robot registered. Response includes the consumer secret (only returned once).",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotRotateResponse")))),
+        "400", orderedMap("description", "Validation error (missing username, invalid address, etc.)"),
+        "401", orderedMap("description", "Missing or invalid bearer token.")));
+    return orderedMap("get", get, "post", post);
+  }
+
+  private static Map<String, Object> robotsItemPath() {
+    Map<String, Object> get = orderedMap();
+    get.put("summary", "Get robot details");
+    get.put("security", list(orderedMap("BearerAuth", list())));
+    get.put("parameters", robotIdParam());
+    get.put("responses", orderedMap(
+        "200", orderedMap("description", "Robot details",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotDetailed")))),
+        "404", orderedMap("description", "Robot not found or not owned by caller."),
+        "401", orderedMap("description", "Missing or invalid bearer token.")));
+
+    Map<String, Object> delete = orderedMap();
+    delete.put("summary", "Soft delete robot");
+    delete.put("description", "Pauses the robot and clears its callback URL, making it fully inoperable. The account record is retained.");
+    delete.put("security", list(orderedMap("BearerAuth", list())));
+    delete.put("parameters", robotIdParam());
+    delete.put("responses", orderedMap(
+        "200", orderedMap("description", "Robot deleted (paused + callback URL cleared)",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotDeleteResponse")))),
+        "404", orderedMap("description", "Robot not found or not owned by caller."),
+        "401", orderedMap("description", "Missing or invalid bearer token.")));
+    return orderedMap("get", get, "delete", delete);
+  }
+
+  private static Map<String, Object> robotsUrlPath() {
+    Map<String, Object> put = orderedMap();
+    put.put("summary", "Update callback URL");
+    put.put("security", list(orderedMap("BearerAuth", list())));
+    put.put("parameters", robotIdParam());
+    put.put("requestBody", orderedMap("required", true, "content", orderedMap("application/json",
+        orderedMap("schema", orderedMap("type", "object", "required", list("url"),
+            "properties", orderedMap("url", orderedMap("type", "string", "format", "uri")))))));
+    put.put("responses", orderedMap(
+        "200", orderedMap("description", "Updated robot",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotDetailed")))),
+        "400", orderedMap("description", "url missing or empty"),
+        "401", orderedMap("description", "Missing or invalid bearer token."),
+        "404", orderedMap("description", "Robot not found or not owned by caller.")));
+    return orderedMap("put", put);
+  }
+
+  private static Map<String, Object> robotsDescriptionPath() {
+    Map<String, Object> put = orderedMap();
+    put.put("summary", "Update description");
+    put.put("security", list(orderedMap("BearerAuth", list())));
+    put.put("parameters", robotIdParam());
+    put.put("requestBody", orderedMap("required", true, "content", orderedMap("application/json",
+        orderedMap("schema", orderedMap("type", "object",
+            "properties", orderedMap("description", orderedMap("type", "string")))))));
+    put.put("responses", orderedMap(
+        "200", orderedMap("description", "Updated robot",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotDetailed")))),
+        "401", orderedMap("description", "Missing or invalid bearer token."),
+        "404", orderedMap("description", "Robot not found or not owned by caller.")));
+    return orderedMap("put", put);
+  }
+
+  private static Map<String, Object> robotsRotatePath() {
+    Map<String, Object> post = orderedMap();
+    post.put("summary", "Rotate consumer secret");
+    post.put("description", "Generates a new consumer secret. The new secret is returned once in this response and masked on subsequent reads.");
+    post.put("security", list(orderedMap("BearerAuth", list())));
+    post.put("parameters", robotIdParam());
+    post.put("responses", orderedMap(
+        "200", orderedMap("description", "New secret returned",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotRotateResponse")))),
+        "401", orderedMap("description", "Missing or invalid bearer token."),
+        "404", orderedMap("description", "Robot not found or not owned by caller.")));
+    return orderedMap("post", post);
+  }
+
+  private static Map<String, Object> robotsVerifyPath() {
+    Map<String, Object> post = orderedMap();
+    post.put("summary", "Test bot (fetch capabilities)");
+    post.put("description", "Fetches the capabilities.xml from the robot callback URL to confirm it is reachable.");
+    post.put("security", list(orderedMap("BearerAuth", list())));
+    post.put("parameters", robotIdParam());
+    post.put("responses", orderedMap(
+        "200", orderedMap("description", "Robot verified",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotDetailed")))),
+        "400", orderedMap("description", "No callback URL set."),
+        "401", orderedMap("description", "Missing or invalid bearer token."),
+        "502", orderedMap("description", "Capability fetch failed.")));
+    return orderedMap("post", post);
+  }
+
+  private static Map<String, Object> robotsPausedPath() {
+    Map<String, Object> put = orderedMap();
+    put.put("summary", "Pause or unpause robot");
+    put.put("security", list(orderedMap("BearerAuth", list())));
+    put.put("parameters", robotIdParam());
+    put.put("requestBody", orderedMap("required", true, "content", orderedMap("application/json",
+        orderedMap("schema", orderedMap("type", "object", "required", list("paused"),
+            "properties", orderedMap("paused", orderedMap("type", "string", "enum", list("true", "false"))))))));
+    put.put("responses", orderedMap(
+        "200", orderedMap("description", "Updated robot",
+            "content", orderedMap("application/json",
+                orderedMap("schema", orderedMap("$ref", "#/components/schemas/RobotDetailed")))),
+        "400", orderedMap("description", "Invalid paused value."),
+        "401", orderedMap("description", "Missing or invalid bearer token."),
+        "404", orderedMap("description", "Robot not found or not owned by caller.")));
+    return orderedMap("put", put);
+  }
+
+  private static Map<String, Object> robotSchema(boolean detailed) {
+    Map<String, Object> props = orderedMap(
+        "id", orderedMap("type", "string"),
+        "status", orderedMap("type", "string", "enum", list("active", "paused")),
+        "description", orderedMap("type", "string"),
+        "callbackUrl", orderedMap("type", "string"),
+        "verified", orderedMap("type", "boolean"),
+        "createdAt", orderedMap("type", "string", "format", "date-time"),
+        "updatedAt", orderedMap("type", "string", "format", "date-time"));
+    if (detailed) {
+      props.put("tokenExpirySeconds", orderedMap("type", "integer", "format", "int64"));
+      props.put("maskedSecret", orderedMap("type", "string"));
+    }
+    return orderedMap("type", "object", "properties", props);
+  }
+
+  private static Map<String, Object> robotRegistrationSchema() {
+    return orderedMap(
+        "type", "object",
+        "required", list("username"),
+        "properties", orderedMap(
+            "username", orderedMap("type", "string", "description", "Robot username (without @domain)"),
+            "description", orderedMap("type", "string"),
+            "callbackUrl", orderedMap("type", "string", "format", "uri"),
+            "tokenExpiry", orderedMap("type", "integer", "format", "int64", "description", "Token TTL in seconds (0 = no expiry)", "example", 3600)));
   }
 
   private static Map<String, Object> bearerAuthScheme() {
@@ -1011,6 +1234,7 @@ public final class ApiDocsServlet extends HttpServlet {
     text.append("- Legacy LLM alias: ").append(baseUrl).append(LLM_ALIAS_PATH).append('\n');
     text.append("- Token endpoint: ").append(baseUrl).append(TOKEN_PATH).append('\n');
     text.append("- Canonical RPC endpoint: ").append(baseUrl).append(CANONICAL_RPC_PATH).append('\n');
+    text.append("- Robot Management API: ").append(baseUrl).append("/api/robots (POST to register, GET to list)\n");
     return text.toString();
   }
 
@@ -1026,6 +1250,17 @@ public final class ApiDocsServlet extends HttpServlet {
     text.append("Token endpoint: ").append(TOKEN_PATH).append('\n');
     text.append("Auth: Authorization: Bearer <token> (JWT type=data-api-access, audience=data-api)\n");
     text.append("Transport: HTTP POST JSON-RPC. Request body can be one object or an array. Response body is always an array in request order.\n\n");
+    text.append("Robot Management REST API\n");
+    text.append("Base: /api/robots (same Bearer token auth)\n");
+    text.append("POST /api/robots — register robot: {\"username\",\"description\",\"callbackUrl\",\"tokenExpiry\"} → {id, secret, status}\n");
+    text.append("GET /api/robots — list owned robots\n");
+    text.append("GET /api/robots/{id} — robot details\n");
+    text.append("PUT /api/robots/{id}/url — update callback URL: {\"url\":\"...\"}\n");
+    text.append("PUT /api/robots/{id}/description — update description: {\"description\":\"...\"}\n");
+    text.append("POST /api/robots/{id}/rotate — rotate secret (returns new secret)\n");
+    text.append("POST /api/robots/{id}/verify — test bot\n");
+    text.append("PUT /api/robots/{id}/paused — pause/unpause: {\"paused\":\"true|false\"}\n");
+    text.append("DELETE /api/robots/{id} — soft delete\n\n");
 
     text.append("Token acquisition (client_credentials, short-lived example)\n");
     text.append(tokenCurlExample(baseUrl)).append("\n\n");
