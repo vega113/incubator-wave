@@ -113,6 +113,9 @@ public final class FetchProfilesServlet extends HttpServlet {
     response.setStatus(HttpServletResponse.SC_OK);
     response.setContentType("application/json");
     response.setHeader("Cache-Control", "private, max-age=120");
+    // Scope cache entries by session cookie so a cached response is never
+    // served to a different user after login/logout.
+    response.setHeader("Vary", "Cookie");
     try {
       response.getWriter().append(serializer.toJson(profileResponse).toString());
     } catch (ProtoSerializer.SerializationException e) {

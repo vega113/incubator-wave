@@ -194,6 +194,9 @@ public final class FetchProfilesServlet extends HttpServlet {
       // Allow browser to cache profiles briefly — avatars and names rarely
       // change, and this avoids redundant fetches on page reload.
       resp.setHeader("Cache-Control", "private, max-age=120");
+      // Scope cache entries by session cookie so a cached response is never
+      // served to a different user after login/logout.
+      resp.setHeader("Vary", "Cookie");
       try {
         // FIXME (user) Returning JSON directly from an HTTP GET is vulnerable   
         // to XSSI attacks. Issue https://issues.apache.org/jira/browse/WAVE-135

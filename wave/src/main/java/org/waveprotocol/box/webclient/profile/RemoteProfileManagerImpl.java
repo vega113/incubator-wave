@@ -30,6 +30,7 @@ import org.waveprotocol.wave.client.debug.logger.DomLogger;
 import org.waveprotocol.wave.common.logging.LoggerBundle;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -47,6 +48,9 @@ public final class RemoteProfileManagerImpl extends AbstractProfileManager<Profi
 
   private final static LoggerBundle LOG = new DomLogger("fetchProfiles");
   private final FetchProfilesServiceImpl fetchProfilesService;
+
+  /** Max addresses per GET request to stay well under common URL-length limits. */
+  private static final int MAX_ADDRESSES_PER_REQUEST = 50;
 
   /** Addresses waiting to be fetched in the next batch. */
   private final Set<String> pendingAddresses = new LinkedHashSet<String>();
@@ -112,7 +116,11 @@ public final class RemoteProfileManagerImpl extends AbstractProfileManager<Profi
       String[] addresses = pendingAddresses.toArray(new String[0]);
       pendingAddresses.clear();
       LOG.trace().log("Batch fetching " + addresses.length + " profiles");
-      fetchProfilesService.fetch(RemoteProfileManagerImpl.this, addresses);
+      for (int i = 0; i < addresses.length; i += MAX_ADDRESSES_PER_REQUEST) {
+        String[] chunk = Arrays.copyOfRange(addresses, i,
+            Math.min(i + MAX_ADDRESSES_PER_REQUEST, addresses.length));
+        fetchProfilesService.fetch(RemoteProfileManagerImpl.this, chunk);
+      }
     }
   }
 
