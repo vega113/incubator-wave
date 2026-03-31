@@ -176,10 +176,6 @@ public class FileAccountStore implements AccountStore {
     return countHumanAccounts();
   }
 
-  /**
-   * Counts only human accounts by scanning files without fully loading all accounts.
-   * Tolerates unreadable files gracefully.
-   */
   private long countHumanAccounts() throws PersistenceException {
     long count = 0;
     File dir = new File(accountStoreBasePath);
@@ -194,14 +190,9 @@ public class FileAccountStore implements AccountStore {
         } catch (Exception e) {
           continue;
         }
-        try {
-          AccountData account = readAccount(pid);
-          if (account != null && account.isHuman()) {
-            count++;
-          }
-        } catch (PersistenceException e) {
-          // Log but continue counting other accounts
-          LOG.warning("Failed to read account for " + pid.getAddress() + " when counting: " + e);
+        AccountData account = readAccount(pid);
+        if (account != null && account.isHuman()) {
+          count++;
         }
       }
     }
