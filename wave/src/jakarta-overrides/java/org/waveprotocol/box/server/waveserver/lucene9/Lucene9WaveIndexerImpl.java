@@ -111,28 +111,55 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
   public synchronized void remakeIndex() throws WaveletStateException, WaveServerException {
     try {
       int existingDocs = indexWriter.getDocStats().numDocs;
-      if (existingDocs > 0 && !rebuildOnStartup) {
-        LOG.info("Lucene9 index already has " + existingDocs
-            + " documents, skipping rebuild (lucene9_rebuild_on_startup=false)");
-        return;
-      }
-      if (existingDocs > 0) {
-        LOG.info("Rebuilding Lucene9 index (had " + existingDocs
+      if (existingDocs > 0 && rebuildOnStartup) {
+        LOG.info("Full rebuild of Lucene9 index (had " + existingDocs
             + " docs, lucene9_rebuild_on_startup=true)");
         indexWriter.deleteAll();
+      } else if (existingDocs > 0) {
+        LOG.info("Lucene9 index has " + existingDocs
+            + " documents, running incremental repair");
+      } else {
+        LOG.info("Lucene9 index is empty, performing initial build");
       }
-      waveMap.loadAllWavelets();
+      boolean fullRebuild = (existingDocs > 0 && rebuildOnStartup) || existingDocs == 0;
+      try {
+        waveMap.loadAllWavelets();
+      } catch (WaveletStateException e) {
+        if (fullRebuild) {
+          throw e;
+        }
+        LOG.log(Level.WARNING,
+            "loadAllWavelets failed during incremental repair, using cached waves", e);
+      }
       try {
         org.waveprotocol.box.common.ExceptionalIterator<WaveId, WaveServerException> waveIds =
             waveletProvider.getWaveIds();
         int count = 0;
+        int errors = 0;
         while (waveIds.hasNext()) {
-          upsertWave(waveIds.next());
-          count++;
+          WaveId waveId = waveIds.next();
+          try {
+            upsertWave(waveId);
+            count++;
+          } catch (IOException e) {
+            throw e;
+          } catch (WaveServerException e) {
+            if (fullRebuild) {
+              throw e;
+            }
+            errors++;
+            LOG.log(Level.WARNING, "Failed to index wave " + waveId + ", skipping", e);
+          }
         }
         indexWriter.commit();
         searcherManager.maybeRefreshBlocking();
-        LOG.info("Lucene9 index built with " + count + " waves");
+        LOG.info("Lucene9 index completed: " + count + " waves indexed"
+            + (errors > 0 ? ", " + errors + " skipped due to errors" : ""));
+        if (errors > 0) {
+          LOG.warning("Lucene9 incremental repair incomplete: " + errors
+              + " waves could not be indexed out of " + (count + errors)
+              + " — search results may be partial until next successful repair");
+        }
       } finally {
         waveMap.unloadAllWavelets();
       }
