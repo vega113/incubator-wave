@@ -256,6 +256,7 @@ libraryDependencies ++= Seq(
   "commons-cli"                    % "commons-cli"                % "1.11.0",
   "commons-io"                     % "commons-io"                 % "2.16.1",
   "org.apache.commons"             % "commons-lang3"              % "3.14.0",
+  "org.apache.commons"             % "commons-text"               % "1.12.0",
 
   // --- HTTP ---
   "org.apache.httpcomponents"      % "httpclient"                 % "4.5.14",
