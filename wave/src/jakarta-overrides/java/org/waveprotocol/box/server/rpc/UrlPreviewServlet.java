@@ -327,7 +327,7 @@ public class UrlPreviewServlet extends HttpServlet {
     SsrfSafeSSLSocketFactory(String originalHost, int port, InetAddress validatedAddress)
         throws IOException {
       try {
-        SSLContext ctx = SSLContext.getInstance("TLS");
+        SSLContext ctx = SSLContext.getInstance("TLSv1.3");
         ctx.init(null, null, new SecureRandom());
         this.delegate = ctx.getSocketFactory();
       } catch (NoSuchAlgorithmException | KeyManagementException e) {
@@ -348,23 +348,38 @@ public class UrlPreviewServlet extends HttpServlet {
       return createValidatedSslSocket();
     }
 
+    /**
+     * Creates an SSL socket with local address binding.
+     * Uses the pre-validated IP, ignoring the host parameter.
+     */
     @Override
     public Socket createSocket(String host, int port,
         InetAddress localHost, int localPort) throws IOException {
       return createValidatedSslSocket();
     }
 
+    /**
+     * Creates an SSL socket from an InetAddress. Uses the pre-validated IP.
+     */
     @Override
     public Socket createSocket(InetAddress host, int port) throws IOException {
       return createValidatedSslSocket();
     }
 
+    /**
+     * Creates an SSL socket from an InetAddress with local address binding.
+     * Uses the pre-validated IP, ignoring the host parameter.
+     */
     @Override
     public Socket createSocket(InetAddress host, int port,
         InetAddress localHost, int localPort) throws IOException {
       return createValidatedSslSocket();
     }
 
+    /**
+     * Layers TLS over an existing socket using the original hostname for SNI.
+     * The socket is already connected to the validated IP, so we only layer TLS.
+     */
     @Override
     public Socket createSocket(Socket s, String host, int port, boolean autoClose)
         throws IOException {
@@ -379,23 +394,34 @@ public class UrlPreviewServlet extends HttpServlet {
     private SSLSocket createValidatedSslSocket() throws IOException {
       // Connect a plain TCP socket to the validated IP
       Socket rawSocket = new Socket();
-      rawSocket.connect(new InetSocketAddress(validatedAddress, port), FETCH_TIMEOUT_MS);
-      // Layer TLS on top with original hostname for SNI and certificate verification
-      SSLSocket sslSocket = (SSLSocket) delegate.createSocket(
-          rawSocket, originalHost, port, true);
-      // Explicitly set SNI hostname
-      SSLParameters params = sslSocket.getSSLParameters();
-      params.setServerNames(
-          List.of(new SNIHostName(originalHost)));
-      sslSocket.setSSLParameters(params);
-      return sslSocket;
+      try {
+        rawSocket.connect(new InetSocketAddress(validatedAddress, port), FETCH_TIMEOUT_MS);
+        // Layer TLS on top with original hostname for SNI and certificate verification
+        SSLSocket sslSocket = (SSLSocket) delegate.createSocket(
+            rawSocket, originalHost, port, true);
+        // Explicitly set SNI hostname
+        SSLParameters params = sslSocket.getSSLParameters();
+        params.setServerNames(
+            List.of(new SNIHostName(originalHost)));
+        sslSocket.setSSLParameters(params);
+        return sslSocket;
+      } catch (IOException e) {
+        rawSocket.close();
+        throw e;
+      }
     }
 
+    /**
+     * Returns the default cipher suites from the underlying delegate factory.
+     */
     @Override
     public String[] getDefaultCipherSuites() {
       return delegate.getDefaultCipherSuites();
     }
 
+    /**
+     * Returns the supported cipher suites from the underlying delegate factory.
+     */
     @Override
     public String[] getSupportedCipherSuites() {
       return delegate.getSupportedCipherSuites();
