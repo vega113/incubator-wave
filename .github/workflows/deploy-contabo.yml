@@ -266,7 +266,7 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WAVE_EMAIL_FROM: ${{ secrets.WAVE_EMAIL_FROM }}
         run: |
-          curl -s -X POST https://api.resend.com/emails \
+          RESPONSE=$(curl -s --fail-with-body -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer $RESEND_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
@@ -274,7 +274,7 @@ jobs:
               \"to\": [\"vega113@gmail.com\"],
               \"subject\": \"✅ Deploy succeeded: ${RELEASE_ID:0:8}\",
               \"html\": \"<h2>Deploy succeeded</h2><table><tr><td>Commit</td><td><code>${RELEASE_ID:0:8}</code></td></tr><tr><td>Image</td><td><code>$IMAGE_REF</code></td></tr><tr><td>Host</td><td>$CANONICAL_HOST</td></tr><tr><td>Run</td><td><a href='https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'>View run</a></td></tr></table>\"
-            }" || echo "Email notification failed (non-blocking)"
+            }") || echo "Email notification failed (non-blocking): $RESPONSE"
 
       - name: Notify deploy failure
         if: failure()
@@ -282,7 +282,7 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WAVE_EMAIL_FROM: ${{ secrets.WAVE_EMAIL_FROM }}
         run: |
-          curl -s -X POST https://api.resend.com/emails \
+          RESPONSE=$(curl -s --fail-with-body -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer $RESEND_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
@@ -290,4 +290,4 @@ jobs:
               \"to\": [\"vega113@gmail.com\"],
               \"subject\": \"❌ Deploy FAILED: ${RELEASE_ID:0:8}\",
               \"html\": \"<h2>Deploy failed</h2><p>The production deploy failed and the previous version is still running.</p><table><tr><td>Commit</td><td><code>${RELEASE_ID:0:8}</code></td></tr><tr><td>Image</td><td><code>$IMAGE_REF</code></td></tr><tr><td>Host</td><td>$CANONICAL_HOST</td></tr><tr><td>Logs</td><td><a href='https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'>View full logs</a></td></tr></table><p><strong>Next steps:</strong> Check the deploy logs linked above. Previous version is auto-preserved.</p>\"
-            }" || echo "Email notification failed (non-blocking)"
+            }") || echo "Email notification failed (non-blocking): $RESPONSE"
