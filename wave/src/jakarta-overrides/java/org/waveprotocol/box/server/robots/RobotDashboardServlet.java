@@ -18,6 +18,9 @@ package org.waveprotocol.box.server.robots;
 
 import com.google.common.base.Strings;
 import com.google.common.cache.CacheBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.wave.api.robot.CapabilityFetchException;
@@ -113,6 +116,13 @@ public final class RobotDashboardServlet extends HttpServlet {
     if (user == null) {
       return;
     }
+    // JSON API: robot creation
+    String contentType = req.getContentType();
+    if (contentType != null && contentType.startsWith("application/json")) {
+      handleJsonRegister(req, resp, user);
+      return;
+    }
+
     if (!hasValidXsrfToken(user, req)) {
       renderDashboard(req, resp, user, "Invalid XSRF token.", null,
           HttpServletResponse.SC_UNAUTHORIZED);
@@ -374,6 +384,7 @@ public final class RobotDashboardServlet extends HttpServlet {
       throws IOException {
     String username = req.getParameter("username");
     String location = Strings.nullToEmpty(req.getParameter("location")).trim();
+    String description = Strings.nullToEmpty(req.getParameter("description")).trim();
     long tokenExpirySeconds = parseTokenExpiry(req.getParameter("token_expiry"));
     if (Strings.isNullOrEmpty(username)) {
       renderDashboard(req, resp, user, "Robot username is required.", null,
@@ -393,7 +404,16 @@ public final class RobotDashboardServlet extends HttpServlet {
     try {
       RobotAccountData registeredRobot =
           robotRegistrar.registerNew(robotId, location, user.getAddress(), tokenExpirySeconds);
-      renderDashboard(req, resp, user, "Robot registered: " + robotId.getAddress(), registeredRobot,
+      String successMsg = "Robot registered: " + robotId.getAddress();
+      if (!description.isEmpty()) {
+        try {
+          registeredRobot = robotRegistrar.updateDescription(robotId, description);
+        } catch (RobotRegistrationException | PersistenceException e) {
+          LOG.warning("Robot registered but description update failed: " + e.getMessage());
+          successMsg = "Robot registered: " + robotId.getAddress() + " (description update failed)";
+        }
+      }
+      renderDashboard(req, resp, user, successMsg, registeredRobot,
           HttpServletResponse.SC_OK, registeredRobot.getConsumerSecret());
     } catch (RobotRegistrationException e) {
       renderDashboard(req, resp, user, e.getMessage(), null, HttpServletResponse.SC_BAD_REQUEST);
@@ -963,6 +983,133 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("}");
     sb.append("</script>");
     sb.append("</div></body></html>");
+    return sb.toString();
+  }
+
+  // -- JSON API for programmatic robot creation --
+
+  private void handleJsonRegister(HttpServletRequest req, HttpServletResponse resp,
+      ParticipantId user) throws IOException {
+    resp.setContentType("application/json");
+    resp.setCharacterEncoding("UTF-8");
+
+    String body;
+    try {
+      int MAX_JSON_BODY_SIZE = 16 * 1024;
+      int contentLength = req.getContentLength();
+      if (contentLength > MAX_JSON_BODY_SIZE) {
+        resp.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+        resp.getWriter().write("{\"error\":\"Request body too large\"}");
+        return;
+      }
+      byte[] bytes = req.getInputStream().readNBytes(MAX_JSON_BODY_SIZE + 1);
+      if (bytes.length > MAX_JSON_BODY_SIZE) {
+        resp.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+        resp.getWriter().write("{\"error\":\"Request body too large\"}");
+        return;
+      }
+      body = new String(bytes, StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      resp.getWriter().write("{\"error\":\"Failed to read request body\"}");
+      return;
+    }
+
+    String username = extractJsonString(body, "username");
+    String description = extractJsonString(body, "description");
+    String callbackUrl = extractJsonString(body, "callbackUrl");
+    long tokenExpiry = extractJsonLong(body, "tokenExpiry", 3600L);
+
+    if (Strings.isNullOrEmpty(username)) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      resp.getWriter().write("{\"error\":\"username is required\"}");
+      return;
+    }
+
+    ParticipantId robotId;
+    try {
+      robotId = RegistrationSupport.checkNewRobotUsername(domain, username);
+    } catch (InvalidParticipantAddress e) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      resp.getWriter().write("{\"error\":" + escapeJsonValue(e.getMessage()) + "}");
+      return;
+    }
+
+    try {
+      String location = Strings.nullToEmpty(callbackUrl).trim();
+      RobotAccountData registeredRobot =
+          robotRegistrar.registerNew(robotId, location, user.getAddress(), tokenExpiry);
+      boolean descriptionFailed = false;
+      if (!Strings.isNullOrEmpty(description)) {
+        try {
+          registeredRobot = robotRegistrar.updateDescription(robotId, description.trim());
+        } catch (RobotRegistrationException | PersistenceException e) {
+          LOG.warning("JSON API: robot registered but description update failed: " + e.getMessage());
+          descriptionFailed = true;
+        }
+      }
+      resp.setStatus(HttpServletResponse.SC_OK);
+      StringBuilder json = new StringBuilder(256);
+      json.append("{\"robotId\":").append(escapeJsonValue(registeredRobot.getId().getAddress()));
+      json.append(",\"secret\":").append(escapeJsonValue(registeredRobot.getConsumerSecret()));
+      json.append(",\"status\":\"active\"");
+      json.append(",\"callbackUrl\":").append(escapeJsonValue(Strings.nullToEmpty(registeredRobot.getUrl())));
+      json.append(",\"description\":").append(escapeJsonValue(Strings.nullToEmpty(registeredRobot.getDescription())));
+      if (descriptionFailed) {
+        json.append(",\"warning\":\"Description update failed; robot registered without description\"");
+      }
+      json.append("}");
+      resp.getWriter().write(json.toString());
+    } catch (RobotRegistrationException e) {
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      resp.getWriter().write("{\"error\":" + escapeJsonValue(e.getMessage()) + "}");
+    } catch (PersistenceException e) {
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      resp.getWriter().write("{\"error\":\"Robot registration failed\"}");
+    }
+  }
+
+  static String extractJsonString(String json, String key) {
+    try {
+      JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+      JsonElement el = obj.get(key);
+      return (el != null && !el.isJsonNull()) ? el.getAsString() : "";
+    } catch (Exception e) {
+      return "";
+    }
+  }
+
+  static long extractJsonLong(String json, String key, long defaultVal) {
+    try {
+      JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
+      JsonElement el = obj.get(key);
+      return (el != null && !el.isJsonNull()) ? el.getAsLong() : defaultVal;
+    } catch (Exception e) {
+      return defaultVal;
+    }
+  }
+
+  private static String escapeJsonValue(String value) {
+    if (value == null) return "null";
+    StringBuilder sb = new StringBuilder(value.length() + 2);
+    sb.append('"');
+    for (int i = 0; i < value.length(); i++) {
+      char c = value.charAt(i);
+      switch (c) {
+        case '"': sb.append("\\\""); break;
+        case '\\': sb.append("\\\\"); break;
+        case '\n': sb.append("\\n"); break;
+        case '\r': sb.append("\\r"); break;
+        case '\t': sb.append("\\t"); break;
+        default:
+          if (c < 0x20) {
+            sb.append(String.format("\\u%04x", (int) c));
+          } else {
+            sb.append(c);
+          }
+      }
+    }
+    sb.append('"');
     return sb.toString();
   }
 

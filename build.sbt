@@ -12,7 +12,7 @@ enablePlugins(JavaAppPackaging)
 Compile / compileOrder := CompileOrder.JavaThenScala
 
 // Java toolchain: compile and target JDK 17 bytecode (matches Gradle's java.toolchain.languageVersion)
-javacOptions ++= Seq("--release", "17")
+javacOptions ++= Seq("--release", "17", "-Xlint:deprecation", "-Xlint:unchecked")
 
 // Disable Javadoc generation — gwt-user sources reference GWTBridge (in gwt-dev)
 // which is not on the compile classpath, causing Javadoc to fail during Universal/stage.
@@ -167,11 +167,12 @@ Test / unmanagedSourceDirectories += baseDirectory.value / "wave" / "src" / "tes
 // All dependencies are managed via libraryDependencies (Coursier).
 // Codegen tasks resolve JARs from managed deps via (Compile / dependencyClasspath).
 
-// Serve static assets from wave/war/ via classpath resources (Jetty will still serve filesystem if desired)
+// Runtime web assets live under the repo-root war/ directory for both sbt run
+// and staged distributions.
 // NOTE: must use unmanagedResourceDirectories (not resourceDirectories) so SBT actually
 // scans these dirs and includes their files in unmanagedResources / the classpath JAR.
 Compile / unmanagedResourceDirectories += baseDirectory.value / "wave" / "src" / "main" / "resources"
-Compile / unmanagedResourceDirectories += baseDirectory.value / "wave" / "war"
+Compile / unmanagedResourceDirectories += baseDirectory.value / "war"
 
 // Prefer forking when running, to mimic production flags when needed
 fork := true
@@ -233,6 +234,11 @@ libraryDependencies ++= Seq(
   "org.testcontainers"             % "testcontainers"             % "1.21.4"   % Test,
   "org.testcontainers"             % "mongodb"                    % "1.21.4"   % Test,
 
+  // --- E2E test (JUnit 5 — scoped to e2eTest config only, does not affect unit tests) ---
+  "org.junit.jupiter"              % "junit-jupiter-api"          % "5.10.2"   % E2eTest,
+  "org.junit.jupiter"              % "junit-jupiter-engine"       % "5.10.2"   % E2eTest,
+  "net.aichler"                    % "jupiter-interface"          % "0.11.1"   % E2eTest,
+
   // --- Protobuf ---
   "com.google.protobuf"            % "protobuf-java"              % ProtobufV,
 
@@ -254,6 +260,7 @@ libraryDependencies ++= Seq(
   "commons-cli"                    % "commons-cli"                % "1.11.0",
   "commons-io"                     % "commons-io"                 % "2.16.1",
   "org.apache.commons"             % "commons-lang3"              % "3.14.0",
+  "org.apache.commons"             % "commons-text"               % "1.12.0",
 
   // --- HTTP ---
   "org.apache.httpcomponents"      % "httpclient"                 % "4.5.14",
@@ -450,22 +457,25 @@ lazy val JakartaTest    = config("jakartaTest")    extend Test  describedAs "Jak
 lazy val JakartaIT      = config("jakartaIT")      extend Test  describedAs "Jakarta integration tests (*IT allowlist)"
 lazy val StacktraceTest = config("stacktraceTest") extend Test  describedAs "Isolated StackTraces utility tests"
 lazy val ThumbTest      = config("thumbTest")      extend Test  describedAs "Isolated AttachmentServlet thumbnail tests"
+lazy val E2eTest        = config("e2eTest")        extend Test  describedAs "E2E sanity tests against a running Wave server"
 
 // Register all custom test configs with Ivy so POM generation can resolve them
-ivyConfigurations ++= Seq(JakartaTest, JakartaIT, StacktraceTest, ThumbTest)
+ivyConfigurations ++= Seq(JakartaTest, JakartaIT, StacktraceTest, ThumbTest, E2eTest)
 
 // Wire all four configs into the project so `sbt jakartaTest:test` etc. work
 inConfig(JakartaTest)(Defaults.testSettings)
 inConfig(JakartaIT)(Defaults.testSettings)
 inConfig(StacktraceTest)(Defaults.testSettings)
 inConfig(ThumbTest)(Defaults.testSettings)
+inConfig(E2eTest)(Defaults.testSettings ++ net.aichler.jupiter.sbt.JupiterPlugin.scopedSettings)
 
 // Suppress "unused key" linter warnings for keys auto-created by Defaults.testSettings in custom configs
 Global / excludeLintKeys ++= Set(
   JakartaTest / javaSource, JakartaTest / scalaSource, JakartaTest / resourceDirectory, JakartaTest / semanticdbTargetRoot,
   JakartaIT / javaSource, JakartaIT / scalaSource, JakartaIT / resourceDirectory, JakartaIT / semanticdbTargetRoot,
   StacktraceTest / javaSource, StacktraceTest / scalaSource, StacktraceTest / semanticdbTargetRoot,
-  ThumbTest / javaSource, ThumbTest / scalaSource, ThumbTest / semanticdbTargetRoot
+  ThumbTest / javaSource, ThumbTest / scalaSource, ThumbTest / semanticdbTargetRoot,
+  E2eTest / javaSource, E2eTest / scalaSource, E2eTest / resourceDirectory, E2eTest / semanticdbTargetRoot
 )
 
 // --- JakartaTest source directories & exclusions ---
@@ -583,6 +593,19 @@ ThumbTest / javaOptions ++= Seq(
 ThumbTest / fork := true
 ThumbTest / dependencyClasspath ++= (Compile / exportedProducts).value
 
+// --- E2eTest: E2E sanity suite settings ---
+// Source: wave/src/e2e-test/java — runs against a live Wave server (WAVE_E2E_BASE_URL)
+E2eTest / unmanagedSourceDirectories := Seq(
+  baseDirectory.value / "wave" / "src" / "e2e-test" / "java"
+)
+E2eTest / fork := true
+E2eTest / javaOptions ++= Seq("-ea")
+E2eTest / dependencyClasspath ++= (Compile / exportedProducts).value
+E2eTest / dependencyClasspath ++= (Test / dependencyClasspath).value
+E2eTest / dependencyClasspath ++= (Compile / fullClasspath).value
+E2eTest / testFrameworks += new TestFramework("net.aichler.jupiter.api.JupiterFramework")
+// WAVE_E2E_BASE_URL is read from the OS environment by the forked JVM
+
 // --- Additional per-config dependencies (matches Gradle) ---
 // JakartaTest and JakartaIT need Jakarta WebSocket + Jetty EE10 test deps
 libraryDependencies ++= Seq(
@@ -643,8 +666,8 @@ Universal / mappings ++= {
   val configFiles = (configDir ** "*").get.filter(_.isFile).map { f =>
     f -> ("config/" + IO.relativize(configDir, f).get)
   }
-  // wave/war/ -> war/
-  val warDir = base / "wave" / "war"
+  // war/ -> war/
+  val warDir = base / "war"
   val warFiles = (warDir ** "*").get.filter(_.isFile).map { f =>
     f -> ("war/" + IO.relativize(warDir, f).get)
   }
@@ -749,6 +772,7 @@ lazy val pst = Project("pst", file("pst"))
   .settings(
     crossPaths := false,
     autoScalaLibrary := false,
+    javacOptions ++= Seq("-Xlint:deprecation", "-Xlint:unchecked"),
     Compile / compileOrder := CompileOrder.JavaThenScala,
     Compile / unmanagedSourceDirectories += baseDirectory.value / "generated" / "main" / "java",
     libraryDependencies ++= Seq(
@@ -856,7 +880,26 @@ Compile / PB.includePaths := Seq(
 )
 Compile / PB.targets := Seq(PB.gens.java -> (baseDirectory.value / "proto_src"))
 // Ensure staging runs before protoc
-Compile / PB.generate := (Compile / PB.generate).dependsOn(prepareProtosForPB).value
+Compile / PB.generate := {
+  val result = (Compile / PB.generate).dependsOn(prepareProtosForPB).value
+  // Post-process protoc output: replace deprecated .PARSER with .parser()
+  val log = streams.value.log
+  val protoSrc = baseDirectory.value / "proto_src"
+  val javaFiles = (protoSrc ** "*.java").get
+  var patchCount = 0
+  javaFiles.foreach { f =>
+    val content = IO.read(f)
+    if (content.contains(".PARSER,") || content.contains(".PARSER)")) {
+      val patched = content
+        .replace(".PARSER,", ".parser(),")
+        .replace(".PARSER)", ".parser())")
+      IO.write(f, patched)
+      patchCount += 1
+    }
+  }
+  if (patchCount > 0) log.info(s"Patched $patchCount proto_src files: .PARSER -> .parser()")
+  result
+}
 
 
 ThisBuild / generatePstMessages := {
@@ -887,6 +930,7 @@ ThisBuild / generatePstMessages := {
   val javacProto = Seq(
     "javac",
     "-g",
+    "-Xlint:deprecation", "-Xlint:unchecked",
     "-cp", protobufJar,
     "-d", pstProtoClasses.getAbsolutePath
   ) ++ protoSources.map(_.getAbsolutePath)
@@ -1038,8 +1082,8 @@ Compile / compile := (Compile / compile)
   // generateGxp removed — GXP replaced by HtmlRenderer
   .value
 
-// Ensure `run` has a config in place
-Compile / run := (Compile / run).dependsOn(prepareServerConfig).evaluated
+// Ensure `run` has a config in place and the web client is built first.
+Compile / run := (Compile / run).dependsOn(prepareServerConfig, compileGwt).evaluated
 
 // =============================================================================
 // Phase 6: GWT Compilation Bridge
@@ -1121,8 +1165,9 @@ ThisBuild / compileGwt := {
       val forkOpts = ForkOptions()
         .withRunJVMOptions(Vector("-Xmx1024M"))
 
-      // Output to wave/war/ so Universal/stage mappings pick it up
-      val warDir = (base / "wave" / "war").getAbsolutePath
+      // Output to root war/ so sbt run and staged distributions share one
+      // runtime asset layout.
+      val warDir = (base / "war").getAbsolutePath
 
       val gwtArgs = Seq(
         "-war", warDir,
@@ -1147,3 +1192,9 @@ ThisBuild / compileGwt := {
 
 // Wire compileGwt to run after compileJava (GWT needs compiled classes)
 compileGwt := (compileGwt).dependsOn(Compile / compile).value
+Universal / stage := (Universal / stage).dependsOn(compileGwt).value
+Universal / packageBin := (Universal / packageBin).dependsOn(compileGwt).value
+
+cleanFiles += baseDirectory.value / "war" / "webclient"
+cleanFiles += baseDirectory.value / "war" / "org"
+cleanFiles += baseDirectory.value / "war" / "WEB-INF"

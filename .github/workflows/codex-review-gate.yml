@@ -1,4 +1,6 @@
 name: Codex Review Gate
+run-name: >-
+  ${{ github.event_name == 'issue_comment' && format('Review Gate issue #{0}', github.event.issue.number) || github.event_name == 'pull_request_review' && format('Review Gate PR #{0}', github.event.pull_request.number) || github.event_name == 'pull_request' && format('Review Gate PR #{0}', github.event.pull_request.number) || github.event_name == 'schedule' && 'Review Gate scheduler' || format('Review Gate {0}', github.event_name) }}
 
 on:
   pull_request:
@@ -71,11 +73,7 @@ jobs:
                     repository(owner: $owner, name: $repo) {
                       pullRequest(number: $number) {
                         isDraft
-                        baseRefName
                         headRefOid
-                        labels(first: 100) {
-                          nodes { name }
-                        }
                         commits(last: 1) {
                           nodes {
                             commit {
@@ -100,26 +98,6 @@ jobs:
                             }
                           }
                         }
-                        reviews(last: 100) {
-                          nodes {
-                            author {
-                              login
-                            }
-                            body
-                            commit {
-                              oid
-                            }
-                            state
-                          }
-                        }
-                        comments(last: 100) {
-                          nodes {
-                            author {
-                              login
-                            }
-                            body
-                          }
-                        }
                         reviewThreads(last: 100) {
                           nodes {
                             isResolved
@@ -138,7 +116,6 @@ jobs:
               }
 
               if (!shouldRequeueCodexReviewGate({
-                defaultBranchName,
                 pullRequest,
               })) {
                 continue;
@@ -148,7 +125,7 @@ jobs:
                 owner,
                 repo,
                 issue_number: pullRequestSummary.number,
-                body: "/codex-review-gate\n\nScheduled reevaluation after the 5 minute CodeRabbit grace window.",
+                body: "/codex-review-gate\n\nScheduled reevaluation after the 5-minute review window.",
               });
             }
 
@@ -193,16 +170,9 @@ jobs:
             const query = `
               query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
-                  defaultBranchRef {
-                    name
-                  }
                   pullRequest(number: $number) {
                     isDraft
-                    baseRefName
                     headRefOid
-                    labels(first: 100) {
-                      nodes { name }
-                    }
                     commits(last: 1) {
                       nodes {
                         commit {
@@ -227,26 +197,6 @@ jobs:
                         }
                       }
                     }
-                    reviews(last: 100) {
-                      nodes {
-                        author {
-                          login
-                        }
-                        body
-                        commit {
-                          oid
-                        }
-                        state
-                      }
-                    }
-                    comments(last: 100) {
-                      nodes {
-                        author {
-                          login
-                        }
-                        body
-                      }
-                    }
                     reviewThreads(last: 100) {
                       nodes {
                         isResolved
@@ -266,7 +216,6 @@ jobs:
 
             const evaluation = evaluateCodexReviewGate({
               pullRequest,
-              defaultBranchName: result.repository.defaultBranchRef?.name ?? "main",
             });
 
             if (!pullRequest.headRefOid) {
