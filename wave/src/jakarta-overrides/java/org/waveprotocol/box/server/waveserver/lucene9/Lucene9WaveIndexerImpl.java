@@ -111,15 +111,13 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
   public synchronized void remakeIndex() throws WaveletStateException, WaveServerException {
     try {
       int existingDocs = indexWriter.getDocStats().numDocs;
-      if (existingDocs > 0 && !rebuildOnStartup) {
-        LOG.info("Lucene9 index already has " + existingDocs
-            + " documents, skipping rebuild (lucene9_rebuild_on_startup=false)");
-        return;
-      }
-      if (existingDocs > 0) {
-        LOG.info("Rebuilding Lucene9 index (had " + existingDocs
+      if (existingDocs > 0 && rebuildOnStartup) {
+        LOG.info("Full rebuild of Lucene9 index (had " + existingDocs
             + " docs, lucene9_rebuild_on_startup=true)");
         indexWriter.deleteAll();
+      } else if (existingDocs > 0) {
+        LOG.info("Lucene9 index has " + existingDocs
+            + " documents, running incremental repair");
       }
       waveMap.loadAllWavelets();
       try {
