@@ -148,8 +148,9 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
         LOG.info("Lucene9 index completed: " + count + " waves indexed"
             + (errors > 0 ? ", " + errors + " skipped due to errors" : ""));
         if (errors > 0) {
-          throw new WaveServerException("Lucene9 incremental repair completed with " + errors
-              + " errors out of " + (count + errors) + " waves");
+          LOG.warning("Lucene9 incremental repair incomplete: " + errors
+              + " waves could not be indexed out of " + (count + errors)
+              + " — search results may be partial until next successful repair");
         }
       } finally {
         waveMap.unloadAllWavelets();
