@@ -1165,10 +1165,28 @@ ThisBuild / compileGwt := {
 
   val nocacheJs = base / "war" / "webclient" / "webclient.nocache.js"
 
+  // Check whether any GWT input source is newer than the compiled output.
+  // If the output is up-to-date we can skip the expensive GWT compile step.
+  val gwtInputDirs = Seq(
+    base / "wave" / "src" / "main" / "java",
+    base / "wave" / "src" / "main" / "resources",
+    base / "wave" / "generated" / "src" / "main" / "java",
+    base / "proto_src",
+    base / "gen" / "messages",
+    base / "gen" / "flags"
+  ).filter(_.exists)
+
+  val outputTs = if (nocacheJs.exists) nocacheJs.lastModified else 0L
+  val newestInput = gwtInputDirs.flatMap(d =>
+    (d ** ("*.java" | "*.xml" | "*.proto")).get
+  ).map(_.lastModified).foldLeft(0L)(math.max)
+
+  val upToDate = nocacheJs.exists && newestInput <= outputTs
+
   if (skip) {
     log.info("[compileGwt] Skipped (skipGwt=true)")
-  } else if (nocacheJs.exists) {
-    log.info("[compileGwt] Skipped — war/webclient/webclient.nocache.js already exists (use 'sbt clean run' to force recompile)")
+  } else if (upToDate) {
+    log.info("[compileGwt] Skipped — output is up-to-date (use 'sbt clean run' to force recompile)")
   } else {
     val gradlew = base / "gradlew"
     if (gradlew.exists && gradlew.canExecute) {
