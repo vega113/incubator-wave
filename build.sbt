@@ -1163,8 +1163,12 @@ ThisBuild / compileGwt := {
   val resolved = update.value
   val compileCp = (Compile / dependencyClasspath).value.map(_.data)
 
+  val nocacheJs = base / "war" / "webclient" / "webclient.nocache.js"
+
   if (skip) {
     log.info("[compileGwt] Skipped (skipGwt=true)")
+  } else if (nocacheJs.exists) {
+    log.info("[compileGwt] Skipped — war/webclient/webclient.nocache.js already exists (use 'sbt clean run' to force recompile)")
   } else {
     val gradlew = base / "gradlew"
     if (gradlew.exists && gradlew.canExecute) {
