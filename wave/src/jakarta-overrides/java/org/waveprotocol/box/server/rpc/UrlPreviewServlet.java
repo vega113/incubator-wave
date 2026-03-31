@@ -37,14 +37,26 @@ import java.net.HttpURLConnection;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.Socket;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 /**
  * Servlet that fetches URL metadata (Open Graph, title, description, image)
@@ -182,7 +194,7 @@ public class UrlPreviewServlet extends HttpServlet {
     // recorded, before the destination is requested).
     while (redirectCount <= MAX_REDIRECTS) {
       validateUrlForPreview(currentUrl);
-      HttpURLConnection conn = openPreviewConnection(currentUrl);
+      HttpURLConnection conn = openSsrfSafeConnection(currentUrl);
       try {
         int status = conn.getResponseCode();
         if (isRedirectStatus(status)) {
@@ -222,15 +234,172 @@ public class UrlPreviewServlet extends HttpServlet {
     throw new IOException("Too many redirects for " + targetUrl);
   }
 
-  private static HttpURLConnection openPreviewConnection(URL url) throws IOException {
-    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+  /**
+   * Opens an HTTP(S) connection to the given URL with SSRF protection at the socket layer.
+   *
+   * <p>We resolve DNS ourselves, validate every resolved IP against {@link #isBlockedAddress},
+   * then force the connection to use that validated IP. This eliminates the DNS rebinding
+   * TOCTOU gap where {@code HttpURLConnection} could re-resolve the hostname to a different
+   * (malicious) IP after our validation check.
+   *
+   * <p>For HTTP: we rewrite the URL to use the validated IP and set the Host header explicitly.
+   * For HTTPS: we additionally install an {@link SSLSocketFactory} that performs TLS handshake
+   * with the original hostname for proper SNI and certificate verification, and set a
+   * {@link javax.net.ssl.HostnameVerifier} that checks the original hostname.
+   */
+  private static HttpURLConnection openSsrfSafeConnection(URL url) throws IOException {
+    String originalHost = url.getHost();
+    int port = url.getPort();
+    boolean isHttps = "https".equalsIgnoreCase(url.getProtocol());
+    int effectivePort = port != -1 ? port : (isHttps ? 443 : 80);
+
+    // Resolve and validate: pick the first non-blocked address
+    InetAddress validatedAddress = resolveAndValidate(originalHost);
+
+    // Rewrite URL to use the validated IP directly, preventing the JVM from re-resolving DNS
+    String ipLiteral = validatedAddress.getHostAddress();
+    if (validatedAddress instanceof Inet6Address) {
+      ipLiteral = "[" + ipLiteral + "]";
+    }
+    String rewrittenSpec = url.getProtocol() + "://" + ipLiteral
+        + (port != -1 ? ":" + port : "")
+        + (url.getPath() != null ? url.getPath() : "")
+        + (url.getQuery() != null ? "?" + url.getQuery() : "");
+    URL ipUrl = URI.create(rewrittenSpec).toURL();
+
+    HttpURLConnection conn = (HttpURLConnection) ipUrl.openConnection();
+
+    if (isHttps && conn instanceof HttpsURLConnection) {
+      HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
+      httpsConn.setSSLSocketFactory(
+          new SsrfSafeSSLSocketFactory(originalHost, effectivePort, validatedAddress));
+      // Verify the certificate against the original hostname, not the IP
+      httpsConn.setHostnameVerifier((hostname, session) -> {
+        // Delegate to the default verifier with the original hostname
+        return HttpsURLConnection.getDefaultHostnameVerifier().verify(originalHost, session);
+      });
+    }
+
     conn.setRequestMethod("GET");
     conn.setConnectTimeout(FETCH_TIMEOUT_MS);
     conn.setReadTimeout(FETCH_TIMEOUT_MS);
     conn.setInstanceFollowRedirects(false);
+    // Set the Host header to the original hostname so the target server routes correctly
+    conn.setRequestProperty("Host",
+        port != -1 && port != 80 && port != 443
+            ? originalHost + ":" + port
+            : originalHost);
     conn.setRequestProperty("User-Agent", "WaveBot/1.0 (URL Preview)");
     conn.setRequestProperty("Accept", "text/html,application/xhtml+xml");
     return conn;
+  }
+
+  /**
+   * Resolves the hostname and returns the first non-blocked address.
+   * Throws if all resolved addresses are blocked or the host is unresolvable.
+   */
+  private static InetAddress resolveAndValidate(String host) throws IOException {
+    InetAddress[] addresses = InetAddress.getAllByName(host);
+    if (addresses.length == 0) {
+      throw new IOException("Unresolvable host: " + host);
+    }
+    for (InetAddress addr : addresses) {
+      if (!isBlockedAddress(addr)) {
+        return addr;
+      }
+    }
+    throw new IOException("All resolved addresses for host are blocked");
+  }
+
+  /**
+   * An {@link SSLSocketFactory} that connects to a pre-validated IP address while performing
+   * TLS with the original hostname for proper SNI and certificate verification.
+   *
+   * <p>This closes the DNS rebinding TOCTOU gap for HTTPS connections: the socket connects
+   * to the IP we already validated, so a second DNS lookup cannot redirect to an internal host.
+   */
+  private static final class SsrfSafeSSLSocketFactory extends SSLSocketFactory {
+    private final SSLSocketFactory delegate;
+    private final String originalHost;
+    private final int port;
+    private final InetAddress validatedAddress;
+
+    SsrfSafeSSLSocketFactory(String originalHost, int port, InetAddress validatedAddress)
+        throws IOException {
+      try {
+        SSLContext ctx = SSLContext.getInstance("TLS");
+        ctx.init(null, null, new SecureRandom());
+        this.delegate = ctx.getSocketFactory();
+      } catch (NoSuchAlgorithmException | KeyManagementException e) {
+        throw new IOException("Failed to create SSLContext", e);
+      }
+      this.originalHost = originalHost;
+      this.port = port;
+      this.validatedAddress = validatedAddress;
+    }
+
+    /**
+     * Intercepts socket creation by host/port. Instead of letting the JVM resolve the hostname,
+     * we connect a plain socket to the validated IP and then layer TLS on top with the original
+     * hostname for SNI.
+     */
+    @Override
+    public Socket createSocket(String host, int port) throws IOException {
+      return createValidatedSslSocket();
+    }
+
+    @Override
+    public Socket createSocket(String host, int port,
+        InetAddress localHost, int localPort) throws IOException {
+      return createValidatedSslSocket();
+    }
+
+    @Override
+    public Socket createSocket(InetAddress host, int port) throws IOException {
+      return createValidatedSslSocket();
+    }
+
+    @Override
+    public Socket createSocket(InetAddress host, int port,
+        InetAddress localHost, int localPort) throws IOException {
+      return createValidatedSslSocket();
+    }
+
+    @Override
+    public Socket createSocket(Socket s, String host, int port, boolean autoClose)
+        throws IOException {
+      // Layer TLS over an existing socket, using original hostname for SNI
+      SSLSocket sslSocket = (SSLSocket) delegate.createSocket(s, originalHost, port, autoClose);
+      SSLParameters params = sslSocket.getSSLParameters();
+      params.setServerNames(List.of(new SNIHostName(originalHost)));
+      sslSocket.setSSLParameters(params);
+      return sslSocket;
+    }
+
+    private SSLSocket createValidatedSslSocket() throws IOException {
+      // Connect a plain TCP socket to the validated IP
+      Socket rawSocket = new Socket();
+      rawSocket.connect(new InetSocketAddress(validatedAddress, port), FETCH_TIMEOUT_MS);
+      // Layer TLS on top with original hostname for SNI and certificate verification
+      SSLSocket sslSocket = (SSLSocket) delegate.createSocket(
+          rawSocket, originalHost, port, true);
+      // Explicitly set SNI hostname
+      SSLParameters params = sslSocket.getSSLParameters();
+      params.setServerNames(
+          List.of(new SNIHostName(originalHost)));
+      sslSocket.setSSLParameters(params);
+      return sslSocket;
+    }
+
+    @Override
+    public String[] getDefaultCipherSuites() {
+      return delegate.getDefaultCipherSuites();
+    }
+
+    @Override
+    public String[] getSupportedCipherSuites() {
+      return delegate.getSupportedCipherSuites();
+    }
   }
 
   private static boolean isRedirectStatus(int status) {
@@ -265,16 +434,10 @@ public class UrlPreviewServlet extends HttpServlet {
         throw new MalformedURLException("Blocked address");
       }
     }
-    // KNOWN LIMITATION — DNS rebinding / TOCTOU gap (see GitHub issue #511):
-    // The DNS resolution performed above is disconnected from the actual TCP connection made by
-    // HttpURLConnection.openConnection() below.  An attacker who controls their own DNS server can
-    // arrange for the first resolution (used in this validation) to return a safe public IP while
-    // a subsequent resolution (used by the JVM's HTTP client) returns an internal/loopback address.
-    // This gap cannot be closed with Java's standard HttpURLConnection because it does not expose
-    // an API for connecting to a caller-supplied pre-resolved InetAddress.
-    // A proper fix requires replacing HttpURLConnection with a custom SocketFactory or an HTTP
-    // client library that supports explicit IP pinning (e.g. OkHttp with a custom DNS resolver
-    // that validates each resolved address before the socket is opened).
+    // Note: This pre-flight check is defense-in-depth only. The actual SSRF protection
+    // is enforced at connect time by openSsrfSafeConnection(), which resolves DNS once,
+    // validates the IP, and pins the connection to that validated address, closing the
+    // DNS rebinding TOCTOU gap (see GitHub issue #511).
   }
 
   private static boolean isBlockedHostName(String host) {
