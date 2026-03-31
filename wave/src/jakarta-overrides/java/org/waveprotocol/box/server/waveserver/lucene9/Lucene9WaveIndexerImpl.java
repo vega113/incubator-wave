@@ -31,7 +31,6 @@ import java.util.logging.Logger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -41,6 +40,7 @@ import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.waveprotocol.box.server.persistence.lucene.Lucene9SearchIndexDirectory;
+import org.waveprotocol.box.server.persistence.lucene.LuceneIndexWriterFactory;
 import org.waveprotocol.box.server.waveserver.AbstractSearchProviderImpl;
 import org.waveprotocol.box.server.waveserver.IndexException;
 import org.waveprotocol.box.server.waveserver.ReadableWaveletDataProvider;
@@ -78,10 +78,6 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
   private final IndexWriter indexWriter;
   private final SearcherManager searcherManager;
 
-  /** Max attempts to acquire the Lucene write lock during start-first deploys. */
-  private static final int LOCK_RETRY_ATTEMPTS = 12;
-  private static final long LOCK_RETRY_DELAY_MS = 5_000;
-
   @Inject
   public Lucene9WaveIndexerImpl(WaveMap waveMap, WaveletProvider waveletProvider,
       Lucene9SearchIndexDirectory directory, WaveMetadataExtractor metadataExtractor,
@@ -91,42 +87,13 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
     this.metadataExtractor = metadataExtractor;
     this.documentBuilder = documentBuilder;
     this.rebuildOnStartup = config.getBoolean("core.lucene9_rebuild_on_startup");
-    this.indexWriter = openWriterWithRetry(directory);
+    this.indexWriter =
+        LuceneIndexWriterFactory.openWithRetry(directory.getDirectory(), new StandardAnalyzer(), LOG);
     try {
       this.searcherManager = new SearcherManager(indexWriter, new SearcherFactory());
     } catch (IOException e) {
       throw new IndexException(e);
     }
-  }
-
-  /**
-   * Opens an IndexWriter, retrying if the write lock is held by a previous
-   * container during a start-first rolling deploy.
-   */
-  private static IndexWriter openWriterWithRetry(Lucene9SearchIndexDirectory directory) {
-    for (int attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt++) {
-      try {
-        return new IndexWriter(directory.getDirectory(),
-            new IndexWriterConfig(new StandardAnalyzer()));
-      } catch (org.apache.lucene.store.LockObtainFailedException e) {
-        if (attempt == LOCK_RETRY_ATTEMPTS) {
-          throw new IndexException("Failed to acquire Lucene write lock after "
-              + LOCK_RETRY_ATTEMPTS + " attempts (previous container may still be running)", e);
-        }
-        LOG.info("Lucene write lock held by previous instance, retrying in "
-            + (LOCK_RETRY_DELAY_MS / 1000) + "s (attempt " + attempt + "/"
-            + LOCK_RETRY_ATTEMPTS + ")");
-        try {
-          Thread.sleep(LOCK_RETRY_DELAY_MS);
-        } catch (InterruptedException ie) {
-          Thread.currentThread().interrupt();
-          throw new IndexException("Interrupted waiting for Lucene write lock", ie);
-        }
-      } catch (IOException e) {
-        throw new IndexException(e);
-      }
-    }
-    throw new IndexException("Unreachable");
   }
 
   @Override

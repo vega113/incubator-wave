@@ -46,7 +46,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -60,6 +59,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.waveprotocol.box.server.CoreSettingsNames;
 import org.waveprotocol.box.server.executor.ExecutorAnnotations.IndexExecutor;
 import org.waveprotocol.box.server.persistence.lucene.IndexDirectory;
+import org.waveprotocol.box.server.persistence.lucene.LuceneIndexWriterFactory;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
@@ -84,10 +84,6 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
   private final Executor executor;
   private boolean closed;
 
-  /** Max attempts to acquire the Lucene write lock during start-first deploys. */
-  private static final int LOCK_RETRY_ATTEMPTS = 12;
-  private static final long LOCK_RETRY_DELAY_MS = 5_000;
-
   @Inject
   public LucenePerUserWaveViewHandlerImpl(IndexDirectory directory,
       ReadableWaveletDataProvider waveletProvider,
@@ -96,38 +92,13 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
     this.waveletProvider = waveletProvider;
     this.executor = executor;
     this.analyzer = new StandardAnalyzer();
-    this.indexWriter = openWriterWithRetry(directory, analyzer);
+    this.indexWriter =
+        LuceneIndexWriterFactory.openWithRetry(directory.getDirectory(), analyzer, LOG);
     try {
       this.searcherManager = new SearcherManager(indexWriter, new SearcherFactory());
     } catch (IOException e) {
       throw new IndexException(e);
     }
-  }
-
-  private static IndexWriter openWriterWithRetry(IndexDirectory directory,
-      StandardAnalyzer analyzer) {
-    for (int attempt = 1; attempt <= LOCK_RETRY_ATTEMPTS; attempt++) {
-      try {
-        return new IndexWriter(directory.getDirectory(), new IndexWriterConfig(analyzer));
-      } catch (org.apache.lucene.store.LockObtainFailedException e) {
-        if (attempt == LOCK_RETRY_ATTEMPTS) {
-          throw new IndexException("Failed to acquire Lucene write lock after "
-              + LOCK_RETRY_ATTEMPTS + " attempts", e);
-        }
-        LOG.log(Level.INFO, "Lucene per-user view lock held by previous instance, retrying in "
-            + (LOCK_RETRY_DELAY_MS / 1000) + "s (attempt " + attempt + "/"
-            + LOCK_RETRY_ATTEMPTS + ")");
-        try {
-          Thread.sleep(LOCK_RETRY_DELAY_MS);
-        } catch (InterruptedException ie) {
-          Thread.currentThread().interrupt();
-          throw new IndexException("Interrupted waiting for Lucene write lock", ie);
-        }
-      } catch (IOException e) {
-        throw new IndexException(e);
-      }
-    }
-    throw new IndexException("Unreachable");
   }
 
   @Override
