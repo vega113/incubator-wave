@@ -64,11 +64,12 @@ public class SearchModule extends AbstractModule {
   public void configure() {
     // ReindexService is available in all modes; it gracefully handles null indexer
     bind(ReindexService.class).in(Singleton.class);
+    // WaveEmbeddingProvider is needed by WaveDocumentBuilder in the ReindexService chain
+    bind(WaveEmbeddingProvider.class).to(NoOpWaveEmbeddingProvider.class).in(Singleton.class);
 
     if ("lucene".equals(searchType)) {
       bind(SimpleSearchProviderImpl.class).in(Singleton.class);
       bind(Lucene9SearchProviderImpl.class).in(Singleton.class);
-      bind(WaveEmbeddingProvider.class).to(NoOpWaveEmbeddingProvider.class).in(Singleton.class);
       bind(FeatureFlaggedSearchProviderImpl.class).in(Singleton.class);
       bind(SearchProvider.class).to(FeatureFlaggedSearchProviderImpl.class).in(Singleton.class);
       bind(PerUserWaveViewProvider.class).to(LucenePerUserWaveViewHandlerImpl.class)
