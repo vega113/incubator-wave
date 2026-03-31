@@ -326,10 +326,25 @@ public final class RobotApiServlet extends HttpServlet {
     }
     String body = readBody(req, resp);
     if (body == null) return;
-    String description = jsonString(body, "description");
+    JsonObject obj;
     try {
-      RobotAccountData updated = robotRegistrar.updateDescription(robot.getId(),
-          Strings.nullToEmpty(description).trim());
+      obj = JsonParser.parseString(body).getAsJsonObject();
+    } catch (Exception e) {
+      sendError(resp, 400, "Invalid JSON body", "VALIDATION_ERROR");
+      return;
+    }
+    if (!obj.has("description") || obj.get("description").isJsonNull()) {
+      sendError(resp, 400, "description field is required", "VALIDATION_ERROR");
+      return;
+    }
+    JsonElement descEl = obj.get("description");
+    if (!descEl.isJsonPrimitive() || !descEl.getAsJsonPrimitive().isString()) {
+      sendError(resp, 400, "description must be a string", "VALIDATION_ERROR");
+      return;
+    }
+    String description = descEl.getAsString().trim();
+    try {
+      RobotAccountData updated = robotRegistrar.updateDescription(robot.getId(), description);
       sendJson(resp, 200, robotToJson(updated, true));
     } catch (RobotRegistrationException e) {
       sendError(resp, 400, e.getMessage(), "UPDATE_ERROR");
