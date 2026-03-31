@@ -301,14 +301,30 @@ public final class RobotApiServlet extends HttpServlet {
     }
     String body = readBody(req, resp);
     if (body == null) return;
-    String url = jsonString(body, "url");
-    if (Strings.isNullOrEmpty(url) || url.trim().isEmpty()) {
+    JsonObject obj;
+    try {
+      obj = JsonParser.parseString(body).getAsJsonObject();
+    } catch (Exception e) {
+      sendError(resp, 400, "Invalid JSON body", "VALIDATION_ERROR");
+      return;
+    }
+    if (!obj.has("url") || obj.get("url").isJsonNull()) {
+      sendError(resp, 400, "url is required", "VALIDATION_ERROR");
+      return;
+    }
+    JsonElement urlEl = obj.get("url");
+    if (!urlEl.isJsonPrimitive() || !urlEl.getAsJsonPrimitive().isString()) {
+      sendError(resp, 400, "url must be a string", "VALIDATION_ERROR");
+      return;
+    }
+    String url = urlEl.getAsString().trim();
+    if (url.isEmpty()) {
       sendError(resp, 400, "url is required", "VALIDATION_ERROR");
       return;
     }
     try {
       RobotAccountData updated =
-          robotRegistrar.registerOrUpdate(robot.getId(), url.trim(), user.getAddress());
+          robotRegistrar.registerOrUpdate(robot.getId(), url, user.getAddress());
       sendJson(resp, 200, robotToJson(updated, true));
     } catch (RobotRegistrationException e) {
       sendError(resp, 400, e.getMessage(), "UPDATE_ERROR");
