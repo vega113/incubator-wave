@@ -19,6 +19,8 @@
 
 package org.waveprotocol.box.webclient.profile;
 
+import com.google.gwt.core.client.Scheduler;
+
 import org.waveprotocol.box.profile.ProfileResponse;
 import org.waveprotocol.box.profile.ProfileResponse.FetchedProfile;
 import org.waveprotocol.wave.client.account.ProfileManager;
@@ -28,26 +30,38 @@ import org.waveprotocol.wave.client.debug.logger.DomLogger;
 import org.waveprotocol.wave.common.logging.LoggerBundle;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 /**
  * A {@link ProfileManager} that returns profiles fetched from the server.
- * 
+ *
+ * Batches individual profile requests into a single HTTP call using
+ * {@link Scheduler#scheduleDeferred} so that all profiles requested in the
+ * same browser event-loop turn are fetched together.
+ *
  * @author yurize@apache.org (Yuri Zelikov)
  */
-public final class RemoteProfileManagerImpl extends AbstractProfileManager<ProfileImpl> implements
-    FetchProfilesService.Callback {
+public final class RemoteProfileManagerImpl extends AbstractProfileManager<ProfileImpl> {
 
   private final static LoggerBundle LOG = new DomLogger("fetchProfiles");
   private final FetchProfilesServiceImpl fetchProfilesService;
+
+  /** Max addresses per GET request to stay well under common URL-length limits. */
+  private static final int MAX_ADDRESSES_PER_REQUEST = 50;
+
+  /** Addresses waiting to be fetched in the next batch. */
+  private final Set<String> pendingAddresses = new LinkedHashSet<String>();
+  private boolean flushScheduled = false;
 
   /**
    * Deserializes {@link ProfileResponse} and updates the profiles.
    */
   static void deserializeResponseAndUpdateProfiles(RemoteProfileManagerImpl manager,
       ProfileResponse profileResponse) {
-    int i = 0;
     for (FetchedProfile fetchedProfile : profileResponse.getProfiles()) {
       deserializeAndUpdateProfile(manager, fetchedProfile);
-      i++;
     }
   }
 
@@ -77,20 +91,50 @@ public final class RemoteProfileManagerImpl extends AbstractProfileManager<Profi
     if (profile == null) {
       profile = new ProfileImpl(this, participantId);
       profiles.put(address, profile);
-      LOG.trace().log("Fetching profile: " + address);
-      fetchProfilesService.fetch(this, address);
+      pendingAddresses.add(address);
+      scheduleFlush();
     }
     return profile;
   }
 
-  @Override
-  public void onFailure(String message) {
-    LOG.error().log(message);
-    // TODO (user) Try to re-fetch the profile.
+  private void scheduleFlush() {
+    if (!flushScheduled) {
+      flushScheduled = true;
+      Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
+        @Override
+        public void execute() {
+          flushPendingProfiles();
+        }
+      });
+    }
   }
 
-  @Override
-  public void onSuccess(ProfileResponse profileResponse) {
-    deserializeResponseAndUpdateProfiles(this, profileResponse);
+  private void flushPendingProfiles() {
+    flushScheduled = false;
+    if (!pendingAddresses.isEmpty()) {
+      String[] addresses = pendingAddresses.toArray(new String[0]);
+      pendingAddresses.clear();
+      LOG.trace().log("Batch fetching " + addresses.length + " profiles");
+      for (int i = 0; i < addresses.length; i += MAX_ADDRESSES_PER_REQUEST) {
+        final String[] chunk = Arrays.copyOfRange(addresses, i,
+            Math.min(i + MAX_ADDRESSES_PER_REQUEST, addresses.length));
+        fetchProfilesService.fetch(new FetchProfilesService.Callback() {
+          @Override
+          public void onFailure(String message) {
+            LOG.error().log(message);
+            // Requeue stranded addresses so they are retried on the next flush.
+            for (String addr : chunk) {
+              pendingAddresses.add(addr);
+            }
+            scheduleFlush();
+          }
+
+          @Override
+          public void onSuccess(ProfileResponse profileResponse) {
+            deserializeResponseAndUpdateProfiles(RemoteProfileManagerImpl.this, profileResponse);
+          }
+        }, chunk);
+      }
+    }
   }
 }
