@@ -121,8 +121,16 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
       } else {
         LOG.info("Lucene9 index is empty, performing initial build");
       }
-      boolean fullRebuild = existingDocs > 0 && rebuildOnStartup || existingDocs == 0;
-      waveMap.loadAllWavelets();
+      boolean fullRebuild = (existingDocs > 0 && rebuildOnStartup) || existingDocs == 0;
+      try {
+        waveMap.loadAllWavelets();
+      } catch (WaveletStateException e) {
+        if (fullRebuild) {
+          throw e;
+        }
+        LOG.log(Level.WARNING,
+            "loadAllWavelets failed during incremental repair, using cached waves", e);
+      }
       try {
         org.waveprotocol.box.common.ExceptionalIterator<WaveId, WaveServerException> waveIds =
             waveletProvider.getWaveIds();
