@@ -840,7 +840,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("h+='<div class=\"fi\"><input id=\"url-'+i+'\" value=\"'+escAttr(r.callbackUrl||'')+'\" /><button class=\"ic\" onclick=\"saveUrl('+i+')\" title=\"Save\">\uD83D\uDCBE</button></div></div>';");
     // Consumer Secret — prefer real secret (available right after create/rotate) over masked
     sb.append("h+='<div class=\"fg\"><div class=\"fl\">Consumer Secret <span class=\"ii\" title=\"OAuth credential for the Data API. Treat like a password.\">i</span></div>';");
-    sb.append("h+='<div class=\"fi\"><input value=\"'+escAttr(r.secret||r.maskedSecret||'\u2026')+'\" readonly style=\"color:var(--g4);letter-spacing:.04em\" /><button class=\"ic\" onclick=\"copyField(null,\\'Secret copied\\',\\''+escAttr(r.secret||r.maskedSecret||'')+'\\')\" title=\"Copy\">📋</button></div></div>';");
+    sb.append("h+='<div class=\"fi\"><input id=\"secret-'+i+'\" value=\"'+escAttr(r.secret||r.maskedSecret||'\u2026')+'\" readonly style=\"color:var(--g4);letter-spacing:.04em\" /><button class=\"ic\" onclick=\"copyField(\\'secret-'+i+'\\',\\'Secret copied\\')\" title=\"Copy\">📋</button></div></div>';");
     // Token Expiry
     sb.append("h+='<div class=\"fg\"><div class=\"fl\">Token Expiry (s) <span class=\"ii\" title=\"How long issued JWTs remain valid. Default 3600.\">i</span></div>';");
     sb.append("h+='<div class=\"fi\"><input type=\"number\" value=\"'+(r.tokenExpirySeconds!=null?r.tokenExpirySeconds:3600)+'\" readonly /></div></div>';");
@@ -921,7 +921,8 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("function genVisibleTok(){");
     sb.append("fetch(CTX+'/robot/dataapi/token',{method:'POST',credentials:'same-origin',");
     sb.append("headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'expiry=3600'})");
-    sb.append(".then(function(r){return r.json();}).then(function(d){");
+    sb.append(".then(function(r){if(!r.ok)throw new Error('Token request failed');return r.json();})");
+    sb.append(".then(function(d){if(!d.access_token)throw new Error('No token returned');");
     sb.append("document.getElementById('tok').value=d.access_token;toast('Token generated \u2014 copy it now!');");
     sb.append("}).catch(function(){toast('Token generation failed','err');});}");
 
