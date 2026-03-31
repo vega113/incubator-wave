@@ -133,7 +133,9 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
           try {
             upsertWave(waveId);
             count++;
-          } catch (WaveServerException | IOException e) {
+          } catch (IOException e) {
+            throw e;
+          } catch (WaveServerException e) {
             if (fullRebuild) {
               throw e;
             }
@@ -141,13 +143,14 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
             LOG.log(Level.WARNING, "Failed to index wave " + waveId + ", skipping", e);
           }
         }
-        if (errors > 0) {
-          LOG.warning("Lucene9 incremental repair: " + errors
-              + " errors out of " + (count + errors) + " waves");
-        }
         indexWriter.commit();
         searcherManager.maybeRefreshBlocking();
-        LOG.info("Lucene9 index built with " + count + " waves");
+        LOG.info("Lucene9 index completed: " + count + " waves indexed"
+            + (errors > 0 ? ", " + errors + " skipped due to errors" : ""));
+        if (errors > 0) {
+          throw new WaveServerException("Lucene9 incremental repair completed with " + errors
+              + " errors out of " + (count + errors) + " waves");
+        }
       } finally {
         waveMap.unloadAllWavelets();
       }
