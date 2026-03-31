@@ -262,8 +262,39 @@ jobs:
               labels: ['deploy-failure', 'agent-task']
             });
 
+      - name: Check if status changed
+        id: status_check
+        run: |
+          # Get the previous completed run (excluding this one)
+          PREVIOUS_RUN=$(gh api repos/$GITHUB_REPOSITORY/actions/runs \
+            -f "workflow_id=deploy-contabo.yml" \
+            -f "exclude_pull_requests=true" \
+            -f "status=completed" \
+            --paginate \
+            -q ".run_list | map(select(.id != $GITHUB_RUN_ID)) | .[0]")
+
+          if [ -z "$PREVIOUS_RUN" ] || [ "$PREVIOUS_RUN" = "null" ]; then
+            # No previous run, always notify
+            echo "status_changed=true" >> "$GITHUB_OUTPUT"
+            echo "previous_status=none" >> "$GITHUB_OUTPUT"
+          else
+            PREVIOUS_CONCLUSION=$(echo "$PREVIOUS_RUN" | jq -r '.conclusion')
+            if [[ "${{ job.status }}" == "success" && "$PREVIOUS_CONCLUSION" != "success" ]]; then
+              echo "status_changed=true" >> "$GITHUB_OUTPUT"
+              echo "previous_status=$PREVIOUS_CONCLUSION" >> "$GITHUB_OUTPUT"
+            elif [[ "${{ job.status }}" == "failure" && "$PREVIOUS_CONCLUSION" != "failure" ]]; then
+              echo "status_changed=true" >> "$GITHUB_OUTPUT"
+              echo "previous_status=$PREVIOUS_CONCLUSION" >> "$GITHUB_OUTPUT"
+            else
+              echo "status_changed=false" >> "$GITHUB_OUTPUT"
+              echo "previous_status=$PREVIOUS_CONCLUSION" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Notify deploy success
-        if: success()
+        if: success() && steps.status_check.outputs.status_changed == 'true'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WAVE_EMAIL_FROM: ${{ secrets.WAVE_EMAIL_FROM }}
@@ -279,7 +310,7 @@ jobs:
             }") || echo "Email notification failed (non-blocking): $RESPONSE"
 
       - name: Notify deploy failure
-        if: failure()
+        if: failure() && steps.status_check.outputs.status_changed == 'true'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WAVE_EMAIL_FROM: ${{ secrets.WAVE_EMAIL_FROM }}
