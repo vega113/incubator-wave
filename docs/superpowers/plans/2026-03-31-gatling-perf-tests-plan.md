@@ -35,10 +35,7 @@ WAVE_PERF_BASE_URL=http://localhost:9898 sbt 'GatlingTest / runMain org.waveprot
 # Run single simulation
 WAVE_PERF_BASE_URL=http://localhost:9898 sbt 'GatlingTest / runMain org.waveprotocol.wave.perf.GatlingRunner SearchLoadSimulation'
 
-# Run all simulations
-WAVE_PERF_BASE_URL=http://localhost:9898 sbt 'GatlingTest / runMain org.waveprotocol.wave.perf.GatlingRunner'
-
-# One-command runner
+# Run all simulations (GatlingRunner requires a simulation name; use the script for all)
 bash scripts/run-perf-tests.sh
 ```
 
