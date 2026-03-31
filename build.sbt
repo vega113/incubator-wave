@@ -1089,7 +1089,10 @@ Compile / compile := (Compile / compile)
   // generateGxp removed — GXP replaced by HtmlRenderer
   .value
 
-// Ensure `run` has a config in place and the web client is built first.
+// Ensure `run` has a config in place and the GWT web client is compiled first.
+// ⚠️  DO NOT REMOVE compileGwt from this line. Without it, `sbt run` serves a
+//     blank wave list because webclient.nocache.js is never built. This has been
+//     a recurring regression — see PR history for context.
 Compile / run := (Compile / run).dependsOn(prepareServerConfig, compileGwt).evaluated
 
 // =============================================================================
@@ -1197,10 +1200,27 @@ ThisBuild / compileGwt := {
   }
 }
 
+// Prevent packaging distributions with missing GWT assets when -DskipGwt=true
+lazy val verifyGwtAssets = taskKey[Unit]("Fail when packaging would ship with missing GWT assets")
+
+ThisBuild / verifyGwtAssets := {
+  val log = streams.value.log
+  val skip = (ThisBuild / skipGwt).value
+  if (skip) {
+    sys.error("[verifyGwtAssets] Cannot package distribution with skipGwt=true. " +
+              "GWT assets would be missing. Use -DskipGwt=true only with 'sbt run'.")
+  }
+  log.info("[verifyGwtAssets] OK — GWT assets will be compiled")
+}
+
 // Wire compileGwt to run after compileJava (GWT needs compiled classes)
 compileGwt := (compileGwt).dependsOn(Compile / compile).value
-Universal / stage := (Universal / stage).dependsOn(compileGwt).value
-Universal / packageBin := (Universal / packageBin).dependsOn(compileGwt).value
+
+// ⚠️  DO NOT REMOVE these lines. They ensure GWT compilation runs before
+//     staging or packaging. Without them, distributions ship without the
+//     web client and users see a blank wave list after login.
+Universal / stage := (Universal / stage).dependsOn(compileGwt, verifyGwtAssets).value
+Universal / packageBin := (Universal / packageBin).dependsOn(compileGwt, verifyGwtAssets).value
 
 cleanFiles += baseDirectory.value / "war" / "webclient"
 cleanFiles += baseDirectory.value / "war" / "org"
