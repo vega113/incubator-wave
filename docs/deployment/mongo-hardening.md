@@ -197,14 +197,18 @@ via `docker exec` and writes a gzip archive to
 host by running the provided helper:
 
 ```bash
-# On the Contabo host, run as the ubuntu user:
-bash /home/ubuntu/supawave/current/deploy/mongo/install-cron.sh
+# On the Contabo host, from a local clone of the repo:
+cd /path/to/incubator-wave
+./deploy/mongo/install-cron.sh
 ```
 
-`install-cron.sh` registers the following entry (CRON_TZ=UTC):
+The installer copies `backup.sh` and `restore.sh` to
+`/home/ubuntu/supawave/shared/mongo/` and registers the following crontab
+entry (CRON_TZ=UTC):
 
 ```
-0 */6 * * * DEPLOY_ROOT=/home/ubuntu/supawave /home/ubuntu/supawave/current/deploy/mongo/backup.sh >> /home/ubuntu/supawave/shared/mongo/backups/backup.log 2>&1
+CRON_TZ=UTC
+0 */6 * * * /home/ubuntu/supawave/shared/mongo/backup.sh >> /home/ubuntu/supawave/shared/logs/backup.log 2>&1 # wave-mongo-backup
 ```
 
 The schedule fires at 00:00, 06:00, 12:00, and 18:00 UTC every day.
@@ -224,9 +228,8 @@ Using `deploy/mongo/restore.sh`:
 docker compose -p supawave -f /home/ubuntu/supawave/current/compose.yml stop wave
 
 # Restore:
-DEPLOY_ROOT=/home/ubuntu/supawave \
-  bash /home/ubuntu/supawave/current/deploy/mongo/restore.sh \
-  /home/ubuntu/supawave/shared/mongo/backups/wiab-YYYYMMDDTHHMMSSZ.archive.gz
+/home/ubuntu/supawave/shared/mongo/restore.sh \
+  /home/ubuntu/supawave/shared/mongo/backups/wiab-YYYYMMDD-HHMMSS.archive.gz
 
 # Restart:
 docker compose -p supawave -f /home/ubuntu/supawave/current/compose.yml start wave
