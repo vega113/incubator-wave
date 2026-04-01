@@ -75,7 +75,8 @@ journal/
 /pst/bin/
 target/
 .coursier-cache/
-/.claude/
+/.claude/*
+!/.claude/launch.json
 
 ### SBT
 .ivy2/

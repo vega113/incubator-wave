@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wave-server",
+      "runtimeExecutable": "sbt",
+      "runtimeArgs": ["--batch", "run"],
+      "port": 9898
+    }
+  ]
+}
