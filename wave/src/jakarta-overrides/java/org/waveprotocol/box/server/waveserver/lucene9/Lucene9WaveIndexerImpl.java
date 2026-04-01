@@ -155,6 +155,20 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
       return lastRebuildWaveCount;
     } catch (IOException e) {
       throw new IndexException(e);
+    } catch (WaveServerException | RuntimeException e) {
+      // Flush the partial state: deleteAll + commit to leave a known-empty index
+      // rather than a half-populated one that gets silently committed by the
+      // next waveletCommitted() call. Admin can retry the reindex.
+      try {
+        LOG.warning("Forced rebuild failed after deleteAll, clearing partial index: " + e.getMessage());
+        indexWriter.deleteAll();
+        indexWriter.commit();
+        searcherManager.maybeRefreshBlocking();
+      } catch (IOException cleanupEx) {
+        LOG.log(java.util.logging.Level.SEVERE, "Index cleanup after failed rebuild also failed", cleanupEx);
+        e.addSuppressed(cleanupEx);
+      }
+      throw e;
     }
   }
 
