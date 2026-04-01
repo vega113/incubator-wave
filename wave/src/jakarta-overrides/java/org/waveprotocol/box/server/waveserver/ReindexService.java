@@ -133,8 +133,9 @@ public class ReindexService {
       return;
     }
     this.triggeredBy = "startup";
-    this.startTimeMs = System.currentTimeMillis();
-    this.endTimeMs = System.currentTimeMillis();
+    long now = System.currentTimeMillis();
+    this.endTimeMs = now;
+    this.startTimeMs = now - stats.totalMs;
     this.waveCount = stats.waveCount;
     this.lastAvgMsPerWave = stats.avgMsPerWave;
     this.lastMinMsPerWave = stats.minMsPerWave;

@@ -230,9 +230,9 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
           count > 0 ? sumNs : 0, count > 0 ? minNs : 0, count > 0 ? maxNs : 0);
       double rate = totalMs > 0 ? (count * 1000.0 / totalMs) : 0;
       LOG.info("Lucene9 reindex completed: " + count + " waves in "
-          + String.format("%.1f", totalMs / 1000.0) + "s ("
-          + String.format("%.1f", rate) + " waves/sec, avg "
-          + String.format("%.1f", stats.avgMsPerWave) + "ms, min "
+          + String.format(java.util.Locale.ROOT, "%.1f", totalMs / 1000.0) + "s ("
+          + String.format(java.util.Locale.ROOT, "%.1f", rate) + " waves/sec, avg "
+          + String.format(java.util.Locale.ROOT, "%.1f", stats.avgMsPerWave) + "ms, min "
           + stats.minMsPerWave + "ms, max " + stats.maxMsPerWave + "ms)"
           + (errors > 0 ? ", " + errors + " skipped due to errors" : ""));
       if (errors > 0) {
