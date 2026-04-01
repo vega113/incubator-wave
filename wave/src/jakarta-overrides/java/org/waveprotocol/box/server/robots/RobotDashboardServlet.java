@@ -639,6 +639,15 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append(".ied{font-family:var(--mono);font-size:11px;padding:4px 6px;border:1px solid rgba(191,199,209,.4);border-radius:3px;background:var(--card);color:var(--txt2);width:100%;max-width:220px;transition:border-color .15s}");
     sb.append(".ied:focus{outline:none;border-color:var(--p);box-shadow:0 0 0 2px rgba(0,93,144,.08)}");
     sb.append(".ied[readonly]{border-color:transparent;background:var(--sf);cursor:default}");
+    // Inline confirmation strip (replaces browser confirm())
+    sb.append(".confirm-strip{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:4px;background:var(--errbg);border:1px solid rgba(186,26,26,.2);animation:si .15s ease}");
+    sb.append(".confirm-strip .cs-icon{flex-shrink:0;color:var(--err)}");
+    sb.append(".confirm-strip .cs-icon svg{width:16px;height:16px}");
+    sb.append(".confirm-strip .cs-msg{flex:1;font-size:12px;color:#7f1d1d;font-weight:500}");
+    sb.append(".confirm-strip .cs-cancel{padding:5px 12px;border-radius:3px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid rgba(186,26,26,.2);background:var(--card);color:var(--txt2);transition:all .12s}");
+    sb.append(".confirm-strip .cs-cancel:hover{border-color:var(--bdr)}");
+    sb.append(".confirm-strip .cs-confirm{padding:5px 12px;border-radius:3px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:var(--err);color:#fff;transition:all .12s}");
+    sb.append(".confirm-strip .cs-confirm:hover{background:#991b1b}");
     // Two-column layout for API & Tokens
     sb.append(".grid2{display:grid;grid-template-columns:1fr 340px;gap:20px;padding:20px}");
     sb.append("@media(max-width:860px){.grid2{grid-template-columns:1fr}}");
@@ -1068,18 +1077,31 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("function testBot(i){toast('Testing...','info');");
     sb.append("api('POST',robotsData[i].id+'/verify').then(function(d){robotsData[i]=d;toast('Bot verified');renderRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
 
-    sb.append("function rotateSecret(i){");
-    sb.append("if(!confirm('Rotate secret? The old secret stops working immediately.'))return;");
+    sb.append("function rotateSecret(i){showConfirm(i,'rotate','The old secret stops working immediately.',function(){");
     sb.append("api('POST',robotsData[i].id+'/rotate').then(function(d){");
     sb.append("robotsData[i]=d;toast('Secret rotated. Copy it now.');renderRobots();");
-    sb.append("}).catch(function(e){if(e)toast(e.message,'err');});}");
+    sb.append("}).catch(function(e){if(e)toast(e.message,'err');});});}");
 
     sb.append("function togglePause(i){var p=robotsData[i].status==='paused';");
     sb.append("api('PUT',robotsData[i].id+'/paused',{paused:String(!p)}).then(function(d){robotsData[i]=d;toast(d.status==='paused'?'Robot paused':'Robot unpaused');renderRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
 
-    sb.append("function confirmDelete(i){");
-    sb.append("if(!confirm('Permanently delete '+robotsData[i].id+'? This cannot be undone.'))return;");
-    sb.append("api('DELETE',robotsData[i].id).then(function(){toast('Robot deleted');loadRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
+    sb.append("function confirmDelete(i){showConfirm(i,'delete','This permanently deletes the robot and all credentials.',function(){");
+    sb.append("api('DELETE',robotsData[i].id).then(function(){toast('Robot deleted');loadRobots();}).catch(function(e){if(e)toast(e.message,'err');});});}");
+
+    // Inline confirmation strip (no browser popups)
+    sb.append("function showConfirm(i,action,msg,onConfirm){");
+    sb.append("var id='cstrip-'+i;var old=document.getElementById(id);if(old)old.remove();");
+    sb.append("var ri=document.querySelectorAll('.ri')[i];if(!ri)return;");
+    sb.append("var rb=ri.querySelector('.rb');if(!rb||rb.style.display==='none')return;");
+    sb.append("var strip=document.createElement('div');strip.id=id;strip.className='confirm-strip';");
+    sb.append("strip.innerHTML='<div class=\"cs-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/></svg></div>';");
+    sb.append("strip.innerHTML+='<span class=\"cs-msg\">'+esc(msg)+'</span>';");
+    sb.append("strip.innerHTML+='<button class=\"cs-cancel\" onclick=\"this.parentElement.remove()\">Cancel</button>';");
+    sb.append("var btn=document.createElement('button');btn.className='cs-confirm';");
+    sb.append("btn.textContent=action==='delete'?'Confirm Delete':'Confirm Rotate';");
+    sb.append("btn.onclick=function(){strip.remove();onConfirm();};");
+    sb.append("strip.appendChild(btn);");
+    sb.append("rb.appendChild(strip);}");
 
     // Register robot via modal
     sb.append("function registerRobot(){");
