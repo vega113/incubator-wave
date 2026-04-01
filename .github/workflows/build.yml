@@ -147,6 +147,7 @@ jobs:
           fi
           SERVER_LOG=/tmp/wave-startup.log
           CURL_LOG=/tmp/wave-curl-probe.log
+          : > "$CURL_LOG"
           ./bin/wave > "$SERVER_LOG" 2>&1 &
           SERVER_PID=$!
           cleanup() {
@@ -155,7 +156,7 @@ jobs:
           }
           trap cleanup EXIT
           for i in $(seq 1 30); do
-            STATUS_CODE="$(curl --connect-timeout 2 --max-time 4 -s -o /dev/null -w '%{http_code}' "http://localhost:$PORT/healthz" 2>>"$CURL_LOG" || true)"
+            STATUS_CODE="$(curl --connect-timeout 2 --max-time 4 -sS -o /dev/null -w '%{http_code}' "http://localhost:$PORT/healthz" 2>>"$CURL_LOG" || true)"
             if [ "$STATUS_CODE" = "200" ]; then
               echo "Server started successfully"
               exit 0

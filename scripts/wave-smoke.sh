@@ -151,7 +151,8 @@ wait_ready() {
     # during JVM startup. Redirect stderr to a log file so real networking
     # problems (DNS, loopback misconfiguration) remain diagnosable.
     # --connect-timeout and --max-time prevent curl from stalling indefinitely.
-    http_status=$(curl --connect-timeout 2 --max-time 5 -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT/" 2>>"$curl_log" || true)
+    # Use -sS (silent + show-error) so curl writes errors to stderr for the log.
+    http_status=$(curl --connect-timeout 2 --max-time 5 -sS -o /dev/null -w "%{http_code}" "http://localhost:$PORT/" 2>>"$curl_log" || true)
     if [[ "${http_status:-000}" != "000" ]]; then
       echo "PROBE_HTTP=$http_status"
     fi
@@ -162,6 +163,10 @@ wait_ready() {
     sleep 1
   done
   echo "Server did not become ready within timeout" >&2
+  if [[ -s "$curl_log" ]]; then
+    echo "--- Curl probe log ---" >&2
+    tail -n 20 "$curl_log" >&2
+  fi
   return 1
 }
 
