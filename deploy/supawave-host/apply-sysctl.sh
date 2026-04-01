@@ -61,7 +61,10 @@ main() {
   local repo_root
   repo_root=$(cd "$script_dir/../.." && pwd)
 
-  local source_conf="$repo_root/deploy/production/sysctl-tuning.conf"
+  local source_conf="$script_dir/sysctl-tuning.conf"
+  if [[ ! -f "$source_conf" ]]; then
+    source_conf="$repo_root/deploy/production/sysctl-tuning.conf"
+  fi
   local target_conf="/etc/sysctl.d/99-wave.conf"
   local backup_dir="${BACKUP_DIR:-/var/backups/wave-supawave}"
 

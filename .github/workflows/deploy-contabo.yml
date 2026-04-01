@@ -125,6 +125,8 @@ jobs:
           cp deploy/caddy/application.conf "$bundle_dir/application.conf"
           cp deploy/caddy/deploy.sh "$bundle_dir/deploy.sh"
           cp -R deploy/supawave-host "$bundle_dir/supawave-host"
+          cp deploy/production/sysctl-tuning.conf "$bundle_dir/supawave-host/"
+          cp deploy/production/limits.conf.prod "$bundle_dir/supawave-host/"
           chmod +x "$bundle_dir/supawave-host/"*.sh
           chmod +x "$bundle_dir/deploy.sh"
           tar -C "$bundle_dir" -czf "$RUNNER_TEMP/supawave-release.tgz" .
