@@ -932,8 +932,8 @@ public final class RobotDashboardServlet extends HttpServlet {
 
     // ——— Register modal (not a tab) ———
     sb.append("<div class=\"modal-overlay\" id=\"reg-modal\">");
-    sb.append("<div class=\"modal\">");
-    sb.append("<div class=\"modal-hdr\"><h2>Register New Robot</h2>");
+    sb.append("<div class=\"modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"reg-modal-title\">");
+    sb.append("<div class=\"modal-hdr\"><h2 id=\"reg-modal-title\">Register New Robot</h2>");
     sb.append("<button class=\"modal-close\" onclick=\"closeModal()\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg></button></div>");
     sb.append("<div class=\"modal-body\">");
     sb.append("<div class=\"fg\">");
@@ -988,12 +988,13 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("function switchTab(name){");
     sb.append("document.querySelectorAll('.tab').forEach(function(el){el.classList.toggle('on',el.dataset.tab===name);});");
     sb.append("document.querySelectorAll('.tpanel').forEach(function(el){el.classList.toggle('on',el.id==='tp-'+name);});");
-    sb.append("if(name==='api')populateRobotSelect();}");
+    sb.append("}");
 
     // Modal open/close
     sb.append("function openModal(){document.getElementById('reg-modal').classList.add('open');}");
     sb.append("function closeModal(){document.getElementById('reg-modal').classList.remove('open');}");
     sb.append("document.getElementById('reg-modal').addEventListener('click',function(e){if(e.target===this)closeModal();});");
+    sb.append("document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});");
 
     // Session-based token
     sb.append("function getToken(){");
@@ -1001,7 +1002,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("return fetch(CTX+'/robot/dataapi/token',{method:'POST',credentials:'same-origin',");
     sb.append("headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'expiry=3600'})");
     sb.append(".then(function(r){if(r.status===401){window.location.href=CTX+'/auth/signin?r=/account/robots';return Promise.reject();}");
-    sb.append("if(!r.ok)throw new Error('Token request failed');return r.json();})");
+    sb.append("if(!r.ok)throw new Error('Token request failed (HTTP '+r.status+')');return r.json();})");
     sb.append(".then(function(d){if(!d.access_token)throw new Error('No access_token');apiToken=d.access_token;return apiToken;});}");
 
     // API helper
@@ -1047,7 +1048,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("h+='<div class=\"rb-fields\">';");
     sb.append("h+='<div class=\"fg\"><label class=\"fl\">Description</label><div style=\"display:flex;gap:4px\"><input class=\"ied\" id=\"desc-'+i+'\" value=\"'+escAttr(r.description||'')+'\" placeholder=\"What does this bot do?\" style=\"max-width:none;flex:1\" /><button class=\"btn-icon\" onclick=\"saveDesc('+i+')\" title=\"Save\">'+ICO.save+'</button></div></div>';");
     sb.append("h+='<div class=\"fg\"><label class=\"fl\">Callback URL</label><div style=\"display:flex;gap:4px\"><input class=\"ied\" id=\"url-'+i+'\" value=\"'+escAttr(r.callbackUrl||'')+'\" placeholder=\"https://your-server/callback\" style=\"max-width:none;flex:1\" /><button class=\"btn-icon\" onclick=\"saveUrl('+i+')\" title=\"Save\">'+ICO.save+'</button></div></div>';");
-    sb.append("h+='<div class=\"fg\"><label class=\"fl\">Consumer Secret</label><div style=\"display:flex;gap:4px;align-items:center\"><span class=\"mono\" style=\"font-size:11px;color:var(--txt2)\">'+esc(r.secret||r.maskedSecret||'...')+'</span><button class=\"btn-icon\" onclick=\"copyField(\\'\\',\\'Secret copied\\',\\''+escAttr(r.secret||r.maskedSecret||'')+'\\')\" title=\"Copy\">'+ICO.copy+'</button></div></div>';");
+    sb.append("h+='<div class=\"fg\"><label class=\"fl\">Consumer Secret</label><div style=\"display:flex;gap:4px;align-items:center\"><span class=\"mono\" style=\"font-size:11px;color:var(--txt2)\">'+esc(r.secret||r.maskedSecret||'...')+'</span><button class=\"btn-icon\" data-copy=\"'+escAttr(r.secret||r.maskedSecret||'')+'\" onclick=\"copyText(this.dataset.copy,\\'Secret copied\\')\" title=\"Copy\">'+ICO.copy+'</button></div></div>';");
     sb.append("h+='<div style=\"display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:4px\">';");
     sb.append("h+='<div class=\"fg\"><label class=\"fl\">API Key Expiry</label><span class=\"hint\">'+esc(expiry)+'</span></div>';");
     sb.append("h+='<div class=\"fg\"><label class=\"fl\">Created</label><span class=\"hint\">'+esc(created)+'</span></div>';");
@@ -1057,7 +1058,8 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("h+='</div>';");
     // Right: actions
     sb.append("h+='<div class=\"rb-actions\">';");
-    sb.append("h+='<button class=\"btn-p\" style=\"width:100%;justify-content:center\" onclick=\"testBot('+i+')\">'+ICO.play+' Test Robot</button>';");
+    sb.append("var noUrl=!r.callbackUrl;");
+    sb.append("h+='<button class=\"btn-p\" style=\"width:100%;justify-content:center'+(noUrl?';opacity:.5;cursor:not-allowed':'')+'\"'+(noUrl?' disabled title=\"Set a callback URL first\"':'')+' onclick=\"testBot('+i+')\">'+ICO.play+' Test Robot</button>';");
     sb.append("h+='<button class=\"btn-o\" style=\"width:100%;justify-content:center\" onclick=\"rotateSecret('+i+')\">'+ICO.rotate+' Rotate Secret</button>';");
     sb.append("h+='<button class=\"btn-s\" style=\"width:100%;justify-content:center\" onclick=\"togglePause('+i+')\">'+(p?ICO.play+' Unpause':ICO.pause+' Pause')+'</button>';");
     sb.append("h+='<button class=\"btn-o\" style=\"width:100%;justify-content:center\" onclick=\"copyText(\\''+escAttr(r.id)+'\\',\\'Address copied\\')\">'+ICO.copy+' Copy Address</button>';");
@@ -1158,20 +1160,13 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("if(taken){hint.textContent=raw+'-bot is already registered';hint.style.color='var(--err)';}");
     sb.append("},300);}");
 
-    // Populate robot select on API tab
-    sb.append("function populateRobotSelect(){");
-    sb.append("var sel=document.getElementById('tok-robot');");
-    sb.append("if(!sel)return;");
-    sb.append("sel.innerHTML='<option value=\"\">-- Select a robot --</option>';");
-    sb.append("robotsData.forEach(function(r){sel.innerHTML+='<option value=\"'+escAttr(r.id)+'\">'+esc(r.id)+'</option>';});}");
-
     // Generate visible token
     sb.append("function genVisibleTok(){");
     sb.append("var exp=document.getElementById('tok-expiry-sel');");
     sb.append("var secs=exp?exp.value:'3600';");
     sb.append("fetch(CTX+'/robot/dataapi/token',{method:'POST',credentials:'same-origin',");
     sb.append("headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'expiry='+secs})");
-    sb.append(".then(function(r){if(!r.ok)throw new Error('Token request failed');return r.json();})");
+    sb.append(".then(function(r){if(!r.ok)throw new Error('Token request failed (HTTP '+r.status+')');return r.json();})");
     sb.append(".then(function(d){if(!d.access_token)throw new Error('No token returned');");
     sb.append("document.getElementById('tok').value=d.access_token;");
     sb.append("document.getElementById('tok-output').style.display='block';");
