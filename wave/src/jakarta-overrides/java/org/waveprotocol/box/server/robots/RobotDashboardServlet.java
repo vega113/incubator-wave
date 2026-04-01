@@ -937,9 +937,9 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("<button class=\"modal-close\" onclick=\"closeModal()\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg></button></div>");
     sb.append("<div class=\"modal-body\">");
     sb.append("<div class=\"fg\">");
-    sb.append("<label class=\"fl\"><span class=\"req\">*</span> Robot Username</label>");
-    sb.append("<div class=\"fi-suffix\"><input class=\"fi\" id=\"reg-username\" placeholder=\"helper-bot\"/><span class=\"suffix\">@").append(safeDomain).append("</span></div>");
-    sb.append("<div class=\"hint\">Lowercase letters, numbers, hyphens only</div></div>");
+    sb.append("<label class=\"fl\"><span class=\"req\">*</span> Robot Name</label>");
+    sb.append("<div class=\"fi-suffix\"><input class=\"fi\" id=\"reg-username\" placeholder=\"helper\" oninput=\"validateRobotName()\"/><span class=\"suffix\">-bot@").append(safeDomain).append("</span></div>");
+    sb.append("<div class=\"hint\" id=\"reg-name-hint\">Lowercase letters, numbers, hyphens, periods only</div></div>");
     sb.append("<div class=\"fg\">");
     sb.append("<label class=\"fl\">Description</label>");
     sb.append("<input class=\"fi\" id=\"reg-description\" placeholder=\"What does this robot do?\"/></div>");
@@ -1119,11 +1119,13 @@ public final class RobotDashboardServlet extends HttpServlet {
 
     // Register robot via modal
     sb.append("function registerRobot(){");
-    sb.append("var u=document.getElementById('reg-username').value.trim();");
+    sb.append("var raw=document.getElementById('reg-username').value.trim().toLowerCase().replace(/[^a-z0-9.\\-]/g,'');");
+    sb.append("var u=raw?raw+'-bot':'';");
     sb.append("var d=document.getElementById('reg-description').value.trim();");
     sb.append("var c=document.getElementById('reg-callback').value.trim();");
     sb.append("var _ev=document.getElementById('reg-expiry').value.trim();var e=(_ev===''||isNaN(+_ev))?3600:+_ev;");
-    sb.append("if(!u){toast('Username is required','err');return;}");
+    sb.append("if(!raw){toast('Robot name is required','err');return;}");
+    sb.append("if(!/^[a-z0-9][a-z0-9.\\-]*$/.test(raw)){toast('Name must start with a letter or number and contain only lowercase letters, numbers, hyphens, periods','err');return;}");
     sb.append("api('POST','',{username:u,description:d,callbackUrl:c,tokenExpiry:e}).then(function(r){");
     sb.append("robotsData.unshift(r);renderRobots();closeModal();");
     sb.append("toast('Robot created. Copy the secret from the table.');");
@@ -1138,6 +1140,23 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("function copyText(text,msg){navigator.clipboard.writeText(text).then(function(){toast(msg||'Copied','info');}).catch(function(){toast('Copy failed','err');});}");
     sb.append("function copyField(id,msg,val){var v=val||(id?document.getElementById(id).value:'');copyText(v,msg);}");
     sb.append("function copyPrompt(){var el=document.getElementById('ai-prompt');var t=el.innerText.replace(/^\\s*Copy\\s*/,'');copyText(t,'Prompt copied');}");
+
+    // Robot name validation (live, on input)
+    sb.append("var _nameCheckTimer=null;");
+    sb.append("function validateRobotName(){");
+    sb.append("var inp=document.getElementById('reg-username');var hint=document.getElementById('reg-name-hint');");
+    sb.append("var raw=inp.value.trim().toLowerCase().replace(/[^a-z0-9.\\-]/g,'');");
+    sb.append("if(raw!==inp.value.trim())inp.value=raw;");
+    sb.append("if(!raw){hint.textContent='Lowercase letters, numbers, hyphens, periods only';hint.style.color='';return;}");
+    sb.append("if(!/^[a-z0-9]/.test(raw)){hint.textContent='Must start with a letter or number';hint.style.color='var(--err)';return;}");
+    sb.append("hint.textContent='Will register as '+raw+'-bot@").append(safeDomain).append("';hint.style.color='var(--txt3)';");
+    // Debounced availability check
+    sb.append("clearTimeout(_nameCheckTimer);");
+    sb.append("_nameCheckTimer=setTimeout(function(){");
+    sb.append("var fullId=raw+'-bot@").append(safeDomain).append("';");
+    sb.append("var taken=robotsData.some(function(r){return r.id===fullId;});");
+    sb.append("if(taken){hint.textContent=raw+'-bot is already registered';hint.style.color='var(--err)';}");
+    sb.append("},300);}");
 
     // Populate robot select on API tab
     sb.append("function populateRobotSelect(){");
