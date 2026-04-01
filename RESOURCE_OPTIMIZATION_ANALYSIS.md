@@ -206,12 +206,18 @@ services:
   wave:
     environment:
       JAVA_OPTS: -Xmx20G -Xms6G -XX:+UseG1GC -XX:MaxGCPauseMillis=200
-    deploy:
-      resources:
-        limits:
-          memory: 22G      # 20G heap + 2G overhead
-        reservations:
-          memory: 20G      # Guaranteed allocation
+    # For docker compose (non-Swarm), use mem_limit/cpus so the kernel enforces limits.
+    mem_limit: 22g        # 20G heap + 2G JVM/native overhead
+    cpus: 8
+
+    # If you deploy with Docker Swarm instead of plain docker compose,
+    # use the deploy.resources block below (ignored by non-Swarm Compose):
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 22G      # 20G heap + 2G overhead
+    #     reservations:
+    #       memory: 20G      # Guaranteed allocation
 ```
 
 **Calculation for Blue/Green:**
@@ -243,56 +249,64 @@ command:
 #### 2.3 Container Resource Limits
 **Priority: MEDIUM**
 
+> **Note:** Use `mem_limit`/`cpus` for plain `docker compose` (non-Swarm).
+> The `deploy: resources:` block is only honoured in Docker Swarm mode.
+
 ```yaml
 services:
   wave-blue:
-    deploy:
-      resources:
-        limits:
-          memory: 22G
-          cpus: '8'          # Limit to 8 of 18 cores
-        reservations:
-          memory: 20G
-          cpus: '6'
+    mem_limit: 22g
+    cpus: 8               # Limit to 8 of 18 cores
+    mem_reservation: 20g
 
   wave-green:
-    deploy:
-      resources:
-        limits:
-          memory: 22G
-          cpus: '8'
-        reservations:
-          memory: 20G
-          cpus: '6'
+    mem_limit: 22g
+    cpus: 8
+    mem_reservation: 20g
 
   mongo:
-    deploy:
-      resources:
-        limits:
-          memory: 12G        # 8G cache + 4G overhead
-        reservations:
-          memory: 10G
+    mem_limit: 12g        # 8G cache + 4G overhead
+    mem_reservation: 10g
 ```
 
 ---
 
 ### Phase 3: Monitoring & Growth Planning
 
-#### 3.1 Add JVM Monitoring
+#### 3.1 Add JVM Monitoring (Optional)
 **Priority: MEDIUM** | **Time**: 2 hours
+
+> **Note:** JMX monitoring is optional and recommended only for Phase 3.
+> If enabled, JMX **must** be secured: bind to localhost and use SSH tunneling
+> for remote access.  Never expose unauthenticated JMX to any network interface.
 
 ```bash
 # Enable JVM options for monitoring
+# SECURITY: JMX is bound to localhost only.  Use SSH tunneling for remote access:
+#   ssh -L 9010:localhost:9010 user@wave-host
+# Then connect VisualVM / JConsole to localhost:9010 on your workstation.
 JAVA_OPTS="... \
   -Dcom.sun.management.jmxremote \
   -Dcom.sun.management.jmxremote.port=9010 \
+  -Dcom.sun.management.jmxremote.local.only=true \
   -Dcom.sun.management.jmxremote.authenticate=false \
   -Dcom.sun.management.jmxremote.ssl=false \
   -Dcom.sun.management.jmxremote.rmi.port=9010 \
-  -XX:+PrintGCDetails \
-  -XX:+PrintGCDateStamps \
-  -Xloggc:/opt/wave/logs/gc.log"
+  -Djava.rmi.server.hostname=127.0.0.1 \
+  -Xlog:gc*:file=/opt/wave/logs/gc.log:time,uptime,level,tags"
 ```
+
+> **Why `authenticate=false` / `ssl=false` is acceptable here:**
+> With `local.only=true` and `hostname=127.0.0.1`, JMX only listens on
+> the loopback interface.  Access requires an SSH session on the host, which
+> already provides authentication and encryption.  If your deployment
+> requires network-exposed JMX, enable authentication and TLS instead:
+> ```
+> -Dcom.sun.management.jmxremote.authenticate=true
+> -Dcom.sun.management.jmxremote.password.file=/opt/wave/config/jmxremote.password
+> -Dcom.sun.management.jmxremote.access.file=/opt/wave/config/jmxremote.access
+> -Dcom.sun.management.jmxremote.ssl=true
+> ```
 
 #### 3.2 Lucene Index Monitoring
 **Priority: LOW**

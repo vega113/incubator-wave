@@ -79,15 +79,20 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          # 8 GiB cache + 4 GiB for connections, indexes, and temporary sort buffers.
-          memory: 12G
-          cpus: '4'
-        reservations:
-          memory: 10G
-          cpus: '2'
+    # For docker compose (non-Swarm), use mem_limit/cpus so the kernel enforces limits.
+    # 8 GiB cache + 4 GiB for connections, indexes, and temporary sort buffers.
+    mem_limit: 12g
+    cpus: 4
+    mem_reservation: 10g
+    # If deploying with Docker Swarm, use deploy.resources instead (ignored by non-Swarm):
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 12G
+    #       cpus: '4'
+    #     reservations:
+    #       memory: 10G
+    #       cpus: '2'
     volumes:
       - ${DEPLOY_ROOT:?set DEPLOY_ROOT before running compose}/shared/mongo/db:/data/db
 
@@ -138,18 +143,21 @@ services:
       WAVE_EMAIL_FROM: ${WAVE_EMAIL_FROM:-noreply@supawave.ai}
       WAVE_MAIL_PROVIDER: ${WAVE_MAIL_PROVIDER:-logging}
       WAVE_SERVER_VERSION: ${WAVE_SERVER_VERSION:-dev}
-    deploy:
-      resources:
-        limits:
-          # 20 GiB heap + 2 GiB for JVM metaspace, thread stacks, NIO buffers,
-          # and Lucene mmap overhead.
-          memory: 22G
-          cpus: '8'
-        reservations:
-          # Guaranteed allocation prevents the OOM killer from targeting Wave
-          # when MongoDB or another service spikes temporarily.
-          memory: 20G
-          cpus: '6'
+    # For docker compose (non-Swarm), use mem_limit/cpus so the kernel enforces limits.
+    # 20 GiB heap + 2 GiB for JVM metaspace, thread stacks, NIO buffers,
+    # and Lucene mmap overhead.
+    mem_limit: 22g
+    cpus: 8
+    mem_reservation: 20g
+    # If deploying with Docker Swarm, use deploy.resources instead (ignored by non-Swarm):
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 22G
+    #       cpus: '8'
+    #     reservations:
+    #       memory: 20G
+    #       cpus: '6'
     volumes:
       - ${DEPLOY_ROOT:?set DEPLOY_ROOT before running compose}/shared/accounts:/opt/wave/_accounts
       - ${DEPLOY_ROOT:?set DEPLOY_ROOT before running compose}/shared/attachments:/opt/wave/_attachments
@@ -205,14 +213,19 @@ services:
       WAVE_EMAIL_FROM: ${WAVE_EMAIL_FROM:-noreply@supawave.ai}
       WAVE_MAIL_PROVIDER: ${WAVE_MAIL_PROVIDER:-logging}
       WAVE_SERVER_VERSION: ${WAVE_SERVER_VERSION:-dev}
-    deploy:
-      resources:
-        limits:
-          memory: 22G
-          cpus: '8'
-        reservations:
-          memory: 20G
-          cpus: '6'
+    # For docker compose (non-Swarm), use mem_limit/cpus so the kernel enforces limits.
+    mem_limit: 22g
+    cpus: 8
+    mem_reservation: 20g
+    # If deploying with Docker Swarm, use deploy.resources instead (ignored by non-Swarm):
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 22G
+    #       cpus: '8'
+    #     reservations:
+    #       memory: 20G
+    #       cpus: '6'
     volumes:
       - ${DEPLOY_ROOT:?set DEPLOY_ROOT before running compose}/shared/accounts:/opt/wave/_accounts
       - ${DEPLOY_ROOT:?set DEPLOY_ROOT before running compose}/shared/attachments:/opt/wave/_attachments
@@ -260,14 +273,19 @@ services:
       # This relies on Docker Compose internal DNS, not host ports.
       WAVE_ACTIVE_BACKEND: ${WAVE_ACTIVE_BACKEND:-wave-blue}
       WAVE_INTERNAL_PORT: ${WAVE_INTERNAL_PORT:-9898}
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '2'
-        reservations:
-          memory: 256M
-          cpus: '1'
+    # For docker compose (non-Swarm), use mem_limit/cpus so the kernel enforces limits.
+    mem_limit: 1g
+    cpus: 2
+    mem_reservation: 256m
+    # If deploying with Docker Swarm, use deploy.resources instead (ignored by non-Swarm):
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 1G
+    #       cpus: '2'
+    #     reservations:
+    #       memory: 256M
+    #       cpus: '1'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${DEPLOY_ROOT:?set DEPLOY_ROOT before running compose}/shared/caddy-data:/data

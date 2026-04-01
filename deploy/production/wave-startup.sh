@@ -127,13 +127,18 @@ JAVA_OPTS=(
 
   # -- JMX Remote Monitoring (disabled by default) ---------------------------
   # Uncomment for remote JVM monitoring.  In production:
-  #   1. ALWAYS enable authentication and SSL before exposing JMX.
-  #   2. Prefer an SSH tunnel rather than opening JMX ports to the network.
-  #   3. The authenticate=false / ssl=false example below is for LOCAL
-  #      debugging only via SSH tunnel.  Never expose unauthenticated JMX
-  #      to any network interface.
+  #   1. JMX is bound to localhost only (local.only=true + hostname=127.0.0.1).
+  #   2. Use an SSH tunnel for remote access: ssh -L 9010:localhost:9010 user@host
+  #   3. The authenticate=false / ssl=false settings are acceptable ONLY because
+  #      JMX is restricted to loopback.  SSH provides auth and encryption.
+  #   4. If you need network-exposed JMX, enable authentication and TLS:
+  #        -Dcom.sun.management.jmxremote.authenticate=true
+  #        -Dcom.sun.management.jmxremote.password.file=/opt/wave/config/jmxremote.password
+  #        -Dcom.sun.management.jmxremote.access.file=/opt/wave/config/jmxremote.access
+  #        -Dcom.sun.management.jmxremote.ssl=true
   # "-Dcom.sun.management.jmxremote"
   # "-Dcom.sun.management.jmxremote.port=9010"
+  # "-Dcom.sun.management.jmxremote.local.only=true"
   # "-Dcom.sun.management.jmxremote.authenticate=false"
   # "-Dcom.sun.management.jmxremote.ssl=false"
   # "-Dcom.sun.management.jmxremote.rmi.port=9010"
