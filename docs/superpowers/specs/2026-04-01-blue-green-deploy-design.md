@@ -1,7 +1,7 @@
 # Blue-Green Deployment Design
 
 **Date:** 2026-04-01
-**Status:** Draft (v7 — post-review round 6)
+**Status:** Draft (v8 — post-review round 7)
 **PR Dependency:** #541 (deploy sanity check)
 
 ## Problem Statement
@@ -407,9 +407,11 @@ ensure_caddy_bootstrap() {
 
 generate_upstream() {
     local slot=$1
-    # Write to temp file first, then atomically move — prevents Caddy from
-    # reading a half-written file if it restarts during write
-    cat > "$DEPLOY_ROOT/shared/upstream.caddy.tmp" <<UPSTREAM
+    # IMPORTANT: Do NOT use mv here. Docker single-file bind mounts pin to the
+    # original inode. Using mv creates a new inode that Docker's mount doesn't
+    # follow, so Caddy would still see the old file after reload.
+    # Instead, write in-place to preserve the inode.
+    cat > "$DEPLOY_ROOT/shared/upstream.caddy" <<UPSTREAM
 # active: ${slot}
 reverse_proxy wave-${slot}:9898 {
     health_uri /healthz
@@ -419,7 +421,6 @@ reverse_proxy wave-${slot}:9898 {
     lb_try_interval 250ms
 }
 UPSTREAM
-    mv "$DEPLOY_ROOT/shared/upstream.caddy.tmp" "$DEPLOY_ROOT/shared/upstream.caddy"
 }
 
 reload_caddy() {
@@ -668,7 +669,16 @@ status() {
 
 ### Safe to Share
 
-- **MongoDB** — Production uses MongoDB for accounts, deltas, attachments, contacts. Wave operations are idempotent via OT versioning. Two instances can read/write concurrently without corruption.
+- **MongoDB** — The canonical production config (`deploy/caddy/application.conf`)
+  uses MongoDB for all stores: `account_store_type=mongodb`,
+  `attachment_store_type=mongodb`, `delta_store_type=mongodb`,
+  `contact_store_type=mongodb`, `signer_info_store_type=mongodb`. Wave OT
+  operations are idempotent via versioning. Two instances can read/write
+  concurrently without corruption.
+  **WARNING:** The deprecated `deploy/contabo/application.conf` uses
+  `file`/`disk` store types. If deploying with that config, blue-green is
+  NOT safe — file-based stores assume single-writer access. This design
+  requires MongoDB stores.
 - **Certificates** (`_certificates`) — Read-only at runtime, safe to share.
 - **Logs** — Append-only, safe to share.
 
