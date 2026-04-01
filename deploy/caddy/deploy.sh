@@ -228,6 +228,7 @@ ensure_caddy_bootstrap() {
 
 generate_upstream() {
   local slot=$1
+  [[ "$slot" =~ ^(blue|green)$ ]] || { echo "[deploy] ERROR: invalid slot '$slot'" >&2; return 1; }
   # Write in-place — Docker bind mounts pin to the original inode.
   # Using mv would create a new inode that Docker doesn't follow.
   cat > "$deploy_root/shared/upstream.caddy" <<UPSTREAM
@@ -571,14 +572,16 @@ show_status() {
 require_docker
 ensure_layout
 load_deploy_env
-acquire_lock
-trap release_lock EXIT INT TERM
 
 case "$cmd" in
   deploy)
+    acquire_lock
+    trap release_lock EXIT INT TERM
     deploy_release
     ;;
   rollback)
+    acquire_lock
+    trap release_lock EXIT INT TERM
     rollback_release
     ;;
   status)
