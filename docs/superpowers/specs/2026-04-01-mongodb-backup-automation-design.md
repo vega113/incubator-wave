@@ -103,16 +103,18 @@ One-time setup script that installs the cron job on the host.
 
 **Behavior:**
 - Checks current crontab for existing Wave backup entry.
-- If missing, appends two lines to the user's crontab:
+- Always copies `backup.sh`, `restore.sh` into `$DEPLOY_ROOT/shared/mongo/` and ensures
+  they are executable (safe to re-run — overwrites with latest version).
+- Creates backup and log directories if needed.
+- Checks the user's crontab for the Wave backup job line. If found with correct
+  `CRON_TZ=UTC` preceding it, prints current entry and exits. If found without `CRON_TZ`
+  or with stale format, removes the old entry and re-installs both lines. If missing,
+  appends:
   ```
   CRON_TZ=UTC
   0 */6 * * * /home/ubuntu/supawave/shared/mongo/backup.sh >> /home/ubuntu/supawave/shared/logs/backup.log 2>&1
   ```
   (`CRON_TZ` must be on its own line — it is a crontab environment variable, not inline.)
-- If present, prints current entry and exits.
-- Copies `backup.sh`, `restore.sh` into `$DEPLOY_ROOT/shared/mongo/` if not already
-  present, and ensures they are executable.
-- Creates backup and log directories if needed.
 
 #### 4. `deploy/mongo/README.md` — Update
 
