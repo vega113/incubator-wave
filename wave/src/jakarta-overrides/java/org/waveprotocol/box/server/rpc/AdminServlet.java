@@ -621,7 +621,7 @@ public final class AdminServlet extends HttpServlet {
     if (reindexService.getStartTimeMs() > 0) {
       w.append(",\"startTimeMs\":").append(String.valueOf(reindexService.getStartTimeMs()));
     }
-    if (reindexService.getEndTimeMs() > 0) {
+    if (reindexService.getEndTimeMs() > 0 && st != ReindexService.State.RUNNING) {
       w.append(",\"endTimeMs\":").append(String.valueOf(reindexService.getEndTimeMs()));
     }
     if (st == ReindexService.State.COMPLETED || st == ReindexService.State.RUNNING) {
