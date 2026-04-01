@@ -187,13 +187,17 @@ sanity_check() {
 
   # Run all steps inside a single alpine container with curl+jq on the
   # compose network so we can reach the wave service by hostname.
-  # Pass secrets via -e to avoid shell interpolation / injection risks.
+  # Export and pass variable names only so values are inherited from the
+  # environment and not embedded in the docker argv (visible via ps).
   # Override SANITY_IMAGE with a pre-built image containing curl+jq to
   # avoid the runtime apk add dependency on Alpine repos.
+  export INTERNAL_PORT="${internal_port}"
+  export SANITY_ADDR="${addr}"
+  export SANITY_PASS="${pass}"
   docker run --rm --network "${project_name}_default" \
-    -e INTERNAL_PORT="${internal_port}" \
-    -e SANITY_ADDR="${addr}" \
-    -e SANITY_PASS="${pass}" \
+    -e INTERNAL_PORT \
+    -e SANITY_ADDR \
+    -e SANITY_PASS \
     "$sanity_image" sh -c '
     set -e
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then

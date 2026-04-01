@@ -130,10 +130,13 @@ sanity_check() {
 
   echo "[deploy] Running sanity check ..."
 
+  export INTERNAL_PORT="${internal_port}"
+  export SANITY_ADDR="${addr}"
+  export SANITY_PASS="${pass}"
   docker run --rm --network host \
-    -e INTERNAL_PORT="${internal_port}" \
-    -e SANITY_ADDR="${addr}" \
-    -e SANITY_PASS="${pass}" \
+    -e INTERNAL_PORT \
+    -e SANITY_ADDR \
+    -e SANITY_PASS \
     "$sanity_image" sh -c '
     set -e
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
