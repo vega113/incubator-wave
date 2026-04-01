@@ -1003,7 +1003,8 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("h+='<div class=\"fg\"><label class=\"fl\">Created</label><span class=\"hint\">'+esc(created)+'</span></div>';");
     sb.append("h+='<div class=\"fg\"><label class=\"fl\">Last Updated</label><span class=\"hint\">'+esc(updated)+'</span></div>';");
     sb.append("h+='</div>';");
-    sb.append("h+='<div class=\"fg\"><label class=\"fl\">Verified</label><span class=\"chip '+(r.verified?'active':'paused')+'\" style=\"font-size:10px\">'+(r.verified?'Yes':'Not yet')+'</span></div>';");
+    // Verified flag removed — it's a historical "capabilities once fetched" flag,
+    // not current connectivity. The Test Robot button provides real-time verification.
     sb.append("h+='</div>';");
     // Right: actions
     sb.append("h+='<div class=\"rb-actions\">';");
