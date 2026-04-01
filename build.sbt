@@ -1182,11 +1182,12 @@ ThisBuild / compileGwt := {
   val webclientDir = base / "war" / "webclient"
   val mappingsFile = webclientDir / "compilation-mappings.txt"
   val hasCompleteOutput = nocacheJs.exists && mappingsFile.exists && {
-    val expectedHashes = IO.readLines(mappingsFile)
-      .map(_.trim).filter(_.matches("[0-9A-Fa-f]{32}"))
+    val cacheJsPattern = "([0-9A-Fa-f]{32})\\.cache\\.js".r
+    val expectedFiles = IO.readLines(mappingsFile)
+      .map(_.trim).collect { case cacheJsPattern(h) => h + ".cache.js" }
       .distinct
-    expectedHashes.nonEmpty &&
-      expectedHashes.forall(h => (webclientDir / (h + ".cache.js")).exists)
+    expectedFiles.nonEmpty &&
+      expectedFiles.forall(f => (webclientDir / f).exists)
   }
 
   val outputTs = if (hasCompleteOutput) nocacheJs.lastModified else 0L
