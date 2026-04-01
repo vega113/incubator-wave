@@ -1,7 +1,7 @@
 # Blue-Green Deployment Design
 
 **Date:** 2026-04-01
-**Status:** Draft (v6 — post-review round 5)
+**Status:** Draft (v7 — post-review round 6)
 **PR Dependency:** #541 (deploy sanity check)
 
 ## Problem Statement
@@ -250,11 +250,20 @@ overwrites these from the incoming bundle. Slot-specific assets
 (`application.conf`, `image-ref`) live under `releases/{blue,green}/`.
 
 The `deploy.sh deploy` command copies incoming control-plane assets to
-`releases/current/` before starting the target slot:
+`releases/current/` before starting the target slot. It first preserves
+the old release for migration purposes:
 
 ```bash
 activate_release() {
     local release_dir="$DEPLOY_ROOT/releases/current"
+    local previous_dir="$DEPLOY_ROOT/releases/previous"
+
+    # Preserve old release so migration can reference the old compose/config
+    if [ -d "$release_dir" ] && [ -f "$release_dir/compose.yml" ]; then
+        rm -rf "$previous_dir"
+        cp -a "$release_dir" "$previous_dir"
+    fi
+
     mkdir -p "$release_dir"
     cp "$DEPLOY_ROOT/incoming/compose.yml" "$release_dir/"
     cp "$DEPLOY_ROOT/incoming/Caddyfile" "$release_dir/"
@@ -763,10 +772,10 @@ migrate_to_blue_green() {
     load_deploy_env 2>/dev/null || true
     detect_project_name
 
-    # Find the OLD compose file to detect running state
-    local old_compose="$deploy_root/releases/current/compose.yml"
+    # Find the OLD compose file (preserved by activate_release → releases/previous)
+    local old_compose="$deploy_root/releases/previous/compose.yml"
     if [ ! -f "$old_compose" ]; then
-        log "No existing compose file — fresh install, skipping migration"
+        log "No previous compose file — fresh install, skipping migration"
         echo "blue" > "$deploy_root/shared/active-slot"
         return 0
     fi
@@ -797,8 +806,8 @@ migrate_to_blue_green() {
     # Step 3: Record state
     echo "blue" > "$deploy_root/shared/active-slot"
     echo "$current_image" > "$deploy_root/releases/blue/image-ref"
-    if [ -f "$deploy_root/releases/current/application.conf" ]; then
-        cp "$deploy_root/releases/current/application.conf" \
+    if [ -f "$deploy_root/releases/previous/application.conf" ]; then
+        cp "$deploy_root/releases/previous/application.conf" \
            "$deploy_root/releases/blue/application.conf"
     fi
 
