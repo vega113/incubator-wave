@@ -217,6 +217,60 @@ Below are practical, action-focused rules for each MCP server defined in `~/.cod
 - Avoid using return statements in the middle of a function.
 - Avoid using mutable variables/parameters/arguments.
 
+## Deployment
+
+Wave uses **blue-green deployment** for zero-downtime updates. See [docs/deployment/BLUE-GREEN.md](docs/deployment/BLUE-GREEN.md) for complete details.
+
+### Quick Deploy
+
+```bash
+# Auto-deploy on merge to main
+git push origin your-branch
+gh pr create  # Merge triggers auto-deploy
+
+# Or manual deploy
+gh workflow run deploy-contabo.yml -f action=deploy
+
+# Check status
+gh run list --workflow=deploy-contabo.yml --limit=1
+```
+
+### Quick Rollback
+
+If a deploy breaks the app, rollback to previous slot instantly:
+
+```bash
+gh workflow run deploy-contabo.yml -f action=rollback
+```
+
+Takes ~30 seconds, old slot keeps running for 30 minutes by default.
+
+### Workflow Actions
+
+| Action | Behavior |
+|--------|----------|
+| `deploy` | Build, test, deploy to inactive slot, swap traffic. **Default.** Auto on merge to `main`. |
+| `rollback` | Swap traffic back to previous slot. No rebuild. |
+| `status` | Show active slot, previous slot, and cooldown timer. No changes. |
+
+**Manual trigger:**
+
+```bash
+gh workflow run deploy-contabo.yml -f action=rollback
+gh workflow run deploy-contabo.yml -f action=status
+```
+
+### What Happens on Deploy
+
+1. Build and push container image
+2. Start new release on **inactive** slot (e.g., if blue active, start green)
+3. Health checks pass (`/healthz`)
+4. Sanity checks pass (login, search, fetch)
+5. Caddy reloads to swap traffic
+6. Old slot keeps running 30 minutes (ready for rollback)
+
+**Zero downtime** — traffic switches in ~1 second.
+
 
 ## When you need to call tools from the shell, use this rubric:
 - Find Files: `fd`
