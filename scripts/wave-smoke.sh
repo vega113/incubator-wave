@@ -58,11 +58,13 @@ port_in_use() {
 
 # Returns 0 if the process with the given PID was launched from our install
 # directory (i.e. it is the Wave server we own), 1 otherwise.
+# Checks both the raw and canonicalized INSTALL_DIR to handle symlinked paths.
 is_wave_process() {
   local pid=$1
-  local cmdline
+  local cmdline canonical_dir
   cmdline=$(ps -p "$pid" -o args= 2>/dev/null || true)
-  [[ "$cmdline" == *"$INSTALL_DIR"* ]]
+  canonical_dir=$(realpath "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")
+  [[ "$cmdline" == *"$canonical_dir"* ]] || [[ "$cmdline" == *"$INSTALL_DIR"* ]]
 }
 
 # Ensures $PORT is free before launch. Stops any stale Wave server found on the
