@@ -174,16 +174,22 @@ sanity_check() {
   # If not configured, skip gracefully (opt-in gate).
   local addr="${SANITY_ADDRESS:-}"
   local pass="${SANITY_PASSWORD:-}"
-  if [[ -z "$addr" || -z "$pass" ]]; then
+  if [[ -z "$addr" && -z "$pass" ]]; then
     echo "[deploy] SANITY_ADDRESS/SANITY_PASSWORD not set, skipping sanity check"
     return 0
   fi
+  if [[ -z "$addr" || -z "$pass" ]]; then
+    echo "[deploy] SANITY_ADDRESS and SANITY_PASSWORD must both be set" >&2
+    return 1
+  fi
 
-  echo "[deploy] Running sanity check as ${addr%%@*}@*** ..."
+  echo "[deploy] Running sanity check ..."
 
   # Run all steps inside a single alpine container with curl+jq on the
   # compose network so we can reach the wave service by hostname.
   # Pass secrets via -e to avoid shell interpolation / injection risks.
+  # Override SANITY_IMAGE with a pre-built image containing curl+jq to
+  # avoid the runtime apk add dependency on Alpine repos.
   docker run --rm --network "${project_name}_default" \
     -e INTERNAL_PORT="${internal_port}" \
     -e SANITY_ADDR="${addr}" \
@@ -191,7 +197,12 @@ sanity_check() {
     "$sanity_image" sh -c '
     set -e
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
-      apk add --no-cache curl jq >/dev/null 2>&1
+      if command -v apk >/dev/null 2>&1; then
+        apk add --no-cache curl jq >/dev/null 2>&1
+      else
+        echo "[sanity] FAIL: curl/jq not found and apk unavailable in sanity image"
+        exit 1
+      fi
     fi
 
     BASE="http://wave:${INTERNAL_PORT}"

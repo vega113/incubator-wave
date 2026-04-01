@@ -119,12 +119,16 @@ wait_for_ready() {
 sanity_check() {
   local addr="${SANITY_ADDRESS:-}"
   local pass="${SANITY_PASSWORD:-}"
-  if [[ -z "$addr" || -z "$pass" ]]; then
+  if [[ -z "$addr" && -z "$pass" ]]; then
     echo "[deploy] SANITY_ADDRESS/SANITY_PASSWORD not set, skipping sanity check"
     return 0
   fi
+  if [[ -z "$addr" || -z "$pass" ]]; then
+    echo "[deploy] SANITY_ADDRESS and SANITY_PASSWORD must both be set" >&2
+    return 1
+  fi
 
-  echo "[deploy] Running sanity check as ${addr%%@*}@*** ..."
+  echo "[deploy] Running sanity check ..."
 
   docker run --rm --network host \
     -e INTERNAL_PORT="${internal_port}" \
@@ -133,7 +137,12 @@ sanity_check() {
     "$sanity_image" sh -c '
     set -e
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
-      apk add --no-cache curl jq >/dev/null 2>&1
+      if command -v apk >/dev/null 2>&1; then
+        apk add --no-cache curl jq >/dev/null 2>&1
+      else
+        echo "[sanity] FAIL: curl/jq not found and apk unavailable in sanity image"
+        exit 1
+      fi
     fi
 
     BASE="http://127.0.0.1:${INTERNAL_PORT}"
