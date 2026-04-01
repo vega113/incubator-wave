@@ -3,6 +3,11 @@ package org.waveprotocol.box.server.authentication.jwt;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import java.util.Objects;
+import java.util.Set;
+import org.waveprotocol.box.server.account.AccountData;
+import org.waveprotocol.box.server.account.RobotAccountData;
+import org.waveprotocol.box.server.persistence.AccountStore;
+import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.wave.model.wave.InvalidParticipantAddress;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
@@ -10,38 +15,54 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
  * Authenticates incoming requests by validating a JWT Bearer token.
  * Replaces OAuth-based authentication for the Robot and Data API endpoints.
  *
- * <p>Callers are responsible for extracting the Bearer token from the
- * HTTP Authorization header; this class is servlet-API-agnostic so it
- * can be used from both javax and jakarta servlet code.
+ * <p>Supports scope validation and version-based token revocation by looking
+ * up the robot account's tokenVersion from the account store.
  */
 @Singleton
 public final class JwtRequestAuthenticator {
   private static final String BEARER_PREFIX = "Bearer ";
 
   private final JwtKeyRing keyRing;
+  private final AccountStore accountStore;
 
   @Inject
-  public JwtRequestAuthenticator(JwtKeyRing keyRing) {
+  public JwtRequestAuthenticator(JwtKeyRing keyRing, AccountStore accountStore) {
     this.keyRing = Objects.requireNonNull(keyRing, "keyRing");
+    this.accountStore = Objects.requireNonNull(accountStore, "accountStore");
   }
 
   /**
-   * Validates a JWT Bearer token and returns the authenticated participant
-   * from the token's subject claim.
+   * Validates a JWT Bearer token and returns the authenticated participant.
    *
    * @param authorizationHeader the full value of the HTTP Authorization header
-   *     (e.g. "Bearer eyJ...")
-   * @param expectedType the expected JWT token type (e.g. ROBOT_ACCESS, DATA_API_ACCESS)
+   * @param expectedType the expected JWT token type
    * @param expectedAudience the expected JWT audience
    * @return the authenticated ParticipantId
-   * @throws JwtValidationException if the token is missing, malformed, expired,
-   *     has wrong type/audience, or fails signature verification
+   * @throws JwtValidationException if validation fails
    */
   public ParticipantId authenticate(String authorizationHeader,
                                     JwtTokenType expectedType,
                                     JwtAudience expectedAudience) {
+    return authenticate(authorizationHeader, expectedType, expectedAudience, Set.of());
+  }
+
+  /**
+   * Validates a JWT Bearer token with scope enforcement.
+   *
+   * @param authorizationHeader the full value of the HTTP Authorization header
+   * @param expectedType the expected JWT token type
+   * @param expectedAudience the expected JWT audience
+   * @param requiredScopes scopes that the token must contain (empty = no scope check)
+   * @return the authenticated ParticipantId
+   * @throws JwtValidationException if validation fails
+   */
+  public ParticipantId authenticate(String authorizationHeader,
+                                    JwtTokenType expectedType,
+                                    JwtAudience expectedAudience,
+                                    Set<String> requiredScopes) {
     Objects.requireNonNull(expectedType, "expectedType");
     Objects.requireNonNull(expectedAudience, "expectedAudience");
+    Objects.requireNonNull(requiredScopes, "requiredScopes");
 
     if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_PREFIX)) {
       throw new JwtValidationException("Missing or invalid Authorization Bearer header");
@@ -52,8 +73,8 @@ public final class JwtRequestAuthenticator {
       throw new JwtValidationException("Bearer token is empty");
     }
 
-    // Use a permissive revocation state -- robot/data-api tokens are short-lived
-    // and do not participate in session-version tracking.
+    // Pre-validate with permissive revocation to extract subject, then re-check
+    // with the account's actual token version.
     JwtRevocationState revocationState = new JwtRevocationState(0, 0);
     JwtTokenContext context = keyRing.validator().validate(token, revocationState);
 
@@ -70,10 +91,45 @@ public final class JwtRequestAuthenticator {
           "Token does not have required audience: " + expectedAudience.claimValue());
     }
 
+    // Scope enforcement
+    for (String scope : requiredScopes) {
+      if (!claims.hasScope(scope)) {
+        throw new JwtValidationException("Token missing required scope: " + scope);
+      }
+    }
+
+    ParticipantId participant;
     try {
-      return ParticipantId.of(claims.subject());
+      participant = ParticipantId.of(claims.subject());
     } catch (InvalidParticipantAddress e) {
       throw new JwtValidationException("Invalid participant in JWT subject: " + claims.subject(), e);
     }
+
+    // Version-based revocation: check if the token's subjectVersion is still valid
+    // for robot/data-api tokens by looking up the account's current tokenVersion.
+    if (expectedType == JwtTokenType.ROBOT_ACCESS || expectedType == JwtTokenType.DATA_API_ACCESS) {
+      long minimumVersion = lookupTokenVersion(participant);
+      if (claims.subjectVersion() < minimumVersion) {
+        throw new JwtValidationException(
+            "Token has been revoked (version " + claims.subjectVersion()
+                + " < required " + minimumVersion + ")");
+      }
+    }
+
+    return participant;
+  }
+
+  private long lookupTokenVersion(ParticipantId participant) {
+    try {
+      AccountData account = accountStore.getAccount(participant);
+      if (account != null && account.isRobot()) {
+        RobotAccountData robot = account.asRobot();
+        return robot.getTokenVersion();
+      }
+    } catch (PersistenceException e) {
+      // If we can't look up the account, fail open for now (version 0 = accept all).
+      // This preserves backwards compatibility with human-issued Data API tokens.
+    }
+    return 0L;
   }
 }
