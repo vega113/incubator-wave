@@ -166,8 +166,15 @@ migrate_to_blue_green() {
   load_deploy_env 2>/dev/null || true
   detect_project_name
 
-  local old_compose="$deploy_root/releases/previous/compose.yml"
-  if [ ! -f "$old_compose" ]; then
+  # Check for old compose file in multiple locations:
+  # 1. releases/previous/ (created by new activate_release)
+  # 2. current/ symlink (legacy layout from pre-blue-green deploys)
+  local old_compose=""
+  if [ -f "$deploy_root/releases/previous/compose.yml" ]; then
+    old_compose="$deploy_root/releases/previous/compose.yml"
+  elif [ -f "$deploy_root/current/compose.yml" ]; then
+    old_compose="$deploy_root/current/compose.yml"
+  else
     echo "[deploy] No previous compose file — fresh install"
     echo "blue" > "$deploy_root/shared/active-slot"
     return 0
@@ -207,9 +214,15 @@ migrate_to_blue_green() {
 
   echo "blue" > "$deploy_root/shared/active-slot"
   echo "$current_image" > "$deploy_root/releases/blue/image-ref"
+  # Copy old application.conf to blue slot (check both new and legacy paths)
+  local old_conf=""
   if [ -f "$deploy_root/releases/previous/application.conf" ]; then
-    cp "$deploy_root/releases/previous/application.conf" \
-       "$deploy_root/releases/blue/application.conf"
+    old_conf="$deploy_root/releases/previous/application.conf"
+  elif [ -f "$(dirname "$old_compose")/application.conf" ]; then
+    old_conf="$(dirname "$old_compose")/application.conf"
+  fi
+  if [ -n "$old_conf" ]; then
+    cp "$old_conf" "$deploy_root/releases/blue/application.conf"
   fi
 
   cat > "$deploy_root/shared/upstream.caddy" <<'UPSTREAM'
