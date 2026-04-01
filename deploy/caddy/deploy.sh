@@ -179,7 +179,7 @@ sanity_check() {
     return 0
   fi
 
-  echo "[deploy] Running sanity check as $addr ..."
+  echo "[deploy] Running sanity check as ${addr%%@*}@*** ..."
 
   # Run all steps inside a single alpine container with curl+jq on the
   # compose network so we can reach the wave service by hostname.

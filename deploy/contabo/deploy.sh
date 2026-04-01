@@ -124,7 +124,7 @@ sanity_check() {
     return 0
   fi
 
-  echo "[deploy] Running sanity check as $addr ..."
+  echo "[deploy] Running sanity check as ${addr%%@*}@*** ..."
 
   docker run --rm --network host \
     -e INTERNAL_PORT="${internal_port}" \
