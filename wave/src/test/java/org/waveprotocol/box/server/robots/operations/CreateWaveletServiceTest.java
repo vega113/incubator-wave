@@ -39,6 +39,7 @@ import org.waveprotocol.box.server.robots.OperationContextImpl;
 import org.waveprotocol.box.server.robots.RobotWaveletData;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
+import org.waveprotocol.wave.model.id.IdConstants;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
@@ -147,6 +148,17 @@ public class CreateWaveletServiceTest extends TestCase {
 
     JsonRpcResponse response = context.getResponse(OPERATION_ID);
     assertFalse("Operation should succeed when waveletId is null", response.isError());
+
+    // Verify the temp mapping uses the client wave domain for the wavelet id,
+    // so subsequent batch operations can look it up with the expected
+    // (tempWaveId, clientDomain!conv+root) pair.
+    WaveId tempWaveId = ApiIdSerializer.instance().deserialiseWaveId(TEMP_WAVE_ID);
+    WaveletId expectedWaveletId =
+        WaveletId.of(tempWaveId.getDomain(), IdConstants.CONVERSATION_ROOT_WAVELET);
+    RobotWaveletData opened = context.getOpenWavelets().values().iterator().next();
+    WaveletName actualName = opened.getWaveletName();
+    assertNotNull("Wavelet should be openable via client-domain temp mapping",
+        context.openWavelet(tempWaveId, expectedWaveletId, ALEX));
   }
 
   public void testCreateWaveletServiceWithNullWaveAndWaveletId() throws Exception {

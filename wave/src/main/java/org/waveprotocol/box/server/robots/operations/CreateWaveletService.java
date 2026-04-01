@@ -35,6 +35,7 @@ import org.waveprotocol.box.server.robots.util.OperationUtil;
 import org.waveprotocol.wave.model.conversation.ObservableConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
 import org.waveprotocol.wave.model.conversation.WaveletBasedConversation;
+import org.waveprotocol.wave.model.id.IdConstants;
 import org.waveprotocol.wave.model.id.InvalidIdException;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
@@ -116,7 +117,7 @@ public class CreateWaveletService implements OperationService {
         waveId = ApiIdSerializer.instance().deserialiseWaveId(clientWaveId);
         waveletId = (clientWaveletId != null)
             ? ApiIdSerializer.instance().deserialiseWaveletId(clientWaveletId)
-            : waveletName.waveletId;
+            : WaveletId.of(waveId.getDomain(), IdConstants.CONVERSATION_ROOT_WAVELET);
       } else {
         // No client wave id: use server-generated ids for both.
         waveId = waveletName.waveId;
