@@ -1038,7 +1038,7 @@ public final class RobotDashboardServlet extends HttpServlet {
 
     sb.append("function saveUrl(i){var v=document.getElementById('url-'+i).value.trim();");
     sb.append("if(!v){toast('Callback URL cannot be empty','err');return;}");
-    sb.append("api('PUT',robotsData[i].id+'/url',{url:v}).then(function(d){robotsData[i]=d;toast('Callback URL saved');}).catch(function(e){if(e)toast(e.message,'err');});}");
+    sb.append("api('PUT',robotsData[i].id+'/url',{url:v}).then(function(d){robotsData[i]=d;toast('Callback URL saved');renderRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
 
     sb.append("function testBot(i){toast('Testing...','info');");
     sb.append("api('POST',robotsData[i].id+'/verify').then(function(d){robotsData[i]=d;toast('Bot verified');renderRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
@@ -1071,13 +1071,14 @@ public final class RobotDashboardServlet extends HttpServlet {
 
     // Register robot via modal
     sb.append("function registerRobot(){");
-    sb.append("var raw=document.getElementById('reg-username').value.trim().toLowerCase().replace(/[^a-z0-9.\\-]/g,'');");
+    sb.append("var raw=document.getElementById('reg-username').value.trim().toLowerCase().replace(/[^a-z0-9._\\-]/g,'');");
+    sb.append("if(raw.endsWith('-bot'))raw=raw.slice(0,-4);");
     sb.append("var u=raw?raw+'-bot':'';");
     sb.append("var d=document.getElementById('reg-description').value.trim();");
     sb.append("var c=document.getElementById('reg-callback').value.trim();");
     sb.append("var _ev=document.getElementById('reg-expiry').value.trim();var e=(_ev===''||isNaN(+_ev))?3600:+_ev;");
     sb.append("if(!raw){toast('Robot name is required','err');return;}");
-    sb.append("if(!/^[a-z0-9][a-z0-9.\\-]*$/.test(raw)){toast('Name must start with a letter or number and contain only lowercase letters, numbers, hyphens, periods','err');return;}");
+    sb.append("if(!/^[a-z0-9][a-z0-9._\\-]*$/.test(raw)){toast('Name must start with a letter or number and contain only lowercase letters, numbers, hyphens, periods, underscores','err');return;}");
     sb.append("api('POST','',{username:u,description:d,callbackUrl:c,tokenExpiry:e}).then(function(r){");
     sb.append("robotsData.unshift(r);renderRobots();closeModal();");
     sb.append("toast('Robot created. Copy the secret from the table.');");
@@ -1099,7 +1100,7 @@ public final class RobotDashboardServlet extends HttpServlet {
 
     // Prompt template (token injected at runtime)
     sb.append("var _promptGeneratedAt=null;");
-    sb.append("var BASE='").append(HtmlRenderer.escapeHtml(baseUrl)).append("';");
+    sb.append("var BASE='").append(HtmlRenderer.escapeHtml(baseUrl)).append(safeCtx).append("';");
     sb.append("var DOMAIN='").append(safeDomain).append("';");
     sb.append("function buildPromptText(token){return 'Build a SupaWave Robot\\n\\n'");
     sb.append("+'== What is SupaWave? ==\\n'");
@@ -1235,9 +1236,10 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("var _nameCheckTimer=null;");
     sb.append("function validateRobotName(){");
     sb.append("var inp=document.getElementById('reg-username');var hint=document.getElementById('reg-name-hint');");
-    sb.append("var raw=inp.value.trim().toLowerCase().replace(/[^a-z0-9.\\-]/g,'');");
-    sb.append("if(raw!==inp.value.trim())inp.value=raw;");
-    sb.append("if(!raw){hint.textContent='Lowercase letters, numbers, hyphens, periods only';hint.style.color='';return;}");
+    sb.append("var raw=inp.value.trim().toLowerCase().replace(/[^a-z0-9._\\-]/g,'');");
+    sb.append("if(raw.endsWith('-bot'))raw=raw.slice(0,-4);");
+    sb.append("if(raw!==inp.value.trim()&&raw!==inp.value.trim().replace(/-bot$/,''))inp.value=raw;");
+    sb.append("if(!raw){hint.textContent='Lowercase letters, numbers, hyphens, periods, underscores';hint.style.color='';return;}");
     sb.append("if(!/^[a-z0-9]/.test(raw)){hint.textContent='Must start with a letter or number';hint.style.color='var(--err)';return;}");
     sb.append("hint.textContent='Will register as '+raw+'-bot@").append(safeDomain).append("';hint.style.color='var(--txt3)';");
     // Debounced availability check
