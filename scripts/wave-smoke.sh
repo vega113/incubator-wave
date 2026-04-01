@@ -56,17 +56,76 @@ port_in_use() {
   [[ -n "${pids:-}" ]]
 }
 
+# Returns 0 if the process with the given PID was launched from our install
+# directory (i.e. it is the Wave server we own), 1 otherwise.
+# Checks both raw and canonicalized INSTALL_DIR with a trailing / boundary
+# to prevent prefix collisions (e.g., /opt/wave vs /opt/wave-prod).
+is_wave_process() {
+  local pid=$1
+  local cmdline canonical_dir
+  # Single ps call to avoid TOCTOU between existence check and args fetch.
+  # Empty result means the PID has already exited — treat as gone (not a conflict).
+  cmdline=$(ps -p "$pid" -o args= 2>/dev/null || true)
+  [[ -z "$cmdline" ]] && return 0
+  canonical_dir=$(realpath "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")
+  [[ "$cmdline" == *"${canonical_dir}/"* ]] || [[ "$cmdline" == *"${INSTALL_DIR}/"* ]]
+}
+
+# Sends SIGTERM then SIGKILL to a specific space-separated list of PIDs,
+# waiting for the port to clear. Does not touch PID_FILE or call fuser.
+stop_pids() {
+  local pids_to_kill=$1
+  local deadline=$(( $(date +%s) + STOP_TIMEOUT ))
+  echo "Sending SIGTERM to PIDs: $pids_to_kill" >&2
+  printf '%s\n' $pids_to_kill | xargs -I{} kill {} 2>/dev/null || true
+  for i in {1..5}; do
+    sleep 1
+    port_in_use || return 0
+    [[ $(date +%s) -lt $deadline ]] || break
+  done
+  echo "Sending SIGKILL to PIDs: $pids_to_kill" >&2
+  printf '%s\n' $pids_to_kill | xargs -I{} kill -9 {} 2>/dev/null || true
+  sleep 1
+}
+
+# Ensures $PORT is free before launch. Stops any stale Wave server found on the
+# port (up to 3 attempts). Returns 0 when the port is clear; returns 1 if a
+# non-Wave process owns the port or the port remains occupied after retries.
+ensure_port_free() {
+  local attempt pids pid non_wave_pids
+  for attempt in 1 2 3; do
+    if ! port_in_use; then
+      return 0
+    fi
+    pids=$(find_port_pids)
+    non_wave_pids=""
+    for pid in $pids; do
+      if ! is_wave_process "$pid"; then
+        non_wave_pids="${non_wave_pids:+$non_wave_pids }$pid"
+      fi
+    done
+    if [[ -n "${non_wave_pids:-}" ]]; then
+      echo "Port $PORT in use by non-Wave process (PIDs: $non_wave_pids) — aborting" >&2
+      echo "Stop the conflicting process or use a different PORT" >&2
+      return 1
+    fi
+    echo "Port $PORT in use by stale Wave process — stopping (attempt $attempt)" >&2
+    stop_pids "$pids" || true
+    sleep 1
+  done
+  if port_in_use; then
+    echo "Port $PORT still in use after 3 stop attempts — aborting" >&2
+    return 1
+  fi
+  return 0
+}
+
 start() {
   if [[ ! -x "$INSTALL_DIR/bin/wave" ]]; then
     echo "Install dir not found: $INSTALL_DIR. Run: sbt Universal/stage" >&2
     exit 1
   fi
-  # Ensure port is free before starting (avoids collision with prior runs)
-  if port_in_use; then
-    echo "Port $PORT already in use — stopping stale server first" >&2
-    stop
-    sleep 1
-  fi
+  ensure_port_free || exit 1
   (cd "$INSTALL_DIR" && nohup ./bin/wave > wave_server.out 2>&1 & echo $! > wave_server.pid)
   echo "Started. Wrapper PID=$(cat "$PID_FILE" 2>/dev/null || echo unknown)"
   wait_ready
@@ -85,11 +144,14 @@ start() {
 
 wait_ready() {
   local curl_log="${INSTALL_DIR}/curl_probe.log"
+  # Truncate log from prior runs so it doesn't grow unbounded
+  : > "$curl_log"
   for i in {1..60}; do
     # Use -s (silent) without -S to suppress expected connection-refused errors
     # during JVM startup. Redirect stderr to a log file so real networking
     # problems (DNS, loopback misconfiguration) remain diagnosable.
-    http_status=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT/" 2>>"$curl_log" || true)
+    # --connect-timeout and --max-time prevent curl from stalling indefinitely.
+    http_status=$(curl --connect-timeout 2 --max-time 5 -s -o /dev/null -w "%{http_code}" "http://localhost:$PORT/" 2>>"$curl_log" || true)
     if [[ "${http_status:-000}" != "000" ]]; then
       echo "PROBE_HTTP=$http_status"
     fi
