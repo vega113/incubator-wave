@@ -655,7 +655,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append(".sec-title{font-size:14px;font-weight:700;color:var(--txt);margin-bottom:4px}");
     sb.append(".sec-desc{font-size:12px;color:var(--txt3);line-height:1.6;margin-bottom:16px}");
     // Code block (dark)
-    sb.append(".codeblock{background:#1e293b;color:#e2e8f0;border-radius:4px;padding:16px;font-family:var(--mono);font-size:11px;line-height:1.7;overflow-x:auto;position:relative;white-space:pre-wrap;word-break:break-word}");
+    sb.append(".codeblock{background:#1e293b;color:#e2e8f0;border-radius:4px;padding:16px;font-family:var(--mono);font-size:11px;line-height:1.7;overflow-y:auto;overflow-x:auto;position:relative;white-space:pre-wrap;word-break:break-word;max-height:360px}");
     sb.append(".codeblock .cb-btn{position:absolute;top:8px;right:8px;padding:4px 10px;border-radius:3px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#94a3b8;transition:all .15s}");
     sb.append(".codeblock .cb-btn:hover{background:rgba(255,255,255,.15);color:#fff}");
     // API reference table
@@ -722,9 +722,23 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append(".empty h3{font-size:14px;font-weight:600;margin-bottom:4px}");
     sb.append(".loading{text-align:center;padding:40px;color:var(--txt3);font-size:13px}");
     // Responsive mobile
-    sb.append("@media(max-width:700px){.hdr{padding:16px 16px 0}.main{padding:12px 16px 40px}");
-    sb.append(".rtable{display:block;overflow-x:auto}.tabs{padding:0 12px;overflow-x:auto}");
-    sb.append(".tab{padding:10px 14px;white-space:nowrap}.grid2{grid-template-columns:1fr;padding:16px}}");
+    sb.append("@media(max-width:700px){");
+    sb.append(".hdr{padding:16px 16px 0}.main{padding:12px 16px 40px}");
+    sb.append(".back-link{padding:10px 16px}");
+    sb.append(".tabs{padding:0 12px;overflow-x:auto}.tab{padding:10px 14px;white-space:nowrap}");
+    sb.append(".rh{flex-wrap:wrap;gap:8px;padding:10px 12px}");
+    sb.append(".rmeta{max-width:none;flex-basis:100%}");
+    sb.append(".rb{grid-template-columns:1fr;gap:14px;padding:0 12px 14px}");
+    sb.append(".rb-actions{flex-direction:row;flex-wrap:wrap;gap:6px}");
+    sb.append(".rb-actions button{width:auto!important;flex:1;min-width:120px}");
+    sb.append(".grid2{grid-template-columns:1fr;padding:16px}");
+    sb.append(".centered{padding:16px}");
+    sb.append(".modal{width:calc(100vw - 24px);max-height:calc(100vh - 24px)}");
+    sb.append(".confirm-strip{flex-wrap:wrap}");
+    sb.append(".btn-p{padding:8px 14px;font-size:11px}");
+    sb.append(".hdr-row{gap:10px}");
+    sb.append(".doc-links{flex-direction:column}");
+    sb.append("}");
     sb.append("</style></head><body>");
 
     // ——— Back to Wave link ———
