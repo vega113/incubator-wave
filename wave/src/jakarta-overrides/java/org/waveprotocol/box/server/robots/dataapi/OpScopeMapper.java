@@ -32,7 +32,6 @@ public class OpScopeMapper {
   private static final Map<OpType, Set<String>> OPERATION_SCOPES = new EnumMap<>(OpType.class);
 
   static {
-    OPERATION_SCOPES.put(OpType.FETCH_WAVELET, setOf(SCOPE_WAVE_DATA_READ));
     OPERATION_SCOPES.put(OpType.FETCH_WAVE, setOf(SCOPE_WAVE_DATA_READ));
     OPERATION_SCOPES.put(OpType.LIST_WAVES, setOf(SCOPE_WAVE_DATA_READ));
     OPERATION_SCOPES.put(OpType.MODIFY_WAVELET, setOf(SCOPE_WAVE_DATA_WRITE));
@@ -63,7 +62,6 @@ public class OpScopeMapper {
   }
 
   public enum OpType {
-    FETCH_WAVELET,
     FETCH_WAVE,
     LIST_WAVES,
     MODIFY_WAVELET,

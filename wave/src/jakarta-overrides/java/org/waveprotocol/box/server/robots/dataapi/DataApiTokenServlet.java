@@ -397,7 +397,20 @@ public final class DataApiTokenServlet extends HttpServlet {
     long issuedAt = clock.instant().getEpochSecond();
     long expiresAt = issuedAt + lifetimeSeconds;
 
-    boolean isRobotToken = TOKEN_TYPE_ROBOT.equals(req.getParameter("token_type"));
+    // Validate token_type parameter: allow null/empty/"data_api" (defaults to false),
+    // "robot" (true), or reject anything else with 400 invalid_request.
+    String tokenTypeParam = req.getParameter("token_type");
+    boolean isRobotToken;
+    if (tokenTypeParam == null || tokenTypeParam.isEmpty() || TOKEN_TYPE_DATA_API.equals(tokenTypeParam)) {
+      isRobotToken = false;
+    } else if (TOKEN_TYPE_ROBOT.equals(tokenTypeParam)) {
+      isRobotToken = true;
+    } else {
+      sendError(resp, HttpServletResponse.SC_BAD_REQUEST, "invalid_request",
+          "Unknown token_type: " + tokenTypeParam);
+      return;
+    }
+
     long tokenVersion = robotAccount.getTokenVersion();
 
     String token = issueToken(robotAccount.getId().getAddress(), issuedAt, expiresAt,

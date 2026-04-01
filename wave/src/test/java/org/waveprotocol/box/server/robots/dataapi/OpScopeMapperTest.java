@@ -31,16 +31,6 @@ import org.junit.Test;
 public class OpScopeMapperTest {
 
   @Test
-  public void testFetchWaveletRequiresReadScope() {
-    Set<String> required = OpScopeMapper.getRequiredScopes(OpScopeMapper.OpType.FETCH_WAVELET);
-    assertFalse("FETCH_WAVELET should require at least one scope", required.isEmpty());
-    assertTrue("FETCH_WAVELET should require wave:data:read",
-        required.contains(OpScopeMapper.SCOPE_WAVE_DATA_READ));
-    assertFalse("FETCH_WAVELET should not require write scope",
-        required.contains(OpScopeMapper.SCOPE_WAVE_DATA_WRITE));
-  }
-
-  @Test
   public void testModifyWaveletRequiresWriteScope() {
     Set<String> required = OpScopeMapper.getRequiredScopes(OpScopeMapper.OpType.MODIFY_WAVELET);
     assertFalse("MODIFY_WAVELET should require at least one scope", required.isEmpty());
@@ -54,7 +44,7 @@ public class OpScopeMapperTest {
   public void testCheckScopesPassesWithRequiredScope() {
     Set<String> tokenScopes = Set.of(OpScopeMapper.SCOPE_WAVE_DATA_READ);
     assertTrue("checkScopes should pass when token has required scope",
-        OpScopeMapper.checkScopes(OpScopeMapper.OpType.FETCH_WAVELET, tokenScopes));
+        OpScopeMapper.checkScopes(OpScopeMapper.OpType.FETCH_WAVE, tokenScopes));
   }
 
   @Test

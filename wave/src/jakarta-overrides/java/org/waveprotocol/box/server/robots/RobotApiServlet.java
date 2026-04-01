@@ -18,6 +18,7 @@ import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.authentication.jwt.JwtAudience;
 import org.waveprotocol.box.server.authentication.jwt.JwtRequestAuthenticator;
+import org.waveprotocol.box.server.authentication.jwt.JwtScopes;
 import org.waveprotocol.box.server.authentication.jwt.JwtTokenType;
 import org.waveprotocol.box.server.authentication.jwt.JwtValidationException;
 import org.waveprotocol.box.server.persistence.AccountStore;
@@ -38,6 +39,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * REST API for robot management.
@@ -88,11 +90,18 @@ public final class RobotApiServlet extends HttpServlet {
 
   private ParticipantId authenticate(HttpServletRequest req, HttpServletResponse resp)
       throws IOException {
+    return authenticate(req, resp, Set.of());
+  }
+
+  private ParticipantId authenticate(HttpServletRequest req, HttpServletResponse resp,
+      Set<String> requiredScopes) throws IOException {
     try {
       return jwtAuthenticator.authenticate(
-          req.getHeader("Authorization"), JwtTokenType.DATA_API_ACCESS, JwtAudience.DATA_API);
+          req.getHeader("Authorization"), JwtTokenType.DATA_API_ACCESS, JwtAudience.DATA_API,
+          requiredScopes);
     } catch (JwtValidationException e) {
-      sendError(resp, 401, e.getMessage(), "AUTH_INVALID");
+      LOG.warning("JWT authentication failed", e);
+      sendError(resp, 401, "Invalid authentication token", "AUTH_INVALID");
       return null;
     }
   }
@@ -101,7 +110,7 @@ public final class RobotApiServlet extends HttpServlet {
 
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    ParticipantId user = authenticate(req, resp);
+    ParticipantId user = authenticate(req, resp, Set.of(JwtScopes.DATA_READ));
     if (user == null) return;
 
     String sub = subPath(req);
@@ -116,7 +125,7 @@ public final class RobotApiServlet extends HttpServlet {
 
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    ParticipantId user = authenticate(req, resp);
+    ParticipantId user = authenticate(req, resp, Set.of(JwtScopes.DATA_WRITE));
     if (user == null) return;
 
     String sub = subPath(req);
@@ -142,7 +151,7 @@ public final class RobotApiServlet extends HttpServlet {
 
   @Override
   protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    ParticipantId user = authenticate(req, resp);
+    ParticipantId user = authenticate(req, resp, Set.of(JwtScopes.DATA_WRITE));
     if (user == null) return;
 
     String sub = subPath(req);
@@ -163,7 +172,7 @@ public final class RobotApiServlet extends HttpServlet {
 
   @Override
   protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    ParticipantId user = authenticate(req, resp);
+    ParticipantId user = authenticate(req, resp, Set.of(JwtScopes.DATA_WRITE));
     if (user == null) return;
 
     String sub = subPath(req);
