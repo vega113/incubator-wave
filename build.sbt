@@ -1176,12 +1176,18 @@ ThisBuild / compileGwt := {
     base / "gen" / "flags"
   ).filter(_.exists)
 
-  // Validate that the GWT output directory is complete, not just that nocache.js exists.
-  // GWT generates permutation .cache.js files alongside nocache.js — if those are missing
-  // the output is incomplete and we must recompile.
+  // Validate completeness by cross-checking compilation-mappings.txt (written by GWT
+  // as one of its last steps) against the actual *.cache.js files on disk.  Every
+  // permutation strong-name listed in that file must have a corresponding .cache.js.
   val webclientDir = base / "war" / "webclient"
-  val hasCompleteOutput = nocacheJs.exists &&
-    (webclientDir ** GlobFilter("*.cache.js")).get.nonEmpty
+  val mappingsFile = webclientDir / "compilation-mappings.txt"
+  val hasCompleteOutput = nocacheJs.exists && mappingsFile.exists && {
+    val expectedHashes = IO.readLines(mappingsFile)
+      .map(_.trim).filter(_.matches("[0-9A-Fa-f]{32}"))
+      .distinct
+    expectedHashes.nonEmpty &&
+      expectedHashes.forall(h => (webclientDir / (h + ".cache.js")).exists)
+  }
 
   val outputTs = if (hasCompleteOutput) nocacheJs.lastModified else 0L
   val gwtExts = Seq("java", "xml", "proto", "css", "html", "properties", "js", "jslib", "png", "gif", "jpg")
