@@ -296,7 +296,7 @@ public class OperationContextImpl implements OperationContext, OperationResults 
 
   @Override
   public void putBlip(String blipId, ConversationBlip newBlip) {
-    if (blipId.startsWith(TEMP_ID_MARKER)) {
+    if (blipId != null && blipId.startsWith(TEMP_ID_MARKER)) {
       tempBlipIdMap.put(blipId, newBlip.getId());
     }
   }
