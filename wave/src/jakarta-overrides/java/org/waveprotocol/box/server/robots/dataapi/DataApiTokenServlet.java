@@ -410,6 +410,11 @@ public final class DataApiTokenServlet extends HttpServlet {
   }
 
   private String issueToken(String subject, long issuedAt, long expiresAt) {
+    // Populate scopes based on token type: Data API tokens can read and write
+    Set<String> scopes = Set.of(
+        "wave:data:read",
+        "wave:data:write");
+
     JwtClaims claims = new JwtClaims(
         JwtTokenType.DATA_API_ACCESS,
         issuer,
@@ -417,7 +422,7 @@ public final class DataApiTokenServlet extends HttpServlet {
         UUID.randomUUID().toString(),
         keyRing.signingKeyId(),
         EnumSet.of(JwtAudience.DATA_API),
-        Set.of(),
+        scopes,
         issuedAt,
         issuedAt,
         expiresAt,
