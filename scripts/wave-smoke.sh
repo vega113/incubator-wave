@@ -63,9 +63,10 @@ port_in_use() {
 is_wave_process() {
   local pid=$1
   local cmdline canonical_dir
-  # A PID that has already exited is not a conflict — treat as gone.
-  ps -p "$pid" >/dev/null 2>&1 || return 0
+  # Single ps call to avoid TOCTOU between existence check and args fetch.
+  # Empty result means the PID has already exited — treat as gone (not a conflict).
   cmdline=$(ps -p "$pid" -o args= 2>/dev/null || true)
+  [[ -z "$cmdline" ]] && return 0
   canonical_dir=$(realpath "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")
   [[ "$cmdline" == *"${canonical_dir}/"* ]] || [[ "$cmdline" == *"${INSTALL_DIR}/"* ]]
 }
