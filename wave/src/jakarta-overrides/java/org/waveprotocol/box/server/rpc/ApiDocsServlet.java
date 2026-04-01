@@ -520,7 +520,16 @@ public final class ApiDocsServlet extends HttpServlet {
         .append("\nPOST ")
         .append(escape(TOKEN_PATH))
         .append("</pre></div>\n");
+    html.append("          <div class=\"grid-card\"><h3>token_type parameter</h3><pre>data_api (default) \u2014 Data API read/write\nrobot     \u2014 Active Robot API (RPC callbacks)</pre></div>\n");
     html.append("        </div>\n");
+    html.append("        <h3>Scopes</h3>\n");
+    html.append("        <table><thead><tr><th>Scope</th><th>Grants</th></tr></thead><tbody>\n");
+    html.append("          <tr><td><code>wave:data:read</code></td><td>Read waves and run searches</td></tr>\n");
+    html.append("          <tr><td><code>wave:data:write</code></td><td>Create and modify waves, append blips, manage participants</td></tr>\n");
+    html.append("          <tr><td><code>wave:robot:active</code></td><td>Active Robot API (RPC callback operations)</td></tr>\n");
+    html.append("          <tr><td><code>wave:admin</code></td><td>Admin-only operations</td></tr>\n");
+    html.append("        </tbody></table>\n");
+    html.append("        <p class=\"tiny\">Tokens issued via <code>token_type=data_api</code> carry <code>wave:data:read</code> and <code>wave:data:write</code>. Tokens issued via <code>token_type=robot</code> carry <code>wave:robot:active</code>.</p>\n");
     html.append("      </section>\n");
     html.append("      <section id=\"token\">\n");
     html.append("        <h2>Token generation walkthrough</h2>\n");
@@ -650,7 +659,9 @@ public final class ApiDocsServlet extends HttpServlet {
     html.append("        <h2>Legacy and unsupported notes</h2>\n");
     html.append("        <ul>\n");
     html.append("          <li><code>robot.createWavelet</code> is the supported create method. <code>wavelet.create</code> is not part of the live Jakarta Data API registry.</li>\n");
-    html.append("          <li><code>DataApiOAuthServlet</code> still exists in source, but it is not registered by the live Jakarta server and should not be treated as the current auth story.</li>\n");
+    html.append("          <li>OAuth-based robot auth (<code>DataApiOAuthServlet</code>) has been removed from the Jakarta server. JWT Bearer tokens via <code>")
+        .append(escape(TOKEN_PATH))
+        .append("</code> are the only supported authentication mechanism.</li>\n");
     html.append("          <li>Public docs here are scoped to the 24 methods in the live Jakarta registry, not the full shared <code>OperationType</code> enum.</li>\n");
     html.append("        </ul>\n");
     html.append("      </section>\n");
@@ -727,6 +738,7 @@ public final class ApiDocsServlet extends HttpServlet {
                     + RPC_ALIAS_PATH
                     + " remains a compatible alias."));
     document.put("servers", list(orderedMap("url", "/")));
+    document.put("security", list(orderedMap("BearerAuth", list())));
 
     Map<String, Object> paths = orderedMap();
     paths.put(CANONICAL_RPC_PATH, rpcPathObject(true));
@@ -763,6 +775,13 @@ public final class ApiDocsServlet extends HttpServlet {
                         orderedMap("type", "string", "enum", list("client_credentials")),
                     "client_id", orderedMap("type", "string"),
                     "client_secret", orderedMap("type", "string"),
+                    "token_type",
+                        orderedMap(
+                            "type", "string",
+                            "enum", list("data_api", "robot"),
+                            "default", "data_api",
+                            "description",
+                                "Type of JWT to issue. data_api grants wave:data:read and wave:data:write scopes. robot grants wave:robot:active scope."),
                     "expiry", orderedMap("type", "integer", "format", "int64", "example", 3600))));
     // Robot Management API schemas
     schemas.put("Robot", robotSchema(false));
@@ -1080,7 +1099,13 @@ public final class ApiDocsServlet extends HttpServlet {
         "type", "http",
         "scheme", "bearer",
         "bearerFormat", "JWT",
-        "description", "JWT type=data-api-access, audience=data-api");
+        "description",
+            "JWT Bearer token from " + TOKEN_PATH + ". "
+                + "type=data-api-access, audience=data-api. "
+                + "Scopes: wave:data:read (read waves/search), wave:data:write (create/modify waves), "
+                + "wave:robot:active (Active Robot API), wave:admin (admin operations). "
+                + "token_type=data_api (default) grants wave:data:read + wave:data:write; "
+                + "token_type=robot grants wave:robot:active.");
   }
 
   private static Map<String, Object> singleRequestSchema() {
@@ -1249,6 +1274,8 @@ public final class ApiDocsServlet extends HttpServlet {
     text.append("Alias path: ").append(RPC_ALIAS_PATH).append('\n');
     text.append("Token endpoint: ").append(TOKEN_PATH).append('\n');
     text.append("Auth: Authorization: Bearer <token> (JWT type=data-api-access, audience=data-api)\n");
+    text.append("token_type parameter: data_api (default, grants wave:data:read + wave:data:write) or robot (grants wave:robot:active)\n");
+    text.append("Scopes: wave:data:read, wave:data:write, wave:robot:active, wave:admin\n");
     text.append("Transport: HTTP POST JSON-RPC. Request body can be one object or an array. Response body is always an array in request order.\n\n");
     text.append("Robot Management REST API\n");
     text.append("Base: /api/robots (same Bearer token auth)\n");
@@ -1337,7 +1364,8 @@ public final class ApiDocsServlet extends HttpServlet {
     text.append("- ").append(RPC_ALIAS_PATH).append(" remains live for compatibility.\n");
     text.append("- ").append(LLMS_FULL_PATH).append(" is the canonical LLM-friendly reference path.\n");
     text.append("- ").append(LLM_ALIAS_PATH).append(" remains live as a backward-compatible alias.\n");
-    text.append("- Do not advertise wavelet.create or DataApiOAuthServlet as the current public API.\n");
+    text.append("- Do not advertise wavelet.create as a supported create method; use robot.createWavelet.\n");
+    text.append("- OAuth-based robot auth (DataApiOAuthServlet) has been removed. JWT Bearer via ").append(TOKEN_PATH).append(" is the only supported auth.\n");
     return text.toString();
   }
 
