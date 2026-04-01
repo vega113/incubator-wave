@@ -197,16 +197,16 @@ via `docker exec` and writes a gzip archive to
 host by running the provided helper:
 
 ```bash
-# On the Contabo host, from a local clone of the repo:
+# On the Contabo host, from a local clone or checkout of the repo:
 cd /path/to/incubator-wave
 ./deploy/mongo/install-cron.sh
 ```
 
-The installer copies `backup.sh` and `restore.sh` to
-`/home/ubuntu/supawave/shared/mongo/` and registers the following crontab
-entry (CRON_TZ=UTC):
+The installer copies `backup.sh` and `restore.sh` into
+`/home/ubuntu/supawave/shared/mongo/` (the persistent shared directory, not
+the per-release bundle) and registers the following crontab entry:
 
-```
+```bash
 CRON_TZ=UTC
 0 */6 * * * /home/ubuntu/supawave/shared/mongo/backup.sh >> /home/ubuntu/supawave/shared/logs/backup.log 2>&1 # wave-mongo-backup
 ```
@@ -241,14 +241,15 @@ mongorestore` so no host-side `mongorestore` binary is required.
 **Restore drill (scratch container):** Before relying on the backup pipeline,
 validate a backup against a throwaway container:
 
-1. Start a scratch Mongo container on a spare port:
+1. Start a scratch Mongo container (no port published — private network only):
    ```bash
-   docker run -d --name mongo-scratch -p 27018:27017 mongo:6.0
+   docker run -d --name mongo-scratch mongo:6.0
    ```
-2. Pipe the latest backup into it:
+2. Restore the latest backup using `restore.sh`:
    ```bash
-   docker exec -i mongo-scratch mongorestore --archive --gzip --drop \
-     < /home/ubuntu/supawave/shared/mongo/backups/<latest>.archive.gz
+   LATEST=$(ls -1t /home/ubuntu/supawave/shared/mongo/backups/wiab-*.archive.gz | head -1)
+   MONGO_CONTAINER=mongo-scratch \
+     /home/ubuntu/supawave/shared/mongo/restore.sh --yes "$LATEST"
    ```
 3. Verify collections and document counts:
    ```bash
