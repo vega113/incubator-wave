@@ -20,18 +20,16 @@ set -euo pipefail
 
 cmd=${1:-deploy}
 script_dir=$(cd "$(dirname "$0")" && pwd)
-release_dir="$script_dir"
-deploy_root=$(dirname "$(dirname "$release_dir")")
-project_name=${PROJECT_NAME:-supawave}
+deploy_root=${DEPLOY_ROOT:-$(dirname "$(dirname "$script_dir")")}
 canonical_host=${CANONICAL_HOST:-supawave.ai}
 root_host=${ROOT_HOST:-wave.supawave.ai}
 www_host=${WWW_HOST:-www.supawave.ai}
-internal_port=${WAVE_INTERNAL_PORT:-9898}
 smoke_image=${SMOKE_IMAGE:-curlimages/curl:8.10.1}
 sanity_image=${SANITY_IMAGE:-alpine:3.20}
 registry_host=${GHCR_REGISTRY_HOST:-ghcr.io}
 deploy_env_file="$deploy_root/shared/deploy.env"
 lock_file="$deploy_root/deploy.lock"
+COMPOSE_FILE="$deploy_root/releases/current/compose.yml"
 
 require_docker() {
   command -v docker >/dev/null 2>&1 || {
@@ -46,8 +44,10 @@ require_docker() {
 
 ensure_layout() {
   mkdir -p "$deploy_root"/incoming
-  mkdir -p "$deploy_root"/releases
-  mkdir -p "$deploy_root"/shared/{accounts,attachments,caddy-config,caddy-data,certificates,deltas,indexes,logs,mongo/db,sessions}
+  mkdir -p "$deploy_root"/releases/{current,previous,blue,green}
+  mkdir -p "$deploy_root"/shared/{accounts,attachments,caddy-config,caddy-data,certificates,deltas,logs,mongo/db}
+  mkdir -p "$deploy_root"/shared/indexes/{blue,green}
+  mkdir -p "$deploy_root"/shared/sessions/{blue,green}
 }
 
 load_deploy_env() {
@@ -85,22 +85,6 @@ retry() {
   done
 }
 
-activate_release() {
-  ln -sfn "$release_dir" "$deploy_root/current"
-}
-
-remember_previous_release() {
-  if [[ -L "$deploy_root/current" ]]; then
-    ln -sfn "$(readlink -f "$deploy_root/current")" "$deploy_root/previous"
-    # Remember the image currently running so rollback can restore it
-    local current_image
-    current_image=$(docker inspect --format='{{.Config.Image}}' "${project_name}-wave-1" 2>/dev/null || true)
-    if [[ -n "$current_image" ]]; then
-      printf '%s' "$current_image" > "$deploy_root/previous_image"
-    fi
-  fi
-}
-
 login_registry_if_needed() {
   if [[ -n "${GHCR_USERNAME:-}" && -n "${GHCR_TOKEN:-}" ]]; then
     printf '%s' "$GHCR_TOKEN" | docker login "$registry_host" -u "$GHCR_USERNAME" --password-stdin >/dev/null
@@ -108,62 +92,188 @@ login_registry_if_needed() {
 }
 
 pull_image() {
-  local image_ref="${WAVE_IMAGE:-supawave-wave:$(basename "$release_dir")}"
-  # Flush DNS cache to clear any stale entries before pulling
+  local image_ref="${WAVE_IMAGE:?WAVE_IMAGE must be set}"
   systemd-resolve --flush-caches 2>/dev/null || true
-  # Retry docker pull up to 3 times with 15s backoff to handle transient DNS failures
   retry docker pull "$image_ref" >/dev/null
 }
 
-render_application_config() {
-  local app_config="$release_dir/application.conf"
-  if [[ -f "$app_config" ]]; then
-    perl -0pi -e 's/wave\.example\.test/'"$canonical_host"'/g' "$app_config"
+# ---------------------------------------------------------------------------
+# Blue-green helpers
+# ---------------------------------------------------------------------------
+
+detect_project_name() {
+  if [ -n "${PROJECT_NAME:-}" ]; then
+    : # already set from deploy.env or env
+  elif [ -n "${COMPOSE_PROJECT_NAME:-}" ]; then
+    PROJECT_NAME="$COMPOSE_PROJECT_NAME"
+  else
+    PROJECT_NAME=$(basename "$deploy_root")
+    PROJECT_NAME="${PROJECT_NAME:-wave}"
+  fi
+  export COMPOSE_PROJECT_NAME="$PROJECT_NAME"
+}
+
+dc() {
+  docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" "$@"
+}
+
+determine_target_slot() {
+  local active
+  active=$(cat "$deploy_root/shared/active-slot" 2>/dev/null || echo "blue")
+  if [ "$active" = "blue" ]; then
+    TARGET_SLOT="green"
+    TARGET_PORT=9899
+    ACTIVE_SLOT="blue"
+  else
+    TARGET_SLOT="blue"
+    TARGET_PORT=9898
+    ACTIVE_SLOT="green"
   fi
 }
 
-_do_compose_up() {
-  # --wait blocks until every service with a healthcheck reports healthy.
-  # Combined with the wave service's deploy.update_config.order=start-first,
-  # Docker Compose will start the new container, wait for it to become healthy,
-  # and only then stop the old one — achieving zero-downtime rolling updates.
-  DEPLOY_ROOT="$deploy_root" \
-  WAVE_IMAGE="${WAVE_IMAGE:-supawave-wave:$(basename "$release_dir")}" \
-  WAVE_SERVER_VERSION="${WAVE_SERVER_VERSION:-$(basename "$release_dir")}" \
-  CANONICAL_HOST="$canonical_host" \
-  ROOT_HOST="$root_host" \
-  WWW_HOST="$www_host" \
-  WAVE_INTERNAL_PORT="$internal_port" \
-  RESEND_API_KEY="${RESEND_API_KEY:-}" \
-  WAVE_EMAIL_FROM="${WAVE_EMAIL_FROM:-noreply@${canonical_host}}" \
-  WAVE_MAIL_PROVIDER="${WAVE_MAIL_PROVIDER:-logging}" \
-    docker compose --project-name "$project_name" -f "$release_dir/compose.yml" up -d --remove-orphans --wait --wait-timeout 420
+cancel_cooldown() {
+  local systemd_scope=""
+  if [ "$(id -u)" -ne 0 ]; then
+    systemd_scope="--user"
+  fi
+  systemctl $systemd_scope stop "wave-cooldown.service" 2>/dev/null || true
+  systemctl $systemd_scope stop "wave-cooldown.timer" 2>/dev/null || true
 }
 
-compose_up() {
-  # Retry is used to handle transient DNS failures when pulling images
-  retry _do_compose_up
+activate_release() {
+  local release_dir="$deploy_root/releases/current"
+  local previous_dir="$deploy_root/releases/previous"
+  if [ -d "$release_dir" ] && [ -f "$release_dir/compose.yml" ]; then
+    rm -rf "$previous_dir"
+    cp -a "$release_dir" "$previous_dir"
+  fi
+  mkdir -p "$release_dir"
+  for f in compose.yml Caddyfile deploy.sh application.conf; do
+    if [ -f "$deploy_root/incoming/$f" ]; then
+      cp "$deploy_root/incoming/$f" "$release_dir/"
+    fi
+  done
+  [ -f "$release_dir/deploy.sh" ] && chmod +x "$release_dir/deploy.sh"
 }
 
-check_readyz() {
-  # Wave no longer binds to a host port; reach it through the compose network.
-  docker run --rm --network "${project_name}_default" "$smoke_image" -fsSI --max-time 5 "http://wave:${internal_port}/readyz" >/dev/null
+migrate_to_blue_green() {
+  if [ -f "$deploy_root/shared/active-slot" ]; then
+    echo "[deploy] Already migrated (active-slot exists). Skipping."
+    return 0
+  fi
+
+  load_deploy_env 2>/dev/null || true
+  detect_project_name
+
+  local old_compose="$deploy_root/releases/previous/compose.yml"
+  if [ ! -f "$old_compose" ]; then
+    echo "[deploy] No previous compose file — fresh install"
+    echo "blue" > "$deploy_root/shared/active-slot"
+    return 0
+  fi
+
+  local current_image
+  current_image=$(docker compose -f "$old_compose" -p "$PROJECT_NAME" \
+    images wave --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | head -1)
+  if [ -z "$current_image" ] || [ "$current_image" = ":" ]; then
+    echo "[deploy] No running 'wave' service found — fresh install"
+    echo "blue" > "$deploy_root/shared/active-slot"
+    return 0
+  fi
+
+  echo "[deploy] Migrating to blue-green..."
+  docker compose -f "$old_compose" -p "$PROJECT_NAME" stop wave
+  docker compose -f "$old_compose" -p "$PROJECT_NAME" rm -f wave
+
+  local f
+  for f in "$deploy_root/shared/indexes"/*; do
+    [ -f "$f" ] && mv "$f" "$deploy_root/shared/indexes/blue/" 2>/dev/null || true
+  done
+  for f in "$deploy_root/shared/sessions"/*; do
+    [ -f "$f" ] && mv "$f" "$deploy_root/shared/sessions/blue/" 2>/dev/null || true
+  done
+
+  echo "blue" > "$deploy_root/shared/active-slot"
+  echo "$current_image" > "$deploy_root/releases/blue/image-ref"
+  if [ -f "$deploy_root/releases/previous/application.conf" ]; then
+    cp "$deploy_root/releases/previous/application.conf" \
+       "$deploy_root/releases/blue/application.conf"
+  fi
+
+  cat > "$deploy_root/shared/upstream.caddy" <<'UPSTREAM'
+reverse_proxy wave-blue:9898 {
+    health_uri /healthz
+    health_interval 2s
+    health_timeout 3s
+    lb_try_duration 5s
+    lb_try_interval 250ms
+}
+UPSTREAM
+
+  export WAVE_IMAGE_BLUE="$current_image"
+  dc up -d wave-blue caddy
+  echo "[deploy] Migration complete. Active slot: blue"
 }
 
-check_proxy() {
-  docker run --rm --network host "$smoke_image" -fsSI --max-time 5 -H "Host: ${canonical_host}" http://127.0.0.1/ >/dev/null
-  docker run --rm --network host "$smoke_image" -fsSI --max-time 5 -H "Host: ${root_host}" http://127.0.0.1/ >/dev/null
-  docker run --rm --network host "$smoke_image" -fsSI --max-time 5 -H "Host: ${www_host}" http://127.0.0.1/ >/dev/null
+ensure_caddy_bootstrap() {
+  if [ ! -f "$deploy_root/shared/upstream.caddy" ]; then
+    local active
+    active=$(cat "$deploy_root/shared/active-slot" 2>/dev/null || echo "blue")
+    generate_upstream "$active"
+  fi
+  if ! dc ps caddy --format json 2>/dev/null | grep -q '"running"'; then
+    dc up -d caddy
+  fi
 }
 
-wait_for_ready() {
-  # Wait for the Wave server to start and pass health checks.
-  # Server needs ~20-30s to load all wavelets from MongoDB on startup.
-  for _ in $(seq 1 90); do
-    if check_readyz; then
+generate_upstream() {
+  local slot=$1
+  # Write in-place — Docker bind mounts pin to the original inode.
+  # Using mv would create a new inode that Docker doesn't follow.
+  cat > "$deploy_root/shared/upstream.caddy" <<UPSTREAM
+# active: ${slot}
+reverse_proxy wave-${slot}:9898 {
+    health_uri /healthz
+    health_interval 2s
+    health_timeout 3s
+    lb_try_duration 5s
+    lb_try_interval 250ms
+}
+UPSTREAM
+}
+
+reload_caddy() {
+  dc exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+}
+
+render_slot_config() {
+  local slot=$1
+  local slot_dir="$deploy_root/releases/${slot}"
+  mkdir -p "$slot_dir"
+  cp "$deploy_root/releases/current/application.conf" "$slot_dir/application.conf"
+  perl -pi -e "s/wave\\.example\\.test/${canonical_host}/g" "$slot_dir/application.conf"
+  echo "${WAVE_IMAGE:?}" > "$slot_dir/image-ref"
+}
+
+start_target_slot() {
+  export "WAVE_IMAGE_${TARGET_SLOT^^}=${WAVE_IMAGE:?}"
+  if [ "$TARGET_SLOT" = "green" ]; then
+    dc --profile green up -d "wave-${TARGET_SLOT}"
+  else
+    dc up -d "wave-${TARGET_SLOT}"
+  fi
+}
+
+wait_for_slot_health() {
+  local port=$1
+  local retries=90
+  local i=0
+  while [ $i -lt $retries ]; do
+    if curl -sf "http://localhost:${port}/healthz" > /dev/null 2>&1; then
       return 0
     fi
     sleep 2
+    i=$((i + 1))
   done
   return 1
 }
@@ -172,8 +282,10 @@ sanity_check() {
   # Application-level sanity: login, search, fetch a wave.
   # Credentials come from GitHub Secrets via environment variables.
   # If not configured, skip gracefully (opt-in gate).
+  # In blue-green mode, SANITY_PORT overrides the default port.
   local addr="${SANITY_ADDRESS:-}"
   local pass="${SANITY_PASSWORD:-}"
+  local port="${SANITY_PORT:-9898}"
   if [[ -z "$addr" && -z "$pass" ]]; then
     echo "[deploy] SANITY_ADDRESS/SANITY_PASSWORD not set, skipping sanity check"
     return 0
@@ -183,18 +295,13 @@ sanity_check() {
     return 1
   fi
 
-  echo "[deploy] Running sanity check ..."
+  echo "[deploy] Running sanity check on port ${port}..."
 
-  # Run all steps inside a single alpine container with curl+jq on the
-  # compose network so we can reach the wave service by hostname.
-  # Export and pass variable names only so values are inherited from the
-  # environment and not embedded in the docker argv (visible via ps).
-  # Override SANITY_IMAGE with a pre-built image containing curl+jq to
-  # avoid the runtime apk add dependency on Alpine repos.
-  export INTERNAL_PORT="${internal_port}"
+  export INTERNAL_PORT="${port}"
   export SANITY_ADDR="${addr}"
   export SANITY_PASS="${pass}"
-  docker run --rm --network "${project_name}_default" \
+  # Use host network so we can reach the specific slot's host-mapped port
+  docker run --rm --network host \
     -e INTERNAL_PORT \
     -e SANITY_ADDR \
     -e SANITY_PASS \
@@ -212,7 +319,7 @@ sanity_check() {
       fi
     fi
 
-    BASE="http://wave:${INTERNAL_PORT}"
+    BASE="http://localhost:${INTERNAL_PORT}"
     ADDR="$SANITY_ADDR"
     PASS="$SANITY_PASS"
     COOKIE=/tmp/c.txt
@@ -252,7 +359,6 @@ sanity_check() {
     echo "[sanity] search OK — found wave: $WAVE_ID"
 
     # --- Step 3: Fetch top wave ------------------------------------------
-    # Wave IDs use ! separator (e.g. domain!w+id) but fetch URL uses /
     FETCH_PATH=$(printf "%s" "$WAVE_ID" | sed "s|!|/|g")
     if ! FETCH_RESP=$(curl -sS -b "$COOKIE" -w "\n%{http_code}" --max-time 10 \
       "$BASE/fetch/$FETCH_PATH"); then
@@ -275,75 +381,192 @@ sanity_check() {
   '
 }
 
-_do_rollback_compose() {
-  local rollback_image="$1"
-  local previous_release="$2"
-  DEPLOY_ROOT="$deploy_root" \
-  WAVE_IMAGE="$rollback_image" \
-  WAVE_SERVER_VERSION="${WAVE_SERVER_VERSION:-$(basename "$previous_release")}" \
-  CANONICAL_HOST="$canonical_host" \
-  ROOT_HOST="$root_host" \
-  WWW_HOST="$www_host" \
-  WAVE_INTERNAL_PORT="$internal_port" \
-  RESEND_API_KEY="${RESEND_API_KEY:-}" \
-  WAVE_EMAIL_FROM="${WAVE_EMAIL_FROM:-noreply@${canonical_host}}" \
-  WAVE_MAIL_PROVIDER="${WAVE_MAIL_PROVIDER:-logging}" \
-    docker compose --project-name "$project_name" -f "$deploy_root/current/compose.yml" up -d --remove-orphans --wait --wait-timeout 420
+sanity_check_slot() {
+  local port=$1
+  SANITY_PORT=$port sanity_check
+}
+
+post_swap_smoke() {
+  local retries=10
+  local i=0
+  while [ $i -lt $retries ]; do
+    if curl -sf --resolve "${canonical_host}:443:127.0.0.1" \
+            "https://${canonical_host}/healthz" > /dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+    i=$((i + 1))
+  done
+  if [ $i -ge $retries ]; then
+    echo "[deploy] ERROR: proxy health check failed after $retries retries"
+    return 1
+  fi
+
+  local redirect_status
+  redirect_status=$(curl -so /dev/null -w "%{http_code}" \
+    --resolve "${root_host}:443:127.0.0.1" \
+    "https://${root_host}/" 2>/dev/null || echo "000")
+  if [ "$redirect_status" != "301" ] && [ "$redirect_status" != "308" ]; then
+    echo "[deploy] WARNING: root host redirect returned $redirect_status (expected 301/308)"
+  fi
+
+  return 0
+}
+
+schedule_cooldown() {
+  local old_slot=$1
+  local systemd_scope=""
+  if [ "$(id -u)" -ne 0 ]; then
+    systemd_scope="--user"
+  fi
+  systemctl $systemd_scope stop "wave-cooldown.service" 2>/dev/null || true
+  if ! systemd-run $systemd_scope --on-active=30min --unit="wave-cooldown" \
+      -- docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" stop "wave-${old_slot}" 2>/dev/null; then
+    echo "[deploy] WARNING: failed to schedule cooldown timer — old slot will stay running"
+  fi
+}
+
+update_state() {
+  echo "$TARGET_SLOT" > "$deploy_root/shared/active-slot"
+  echo "$ACTIVE_SLOT" > "$deploy_root/shared/previous-slot"
+}
+
+# ---------------------------------------------------------------------------
+# Command functions
+# ---------------------------------------------------------------------------
+
+deploy_release() {
+  determine_target_slot
+  echo "[deploy] Deploying to ${TARGET_SLOT} slot (active: ${ACTIVE_SLOT})"
+
+  cancel_cooldown
+  activate_release
+  for req in compose.yml application.conf Caddyfile; do
+    [ -f "$deploy_root/releases/current/$req" ] || {
+      echo "[deploy] ERROR: missing required file: releases/current/$req" >&2
+      exit 1
+    }
+  done
+  detect_project_name
+  migrate_to_blue_green
+  ensure_caddy_bootstrap
+  login_registry_if_needed
+  pull_image
+  render_slot_config "$TARGET_SLOT"
+  start_target_slot
+
+  if ! wait_for_slot_health "$TARGET_PORT"; then
+    echo "[deploy] ERROR: ${TARGET_SLOT} health check failed"
+    dc stop "wave-${TARGET_SLOT}" 2>/dev/null || true
+    exit 1
+  fi
+
+  if ! sanity_check_slot "$TARGET_PORT"; then
+    echo "[deploy] ERROR: ${TARGET_SLOT} sanity check failed"
+    dc stop "wave-${TARGET_SLOT}" 2>/dev/null || true
+    exit 1
+  fi
+
+  generate_upstream "$TARGET_SLOT"
+  reload_caddy
+
+  if ! post_swap_smoke; then
+    echo "[deploy] ERROR: post-swap smoke failed, reverting"
+    generate_upstream "$ACTIVE_SLOT"
+    reload_caddy
+    dc stop "wave-${TARGET_SLOT}" 2>/dev/null || true
+    exit 1
+  fi
+
+  update_state
+  schedule_cooldown "$ACTIVE_SLOT"
+  echo "[deploy] Deploy complete. Active: ${TARGET_SLOT}"
 }
 
 rollback_release() {
-  if [[ ! -L "$deploy_root/previous" ]]; then
-    echo "No previous release is available for rollback" >&2
+  detect_project_name
+  local prev
+  prev=$(cat "$deploy_root/shared/previous-slot" 2>/dev/null)
+  if [ -z "$prev" ]; then
+    echo "[deploy] ERROR: No previous slot to rollback to"
     exit 1
   fi
 
-  previous_release=$(readlink -f "$deploy_root/previous")
-  if [[ -z "${previous_release:-}" || ! -d "$previous_release" ]]; then
-    echo "Previous release link is broken" >&2
+  local prev_port
+  prev_port=$([ "$prev" = "blue" ] && echo 9898 || echo 9899)
+
+  if ! dc ps "wave-${prev}" --format json 2>/dev/null | grep -q '"running"'; then
+    local prev_image
+    prev_image=$(cat "$deploy_root/releases/${prev}/image-ref" 2>/dev/null)
+    if [ -z "$prev_image" ]; then
+      echo "[deploy] ERROR: No previous image recorded"
+      exit 1
+    fi
+    export "WAVE_IMAGE_${prev^^}=$prev_image"
+    if [ "$prev" = "green" ]; then
+      dc --profile green up -d "wave-${prev}"
+    else
+      dc up -d "wave-${prev}"
+    fi
+    if ! wait_for_slot_health "$prev_port"; then
+      echo "[deploy] ERROR: Previous slot health check failed"
+      exit 1
+    fi
+  fi
+
+  if ! sanity_check_slot "$prev_port"; then
+    echo "[deploy] ERROR: Previous slot sanity check failed — cannot rollback"
     exit 1
   fi
 
-  local rollback_image
-  if [[ -f "$deploy_root/previous_image" ]]; then
-    rollback_image=$(cat "$deploy_root/previous_image")
-  else
-    rollback_image="${WAVE_IMAGE:-supawave-wave:$(basename "$previous_release")}"
+  cancel_cooldown
+  generate_upstream "$prev"
+  reload_caddy
+
+  if ! post_swap_smoke; then
+    echo "[deploy] ERROR: post-rollback proxy smoke failed, reverting"
+    local current_active
+    current_active=$(cat "$deploy_root/shared/active-slot")
+    generate_upstream "$current_active"
+    reload_caddy
+    exit 1
   fi
 
-  ln -sfn "$previous_release" "$deploy_root/current"
-  retry _do_rollback_compose "$rollback_image" "$previous_release"
-
-  wait_for_ready
-  check_proxy
-  echo "Rolled back to $(basename "$previous_release")"
+  local current
+  current=$(cat "$deploy_root/shared/active-slot")
+  echo "$prev" > "$deploy_root/shared/active-slot"
+  echo "$current" > "$deploy_root/shared/previous-slot"
+  schedule_cooldown "$current"
+  echo "[deploy] Rolled back to ${prev}"
 }
 
-deploy_release() {
-  if [[ ! -f "$release_dir/compose.yml" || ! -f "$release_dir/Caddyfile" || ! -f "$release_dir/application.conf" ]]; then
-    echo "Release bundle is incomplete" >&2
-    exit 1
-  fi
-
-  remember_previous_release
-  login_registry_if_needed
-  pull_image
-  render_application_config
-  activate_release
-  if ! compose_up; then
-    echo "Compose startup failed, rolling back" >&2
-    rollback_release
-    exit 1
-  fi
-
-  if wait_for_ready && check_proxy && sanity_check; then
-    echo "Deployed $(basename "$release_dir")"
-    return 0
-  fi
-
-  echo "Smoke checks failed, rolling back" >&2
-  rollback_release
-  exit 1
+show_status() {
+  load_deploy_env
+  detect_project_name
+  local active
+  active=$(cat "$deploy_root/shared/active-slot" 2>/dev/null || echo "unknown")
+  echo "Active slot: $active"
+  echo ""
+  echo "Blue:"
+  echo "  Image: $(cat "$deploy_root/releases/blue/image-ref" 2>/dev/null || echo 'none')"
+  echo "Green:"
+  echo "  Image: $(cat "$deploy_root/releases/green/image-ref" 2>/dev/null || echo 'none')"
+  echo ""
+  echo "Container status:"
+  dc ps wave-blue wave-green 2>/dev/null || echo "  (compose not running)"
+  echo ""
+  echo "Caddy upstream:"
+  grep -m1 "reverse_proxy" "$deploy_root/shared/upstream.caddy" 2>/dev/null || echo "  (not configured)"
+  echo ""
+  echo "Cooldown timer:"
+  local systemd_scope=""
+  [ "$(id -u)" -ne 0 ] && systemd_scope="--user"
+  systemctl $systemd_scope status wave-cooldown.timer 2>/dev/null || echo "  (none active)"
 }
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 require_docker
 ensure_layout
@@ -358,8 +581,11 @@ case "$cmd" in
   rollback)
     rollback_release
     ;;
+  status)
+    show_status
+    ;;
   *)
-    echo "Usage: $0 {deploy|rollback}" >&2
+    echo "Usage: $0 {deploy|rollback|status}" >&2
     exit 2
     ;;
 esac
