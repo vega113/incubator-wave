@@ -1,7 +1,7 @@
 # Blue-Green Deployment Design
 
 **Date:** 2026-04-01
-**Status:** Draft (v2 — post-review)
+**Status:** Draft (v3 — post-review round 2)
 **PR Dependency:** #541 (deploy sanity check)
 
 ## Problem Statement
@@ -142,11 +142,11 @@ deploy.sh status
 
 ### Proposed (dual services)
 
-```yaml
-x-wave-volumes: &wave-volumes
-  - ${DEPLOY_ROOT}/shared/certificates:/opt/wave/_certificates:ro
-  - ${DEPLOY_ROOT}/shared/logs:/opt/wave/logs
+Note: YAML anchors cannot merge list items into another list. All volumes
+are listed explicitly per service. An `x-wave-common` extension block
+documents the shared shape but is NOT referenced via `*` anchors.
 
+```yaml
 x-wave-env: &wave-env
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   WAVE_EMAIL_FROM: ${WAVE_EMAIL_FROM:-}
@@ -184,10 +184,11 @@ services:
       - ${DEPLOY_ROOT}/releases/blue/application.conf:/opt/wave/config/application.conf:ro
       - ${DEPLOY_ROOT}/shared/accounts:/opt/wave/_accounts
       - ${DEPLOY_ROOT}/shared/attachments:/opt/wave/_attachments
+      - ${DEPLOY_ROOT}/shared/certificates:/opt/wave/_certificates:ro
       - ${DEPLOY_ROOT}/shared/deltas:/opt/wave/_deltas
       - ${DEPLOY_ROOT}/shared/indexes/blue:/opt/wave/_indexes
       - ${DEPLOY_ROOT}/shared/sessions/blue:/opt/wave/_sessions
-      - *wave-volumes
+      - ${DEPLOY_ROOT}/shared/logs:/opt/wave/logs
     environment: *wave-env
 
   wave-green:
@@ -207,10 +208,11 @@ services:
       - ${DEPLOY_ROOT}/releases/green/application.conf:/opt/wave/config/application.conf:ro
       - ${DEPLOY_ROOT}/shared/accounts:/opt/wave/_accounts
       - ${DEPLOY_ROOT}/shared/attachments:/opt/wave/_attachments
+      - ${DEPLOY_ROOT}/shared/certificates:/opt/wave/_certificates:ro
       - ${DEPLOY_ROOT}/shared/deltas:/opt/wave/_deltas
       - ${DEPLOY_ROOT}/shared/indexes/green:/opt/wave/_indexes
       - ${DEPLOY_ROOT}/shared/sessions/green:/opt/wave/_sessions
-      - *wave-volumes
+      - ${DEPLOY_ROOT}/shared/logs:/opt/wave/logs
     environment: *wave-env
     profiles: ["green"]
 
@@ -240,6 +242,27 @@ Key changes from current:
 - `wave-green` uses `profiles: ["green"]` so it doesn't start by default
 - Both use `scratch` as default image (won't start without explicit image set)
 - Caddy depends on mongo (not wave) since the active slot varies
+
+### `releases/current` Directory
+
+`$DEPLOY_ROOT/releases/current/` contains the **control-plane assets** shared
+across both slots: `compose.yml`, `Caddyfile`, and `deploy.sh`. These are
+NOT slot-specific — they define the infrastructure topology. Each deploy
+overwrites these from the incoming bundle. Slot-specific assets
+(`application.conf`, `image-ref`) live under `releases/{blue,green}/`.
+
+The `deploy.sh deploy` command copies incoming control-plane assets to
+`releases/current/` before starting the target slot:
+
+```bash
+activate_release() {
+    local release_dir="$DEPLOY_ROOT/releases/current"
+    mkdir -p "$release_dir"
+    cp "$DEPLOY_ROOT/incoming/compose.yml" "$release_dir/"
+    cp "$DEPLOY_ROOT/incoming/Caddyfile" "$release_dir/"
+    cp "$DEPLOY_ROOT/incoming/deploy.sh" "$release_dir/"
+}
+```
 
 ### Caddyfile Changes
 
@@ -272,16 +295,35 @@ The swap writes a new `upstream.caddy` pointing to the target slot, then reloads
 
 ### Compose Helper
 
-All docker compose calls go through a helper that pins project name and file:
+All docker compose calls go through a helper that pins project name and file.
+The project name MUST match the existing deployment's project name to avoid
+creating a second stack (which would conflict on ports). Read it from
+`deploy.env` or detect from running containers:
 
 ```bash
 COMPOSE_FILE="$DEPLOY_ROOT/releases/current/compose.yml"
-PROJECT_NAME="wave"
+
+detect_project_name() {
+    # Use configured name if set in deploy.env
+    if [ -n "${COMPOSE_PROJECT_NAME:-}" ]; then
+        PROJECT_NAME="$COMPOSE_PROJECT_NAME"
+    else
+        # Detect from running containers (look for mongo or wave)
+        PROJECT_NAME=$(docker compose ls --format json 2>/dev/null \
+            | jq -r '.[].Name' \
+            | head -1)
+        PROJECT_NAME="${PROJECT_NAME:-wave}"
+    fi
+    export COMPOSE_PROJECT_NAME="$PROJECT_NAME"
+}
 
 dc() {
     docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" "$@"
 }
 ```
+
+The `detect_project_name()` function is called once at the top of every
+command (deploy, rollback, status) after `load_deploy_env()`.
 
 ### New Functions
 
@@ -302,8 +344,12 @@ determine_target_slot() {
 
 cancel_cooldown() {
     # Cancel any existing systemd timer
-    systemctl stop "wave-cooldown.timer" 2>/dev/null || true
-    systemctl disable "wave-cooldown.timer" 2>/dev/null || true
+    local systemd_scope=""
+    if [ "$(id -u)" -ne 0 ]; then
+        systemd_scope="--user"
+    fi
+    systemctl $systemd_scope stop "wave-cooldown.service" 2>/dev/null || true
+    systemctl $systemd_scope stop "wave-cooldown.timer" 2>/dev/null || true
 }
 
 start_target_slot() {
@@ -355,25 +401,65 @@ reload_caddy() {
 }
 
 post_swap_smoke() {
-    # Verify through the proxy (TLS, Host header, redirects, websocket upgrade)
+    # Verify through the proxy: TLS, Host header, redirects, content
     local canonical="${CANONICAL_HOST}"
     local retries=10
     local i=0
+
+    # Use --resolve to test against localhost without DNS dependency
+    # This validates TLS termination, Host header routing, and upstream health
     while [ $i -lt $retries ]; do
-        if curl -sf "https://${canonical}/healthz" > /dev/null 2>&1; then
-            return 0
+        if curl -sf --resolve "${canonical}:443:127.0.0.1" \
+                "https://${canonical}/healthz" > /dev/null 2>&1; then
+            break
         fi
         sleep 2
         i=$((i + 1))
     done
-    return 1
+    if [ $i -ge $retries ]; then
+        log "ERROR: proxy health check failed after $retries retries"
+        return 1
+    fi
+
+    # Verify redirect from root host works
+    local redirect_status
+    redirect_status=$(curl -so /dev/null -w "%{http_code}" \
+        --resolve "${ROOT_HOST}:443:127.0.0.1" \
+        "https://${ROOT_HOST}/" 2>/dev/null || echo "000")
+    if [ "$redirect_status" != "301" ] && [ "$redirect_status" != "308" ]; then
+        log "WARNING: root host redirect returned $redirect_status (expected 301/308)"
+        # Non-fatal: redirect misconfiguration is cosmetic
+    fi
+
+    # Verify WebSocket upgrade is possible (connection upgrade header accepted)
+    local ws_status
+    ws_status=$(curl -so /dev/null -w "%{http_code}" \
+        --resolve "${canonical}:443:127.0.0.1" \
+        -H "Upgrade: websocket" -H "Connection: Upgrade" \
+        -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+        -H "Sec-WebSocket-Version: 13" \
+        "https://${canonical}/socket" 2>/dev/null || echo "000")
+    if [ "$ws_status" != "101" ] && [ "$ws_status" != "400" ]; then
+        log "WARNING: websocket upgrade returned $ws_status (expected 101 or 400)"
+        # Non-fatal: WS endpoint may not be at /socket
+    fi
+
+    return 0
 }
 
 schedule_cooldown() {
     local old_slot=$1
     # Use systemd-run for durable timer (survives SSH disconnect)
-    systemd-run --on-active=30min --unit="wave-cooldown" \
-        docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" stop "wave-${old_slot}"
+    # --user requires loginctl enable-linger for the deploy user;
+    # if running as root or via sudo, omit --user.
+    local systemd_scope=""
+    if [ "$(id -u)" -ne 0 ]; then
+        systemd_scope="--user"
+    fi
+    # Cancel any prior cooldown first
+    systemctl $systemd_scope stop "wave-cooldown.service" 2>/dev/null || true
+    systemd-run $systemd_scope --on-active=30min --unit="wave-cooldown" \
+        -- docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" stop "wave-${old_slot}"
 }
 
 render_slot_config() {
@@ -406,6 +492,7 @@ deploy() {
     # Cancel any existing cooldown BEFORE starting new slot
     cancel_cooldown
 
+    activate_release
     retry pull_image
     render_slot_config "$TARGET_SLOT"
     start_target_slot
@@ -497,7 +584,11 @@ rollback() {
     reload_caddy
 
     if ! post_swap_smoke; then
-        log "ERROR: post-rollback proxy smoke failed"
+        log "ERROR: post-rollback proxy smoke failed, reverting Caddy to current slot"
+        local current_active
+        current_active=$(cat "$DEPLOY_ROOT/shared/active-slot")
+        generate_upstream "$current_active"
+        reload_caddy
         release_lock
         exit 1
     fi
@@ -608,6 +699,8 @@ on:
 
 1. PR #541 (sanity check) must be merged first.
 2. `systemd-run` must be available on the deploy host (standard on systemd-based Linux).
+3. If deploying as a non-root user, `loginctl enable-linger <user>` must be run once
+   so that `systemd-run --user` timers survive SSH disconnect.
 
 ### First Deploy After Migration
 
@@ -617,28 +710,45 @@ on:
 migrate_to_blue_green() {
     local deploy_root="${DEPLOY_ROOT:?}"
 
+    # Guard: skip if already migrated
+    if [ -f "$deploy_root/shared/active-slot" ]; then
+        log "Already migrated (active-slot exists). Skipping."
+        return 0
+    fi
+
     # Create slot-specific directories
     mkdir -p "$deploy_root/releases/blue" "$deploy_root/releases/green"
     mkdir -p "$deploy_root/shared/indexes/blue" "$deploy_root/shared/indexes/green"
     mkdir -p "$deploy_root/shared/sessions/blue" "$deploy_root/shared/sessions/green"
 
-    # Move existing indexes and sessions to blue slot
-    if [ -d "$deploy_root/shared/indexes" ] && [ ! -d "$deploy_root/shared/indexes/blue/segments" ]; then
-        # Move existing index files (not subdirs) to blue
-        find "$deploy_root/shared/indexes" -maxdepth 1 -type f -exec mv {} "$deploy_root/shared/indexes/blue/" \;
-    fi
-    if [ -d "$deploy_root/shared/sessions" ] && [ ! -d "$deploy_root/shared/sessions/blue" ]; then
-        find "$deploy_root/shared/sessions" -maxdepth 1 -type f -exec mv {} "$deploy_root/shared/sessions/blue/" \;
+    # Move existing top-level index files to blue slot (skip blue/green subdirs)
+    local f
+    for f in "$deploy_root/shared/indexes"/*; do
+        [ -f "$f" ] && mv "$f" "$deploy_root/shared/indexes/blue/" 2>/dev/null || true
+    done
+    # Move existing top-level session files to blue slot
+    for f in "$deploy_root/shared/sessions"/*; do
+        [ -f "$f" ] && mv "$f" "$deploy_root/shared/sessions/blue/" 2>/dev/null || true
+    done
+
+    # Detect current running state
+    local current_image
+    current_image=$(docker compose images wave --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | head -1)
+    if [ -z "$current_image" ] || [ "$current_image" = ":" ]; then
+        log "No running 'wave' service found — fresh install, skipping container migration"
+        echo "blue" > "$deploy_root/shared/active-slot"
+        return 0
     fi
 
     # Record current state as blue
-    local current_image
-    current_image=$(docker compose images wave --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | head -1)
     echo "blue" > "$deploy_root/shared/active-slot"
     echo "$current_image" > "$deploy_root/releases/blue/image-ref"
 
     # Copy current config to blue release dir
-    cp "$deploy_root/releases/current/application.conf" "$deploy_root/releases/blue/application.conf"
+    if [ -f "$deploy_root/releases/current/application.conf" ]; then
+        cp "$deploy_root/releases/current/application.conf" \
+           "$deploy_root/releases/blue/application.conf"
+    fi
 
     # Generate initial upstream.caddy pointing to blue
     cat > "$deploy_root/shared/upstream.caddy" <<'UPSTREAM'
@@ -651,16 +761,28 @@ reverse_proxy wave-blue:9898 {
 }
 UPSTREAM
 
-    # Deploy new compose file (renames wave → wave-blue)
+    # Detect project name from running stack
+    local project_name
+    project_name=$(docker compose ls --format json 2>/dev/null \
+        | jq -r '.[].Name' | head -1)
+    project_name="${project_name:-wave}"
+
+    # Start wave-blue with current image, update Caddy
     export WAVE_IMAGE_BLUE="$current_image"
-    docker compose -f "$deploy_root/releases/current/compose.yml" -p wave up -d wave-blue caddy
-    # Old 'wave' container is now orphaned — remove it
-    docker compose -f "$deploy_root/releases/current/compose.yml" -p wave rm -f wave 2>/dev/null || true
+    docker compose -f "$deploy_root/releases/current/compose.yml" \
+        -p "$project_name" up -d wave-blue caddy
+
+    # Remove orphaned old 'wave' container
+    docker compose -f "$deploy_root/releases/current/compose.yml" \
+        -p "$project_name" rm -f wave 2>/dev/null || true
+
+    log "Migration complete. Active slot: blue"
 }
 ```
 
-2. The migration is idempotent — running it twice is safe.
-3. After migration, all subsequent deploys use the blue-green flow automatically.
+2. The migration is guarded by the `active-slot` file — running it twice is a no-op.
+3. Fresh installs (no running `wave` container) skip container migration and just initialize state.
+4. After migration, all subsequent deploys use the blue-green flow automatically.
 
 ## Error Scenarios
 
