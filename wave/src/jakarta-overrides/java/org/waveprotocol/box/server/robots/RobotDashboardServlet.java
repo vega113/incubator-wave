@@ -1089,7 +1089,11 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("}).catch(function(e){if(e)toast(e.message,'err');});}");
 
     // Copy helpers
-    sb.append("function copyText(text,msg){navigator.clipboard.writeText(text).then(function(){toast(msg||'Copied','info');}).catch(function(){toast('Copy failed','err');});}");
+    sb.append("function copyText(text,msg){");
+    sb.append("if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){toast(msg||'Copied','info');}).catch(function(){fallbackCopy(text,msg);});}");
+    sb.append("else{fallbackCopy(text,msg);}}");
+    sb.append("function fallbackCopy(text,msg){var ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;left:-9999px';document.body.appendChild(ta);ta.select();");
+    sb.append("try{document.execCommand('copy');toast(msg||'Copied','info');}catch(e){toast('Copy failed','err');}document.body.removeChild(ta);}");
     sb.append("function copyField(id,msg,val){var v=val||(id?document.getElementById(id).value:'');copyText(v,msg);}");
     sb.append("function copyPrompt(){var el=document.getElementById('ai-prompt');if(!el||!el.textContent.trim()){toast('Generate the prompt first','err');return;}copyText(el.textContent,'Prompt copied');}");
 
