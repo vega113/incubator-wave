@@ -114,9 +114,9 @@ public class RobotDashboardServletTest extends TestCase {
 
     servlet.doGet(req, resp);
 
-    assertTrue(outputWriter.toString().contains("Robot Control Room"));
+    assertTrue(outputWriter.toString().contains("Robot Control Center"));
     assertTrue(outputWriter.toString().contains("robot-bot@example.com"));
-    assertTrue(outputWriter.toString().contains("Google AI Studio / Gemini"));
+    assertTrue(outputWriter.toString().contains("ChatGPT, Claude, or Gemini"));
     assertTrue(outputWriter.toString().contains("SUPAWAVE_DATA_API_TOKEN"));
   }
 

@@ -549,330 +549,403 @@ public final class RobotDashboardServlet extends HttpServlet {
     String safeUser = HtmlRenderer.escapeHtml(userAddress);
     String safeDomain = HtmlRenderer.escapeHtml(domain);
     String safeCtx = HtmlRenderer.escapeHtml(contextPath);
-    StringBuilder sb = new StringBuilder(24576);
+    StringBuilder sb = new StringBuilder(32768);
     sb.append("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">");
     sb.append("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
-    sb.append("<title>Robot Control Room \u2014 SupaWave</title>");
+    sb.append("<title>Robot Control Center \u2014 SupaWave</title>");
     sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">");
     sb.append("<style>");
-    // CSS variables — Wave blue palette
-    sb.append(":root{--b7:#023e8a;--b6:#0077b6;--b5:#0096c7;--b4:#48cae4;--bl:#caf0f8;--bs:#e8f8fc;");
-    sb.append("--g8:#1e293b;--g6:#475569;--g4:#94a3b8;--g2:#e2e8f0;--g1:#f1f5f9;--g0:#f8fafc;");
-    sb.append("--green:#10b981;--red:#ef4444;--rdbg:#fef2f2}");
+    // Design tokens — Hydro-Precision palette (from Stitch design system)
+    sb.append(":root{");
+    sb.append("--p:#005d90;--pc:#0077b6;--s:#00677d;--sc:#50d9fe;");
+    sb.append("--bg:#f6fafe;--sf:#f0f4f8;--card:#fff;--sh:#eaeef2;");
+    sb.append("--txt:#171c1f;--txt2:#404850;--txt3:#707881;--bdr:#bfc7d1;");
+    sb.append("--ok:#10b981;--err:#ba1a1a;--errbg:#ffdad6;");
+    sb.append("--mono:'SF Mono',ui-monospace,Consolas,'Liberation Mono',monospace;");
+    sb.append("--sans:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;");
+    sb.append("--shadow:0 8px 30px rgba(0,99,153,.06);--shadow-hover:0 8px 30px rgba(0,99,153,.10)}");
     sb.append("*{box-sizing:border-box;margin:0;padding:0}");
-    sb.append("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--g0);color:var(--g8);min-height:100vh}");
-    // Hero
-    sb.append(".hero{background:linear-gradient(135deg,var(--b7) 0%,var(--b5) 60%,var(--b4) 100%);padding:40px 48px 72px;position:relative;overflow:hidden}");
-    sb.append(".hero svg{position:absolute;bottom:0;left:0;right:0;display:block}");
-    sb.append(".hbadge{display:inline-block;background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:14px}");
-    sb.append(".hero h1{color:#fff;font-size:30px;font-weight:800;margin-bottom:8px}");
-    sb.append(".hero p{color:rgba(255,255,255,.85);font-size:14px;max-width:500px;line-height:1.6}");
+    sb.append("body{font-family:var(--sans);background:var(--bg);color:var(--txt);min-height:100vh;font-size:13px;line-height:1.5}");
+    sb.append("a{color:var(--p);text-decoration:none}a:hover{text-decoration:underline}");
+    // Header bar — compact, no hero
+    sb.append(".hdr{padding:20px 24px 0;max-width:1140px;margin:0 auto}");
+    sb.append(".hdr-row{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}");
+    sb.append(".hdr h1{font-size:20px;font-weight:700;color:var(--txt)}");
+    sb.append(".hdr-sub{font-size:12px;color:var(--txt3);margin-top:2px}");
+    sb.append(".hdr-line{height:3px;margin-top:16px;border-radius:2px;background:linear-gradient(90deg,var(--p) 0%,var(--pc) 50%,#90e0ef 100%)}");
+    // Primary button (gradient CTA)
+    sb.append(".btn-p{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;border:none;color:#fff;background:linear-gradient(135deg,var(--p),var(--pc));transition:box-shadow .15s,transform .1s}");
+    sb.append(".btn-p:hover{box-shadow:var(--shadow-hover);transform:translateY(-1px)}");
+    sb.append(".btn-p:active{transform:translateY(0)}");
+    // Secondary / outline / icon buttons
+    sb.append(".btn-s{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:var(--sh);color:var(--txt2);transition:all .15s}");
+    sb.append(".btn-s:hover{background:var(--sf);color:var(--p)}");
+    sb.append(".btn-o{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(191,199,209,.4);background:transparent;color:var(--txt2);transition:all .15s}");
+    sb.append(".btn-o:hover{border-color:var(--pc);color:var(--p)}");
+    sb.append(".btn-d{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid rgba(186,26,26,.3);background:transparent;color:var(--err);transition:all .15s}");
+    sb.append(".btn-d:hover{background:var(--errbg)}");
+    sb.append(".btn-icon{padding:5px;border-radius:4px;background:none;border:none;cursor:pointer;color:var(--txt3);display:inline-flex;align-items:center;transition:all .12s}");
+    sb.append(".btn-icon:hover{color:var(--p);background:var(--sf)}");
+    sb.append(".btn-icon svg{width:16px;height:16px}");
     // Layout
-    sb.append(".wrap{max-width:1120px;margin:-36px auto 0;padding:0 20px 60px;display:grid;grid-template-columns:1fr 330px;gap:20px}");
-    sb.append("@media(max-width:860px){.wrap{grid-template-columns:1fr}}");
-    // Card
-    sb.append(".card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,119,182,.07);overflow:hidden}");
-    // Tabs
-    sb.append(".tabs{display:flex;border-bottom:2px solid var(--g2);padding:0 20px}");
-    sb.append(".tab{padding:14px 18px;font-size:13px;font-weight:600;color:var(--g4);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;user-select:none}");
-    sb.append(".tab.on{color:var(--b6);border-bottom-color:var(--b6)}");
-    // Robot row
-    sb.append(".ri{border-bottom:1px solid var(--g1)}.ri:last-child{border-bottom:none}");
-    sb.append(".rh{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;user-select:none}");
-    sb.append(".av{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--bs),var(--bl));display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}");
-    sb.append(".rm{flex:1;min-width:0}");
-    sb.append(".rn{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}");
-    sb.append(".ra{font-size:11px;color:var(--g4);margin-top:2px}");
-    sb.append(".rs{display:flex;gap:14px;margin-top:5px}");
-    sb.append(".rs span{font-size:11px;color:var(--g6)}");
-    sb.append(".rs strong{color:var(--g8)}");
-    sb.append(".pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}");
-    sb.append(".pill::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}");
-    sb.append(".pill.active{background:#d1fae5;color:#065f46}");
-    sb.append(".pill.paused{background:var(--g1);color:var(--g6)}");
-    sb.append(".chev{color:var(--g4);font-size:11px;transition:transform .2s;margin-left:4px;flex-shrink:0}");
-    sb.append(".chev.o{transform:rotate(180deg)}");
-    // Expanded fields
-    sb.append(".rb{padding:4px 20px 14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}");
-    sb.append("@media(max-width:560px){.rb{grid-template-columns:1fr}}");
-    sb.append(".fg{display:flex;flex-direction:column;gap:5px}");
-    sb.append(".fl{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--g4);display:flex;align-items:center;gap:5px}");
-    sb.append(".ii{width:14px;height:14px;border-radius:50%;background:var(--bs);color:var(--b6);display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;cursor:help;flex-shrink:0}");
-    sb.append(".fi{position:relative}");
-    sb.append(".fi input{width:100%;padding:8px 34px 8px 10px;border:1.5px solid var(--g2);border-radius:8px;font-size:13px;color:var(--g8);background:var(--g0);transition:border-color .15s}");
-    sb.append(".fi input:focus{outline:none;border-color:var(--b5);background:#fff}");
-    sb.append(".ic{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;border-radius:5px;color:var(--g4);font-size:14px;line-height:1}");
-    sb.append(".ic:hover{color:var(--b6)}");
-    // Action bar
-    sb.append(".ab{padding:4px 20px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}");
-    sb.append(".btn{display:inline-flex;align-items:center;gap:5px;padding:7px 16px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;white-space:nowrap;transition:all .15s}");
-    sb.append(".bp{background:var(--b6);color:#fff}.bp:hover{background:var(--b7)}");
-    sb.append(".bg{background:var(--g1);color:var(--g6)}.bg:hover{background:var(--g2)}");
-    sb.append(".bo{background:transparent;border:1.5px solid var(--g2);color:var(--g6)}.bo:hover{border-color:var(--b4);color:var(--b6)}");
-    sb.append(".bic{padding:7px;border-radius:7px;background:var(--g1);border:none;cursor:pointer;color:var(--g6);display:inline-flex;line-height:1;font-size:15px;transition:all .15s}");
-    sb.append(".bic:hover{background:var(--bs);color:var(--b6)}");
-    sb.append(".sp{flex:1}");
-    // Danger zone
-    sb.append(".dz{margin:0 20px 14px;padding:14px;background:var(--rdbg);border:1px solid #fecaca;border-radius:8px}");
-    sb.append(".dzt{font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}");
-    sb.append(".dr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}");
-    sb.append(".bd{background:transparent;border:1.5px solid #fca5a5;color:var(--red);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s}");
-    sb.append(".bd:hover{background:#fee2e2}");
-    sb.append(".sdl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--g6)}");
-    sb.append(".sdl input{accent-color:var(--red);width:14px;height:14px}");
-    // Register form
-    sb.append(".rf{padding:22px;display:flex;flex-direction:column;gap:16px}");
-    sb.append(".rf h2{font-size:17px;font-weight:700;color:var(--b7)}");
-    sb.append(".hint{font-size:11px;color:var(--g4);margin-top:3px;line-height:1.5}");
-    // Sidebar
-    sb.append(".sc{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08),0 4px 16px rgba(0,119,182,.07);padding:20px}");
-    sb.append(".sc h3{font-size:15px;font-weight:700;margin-bottom:5px}");
-    sb.append(".sc .sub{font-size:12px;color:var(--g6);line-height:1.5;margin-bottom:14px}");
-    sb.append(".sc .sub a{color:var(--b6);font-weight:600;text-decoration:none}");
-    // Markdown prompt
-    sb.append(".mp{background:var(--g0);border:1.5px solid var(--g2);border-radius:8px;padding:14px;font-size:12px;line-height:1.7;color:var(--g8);max-height:230px;overflow-y:auto}");
-    sb.append(".mp h4{font-size:12px;font-weight:700;color:var(--b7);margin:10px 0 4px}.mp h4:first-child{margin-top:0}");
-    sb.append(".mp p{margin-bottom:4px}");
-    sb.append(".mp code{background:var(--bs);color:var(--b7);padding:1px 5px;border-radius:4px;font-size:10px;font-family:'SF Mono',Consolas,monospace}");
-    sb.append(".mp ul{padding-left:16px}.mp li{margin-bottom:2px}");
-    sb.append(".pf{display:flex;justify-content:flex-end;margin-top:10px}");
+    sb.append(".main{max-width:1140px;margin:0 auto;padding:16px 24px 60px}");
+    // Card with tonal lift
+    sb.append(".card{background:var(--card);border-radius:4px;box-shadow:var(--shadow)}");
+    // Tabs — clean underline
+    sb.append(".tabs{display:flex;gap:0;padding:0 20px;background:var(--card);border-radius:4px 4px 0 0}");
+    sb.append(".tab{padding:12px 20px;font-size:12px;font-weight:600;color:var(--txt3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;user-select:none;letter-spacing:.02em;transition:color .12s}");
+    sb.append(".tab:hover{color:var(--txt2)}");
+    sb.append(".tab.on{color:var(--p);border-bottom-color:var(--p);box-shadow:0 1px 4px rgba(0,93,144,.15)}");
+    sb.append(".tab-line{height:1px;background:var(--sh)}");
+    // Tab panels
+    sb.append(".tpanel{display:none}.tpanel.on{display:block}");
+    // Robot table — all info visible
+    sb.append(".rtable{width:100%;border-collapse:separate;border-spacing:0}");
+    sb.append(".rtable th{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);padding:10px 12px;text-align:left;background:var(--sf)}");
+    sb.append(".rtable td{padding:10px 12px;vertical-align:top;font-size:13px}");
+    sb.append(".rtable tbody tr{transition:background .1s}");
+    sb.append(".rtable tbody tr:hover{background:var(--sf)}");
+    sb.append(".rtable .mono{font-family:var(--mono);font-size:11px;color:var(--txt2);word-break:break-all}");
+    // Status micro-chip
+    sb.append(".chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}");
+    sb.append(".chip::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}");
+    sb.append(".chip.active{background:rgba(16,185,129,.12);color:#065f46}");
+    sb.append(".chip.paused{background:rgba(112,120,129,.12);color:var(--txt3)}");
+    // Robot name cell
+    sb.append(".rname{font-weight:600;font-size:13px;color:var(--txt)}");
+    sb.append(".raddr{font-family:var(--mono);font-size:10px;color:var(--txt3);margin-top:1px}");
+    // Actions cell
+    sb.append(".acts{display:flex;gap:2px;align-items:center}");
+    // Inline edit input
+    sb.append(".ied{font-family:var(--mono);font-size:11px;padding:4px 6px;border:1px solid rgba(191,199,209,.4);border-radius:3px;background:var(--card);color:var(--txt2);width:100%;max-width:220px;transition:border-color .15s}");
+    sb.append(".ied:focus{outline:none;border-color:var(--p);box-shadow:0 0 0 2px rgba(0,93,144,.08)}");
+    sb.append(".ied[readonly]{border-color:transparent;background:var(--sf);cursor:default}");
+    // Two-column layout for API & Tokens
+    sb.append(".grid2{display:grid;grid-template-columns:1fr 340px;gap:20px;padding:20px}");
+    sb.append("@media(max-width:860px){.grid2{grid-template-columns:1fr}}");
+    // Section titles
+    sb.append(".sec-title{font-size:14px;font-weight:700;color:var(--txt);margin-bottom:4px}");
+    sb.append(".sec-desc{font-size:12px;color:var(--txt3);line-height:1.6;margin-bottom:16px}");
+    // Code block (dark)
+    sb.append(".codeblock{background:#1e293b;color:#e2e8f0;border-radius:4px;padding:16px;font-family:var(--mono);font-size:11px;line-height:1.7;overflow-x:auto;position:relative;white-space:pre-wrap;word-break:break-word}");
+    sb.append(".codeblock .cb-btn{position:absolute;top:8px;right:8px;padding:4px 10px;border-radius:3px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#94a3b8;transition:all .15s}");
+    sb.append(".codeblock .cb-btn:hover{background:rgba(255,255,255,.15);color:#fff}");
+    // API reference table
+    sb.append(".api-tbl{width:100%;border-collapse:collapse;font-size:12px}");
+    sb.append(".api-tbl th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--txt3);padding:6px 8px;text-align:left;border-bottom:1px solid var(--sh)}");
+    sb.append(".api-tbl td{padding:6px 8px;border-bottom:1px solid var(--sf);vertical-align:top}");
+    sb.append(".api-tbl .method{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--p)}");
+    sb.append(".api-tbl .path{font-family:var(--mono);font-size:11px;color:var(--txt2)}");
+    // Ref card
+    sb.append(".refcard{background:var(--sf);border-radius:4px;padding:16px}");
+    sb.append(".refcard h4{font-size:12px;font-weight:700;color:var(--txt);margin-bottom:8px}");
     // Token row
-    sb.append(".tr{display:flex;gap:6px;margin-top:4px}");
-    sb.append(".ti{flex:1;padding:8px 10px;border:1.5px solid var(--g2);border-radius:8px;font-size:11px;color:var(--g4);background:var(--g0);font-family:monospace;min-width:0}");
+    sb.append(".tok-row{display:flex;gap:8px;align-items:center}");
+    sb.append(".tok-input{flex:1;padding:8px 10px;border:1px solid rgba(191,199,209,.4);border-radius:3px;font-family:var(--mono);font-size:11px;color:var(--txt2);background:var(--card);min-width:0}");
+    sb.append(".tok-input:focus{outline:none;border-color:var(--p)}");
+    // Onboarding steps
+    sb.append(".steps{list-style:none;counter-reset:step}");
+    sb.append(".steps li{counter-increment:step;display:flex;gap:12px;align-items:flex-start;padding:10px 0;font-size:13px;color:var(--txt)}");
+    sb.append(".steps li::before{content:counter(step);flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--p);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}");
+    // Doc links row
+    sb.append(".doc-links{display:flex;gap:12px;flex-wrap:wrap}");
+    sb.append(".doc-link{flex:1;min-width:160px;padding:14px;border-radius:4px;background:var(--sf);text-align:center;transition:box-shadow .15s}");
+    sb.append(".doc-link:hover{box-shadow:var(--shadow);text-decoration:none}");
+    sb.append(".doc-link .dl-icon{width:20px;height:20px;margin:0 auto 6px;color:var(--p)}");
+    sb.append(".doc-link .dl-label{font-size:12px;font-weight:600;color:var(--txt)}");
+    // Centered content for onboarding
+    sb.append(".centered{max-width:760px;margin:0 auto;padding:24px}");
+    sb.append(".centered .card-section{background:var(--card);border-radius:4px;box-shadow:var(--shadow);padding:24px;margin-bottom:20px}");
+    // Modal overlay
+    sb.append(".modal-overlay{display:none;position:fixed;inset:0;background:rgba(23,28,31,.5);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)}");
+    sb.append(".modal-overlay.open{display:flex}");
+    sb.append(".modal{background:var(--card);border-radius:4px;box-shadow:0 20px 60px rgba(0,93,144,.15);width:480px;max-width:calc(100vw - 40px);max-height:calc(100vh - 40px);overflow-y:auto}");
+    sb.append(".modal-hdr{padding:20px 24px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--sh)}");
+    sb.append(".modal-hdr h2{font-size:16px;font-weight:700;color:var(--txt)}");
+    sb.append(".modal-close{background:none;border:none;cursor:pointer;color:var(--txt3);padding:4px;border-radius:4px;display:flex;transition:color .12s}");
+    sb.append(".modal-close:hover{color:var(--txt)}");
+    sb.append(".modal-close svg{width:18px;height:18px}");
+    sb.append(".modal-body{padding:20px 24px}");
+    sb.append(".modal-foot{padding:16px 24px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--sh)}");
+    // Form fields
+    sb.append(".fg{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}");
+    sb.append(".fg:last-child{margin-bottom:0}");
+    sb.append(".fl{font-size:11px;font-weight:600;color:var(--txt2);display:flex;align-items:center;gap:4px}");
+    sb.append(".fl .req{color:var(--err);font-weight:800}");
+    sb.append(".fi{width:100%;padding:8px 10px;border:1px solid rgba(191,199,209,.4);border-radius:3px;font-size:13px;color:var(--txt);background:var(--card);font-family:var(--sans);transition:border-color .15s}");
+    sb.append(".fi:focus{outline:none;border-color:var(--p);box-shadow:0 0 0 2px rgba(0,93,144,.08)}");
+    sb.append(".fi-suffix{display:flex;align-items:center}");
+    sb.append(".fi-suffix input{border-radius:3px 0 0 3px;border-right:none}");
+    sb.append(".fi-suffix .suffix{padding:8px 10px;font-size:12px;color:var(--txt3);background:var(--sf);border:1px solid rgba(191,199,209,.4);border-left:none;border-radius:0 3px 3px 0;white-space:nowrap}");
+    sb.append(".hint{font-size:11px;color:var(--txt3);line-height:1.5}");
+    // Count badge on tab
+    sb.append(".tbadge{font-size:10px;font-weight:700;background:var(--sf);color:var(--txt3);padding:1px 6px;border-radius:10px;margin-left:6px}");
+    sb.append(".tab.on .tbadge{background:rgba(0,93,144,.1);color:var(--p)}");
     // Toast
-    sb.append(".tc{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:999;pointer-events:none}");
-    sb.append(".toast{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;color:#fff;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.2);min-width:260px;animation:si .25s ease}");
-    sb.append(".toast.ok{background:#064e3b;border-left:4px solid var(--green)}");
-    sb.append(".toast.err{background:#7f1d1d;border-left:4px solid var(--red)}");
-    sb.append(".toast.info{background:#1e3a5f;border-left:4px solid var(--b5)}");
-    sb.append("@keyframes si{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}");
-    sb.append(".rc{display:flex;flex-direction:column;gap:16px}");
-    // Empty state
-    sb.append(".empty{text-align:center;padding:48px 20px;color:var(--g4)}");
-    sb.append(".empty .ei{font-size:48px;margin-bottom:12px}");
-    // Loading
-    sb.append(".loading{text-align:center;padding:40px;color:var(--g4);font-size:14px}");
+    sb.append(".tc{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:200;pointer-events:none}");
+    sb.append(".toast{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:4px;color:#fff;font-size:12px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.18);min-width:240px;animation:si .2s ease;pointer-events:auto}");
+    sb.append(".toast.ok{background:#064e3b;border-left:3px solid var(--ok)}");
+    sb.append(".toast.err{background:#7f1d1d;border-left:3px solid var(--err)}");
+    sb.append(".toast.info{background:#1e3a5f;border-left:3px solid var(--pc)}");
+    sb.append("@keyframes si{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}");
+    // Empty + loading
+    sb.append(".empty{text-align:center;padding:48px 20px;color:var(--txt3)}");
+    sb.append(".empty svg{width:40px;height:40px;margin-bottom:12px;color:var(--bdr)}");
+    sb.append(".empty h3{font-size:14px;font-weight:600;margin-bottom:4px}");
+    sb.append(".loading{text-align:center;padding:40px;color:var(--txt3);font-size:13px}");
+    // Responsive mobile
+    sb.append("@media(max-width:700px){.hdr{padding:16px 16px 0}.main{padding:12px 16px 40px}");
+    sb.append(".rtable{display:block;overflow-x:auto}.tabs{padding:0 12px;overflow-x:auto}");
+    sb.append(".tab{padding:10px 14px;white-space:nowrap}.grid2{grid-template-columns:1fr;padding:16px}}");
     sb.append("</style></head><body>");
 
-    // Hero
-    sb.append("<div class=\"hero\">");
-    sb.append("<div class=\"hbadge\">Automation</div>");
-    sb.append("<h1>Robot Control Room</h1>");
-    sb.append("<p>Register robots, manage their endpoints, and generate LLM-ready starter prompts with short-lived API tokens.</p>");
-    sb.append("<svg viewBox=\"0 0 1440 52\" preserveAspectRatio=\"none\" height=\"52\">");
-    sb.append("<path d=\"M0,26 C240,52 480,0 720,26 C960,52 1200,0 1440,26 L1440,52 L0,52 Z\" fill=\"#f8fafc\"/>");
-    sb.append("</svg></div>");
+    // ——— Compact header bar (no hero) ———
+    sb.append("<div class=\"hdr\">");
+    sb.append("<div class=\"hdr-row\">");
+    sb.append("<div><h1>Robot Control Center</h1>");
+    sb.append("<div class=\"hdr-sub\">Manage automation robots for ").append(safeUser).append("</div></div>");
+    sb.append("<button class=\"btn-p\" onclick=\"openModal()\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\"><line x1=\"12\" y1=\"5\" x2=\"12\" y2=\"19\"/><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg> Register New Robot</button>");
+    sb.append("</div>");
+    sb.append("<div class=\"hdr-line\"></div></div>");
 
-    // Wrap
-    sb.append("<div class=\"wrap\">");
-    // Left: main card
-    sb.append("<div><div class=\"card\">");
+    // ——— Main content area ———
+    sb.append("<div class=\"main\">");
+    // Tabs — 3 tabs, no duplication
     sb.append("<div class=\"tabs\">");
-    sb.append("<div class=\"tab on\" onclick=\"st('r')\">My Robots</div>");
-    sb.append("<div class=\"tab\" onclick=\"st('n')\">Register New</div>");
+    sb.append("<div class=\"tab on\" data-tab=\"robots\" onclick=\"switchTab('robots')\">My Robots<span class=\"tbadge\" id=\"rcnt\"></span></div>");
+    sb.append("<div class=\"tab\" data-tab=\"api\" onclick=\"switchTab('api')\">API &amp; Tokens</div>");
+    sb.append("<div class=\"tab\" data-tab=\"onboard\" onclick=\"switchTab('onboard')\">AI Onboarding</div>");
+    sb.append("</div><div class=\"tab-line\"></div>");
+
+    // ——— Tab 1: My Robots — full data table ———
+    sb.append("<div class=\"tpanel on card\" id=\"tp-robots\" style=\"border-radius:0 0 4px 4px\">");
+    sb.append("<div id=\"robots-content\"><div class=\"loading\">Loading robots\u2026</div></div>");
     sb.append("</div>");
 
-    // My Robots panel
-    sb.append("<div id=\"pr\"><div class=\"loading\" id=\"robots-loading\">Loading robots\u2026</div></div>");
-
-    // Register New panel
-    sb.append("<div id=\"pn\" style=\"display:none\">");
-    sb.append("<div class=\"rf\">");
-    sb.append("<h2>Register New Robot</h2>");
-    // Username
-    sb.append("<div class=\"fg\">");
-    sb.append("<div class=\"fl\">Robot Username <span class=\"ii\" title=\"Forms the address username@").append(safeDomain).append(". Use lowercase letters, numbers and hyphens only.\">i</span></div>");
-    sb.append("<div class=\"fi\"><input id=\"reg-username\" placeholder=\"helper-bot\"/></div>");
-    sb.append("<div class=\"hint\">Forms <strong>username@").append(safeDomain).append("</strong></div>");
+    // ——— Tab 2: API & Tokens ———
+    sb.append("<div class=\"tpanel card\" id=\"tp-api\" style=\"border-radius:0 0 4px 4px\">");
+    sb.append("<div class=\"grid2\">");
+    // Left column: Token Generator
+    sb.append("<div>");
+    sb.append("<div class=\"sec-title\">Generate Data API Token</div>");
+    sb.append("<div class=\"sec-desc\">Create a short-lived JWT for authenticating robot API calls. Tokens expire in 1 hour and are not stored.</div>");
+    sb.append("<div style=\"margin-bottom:12px\"><label class=\"fl\" style=\"margin-bottom:6px\">Select Robot</label>");
+    sb.append("<select class=\"fi\" id=\"tok-robot\" style=\"cursor:pointer\"><option value=\"\">Loading\u2026</option></select></div>");
+    sb.append("<div class=\"tok-row\">");
+    sb.append("<button class=\"btn-p\" onclick=\"genVisibleTok()\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4\"/></svg> Generate Token</button>");
     sb.append("</div>");
-    // Description
-    sb.append("<div class=\"fg\">");
-    sb.append("<div class=\"fl\">Description (optional)</div>");
-    sb.append("<div class=\"fi\"><input id=\"reg-description\" placeholder=\"What does this robot do?\"/></div>");
+    sb.append("<div id=\"tok-output\" style=\"display:none;margin-top:14px\">");
+    sb.append("<label class=\"fl\" style=\"margin-bottom:4px\">Generated Token</label>");
+    sb.append("<div class=\"tok-row\">");
+    sb.append("<input class=\"tok-input\" id=\"tok\" readonly placeholder=\"Token will appear here\"/>");
+    sb.append("<button class=\"btn-icon\" onclick=\"copyField('tok','Token copied')\" title=\"Copy\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\"/><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\"/></svg></button>");
     sb.append("</div>");
-    // Callback URL
-    sb.append("<div class=\"fg\">");
-    sb.append("<div class=\"fl\">Callback URL (optional) <span class=\"ii\" title=\"Leave blank to mint credentials first. You can add the URL after deployment without rotating the secret.\">i</span></div>");
-    sb.append("<div class=\"fi\"><input type=\"url\" id=\"reg-callback\" placeholder=\"https://example.com/robot\"/></div>");
-    sb.append("<div class=\"hint\">\uD83D\uDCA1 Leave blank to mint credentials first \u2014 activate the callback URL after deployment.</div>");
-    sb.append("</div>");
-    // Token Expiry
-    sb.append("<div class=\"fg\">");
-    sb.append("<div class=\"fl\">Token Expiry (seconds) <span class=\"ii\" title=\"How long client_credentials JWTs stay valid. Default 3600 = 1 hour. Use 0 for no expiry (not recommended).\">i</span></div>");
-    sb.append("<div class=\"fi\"><input type=\"number\" id=\"reg-expiry\" value=\"3600\"/></div>");
-    sb.append("</div>");
-    sb.append("<button class=\"btn bp\" style=\"align-self:flex-start;padding:10px 26px;font-size:13px\" onclick=\"registerRobot()\">Create Robot</button>");
+    sb.append("<div class=\"hint\" style=\"margin-top:6px\" id=\"tok-expiry\"></div>");
     sb.append("</div></div>");
-
-    sb.append("</div></div>"); // end card, left col
-
-    // Right sidebar — only visible on Register tab
-    sb.append("<div class=\"rc\" id=\"sb\" style=\"display:none\">");
-
-    // Build with AI card
-    sb.append("<div class=\"sc\">");
-    sb.append("<h3>\uD83E\uDD16 Build with AI</h3>");
-    sb.append("<p class=\"sub\">Copy into ChatGPT, Claude, or Gemini to scaffold a SupaWave robot agent for <a href=\"#\">").append(safeUser).append("</a>.</p>");
-    sb.append("<div class=\"mp\">");
-    sb.append("<h4>Build a SupaWave Robot</h4>");
-    sb.append("<p>Use these environment variables to connect to SupaWave:</p>");
-    sb.append("<ul>");
-    sb.append("<li><code>SUPAWAVE_BASE_URL</code> \u2014 <code>").append(HtmlRenderer.escapeHtml(baseUrl)).append("</code></li>");
-    sb.append("<li><code>SUPAWAVE_DATA_API_URL</code> \u2014 <code>/robot/dataapi/rpc</code></li>");
-    sb.append("<li><code>SUPAWAVE_DATA_API_TOKEN</code> \u2014 <code>eyJh\u2026 (1-hour JWT)</code></li>");
-    sb.append("<li><code>SUPAWAVE_API_DOCS_URL</code> \u2014 <code>/api-docs</code></li>");
-    sb.append("<li><code>SUPAWAVE_LLM_DOCS_URL</code> \u2014 <code>/api/llm.txt</code></li>");
-    sb.append("</ul>");
-    sb.append("<h4>Robot Registration API</h4>");
-    sb.append("<p>Use <code>POST /api/robots</code> with a Bearer token to register and manage robots programmatically \u2014 no UI required. Full spec at <code>/api-docs</code>.</p>");
-    sb.append("<h4>Instructions</h4>");
-    sb.append("<p>Read the docs at <code>SUPAWAVE_LLM_DOCS_URL</code>, then implement a robot that receives Wave events via WebSocket and replies through the Data API. Keep tokens short-lived and rotate secrets regularly.</p>");
-    sb.append("</div>");
-    sb.append("<div class=\"pf\">");
-    sb.append("<button class=\"btn bo\" style=\"font-size:11px\" onclick=\"copyPrompt()\">📋 Copy Prompt</button>");
+    // Right column: Quick Reference
+    sb.append("<div>");
+    sb.append("<div class=\"refcard\" style=\"margin-bottom:16px\">");
+    sb.append("<h4>API Endpoints</h4>");
+    sb.append("<table class=\"api-tbl\">");
+    sb.append("<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead><tbody>");
+    sb.append("<tr><td class=\"method\">GET</td><td class=\"path\">/api/robots</td><td>List your robots</td></tr>");
+    sb.append("<tr><td class=\"method\">POST</td><td class=\"path\">/api/robots</td><td>Register new robot</td></tr>");
+    sb.append("<tr><td class=\"method\">PUT</td><td class=\"path\">/api/robots/{id}/url</td><td>Update callback URL</td></tr>");
+    sb.append("<tr><td class=\"method\">POST</td><td class=\"path\">/api/robots/{id}/rotate</td><td>Rotate secret</td></tr>");
+    sb.append("<tr><td class=\"method\">POST</td><td class=\"path\">/api/robots/{id}/verify</td><td>Test connectivity</td></tr>");
+    sb.append("<tr><td class=\"method\">DELETE</td><td class=\"path\">/api/robots/{id}</td><td>Delete robot</td></tr>");
+    sb.append("</tbody></table></div>");
+    sb.append("<div class=\"refcard\">");
+    sb.append("<h4>Authentication</h4>");
+    sb.append("<div class=\"hint\" style=\"margin-bottom:8px\">Include a Bearer token in the Authorization header:</div>");
+    sb.append("<code style=\"font-family:var(--mono);font-size:11px;color:var(--p);background:var(--bg);padding:6px 10px;border-radius:3px;display:block\">Authorization: Bearer eyJhbG...</code>");
     sb.append("</div></div>");
+    sb.append("</div></div>"); // end grid2, end tp-api
 
-    // API Token card
-    sb.append("<div class=\"sc\">");
-    sb.append("<h3>\uD83D\uDD11 API Token</h3>");
-    sb.append("<p class=\"sub\">Short-lived JWT for the Data API or robot registration API. Expires in 1 hour.</p>");
-    sb.append("<div class=\"tr\">");
-    sb.append("<input class=\"ti\" id=\"tok\" placeholder=\"Click Generate to create a token\" readonly/>");
-    sb.append("<button class=\"btn bp\" style=\"padding:8px 14px;font-size:12px\" onclick=\"genVisibleTok()\">Generate</button>");
-    sb.append("<button class=\"bic\" onclick=\"copyField('tok','Token copied')\" title=\"Copy token\">📋</button>");
-    sb.append("</div>");
-    sb.append("<div class=\"hint\" style=\"margin-top:7px\">Tokens are generated fresh each time and expire in 1 hour.</div>");
-    sb.append("</div>");
+    // ——— Tab 3: AI Onboarding ———
+    sb.append("<div class=\"tpanel\" id=\"tp-onboard\">");
+    sb.append("<div class=\"centered\">");
+    sb.append("<div class=\"card-section\">");
+    sb.append("<div class=\"sec-title\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--p)\" stroke-width=\"2\" stroke-linecap=\"round\" style=\"vertical-align:-3px;margin-right:6px\"><path d=\"M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z\"/></svg>Build a Robot with AI</div>");
+    sb.append("<div class=\"sec-desc\">Copy the prompt below into ChatGPT, Claude, or Gemini to build a Wave robot in minutes.</div>");
+    sb.append("<div class=\"codeblock\" id=\"ai-prompt\">");
+    sb.append("<button class=\"cb-btn\" onclick=\"copyPrompt()\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\"/><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\"/></svg> Copy</button>");
+    sb.append("Build a SupaWave Robot\n\n");
+    sb.append("Environment variables:\n");
+    sb.append("  SUPAWAVE_BASE_URL=").append(HtmlRenderer.escapeHtml(baseUrl)).append("\n");
+    sb.append("  SUPAWAVE_DATA_API_URL=/robot/dataapi/rpc\n");
+    sb.append("  SUPAWAVE_DATA_API_TOKEN=eyJh... (generate on API &amp; Tokens tab)\n");
+    sb.append("  SUPAWAVE_API_DOCS_URL=/api-docs\n");
+    sb.append("  SUPAWAVE_LLM_DOCS_URL=/api/llm.txt\n\n");
+    sb.append("The robot communicates via the Data API:\n");
+    sb.append("  GET  /api/data/wave/{waveId}        - Read wave content\n");
+    sb.append("  POST /api/data/wave/{waveId}/reply   - Post a reply\n");
+    sb.append("  GET  /api/data/search?q=...           - Search waves\n\n");
+    sb.append("Instructions:\n");
+    sb.append("  1. Read docs at SUPAWAVE_LLM_DOCS_URL\n");
+    sb.append("  2. Authenticate with Bearer token\n");
+    sb.append("  3. Receive wave events via callback URL\n");
+    sb.append("  4. Process messages and respond via Data API\n");
+    sb.append("  5. Keep tokens short-lived, rotate secrets regularly");
+    sb.append("</div></div>");
+    // Getting Started
+    sb.append("<div class=\"card-section\">");
+    sb.append("<div class=\"sec-title\">Getting Started</div>");
+    sb.append("<ol class=\"steps\">");
+    sb.append("<li>Register your robot using the \"Register New Robot\" button</li>");
+    sb.append("<li>Generate an API token on the \"API &amp; Tokens\" tab</li>");
+    sb.append("<li>Copy the AI prompt above and paste into your AI assistant</li>");
+    sb.append("<li>Deploy your bot and set the callback URL on the \"My Robots\" tab</li>");
+    sb.append("<li>Test connectivity using the verify button on your robot row</li>");
+    sb.append("</ol></div>");
+    // Documentation links
+    sb.append("<div class=\"card-section\">");
+    sb.append("<div class=\"sec-title\">Documentation</div>");
+    sb.append("<div class=\"doc-links\">");
+    sb.append("<a class=\"doc-link\" href=\"").append(safeCtx).append("/api-docs\">");
+    sb.append("<div class=\"dl-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/></svg></div>");
+    sb.append("<div class=\"dl-label\">API Reference</div></a>");
+    sb.append("<a class=\"doc-link\" href=\"").append(safeCtx).append("/api/llm.txt\">");
+    sb.append("<div class=\"dl-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M4 19.5A2.5 2.5 0 0 1 6.5 17H20\"/><path d=\"M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z\"/></svg></div>");
+    sb.append("<div class=\"dl-label\">Robot Guide</div></a>");
+    sb.append("<a class=\"doc-link\" href=\"https://waveprotocol.org\" target=\"_blank\" rel=\"noopener\">");
+    sb.append("<div class=\"dl-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/><polyline points=\"15 3 21 3 21 9\"/><line x1=\"10\" y1=\"14\" x2=\"21\" y2=\"3\"/></svg></div>");
+    sb.append("<div class=\"dl-label\">Wave Protocol</div></a>");
+    sb.append("</div></div>");
+    sb.append("</div></div>"); // end centered, end tp-onboard
 
-    sb.append("</div>"); // end sidebar
+    sb.append("</div>"); // end main
 
-    sb.append("</div>"); // end wrap
+    // ——— Register modal (not a tab) ———
+    sb.append("<div class=\"modal-overlay\" id=\"reg-modal\">");
+    sb.append("<div class=\"modal\">");
+    sb.append("<div class=\"modal-hdr\"><h2>Register New Robot</h2>");
+    sb.append("<button class=\"modal-close\" onclick=\"closeModal()\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg></button></div>");
+    sb.append("<div class=\"modal-body\">");
+    sb.append("<div class=\"fg\">");
+    sb.append("<label class=\"fl\"><span class=\"req\">*</span> Robot Username</label>");
+    sb.append("<div class=\"fi-suffix\"><input class=\"fi\" id=\"reg-username\" placeholder=\"helper-bot\"/><span class=\"suffix\">@").append(safeDomain).append("</span></div>");
+    sb.append("<div class=\"hint\">Lowercase letters, numbers, hyphens only</div></div>");
+    sb.append("<div class=\"fg\">");
+    sb.append("<label class=\"fl\">Description</label>");
+    sb.append("<input class=\"fi\" id=\"reg-description\" placeholder=\"What does this robot do?\"/></div>");
+    sb.append("<div class=\"fg\">");
+    sb.append("<label class=\"fl\">Callback URL</label>");
+    sb.append("<input class=\"fi\" id=\"reg-callback\" type=\"url\" placeholder=\"https://example.com/robot\"/>");
+    sb.append("<div class=\"hint\">Leave blank to mint credentials first. Add URL after deployment.</div></div>");
+    sb.append("<div class=\"fg\">");
+    sb.append("<label class=\"fl\">Token Expiry</label>");
+    sb.append("<div class=\"fi-suffix\"><input class=\"fi\" type=\"number\" id=\"reg-expiry\" value=\"3600\"/><span class=\"suffix\">seconds</span></div>");
+    sb.append("<div class=\"hint\">JWT validity period. Default 3600 = 1 hour.</div></div>");
+    sb.append("</div>"); // end modal-body
+    sb.append("<div class=\"modal-foot\">");
+    sb.append("<button class=\"btn-o\" onclick=\"closeModal()\">Cancel</button>");
+    sb.append("<button class=\"btn-p\" onclick=\"registerRobot()\">Create Robot</button>");
+    sb.append("</div></div></div>"); // end modal
 
     // Toast container
     sb.append("<div class=\"tc\" id=\"tc\"></div>");
 
-    // JavaScript — all API-driven
+    // ——— JavaScript ———
     sb.append("<script>");
-    // State
     sb.append("var apiToken=null,robotsData=[];");
     sb.append("var CTX='").append(safeCtx).append("';");
 
-    // Toast
-    sb.append("function toast(msg,type){type=type||'ok';");
-    sb.append("var tc=document.getElementById('tc');var d=document.createElement('div');");
-    sb.append("d.className='toast '+type;");
-    sb.append("var icon=type==='ok'?'\u2713':type==='err'?'\u2715':'\u2139';");
-    sb.append("d.innerHTML=icon+' '+esc(msg);tc.prepend(d);setTimeout(function(){d.remove()},3500);}");
+    // SVG icon map (no emoji)
+    sb.append("var ICO={");
+    sb.append("play:'<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polygon points=\"5 3 19 12 5 21 5 3\"/></svg>',");
+    sb.append("rotate:'<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"23 4 23 10 17 10\"/><path d=\"M20.49 15a9 9 0 1 1-2.12-9.36L23 10\"/></svg>',");
+    sb.append("pause:'<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"/><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"/></svg>',");
+    sb.append("trash:'<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"3 6 5 6 21 6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/></svg>',");
+    sb.append("copy:'<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"9\" width=\"13\" height=\"13\" rx=\"2\" ry=\"2\"/><path d=\"M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1\"/></svg>',");
+    sb.append("save:'<svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z\"/><polyline points=\"17 21 17 13 7 13 7 21\"/><polyline points=\"7 3 7 8 15 8\"/></svg>'};");
 
-    // Escape HTML (safe for text nodes)
+    // Toast notification
+    sb.append("function toast(msg,type){type=type||'ok';");
+    sb.append("var tc=document.getElementById('tc'),d=document.createElement('div');");
+    sb.append("d.className='toast '+type;d.textContent=(type==='ok'?'\\u2713 ':type==='err'?'\\u2715 ':'\\u2139 ')+msg;");
+    sb.append("tc.prepend(d);setTimeout(function(){d.remove()},3500);}");
+
+    // HTML escape
     sb.append("function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}");
-    // Escape for HTML attribute values (additionally encodes double-quote)
     sb.append("function escAttr(s){return esc(s).replace(/\"/g,'&quot;');}");
 
+    // Tab switching — 3 tabs
+    sb.append("function switchTab(name){");
+    sb.append("document.querySelectorAll('.tab').forEach(function(el){el.classList.toggle('on',el.dataset.tab===name);});");
+    sb.append("document.querySelectorAll('.tpanel').forEach(function(el){el.classList.toggle('on',el.id==='tp-'+name);});");
+    sb.append("if(name==='api')populateRobotSelect();}");
 
-    // Tab switching
-    sb.append("function st(t){");
-    sb.append("document.getElementById('pr').style.display=t==='r'?'':'none';");
-    sb.append("document.getElementById('pn').style.display=t==='n'?'':'none';");
-    sb.append("document.getElementById('sb').style.display=t==='n'?'flex':'none';");
-    sb.append("document.querySelectorAll('.tab').forEach(function(el,i){el.className='tab'+(i===(t==='r'?0:1)?' on':'');});");
-    sb.append("}");
+    // Modal open/close
+    sb.append("function openModal(){document.getElementById('reg-modal').classList.add('open');}");
+    sb.append("function closeModal(){document.getElementById('reg-modal').classList.remove('open');}");
+    sb.append("document.getElementById('reg-modal').addEventListener('click',function(e){if(e.target===this)closeModal();});");
 
-    // Toggle card expand/collapse
-    sb.append("function tog(h){");
-    sb.append("var card=h.parentElement;var chev=h.querySelector('.chev');");
-    sb.append("var open=chev.classList.contains('o');");
-    sb.append("card.querySelectorAll('.rb,.ab,.dz').forEach(function(el){el.style.display=open?'none':'';});");
-    sb.append("chev.classList.toggle('o',!open);}");
-
-    // Get API token (session-based)
+    // Session-based token
     sb.append("function getToken(){");
     sb.append("if(apiToken)return Promise.resolve(apiToken);");
     sb.append("return fetch(CTX+'/robot/dataapi/token',{method:'POST',credentials:'same-origin',");
     sb.append("headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'expiry=3600'})");
     sb.append(".then(function(r){if(r.status===401){window.location.href=CTX+'/auth/signin?r=/account/robots';return Promise.reject();}");
-    sb.append("if(!r.ok)throw new Error('Token request failed (HTTP '+r.status+')');return r.json();})");
-    sb.append(".then(function(d){if(!d.access_token)throw new Error('Token endpoint returned no access_token');apiToken=d.access_token;return apiToken;});}");
+    sb.append("if(!r.ok)throw new Error('Token request failed');return r.json();})");
+    sb.append(".then(function(d){if(!d.access_token)throw new Error('No access_token');apiToken=d.access_token;return apiToken;});}");
 
-    // API call helper
+    // API helper
     sb.append("function api(method,path,body){");
     sb.append("return getToken().then(function(tok){");
     sb.append("var opts={method:method,headers:{'Authorization':'Bearer '+tok,'Content-Type':'application/json'}};");
     sb.append("if(body)opts.body=JSON.stringify(body);");
     sb.append("return fetch(CTX+'/api/robots'+(path?'/'+path:''),opts);");
     sb.append("}).then(function(r){");
-    sb.append("if(r.status===401){apiToken=null;toast('Session expired \u2014 reloading\u2026','err');setTimeout(function(){location.reload()},1500);return Promise.reject();}");
-    sb.append("return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Request failed');return d;});");
-    sb.append("});}");
+    sb.append("if(r.status===401){apiToken=null;toast('Session expired','err');setTimeout(function(){location.reload()},1500);return Promise.reject();}");
+    sb.append("return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Request failed');return d;});});}");
 
-    // Load and render robots
+    // Load robots
     sb.append("function loadRobots(){");
     sb.append("api('GET','').then(function(data){");
     sb.append("robotsData=data;renderRobots();");
-    sb.append("}).catch(function(e){if(e)document.getElementById('pr').innerHTML='<div class=\"loading\" style=\"color:var(--red)\">Failed to load robots</div>';});}");
+    sb.append("}).catch(function(e){if(e)document.getElementById('robots-content').innerHTML='<div class=\"loading\" style=\"color:var(--err)\">Failed to load robots</div>';});}");
 
-    // Render robot list
+    // Render robot data table — all info visible, no expand/collapse
     sb.append("function renderRobots(){");
-    sb.append("var c=document.getElementById('pr');");
-    sb.append("if(!robotsData.length){c.innerHTML='<div class=\"empty\"><div class=\"ei\">\uD83D\uDD27</div><h3>No robots yet</h3><p>Switch to Register New to create one.</p></div>';return;}");
-    sb.append("var h='';");
+    sb.append("var c=document.getElementById('robots-content');");
+    sb.append("document.getElementById('rcnt').textContent=robotsData.length||'';");
+    sb.append("if(!robotsData.length){c.innerHTML='<div class=\"empty\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\" ry=\"2\"/><line x1=\"8\" y1=\"21\" x2=\"16\" y2=\"21\"/><line x1=\"12\" y1=\"17\" x2=\"12\" y2=\"21\"/></svg><h3>No robots yet</h3><p>Click \\\"Register New Robot\\\" to create one.</p></div>';return;}");
+    sb.append("var h='<table class=\"rtable\"><thead><tr>';");
+    sb.append("h+='<th>Status</th><th>Robot</th><th>Description</th><th>Callback URL</th><th>Secret</th><th>Created</th><th style=\"width:110px\">Actions</th>';");
+    sb.append("h+='</tr></thead><tbody>';");
     sb.append("robotsData.forEach(function(r,i){");
     sb.append("var p=r.status==='paused';");
     sb.append("var name=r.id.split('@')[0];");
-    sb.append("var updated=r.updatedAt?timeAgo(r.updatedAt):'';");
-    sb.append("var created=r.createdAt?shortDate(r.createdAt):'';");
-    sb.append("h+='<div class=\"ri\"><div class=\"rh\" onclick=\"tog(this)\">';");
-    sb.append("h+='<div class=\"av\">\uD83E\uDD16</div>';");
-    sb.append("h+='<div class=\"rm\">';");
-    sb.append("h+='<div class=\"rn\">'+esc(name)+' <span class=\"pill '+(p?'paused':'active')+'\">'+(p?'Paused':'Active')+'</span></div>';");
-    sb.append("h+='<div class=\"ra\">'+esc(r.id)+'</div>';");
-    sb.append("h+='<div class=\"rs\">';");
-    sb.append("h+='<span>Last active: <strong>'+esc(updated||'unknown')+'</strong></span>';");
-    sb.append("h+='<span>Created <strong>'+esc(created||'unknown')+'</strong></span>';");
-    sb.append("h+='</div></div>';");
-    sb.append("h+='<div class=\"chev\">\u25BE</div></div>';");
-    // Expanded fields (hidden by default)
-    sb.append("h+='<div class=\"rb\" style=\"display:none\">';");
-    // Description
-    sb.append("h+='<div class=\"fg\"><div class=\"fl\">Description <span class=\"ii\" title=\"Visible only to you. Describe what this bot does.\">i</span></div>';");
-    sb.append("h+='<div class=\"fi\"><input id=\"desc-'+i+'\" value=\"'+escAttr(r.description||'')+'\" /><button class=\"ic\" onclick=\"saveDesc('+i+')\" title=\"Save\">\uD83D\uDCBE</button></div></div>';");
-    // Callback URL
-    sb.append("h+='<div class=\"fg\"><div class=\"fl\">Callback URL <span class=\"ii\" title=\"HTTPS endpoint Wave sends events to. Leave blank until deployed.\">i</span></div>';");
-    sb.append("h+='<div class=\"fi\"><input id=\"url-'+i+'\" value=\"'+escAttr(r.callbackUrl||'')+'\" /><button class=\"ic\" onclick=\"saveUrl('+i+')\" title=\"Save\">\uD83D\uDCBE</button></div></div>';");
-    // Consumer Secret — prefer real secret (available right after create/rotate) over masked
-    sb.append("h+='<div class=\"fg\"><div class=\"fl\">Consumer Secret <span class=\"ii\" title=\"OAuth credential for the Data API. Treat like a password.\">i</span></div>';");
-    sb.append("h+='<div class=\"fi\"><input id=\"secret-'+i+'\" value=\"'+escAttr(r.secret||r.maskedSecret||'\u2026')+'\" readonly style=\"color:var(--g4);letter-spacing:.04em\" /><button class=\"ic\" onclick=\"copyField(\\'secret-'+i+'\\',\\'Secret copied\\')\" title=\"Copy\">📋</button></div></div>';");
-    // Token Expiry
-    sb.append("h+='<div class=\"fg\"><div class=\"fl\">Token Expiry (s) <span class=\"ii\" title=\"How long issued JWTs remain valid. Default 3600.\">i</span></div>';");
-    sb.append("h+='<div class=\"fi\"><input type=\"number\" value=\"'+(r.tokenExpirySeconds!=null?r.tokenExpirySeconds:3600)+'\" readonly /></div></div>';");
-    sb.append("h+='</div>';"); // end rb
-    // Action bar
-    sb.append("h+='<div class=\"ab\" style=\"display:none\">';");
-    sb.append("h+='<button class=\"btn bp\" onclick=\"testBot('+i+')\">\\u25B6 Test Bot</button>';");
-    sb.append("h+='<button class=\"btn bo\" onclick=\"rotateSecret('+i+')\">\\u27F3 Rotate Secret</button>';");
-    sb.append("h+='<button class=\"btn bg\" onclick=\"togglePause('+i+')\">'+(p?'\\u25B6 Unpause':'\\u23F8 Pause')+'</button>';");
-    sb.append("h+='<span class=\"sp\"></span>';");
-    sb.append("h+='<button class=\"bic\" onclick=\"copyText(\\''+esc(r.id)+'\\',\\'Address copied\\')\" title=\"Copy robot address\">📋</button>';");
-    sb.append("h+='</div>';");
-    // Danger zone
-    sb.append("h+='<div class=\"dz\" style=\"display:none\">';");
-    sb.append("h+='<div class=\"dzt\">\\u26A0 Danger Zone</div>';");
-    sb.append("h+='<div class=\"dr\">';");
-    sb.append("h+='<label class=\"sdl\"><input type=\"checkbox\" id=\"cd-'+i+'\"> I confirm permanent deletion</label>';");
-    sb.append("h+='<button class=\"bd\" onclick=\"deleteRobot('+i+')\">\uD83D\uDDD1 Delete Robot</button>';");
-    sb.append("h+='</div></div>';");
-    sb.append("h+='</div>';"); // end ri
+    sb.append("var created=r.createdAt?shortDate(r.createdAt):'--';");
+    sb.append("h+='<tr>';");
+    sb.append("h+='<td><span class=\"chip '+(p?'paused':'active')+'\">'+(p?'Paused':'Active')+'</span></td>';");
+    sb.append("h+='<td><div class=\"rname\">'+esc(name)+'</div><div class=\"raddr\">'+esc(r.id)+'</div></td>';");
+    sb.append("h+='<td><div style=\"display:flex;gap:4px;align-items:center\"><input class=\"ied\" id=\"desc-'+i+'\" value=\"'+escAttr(r.description||'')+'\" placeholder=\"--\" />';");
+    sb.append("h+='<button class=\"btn-icon\" onclick=\"saveDesc('+i+')\" title=\"Save\">'+ICO.save+'</button></div></td>';");
+    sb.append("h+='<td><div style=\"display:flex;gap:4px;align-items:center\"><input class=\"ied\" id=\"url-'+i+'\" value=\"'+escAttr(r.callbackUrl||'')+'\" placeholder=\"Not set\" />';");
+    sb.append("h+='<button class=\"btn-icon\" onclick=\"saveUrl('+i+')\" title=\"Save\">'+ICO.save+'</button></div></td>';");
+    sb.append("h+='<td><div style=\"display:flex;gap:4px;align-items:center\"><span class=\"mono\" style=\"font-size:10px\">'+esc(r.secret||r.maskedSecret||'...')+'</span>';");
+    sb.append("h+='<button class=\"btn-icon\" onclick=\"copyField(\\'\\',\\'Secret copied\\',\\''+escAttr(r.secret||r.maskedSecret||'')+'\\')\" title=\"Copy\">'+ICO.copy+'</button></div></td>';");
+    sb.append("h+='<td style=\"font-size:12px;color:var(--txt2);white-space:nowrap\">'+esc(created)+'</td>';");
+    sb.append("h+='<td><div class=\"acts\">';");
+    sb.append("h+='<button class=\"btn-icon\" onclick=\"testBot('+i+')\" title=\"Test\">'+ICO.play+'</button>';");
+    sb.append("h+='<button class=\"btn-icon\" onclick=\"rotateSecret('+i+')\" title=\"Rotate Secret\">'+ICO.rotate+'</button>';");
+    sb.append("h+='<button class=\"btn-icon\" onclick=\"togglePause('+i+')\" title=\"'+(p?'Unpause':'Pause')+'\">'+(p?ICO.play:ICO.pause)+'</button>';");
+    sb.append("h+='<button class=\"btn-icon\" onclick=\"confirmDelete('+i+')\" title=\"Delete\" style=\"color:var(--err)\">'+ICO.trash+'</button>';");
+    sb.append("h+='</div></td></tr>';");
     sb.append("});");
-    sb.append("c.innerHTML=h;");
-    sb.append("}");
+    sb.append("h+='</tbody></table>';");
+    sb.append("h+='<div style=\"padding:10px 12px;font-size:11px;color:var(--txt3)\">'+robotsData.length+' robot'+(robotsData.length!==1?'s':'')+' registered</div>';");
+    sb.append("c.innerHTML=h;}");
 
     // Time helpers
-    sb.append("function timeAgo(iso){try{var d=new Date(iso);var s=Math.floor((Date.now()-d)/1000);");
+    sb.append("function timeAgo(iso){try{var d=new Date(iso),s=Math.floor((Date.now()-d)/1000);");
     sb.append("if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';");
     sb.append("if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}catch(e){return iso;}}");
-    sb.append("function shortDate(iso){try{var d=new Date(iso);return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return iso;}}");
+    sb.append("function shortDate(iso){try{return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch(e){return iso;}}");
 
-    // Robot actions
+    // Robot CRUD actions
     sb.append("function saveDesc(i){var v=document.getElementById('desc-'+i).value;");
     sb.append("api('PUT',robotsData[i].id+'/description',{description:v}).then(function(d){robotsData[i]=d;toast('Description saved');}).catch(function(e){if(e)toast(e.message,'err');});}");
 
@@ -880,22 +953,23 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("if(!v){toast('Callback URL cannot be empty','err');return;}");
     sb.append("api('PUT',robotsData[i].id+'/url',{url:v}).then(function(d){robotsData[i]=d;toast('Callback URL saved');}).catch(function(e){if(e)toast(e.message,'err');});}");
 
-    sb.append("function testBot(i){toast('Bot test initiated\u2026','info');");
-    sb.append("api('POST',robotsData[i].id+'/verify').then(function(d){robotsData[i]=d;toast('Bot verified successfully');renderRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
+    sb.append("function testBot(i){toast('Testing...','info');");
+    sb.append("api('POST',robotsData[i].id+'/verify').then(function(d){robotsData[i]=d;toast('Bot verified');renderRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
 
     sb.append("function rotateSecret(i){");
+    sb.append("if(!confirm('Rotate secret? The old secret stops working immediately.'))return;");
     sb.append("api('POST',robotsData[i].id+'/rotate').then(function(d){");
-    sb.append("robotsData[i]=d;toast('Secret rotated \u2014 copy it from the card now!');renderRobots();");
+    sb.append("robotsData[i]=d;toast('Secret rotated. Copy it now.');renderRobots();");
     sb.append("}).catch(function(e){if(e)toast(e.message,'err');});}");
 
     sb.append("function togglePause(i){var p=robotsData[i].status==='paused';");
     sb.append("api('PUT',robotsData[i].id+'/paused',{paused:String(!p)}).then(function(d){robotsData[i]=d;toast(d.status==='paused'?'Robot paused':'Robot unpaused');renderRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
 
-    sb.append("function deleteRobot(i){var cb=document.getElementById('cd-'+i);");
-    sb.append("if(!cb||!cb.checked){toast('Check the confirmation box first','err');return;}");
+    sb.append("function confirmDelete(i){");
+    sb.append("if(!confirm('Permanently delete '+robotsData[i].id+'? This cannot be undone.'))return;");
     sb.append("api('DELETE',robotsData[i].id).then(function(){toast('Robot deleted');loadRobots();}).catch(function(e){if(e)toast(e.message,'err');});}");
 
-    // Register
+    // Register robot via modal
     sb.append("function registerRobot(){");
     sb.append("var u=document.getElementById('reg-username').value.trim();");
     sb.append("var d=document.getElementById('reg-description').value.trim();");
@@ -903,34 +977,40 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("var _ev=document.getElementById('reg-expiry').value.trim();var e=(_ev===''||isNaN(+_ev))?3600:+_ev;");
     sb.append("if(!u){toast('Username is required','err');return;}");
     sb.append("api('POST','',{username:u,description:d,callbackUrl:c,tokenExpiry:e}).then(function(r){");
-    sb.append("robotsData.unshift(r);renderRobots();");
-    sb.append("toast('Robot created \u2014 copy the secret from the card now!');");
+    sb.append("robotsData.unshift(r);renderRobots();closeModal();");
+    sb.append("toast('Robot created. Copy the secret from the table.');");
     sb.append("document.getElementById('reg-username').value='';");
     sb.append("document.getElementById('reg-description').value='';");
     sb.append("document.getElementById('reg-callback').value='';");
-    sb.append("st('r');");
-    // Reload in background to sync with server (will lose real secret, but by then user has copied it)
+    sb.append("switchTab('robots');");
     sb.append("setTimeout(loadRobots,3000);");
     sb.append("}).catch(function(e){if(e)toast(e.message,'err');});}");
 
     // Copy helpers
     sb.append("function copyText(text,msg){navigator.clipboard.writeText(text).then(function(){toast(msg||'Copied','info');}).catch(function(){toast('Copy failed','err');});}");
     sb.append("function copyField(id,msg,val){var v=val||(id?document.getElementById(id).value:'');copyText(v,msg);}");
-    sb.append("function copyPrompt(){var el=document.querySelector('.mp');copyText(el.innerText,'Prompt copied!');}");
+    sb.append("function copyPrompt(){var el=document.getElementById('ai-prompt');var t=el.innerText.replace(/^\\s*Copy\\s*/,'');copyText(t,'Prompt copied');}");
 
-    // Generate visible token for sidebar
+    // Populate robot select on API tab
+    sb.append("function populateRobotSelect(){");
+    sb.append("var sel=document.getElementById('tok-robot');");
+    sb.append("sel.innerHTML='<option value=\"\">-- Select a robot --</option>';");
+    sb.append("robotsData.forEach(function(r){sel.innerHTML+='<option value=\"'+escAttr(r.id)+'\">'+esc(r.id)+'</option>';});}");
+
+    // Generate visible token
     sb.append("function genVisibleTok(){");
     sb.append("fetch(CTX+'/robot/dataapi/token',{method:'POST',credentials:'same-origin',");
     sb.append("headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'expiry=3600'})");
     sb.append(".then(function(r){if(!r.ok)throw new Error('Token request failed');return r.json();})");
     sb.append(".then(function(d){if(!d.access_token)throw new Error('No token returned');");
-    sb.append("document.getElementById('tok').value=d.access_token;toast('Token generated \u2014 copy it now!');");
+    sb.append("document.getElementById('tok').value=d.access_token;");
+    sb.append("document.getElementById('tok-output').style.display='block';");
+    sb.append("document.getElementById('tok-expiry').textContent='Expires in 1 hour. Not stored.';");
+    sb.append("toast('Token generated','info');");
     sb.append("}).catch(function(){toast('Token generation failed','err');});}");
 
     // Init
     sb.append("loadRobots();");
-    sb.append("setTimeout(function(){toast('Tip: click a robot to expand and edit it','info');},600);");
-
     sb.append("</script></body></html>");
     return sb.toString();
   }
