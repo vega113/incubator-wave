@@ -101,8 +101,8 @@ public final class RobotApiServlet extends HttpServlet {
           req.getHeader("Authorization"), JwtTokenType.DATA_API_ACCESS, JwtAudience.DATA_API,
           requiredScopes);
     } catch (JwtInsufficientScopeException e) {
-      LOG.warning("Insufficient scopes for Robot API", e);
-      sendError(resp, 403, "Insufficient scopes for this operation", "INSUFFICIENT_SCOPES");
+      LOG.warning("Insufficient scope for requested operation", e);
+      sendError(resp, 403, "Insufficient permissions for this operation", "AUTH_INSUFFICIENT_SCOPES");
       return null;
     } catch (JwtValidationException e) {
       LOG.warning("JWT authentication failed", e);

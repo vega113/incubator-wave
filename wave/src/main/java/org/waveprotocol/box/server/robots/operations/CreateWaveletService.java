@@ -107,7 +107,9 @@ public class CreateWaveletService implements OperationService {
     }
 
     // Store the temporary id of the wavelet and rootblip so that future
-    // operations can reference it.
+    // operations can reference it.  Fall back to the server-generated
+    // waveletName when the client omits waveId or waveletId (common for
+    // robot.createWavelet where the server picks the ids).
     try {
       final String clientWaveId = waveletData.getWaveId();
       final String clientWaveletId = waveletData.getWaveletId();
@@ -127,7 +129,11 @@ public class CreateWaveletService implements OperationService {
     } catch (InvalidIdException e) {
       throw new InvalidRequestException("Invalid id", operation, e);
     }
-    context.putBlip(waveletData.getRootBlipId(), rootBlip);
+    String rootBlipId = waveletData.getRootBlipId();
+    if (rootBlipId == null) {
+      rootBlipId = rootBlip.getId();
+    }
+    context.putBlip(rootBlipId, rootBlip);
 
     String message = OperationUtil.getOptionalParameter(operation, ParamsProperty.MESSAGE);
     WaveletCreatedEvent event =

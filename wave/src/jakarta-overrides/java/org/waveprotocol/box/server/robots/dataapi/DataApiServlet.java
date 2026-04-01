@@ -34,11 +34,9 @@ import org.waveprotocol.box.server.robots.OperationServiceRegistry;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.robots.util.OperationUtil;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
-import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
 import java.io.IOException;
-import java.util.Set;
 
 import jakarta.inject.Singleton;
 
@@ -52,6 +50,7 @@ public final class DataApiServlet extends BaseApiServlet {
   private static final Log LOG = Log.get(DataApiServlet.class);
 
   private final JwtRequestAuthenticator jwtAuthenticator;
+  private final JwtKeyRing keyRing;
 
   @Inject
   public DataApiServlet(RobotSerializer robotSerializer,
@@ -59,9 +58,11 @@ public final class DataApiServlet extends BaseApiServlet {
                         WaveletProvider waveletProvider,
                         @Named("DataApiRegistry") OperationServiceRegistry operationRegistry,
                         ConversationUtil conversationUtil,
-                        JwtRequestAuthenticator jwtAuthenticator) {
+                        JwtRequestAuthenticator jwtAuthenticator,
+                        JwtKeyRing keyRing) {
     super(robotSerializer, converterManager, waveletProvider, operationRegistry, conversationUtil);
     this.jwtAuthenticator = jwtAuthenticator;
+    this.keyRing = keyRing;
   }
 
   /**
@@ -100,7 +101,7 @@ public final class DataApiServlet extends BaseApiServlet {
 
       processOpsRequest(req, resp, auth.participant(), auth.scopes());
     } catch (JwtInsufficientScopeException e) {
-      LOG.info("Insufficient scopes for Data API", e);
+      LOG.info("Insufficient scope for Data API", e);
       resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
       return;
     } catch (JwtValidationException e) {

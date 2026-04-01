@@ -191,7 +191,7 @@ public abstract class BaseApiServlet extends HttpServlet {
       case ROBOT_FETCH_PROFILES:
         return OpScopeMapper.OpType.FETCH_WAVE;
 
-      // All document/blip/wavelet modification operations → write scope
+      // All document/blip/wavelet modification operations -> write scope
       default:
         return OpScopeMapper.OpType.MODIFY_WAVELET;
     }

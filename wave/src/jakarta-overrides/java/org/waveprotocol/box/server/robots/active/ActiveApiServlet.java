@@ -24,6 +24,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.waveprotocol.box.server.authentication.jwt.JwtAudience;
 import org.waveprotocol.box.server.authentication.jwt.JwtInsufficientScopeException;
+import org.waveprotocol.box.server.authentication.jwt.JwtKeyRing;
 import org.waveprotocol.box.server.authentication.jwt.JwtRequestAuthenticator;
 import org.waveprotocol.box.server.authentication.jwt.JwtScopes;
 import org.waveprotocol.box.server.authentication.jwt.JwtTokenType;
@@ -32,7 +33,6 @@ import org.waveprotocol.box.server.robots.OperationServiceRegistry;
 import org.waveprotocol.box.server.robots.dataapi.BaseApiServlet;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
-import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
 import java.io.IOException;
@@ -50,6 +50,7 @@ public final class ActiveApiServlet extends BaseApiServlet {
   private static final Log LOG = Log.get(ActiveApiServlet.class);
 
   private final JwtRequestAuthenticator jwtAuthenticator;
+  private final JwtKeyRing keyRing;
 
   @Inject
   public ActiveApiServlet(RobotSerializer robotSerializer,
@@ -57,9 +58,11 @@ public final class ActiveApiServlet extends BaseApiServlet {
                           WaveletProvider waveletProvider,
                           @Named("ActiveApiRegistry") OperationServiceRegistry operationRegistry,
                           ConversationUtil conversationUtil,
-                          JwtRequestAuthenticator jwtAuthenticator) {
+                          JwtRequestAuthenticator jwtAuthenticator,
+                          JwtKeyRing keyRing) {
     super(robotSerializer, converterManager, waveletProvider, operationRegistry, conversationUtil);
     this.jwtAuthenticator = jwtAuthenticator;
+    this.keyRing = keyRing;
   }
 
   @Override
@@ -72,7 +75,7 @@ public final class ActiveApiServlet extends BaseApiServlet {
 
       processOpsRequest(req, resp, auth.participant(), auth.scopes());
     } catch (JwtInsufficientScopeException e) {
-      LOG.info("Insufficient scopes for Active API", e);
+      LOG.info("Insufficient scope for Active API", e);
       resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
       return;
     } catch (JwtValidationException e) {
