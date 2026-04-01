@@ -36,6 +36,12 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSI --max-time 3 http://127.0.0.1:9898/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 300s
     ports:
       - "127.0.0.1:9898:9898"
     volumes:
@@ -52,7 +58,8 @@ services:
     image: caddy:2.8.4-alpine
     restart: unless-stopped
     depends_on:
-      - wave
+      wave:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"

@@ -91,20 +91,63 @@ jobs:
         timeout-minutes: 2
         run: |
           cd target/universal/stage
-          # Ensure port 9898 is free (previous smoke step should have stopped, but guard anyway).
-          # Fail closed: if ss is unavailable or errors, assume port may be in use and wait.
-          for attempt in 1 2 3; do
+          PORT=9898
+          # Wait until $PORT is demonstrably free (fail closed: tool errors
+          # leave port_free=0 so we keep waiting rather than proceeding blind).
+          for attempt in $(seq 1 15); do
+            port_free=0
             if command -v ss >/dev/null 2>&1; then
-              ss -tlnp 'sport = :9898' 2>/dev/null | grep -q LISTEN || break
+              # Capture output and exit code separately; only trust a successful run.
+              if ss_out="$(ss -tlnp "sport = :$PORT" 2>/dev/null)"; then
+                if ! printf '%s\n' "$ss_out" | grep -q LISTEN; then
+                  port_free=1
+                fi
+              fi
+            elif command -v lsof >/dev/null 2>&1; then
+              # lsof exit 0=listener found, 1=no listener, >1=error; only 1 is "free".
+              lsof_exit=0
+              lsof -iTCP:$PORT -sTCP:LISTEN -Pn >/dev/null 2>&1 || lsof_exit=$?
+              if [ "$lsof_exit" -eq 1 ]; then
+                port_free=1
+              fi
             else
-              # ss unavailable — fall back to curl probe (fail closed)
-              curl -s -o /dev/null --max-time 1 http://localhost:9898/ 2>/dev/null || break
+              # bash /dev/tcp: exit 0=connected (in use), 1=refused (free),
+              # other=unsupported — treated as unknown (fail closed, port_free stays 0).
+              # Use || to capture exit code safely under set -e.
+              tcp_exit=0
+              bash -c "exec 6<>/dev/tcp/127.0.0.1/$PORT" >/dev/null 2>&1 || tcp_exit=$?
+              if [ "$tcp_exit" -eq 1 ]; then
+                port_free=1
+              fi
             fi
-            echo "Port 9898 still in use, waiting... (attempt $attempt)"
+            if [ "$port_free" -eq 1 ]; then
+              break
+            fi
+            echo "Port $PORT still in use, waiting... (attempt $attempt)"
             sleep 2
           done
+          # If the port is still occupied after retries, force-kill the listener.
+          # In this CI context the only occupant is the Wave process left by the
+          # preceding smokeInstalled step (which may have timed out and had its
+          # JVM SIGTERM'd by GitHub Actions but not yet fully exited).
+          if [ "$port_free" -ne 1 ]; then
+            echo "Port $PORT still in use after retries; force-killing CI leftover."
+            if command -v ss >/dev/null 2>&1; then
+              ss -tlnp "sport = :$PORT" 2>/dev/null \
+                | grep -oP 'pid=\K[0-9]+' | xargs -r kill -9 2>/dev/null || true
+            elif command -v fuser >/dev/null 2>&1; then
+              fuser -k "$PORT/tcp" 2>/dev/null || true
+            fi
+            sleep 2
+            if command -v ss >/dev/null 2>&1 \
+                && ss -tlnp "sport = :$PORT" 2>/dev/null | grep -q LISTEN; then
+              echo "Port $PORT is still in use after forced kill; aborting."
+              exit 1
+            fi
+          fi
           SERVER_LOG=/tmp/wave-startup.log
           CURL_LOG=/tmp/wave-curl-probe.log
+          : > "$CURL_LOG"
           ./bin/wave > "$SERVER_LOG" 2>&1 &
           SERVER_PID=$!
           cleanup() {
@@ -113,7 +156,7 @@ jobs:
           }
           trap cleanup EXIT
           for i in $(seq 1 30); do
-            STATUS_CODE="$(curl -s -o /dev/null -w '%{http_code}' http://localhost:9898/healthz 2>>"$CURL_LOG" || true)"
+            STATUS_CODE="$(curl --connect-timeout 2 --max-time 4 -sS -o /dev/null -w '%{http_code}' "http://localhost:$PORT/healthz" 2>>"$CURL_LOG" || true)"
             if [ "$STATUS_CODE" = "200" ]; then
               echo "Server started successfully"
               exit 0
