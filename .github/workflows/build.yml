@@ -126,10 +126,24 @@ jobs:
             echo "Port $PORT still in use, waiting... (attempt $attempt)"
             sleep 2
           done
-          # Abort if the port is still bound (or tool status was unknown) after retries.
+          # If the port is still occupied after retries, force-kill the listener.
+          # In this CI context the only occupant is the Wave process left by the
+          # preceding smokeInstalled step (which may have timed out and had its
+          # JVM SIGTERM'd by GitHub Actions but not yet fully exited).
           if [ "$port_free" -ne 1 ]; then
-            echo "Port $PORT is still in use after waiting; aborting startup smoke test."
-            exit 1
+            echo "Port $PORT still in use after retries; force-killing CI leftover."
+            if command -v ss >/dev/null 2>&1; then
+              ss -tlnp "sport = :$PORT" 2>/dev/null \
+                | grep -oP 'pid=\K[0-9]+' | xargs -r kill -9 2>/dev/null || true
+            elif command -v fuser >/dev/null 2>&1; then
+              fuser -k "$PORT/tcp" 2>/dev/null || true
+            fi
+            sleep 2
+            if command -v ss >/dev/null 2>&1 \
+                && ss -tlnp "sport = :$PORT" 2>/dev/null | grep -q LISTEN; then
+              echo "Port $PORT is still in use after forced kill; aborting."
+              exit 1
+            fi
           fi
           SERVER_LOG=/tmp/wave-startup.log
           CURL_LOG=/tmp/wave-curl-probe.log
