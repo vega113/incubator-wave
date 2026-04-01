@@ -105,7 +105,8 @@ check_proxy() {
 }
 
 wait_for_ready() {
-  for _ in $(seq 1 60); do
+  local retries=${SMOKE_RETRIES:-240}
+  for _ in $(seq 1 "$retries"); do
     if check_readyz; then
       return 0
     fi
