@@ -105,7 +105,10 @@ main() {
   local repo_root
   repo_root=$(cd "$script_dir/../.." && pwd)
 
-  local source_conf="$repo_root/deploy/production/limits.conf.prod"
+  local source_conf="$script_dir/limits.conf.prod"
+  if [[ ! -f "$source_conf" ]]; then
+    source_conf="$repo_root/deploy/production/limits.conf.prod"
+  fi
   local limits_dir="/etc/security/limits.d"
   local target_conf="$limits_dir/99-wave.conf"
   local backup_dir="${BACKUP_DIR:-/var/backups/wave-supawave}"

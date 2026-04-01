@@ -158,8 +158,8 @@ run_checks() {
     local swap_size_gb=${SWAP_SIZE_GB:-32}
     local disk_required_mb=$(((swap_size_gb + 1) * 1024))
     check_sudo || failures=$((failures + 1))
-    check_command ssh || log "WARN: ssh not found (not required for provisioning)"
-    check_command java || log "WARN: java not found (not required if Wave runs in Docker)"
+    command -v ssh >/dev/null 2>&1 || log "WARN: ssh not found (not required for provisioning)"
+    command -v java >/dev/null 2>&1 || log "WARN: java not found (not required if Wave runs in Docker)"
     check_docker || failures=$((failures + 1))
     check_disk "/" "$disk_required_mb" || failures=$((failures + 1))
     check_mongo || failures=$((failures + 1))
