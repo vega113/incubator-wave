@@ -202,7 +202,10 @@ sanity_check() {
     set -e
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
       if command -v apk >/dev/null 2>&1; then
-        apk add --no-cache curl jq >/dev/null 2>&1
+        if ! apk add --no-cache curl jq >/dev/null; then
+          echo "[sanity] FAIL: unable to install curl/jq via apk" >&2
+          exit 1
+        fi
       else
         echo "[sanity] FAIL: curl/jq not found and apk unavailable in sanity image"
         exit 1
@@ -215,11 +218,14 @@ sanity_check() {
     COOKIE=/tmp/c.txt
 
     # --- Step 1: Login ---------------------------------------------------
-    HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+    if ! HTTP=$(curl -sS -o /dev/null -w "%{http_code}" \
       -c "$COOKIE" -L --max-time 10 \
       --data-urlencode "address=${ADDR}" \
       --data-urlencode "password=${PASS}" \
-      "$BASE/auth/signin")
+      "$BASE/auth/signin"); then
+      echo "[sanity] FAIL: login request failed" >&2
+      exit 1
+    fi
     if ! grep -q JSESSIONID "$COOKIE" 2>/dev/null; then
       echo "[sanity] FAIL: login did not set JSESSIONID (HTTP $HTTP)"
       exit 1
@@ -230,8 +236,11 @@ sanity_check() {
     DEADLINE=$(( $(date +%s) + 60 ))
     WAVE_ID=""
     while [ "$(date +%s)" -lt "$DEADLINE" ]; do
-      RESP=$(curl -s -b "$COOKIE" --max-time 10 \
-        "$BASE/search/?query=in:inbox&index=0&numResults=1" 2>/dev/null || true)
+      if ! RESP=$(curl -sS -b "$COOKIE" --max-time 10 \
+        "$BASE/search/?query=in:inbox&index=0&numResults=1" 2>&1); then
+        sleep 2
+        continue
+      fi
       WAVE_ID=$(printf "%s" "$RESP" | jq -r ".[\"3\"][0][\"3\"] // empty" 2>/dev/null || true)
       if [ -n "$WAVE_ID" ]; then break; fi
       sleep 2
@@ -245,8 +254,11 @@ sanity_check() {
     # --- Step 3: Fetch top wave ------------------------------------------
     # Wave IDs use ! separator (e.g. domain!w+id) but fetch URL uses /
     FETCH_PATH=$(printf "%s" "$WAVE_ID" | sed "s|!|/|g")
-    FETCH_RESP=$(curl -s -b "$COOKIE" -w "\n%{http_code}" --max-time 10 \
-      "$BASE/fetch/$FETCH_PATH")
+    if ! FETCH_RESP=$(curl -sS -b "$COOKIE" -w "\n%{http_code}" --max-time 10 \
+      "$BASE/fetch/$FETCH_PATH"); then
+      echo "[sanity] FAIL: fetch request failed" >&2
+      exit 1
+    fi
     FETCH_CODE=$(printf "%s" "$FETCH_RESP" | tail -1)
     FETCH_BODY=$(printf "%s" "$FETCH_RESP" | sed "\$d")
     if [ "$FETCH_CODE" != "200" ]; then
