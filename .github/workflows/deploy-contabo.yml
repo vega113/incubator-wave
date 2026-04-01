@@ -168,7 +168,7 @@ jobs:
             chmod +x \"\$incoming/supawave-host/\"*.sh
             if [ \"$action\" = \"deploy\" ]; then
               echo '[deploy] Applying supawave host tuning'
-              sudo BACKUP_DIR='/var/backups/wave-supawave' \"\$incoming/supawave-host/provision.sh\"
+              sudo -n env BACKUP_DIR='/var/backups/wave-supawave' \"\$incoming/supawave-host/provision.sh\"
             fi
             DEPLOY_ROOT='$remote_root' \
             WAVE_IMAGE='$IMAGE_REF' \

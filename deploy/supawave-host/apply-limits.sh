@@ -74,23 +74,23 @@ ensure_pam_limits() {
 validate_limits() {
   local limit_file=$1
   local expected=(
-    "wave soft nofile 131072"
-    "wave hard nofile 262144"
-    "wave soft nproc 65536"
-    "wave hard nproc 65536"
-    "root soft nofile 262144"
-    "root hard nofile 262144"
-    "root soft nproc 65536"
-    "root hard nproc 65536"
-    "* soft nofile 65536"
-    "* hard nofile 131072"
-    "* soft nproc 32768"
-    "* hard nproc 65536"
+    "wave[[:space:]]+soft[[:space:]]+nofile[[:space:]]+131072"
+    "wave[[:space:]]+hard[[:space:]]+nofile[[:space:]]+262144"
+    "wave[[:space:]]+soft[[:space:]]+nproc[[:space:]]+65536"
+    "wave[[:space:]]+hard[[:space:]]+nproc[[:space:]]+65536"
+    "root[[:space:]]+soft[[:space:]]+nofile[[:space:]]+262144"
+    "root[[:space:]]+hard[[:space:]]+nofile[[:space:]]+262144"
+    "root[[:space:]]+soft[[:space:]]+nproc[[:space:]]+65536"
+    "root[[:space:]]+hard[[:space:]]+nproc[[:space:]]+65536"
+    "\\*[[:space:]]+soft[[:space:]]+nofile[[:space:]]+65536"
+    "\\*[[:space:]]+hard[[:space:]]+nofile[[:space:]]+131072"
+    "\\*[[:space:]]+soft[[:space:]]+nproc[[:space:]]+32768"
+    "\\*[[:space:]]+hard[[:space:]]+nproc[[:space:]]+65536"
   )
-  local line
-  for line in "${expected[@]}"; do
-    if ! grep -q -F "$line" "$limit_file"; then
-      log "FAIL: missing limits line: $line"
+  local pattern
+  for pattern in "${expected[@]}"; do
+    if ! grep -Eq "$pattern" "$limit_file"; then
+      log "FAIL: missing limits pattern: $pattern"
       exit 1
     fi
   done
@@ -117,7 +117,7 @@ main() {
 
   mkdir -p "$limits_dir"
   touch "$target_conf"
-  backup_file "$target_conf" "99-wave.conf.orig" "$backup_dir"
+  backup_file "$target_conf" "limits-99-wave.conf.orig" "$backup_dir"
   backup_file "/etc/pam.d/common-session" "common-session.orig" "$backup_dir"
   backup_file "/etc/pam.d/common-session-noninteractive" "common-session-noninteractive.orig" "$backup_dir"
 

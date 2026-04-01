@@ -66,8 +66,8 @@ main() {
   fi
 
   restore_file "/etc/sysctl.conf" "sysctl.conf.orig" "$backup_dir" || true
-  restore_file "/etc/sysctl.d/99-wave.conf" "99-wave.conf.orig" "$backup_dir" || rm -f /etc/sysctl.d/99-wave.conf
-  restore_file "/etc/security/limits.d/99-wave.conf" "99-wave.conf.orig" "$backup_dir" || rm -f /etc/security/limits.d/99-wave.conf
+  restore_file "/etc/sysctl.d/99-wave.conf" "sysctl-99-wave.conf.orig" "$backup_dir" || rm -f /etc/sysctl.d/99-wave.conf
+  restore_file "/etc/security/limits.d/99-wave.conf" "limits-99-wave.conf.orig" "$backup_dir" || rm -f /etc/security/limits.d/99-wave.conf
   restore_file "/etc/pam.d/common-session" "common-session.orig" "$backup_dir" || true
   restore_file "/etc/pam.d/common-session-noninteractive" "common-session-noninteractive.orig" "$backup_dir" || true
   restore_file "/etc/fstab" "fstab.orig" "$backup_dir" || true
