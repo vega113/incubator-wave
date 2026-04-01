@@ -81,9 +81,40 @@ Notes:
 
 SBT is now the sole build system. Gradle has been removed (Phase 8).
 
-The default Jakarta build now compiles without `net.oauth`, and the legacy
-robot, Data API, and import/export OAuth surfaces are intentionally
-unsupported there for now while the replacement moves under the JWT-auth epic.
+The default Jakarta build compiles without `net.oauth`. OAuth-based robot and
+Data API authentication has been removed and replaced with JWT Bearer tokens.
+
+### Robot API Authentication
+
+The Wave server robot API uses JWT Bearer tokens for authentication. Obtain tokens via:
+
+```bash
+POST /robot/dataapi/token?client_id=<robot_id>&client_secret=<secret>&token_type=data_api
+```
+
+Or with form encoding:
+
+```bash
+curl -X POST http://localhost:9898/robot/dataapi/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode 'grant_type=client_credentials' \
+  --data-urlencode 'client_id=robot@example.com' \
+  --data-urlencode 'client_secret=replace-me' \
+  --data-urlencode 'token_type=data_api' \
+  --data-urlencode 'expiry=3600'
+```
+
+The response includes an `access_token` field. Use it in all API requests:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:9898/robot/dataapi/rpc
+```
+
+Token types and scopes:
+- `token_type=data_api` (default): grants `wave:data:read` and `wave:data:write`
+- `token_type=robot`: grants `wave:robot:active` for Active Robot API callbacks
+
+For full API documentation, see `/api-docs` on a running server or the OpenAPI spec at `/api/openapi.json`.
 
 ## Task tracking
 
