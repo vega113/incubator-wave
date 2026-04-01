@@ -46,6 +46,12 @@ rotate_backups() {
 _tmp_path=""
 
 main() {
+  if [[ $# -gt 0 ]]; then
+    log "ERROR: unexpected argument(s): $*"
+    log "archive path is now derived from BACKUP_DIR (${BACKUP_DIR}); do not pass a positional path"
+    exit 1
+  fi
+
   mkdir -p "$BACKUP_DIR"
   check_disk_space
 
