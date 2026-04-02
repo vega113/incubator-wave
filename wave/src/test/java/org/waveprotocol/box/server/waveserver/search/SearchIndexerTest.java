@@ -57,4 +57,21 @@ public final class SearchIndexerTest extends TestCase {
     assertTrue(affected.contains(activeKey));
     assertTrue(affected.contains(unrelatedKey));
   }
+
+  public void testUnregisterRemovesParticipantOwnedSubscriptionsFromAffectedLookup() {
+    SearchIndexer indexer = new SearchIndexer();
+    ParticipantId user = ParticipantId.ofUnsafe("alice@example.com");
+    WaveId changedWave = WaveId.of("example.com", "w+changed");
+    String query = "in:inbox";
+    SearchIndexer.SubscriptionKey key =
+        new SearchIndexer.SubscriptionKey(user, SearchWaveletManager.md5Hex(query));
+
+    indexer.registerSubscription(user, query, key.getQueryHash(), ImmutableSet.of(changedWave));
+    indexer.unregisterSubscription(user, key.getQueryHash());
+
+    Set<SearchIndexer.SubscriptionKey> affected =
+        indexer.getAffectedSubscriptions(changedWave, ImmutableSet.of(user));
+
+    assertFalse(affected.contains(key));
+  }
 }

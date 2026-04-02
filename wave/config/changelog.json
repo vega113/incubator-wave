@@ -1,5 +1,22 @@
 [
   {
+    "releaseId": "2026-04-02-ot-search-public-wave-batching",
+    "version": "PR #TBD",
+    "date": "2026-04-02",
+    "title": "Reduce OT search write amplification on hot public waves",
+    "summary": "OT search now keeps low-latency updates for low-fanout searches while batching hot public-wave updates back to a polling-equivalent cadence with new ops visibility.",
+    "sections": [
+      {
+        "type": "fix",
+        "items": [
+          "Batch high-fanout public OT search updates per wave instead of recomputing every live search subscription on every edit",
+          "Keep low-fanout OT search behavior unchanged and expose batching counters in the admin ops status endpoint",
+          "Speed up affected-subscription lookup with a direct user-to-subscriptions index and add focused coverage for hot-wave and boundary scenarios"
+        ]
+      }
+    ]
+  },
+  {
     "releaseId": "2026-04-02-ot-search-local-seeding",
     "version": "PR #577",
     "date": "2026-04-02",

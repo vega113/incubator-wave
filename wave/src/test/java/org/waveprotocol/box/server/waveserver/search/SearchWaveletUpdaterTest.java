@@ -20,6 +20,7 @@
 package org.waveprotocol.box.server.waveserver.search;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -51,10 +52,17 @@ import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.version.HashedVersionFactory;
 import org.waveprotocol.wave.model.version.HashedVersionFactoryImpl;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
 
 import java.lang.reflect.Method;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 public final class SearchWaveletUpdaterTest extends TestCase {
 
@@ -210,6 +218,145 @@ public final class SearchWaveletUpdaterTest extends TestCase {
         versionCaptor.getAllValues().get(1));
 
     updater.shutdown();
+  }
+
+  public void testHotPublicWaveCollapsesRepeatedEditsIntoOneSlowPathFlush() throws Exception {
+    SearchWaveletManager waveletManager = mock(SearchWaveletManager.class);
+    SearchIndexer indexer = mock(SearchIndexer.class);
+    SearchProvider searchProvider = mock(SearchProvider.class);
+    SearchWaveletDataProvider dataProvider = new SearchWaveletDataProvider();
+    SearchWaveletSnapshotPublisher snapshotPublisher =
+        new SearchWaveletSnapshotPublisher(
+            new SearchWaveletDispatcher(),
+            new SearchWaveletManager(),
+            indexer,
+            new SearchWaveletDataProvider());
+    ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    SearchWaveletUpdater.SearchUpdateBatchingPolicy batchingPolicy =
+        new SearchWaveletUpdater.SearchUpdateBatchingPolicy(true, 40L, 25, 25);
+    SearchWaveletUpdater updater =
+        new SearchWaveletUpdater(
+            waveletManager,
+            indexer,
+            searchProvider,
+            dataProvider,
+            snapshotPublisher,
+            batchingPolicy,
+            scheduler);
+
+    try {
+      WaveId changedWaveId = WaveId.of("example.com", "w+public");
+      WaveletId changedWaveletId = WaveletId.of("example.com", "conv+root");
+      ReadableWaveletData wavelet = mock(ReadableWaveletData.class);
+      when(wavelet.getWaveId()).thenReturn(changedWaveId);
+      when(wavelet.getWaveletId()).thenReturn(changedWaveletId);
+      when(wavelet.getParticipants()).thenReturn(
+          ImmutableSet.of(
+              ParticipantId.ofUnsafe("@example.com"),
+              ParticipantId.ofUnsafe("author@example.com")));
+      when(waveletManager.isSearchWavelet(any(WaveletName.class))).thenReturn(false);
+
+      Set<SearchIndexer.SubscriptionKey> affected = new HashSet<>();
+      for (int i = 0; i < 100; i++) {
+        ParticipantId user = ParticipantId.ofUnsafe("user" + i + "@example.com");
+        affected.add(
+            new SearchIndexer.SubscriptionKey(user, SearchWaveletManager.md5Hex("in:inbox")));
+      }
+      when(indexer.getAffectedSubscriptions(eq(changedWaveId), any())).thenReturn(affected);
+      when(indexer.getRawQuery(any())).thenReturn("in:inbox");
+      when(searchProvider.search(any(), eq("in:inbox"), eq(0), eq(50)))
+          .thenAnswer(invocation -> createSearchResult("in:inbox", "example.com/w+abc", 1));
+
+      for (int i = 0; i < 5; i++) {
+        updater.waveletUpdate(wavelet, DeltaSequence.empty());
+      }
+
+      waitForRecomputeCount(updater, 100L, 1500L);
+      assertEquals(5L, updater.getWaveUpdateCount());
+      assertEquals(0L, updater.getLowLatencyWaveUpdateCount());
+      assertEquals(5L, updater.getSlowPathWaveUpdateCount());
+      assertEquals(1L, updater.getSlowPathFlushCount());
+      verify(searchProvider, times(100)).search(any(), eq("in:inbox"), eq(0), eq(50));
+    } finally {
+      updater.shutdown();
+      scheduler.shutdownNow();
+    }
+  }
+
+  public void testDiversePrivateQueriesStayOnLowLatencyPath() throws Exception {
+    SearchWaveletManager waveletManager = mock(SearchWaveletManager.class);
+    SearchIndexer indexer = mock(SearchIndexer.class);
+    SearchProvider searchProvider = mock(SearchProvider.class);
+    SearchWaveletDataProvider dataProvider = new SearchWaveletDataProvider();
+    SearchWaveletSnapshotPublisher snapshotPublisher =
+        new SearchWaveletSnapshotPublisher(
+            new SearchWaveletDispatcher(),
+            new SearchWaveletManager(),
+            indexer,
+            new SearchWaveletDataProvider());
+    ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    SearchWaveletUpdater.SearchUpdateBatchingPolicy batchingPolicy =
+        new SearchWaveletUpdater.SearchUpdateBatchingPolicy(true, 40L, 25, 25);
+    SearchWaveletUpdater updater =
+        new SearchWaveletUpdater(
+            waveletManager,
+            indexer,
+            searchProvider,
+            dataProvider,
+            snapshotPublisher,
+            batchingPolicy,
+            scheduler);
+
+    try {
+      when(waveletManager.isSearchWavelet(any(WaveletName.class))).thenReturn(false);
+      Map<SearchIndexer.SubscriptionKey, String> queries = new HashMap<>();
+      for (int i = 0; i < 10; i++) {
+        WaveId changedWaveId = WaveId.of("example.com", "w+private" + i);
+        WaveletId changedWaveletId = WaveletId.of("example.com", "conv+root" + i);
+        ParticipantId user = ParticipantId.ofUnsafe("user" + i + "@example.com");
+        String query = "tag:team" + i;
+        SearchIndexer.SubscriptionKey key =
+            new SearchIndexer.SubscriptionKey(user, SearchWaveletManager.md5Hex(query));
+        queries.put(key, query);
+        when(indexer.getAffectedSubscriptions(eq(changedWaveId), any()))
+            .thenReturn(Collections.singleton(key));
+
+        ReadableWaveletData wavelet = mock(ReadableWaveletData.class);
+        when(wavelet.getWaveId()).thenReturn(changedWaveId);
+        when(wavelet.getWaveletId()).thenReturn(changedWaveletId);
+        when(wavelet.getParticipants()).thenReturn(ImmutableSet.of(user));
+        updater.waveletUpdate(wavelet, DeltaSequence.empty());
+      }
+      when(indexer.getRawQuery(any()))
+          .thenAnswer(invocation -> queries.get(invocation.getArgument(0)));
+      when(searchProvider.search(any(), anyString(), eq(0), eq(50)))
+          .thenAnswer(
+              invocation ->
+                  createSearchResult(
+                      invocation.getArgument(1),
+                      "example.com/w+" + SearchWaveletManager.md5Hex(invocation.getArgument(1)),
+                      1));
+
+      waitForRecomputeCount(updater, 10L, 1500L);
+      assertEquals(10L, updater.getWaveUpdateCount());
+      assertEquals(10L, updater.getLowLatencyWaveUpdateCount());
+      assertEquals(0L, updater.getSlowPathWaveUpdateCount());
+      assertEquals(0L, updater.getSlowPathFlushCount());
+      verify(searchProvider, times(10)).search(any(), anyString(), eq(0), eq(50));
+    } finally {
+      updater.shutdown();
+      scheduler.shutdownNow();
+    }
+  }
+
+  private static void waitForRecomputeCount(
+      SearchWaveletUpdater updater, long expectedCount, long timeoutMs) throws Exception {
+    long deadline = System.currentTimeMillis() + timeoutMs;
+    while (System.currentTimeMillis() < deadline
+        && updater.getSearchRecomputeCount() < expectedCount) {
+      Thread.sleep(10L);
+    }
+    assertEquals(expectedCount, updater.getSearchRecomputeCount());
   }
 
   private static SearchResult createSearchResult(String query, String waveId, int totalResults) {

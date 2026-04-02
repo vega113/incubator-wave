@@ -45,6 +45,7 @@ import org.waveprotocol.box.server.waveserver.ReindexService;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.box.server.waveserver.lucene9.Lucene9WaveIndexerImpl;
+import org.waveprotocol.box.server.waveserver.search.SearchWaveletUpdater;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
@@ -92,6 +93,7 @@ public final class AdminServlet extends HttpServlet {
   private final WaveletProvider waveletProvider;
   private final FeatureFlagService featureFlagService;
   private final @Nullable Lucene9WaveIndexerImpl lucene9Indexer;
+  private final SearchWaveletUpdater searchWaveletUpdater;
   private volatile int cachedWaveCount = -1;
   private volatile long lastWaveCountTimeMs;
   private final String publicBaseUrl;
@@ -106,7 +108,8 @@ public final class AdminServlet extends HttpServlet {
                       Config config,
                       WaveletProvider waveletProvider,
                       FeatureFlagService featureFlagService,
-                      @Nullable Lucene9WaveIndexerImpl lucene9Indexer) {
+                      @Nullable Lucene9WaveIndexerImpl lucene9Indexer,
+                      SearchWaveletUpdater searchWaveletUpdater) {
     this.accountStore = accountStore;
     this.sessionManager = sessionManager;
     this.contactMessageStore = contactMessageStore;
@@ -117,6 +120,7 @@ public final class AdminServlet extends HttpServlet {
     this.waveletProvider = waveletProvider;
     this.featureFlagService = featureFlagService;
     this.lucene9Indexer = lucene9Indexer;
+    this.searchWaveletUpdater = searchWaveletUpdater;
     this.publicBaseUrl = PublicBaseUrlResolver.resolve(config);
   }
 
@@ -530,6 +534,36 @@ public final class AdminServlet extends HttpServlet {
         w.append(",\"incrementalIndexCount\":").append(String.valueOf(incrCount));
       }
     }
+    w.append('}');
+
+    w.append(",\"otSearch\":{");
+    boolean otSearchEnabled = config.hasPath("search.ot_search_enabled")
+        && config.getBoolean("search.ot_search_enabled");
+    w.append("\"enabled\":").append(String.valueOf(otSearchEnabled));
+    w.append(",\"publicBatchingEnabled\":")
+        .append(String.valueOf(searchWaveletUpdater.isPublicBatchingEnabled()));
+    w.append(",\"publicBatchMs\":")
+        .append(String.valueOf(searchWaveletUpdater.getPublicBatchMs()));
+    w.append(",\"publicFanoutThreshold\":")
+        .append(String.valueOf(searchWaveletUpdater.getPublicFanoutThreshold()));
+    w.append(",\"highParticipantThreshold\":")
+        .append(String.valueOf(searchWaveletUpdater.getHighParticipantThreshold()));
+    w.append(",\"activeSubscriptions\":")
+        .append(String.valueOf(searchWaveletUpdater.getActiveSubscriptionCount()));
+    w.append(",\"indexedWaves\":")
+        .append(String.valueOf(searchWaveletUpdater.getIndexedWaveCount()));
+    w.append(",\"waveUpdateCount\":")
+        .append(String.valueOf(searchWaveletUpdater.getWaveUpdateCount()));
+    w.append(",\"lowLatencyWaveUpdateCount\":")
+        .append(String.valueOf(searchWaveletUpdater.getLowLatencyWaveUpdateCount()));
+    w.append(",\"slowPathWaveUpdateCount\":")
+        .append(String.valueOf(searchWaveletUpdater.getSlowPathWaveUpdateCount()));
+    w.append(",\"slowPathFlushCount\":")
+        .append(String.valueOf(searchWaveletUpdater.getSlowPathFlushCount()));
+    w.append(",\"slowPathQueuedSubscriptionCount\":")
+        .append(String.valueOf(searchWaveletUpdater.getSlowPathQueuedSubscriptionCount()));
+    w.append(",\"searchRecomputeCount\":")
+        .append(String.valueOf(searchWaveletUpdater.getSearchRecomputeCount()));
     w.append('}');
 
     // --- serverInfo ---
