@@ -858,9 +858,9 @@ Use a **combination of approaches** depending on use case:
 **Wire format:**
 - Element tag: `<robot-state>`
 - Attributes:
-  - `data-robot-id` (required): Which robot owns/writes this state (enforces single-writer model)
+  - `data-robot-id` (required): Which robot owns/writes this state (enforces single-writer model; set once on creation and never overwritten on later writes)
   - `data-state-key` (required): Application key for this state (unique per <robot-html> element)
-  - `data-version` (required): Schema version (e.g., "1", "2") — supports state migration
+  - `data-version` (required): Schema version (e.g., "1", "2") — supports state migration and must be written on every update
   - `type` (required): `"json"`, `"xml"`, `"text"` (format of state content)
   - `data-timestamp` (optional): Last modified time (ISO 8601)
   - `data-size-bytes` (optional): Actual size for quota tracking
@@ -939,6 +939,7 @@ public class RobotStateUpdateService extends OperationService {
     }
     
     // Update state attributes and content
+    // data-robot-id stays fixed after creation; data-version is refreshed on every write.
     stateElem.setAttribute("type", stateType);
     stateElem.setAttribute("data-state-key", stateKey);
     stateElem.setAttribute("data-version", stateVersion);
