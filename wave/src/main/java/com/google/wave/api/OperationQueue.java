@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A utility class that abstracts the queuing of operations, represented by
@@ -69,13 +70,24 @@ public class OperationQueue implements Serializable {
   private static final String OP_ID_FORMAT = "op%d";
 
   /** Some class global counters. */
-  private static long nextOpId = 1;
+  private static final AtomicLong NEXT_OP_ID = new AtomicLong(1);
+
+  private static final class QueueState implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    private List<OperationRequest> pendingOperations;
+
+    private QueueState(List<OperationRequest> pendingOperations) {
+      this.pendingOperations = pendingOperations;
+    }
+  }
 
   /** The id that can be set for {@code proxyingFor} parameter. */
   private final String proxyForId;
 
-  /** The operation queue. */
-  private List<OperationRequest> pendingOperations;
+  /** Shared operation queue state. */
+  private final QueueState queueState;
 
   /**
    * Constructor that creates a new instance of {@link OperationQueue} with
@@ -104,7 +116,11 @@ public class OperationQueue implements Serializable {
    * @param proxyForId the proxying information.
    */
   public OperationQueue(List<OperationRequest> operations, String proxyForId) {
-    this.pendingOperations = operations;
+    this(new QueueState(operations), proxyForId);
+  }
+
+  private OperationQueue(QueueState queueState, String proxyForId) {
+    this.queueState = queueState;
     this.proxyForId = proxyForId;
   }
 
@@ -114,7 +130,10 @@ public class OperationQueue implements Serializable {
    * @return the pending operations.
    */
   public List<OperationRequest> getPendingOperations() {
-    return pendingOperations;
+    synchronized (queueState) {
+      return Collections.unmodifiableList(new ArrayList<OperationRequest>(
+          queueState.pendingOperations));
+    }
   }
 
   /**
@@ -140,14 +159,30 @@ public class OperationQueue implements Serializable {
    *     set.
    */
   public OperationQueue proxyFor(String proxyForId) {
-    return new OperationQueue(pendingOperations, proxyForId);
+    return new OperationQueue(queueState, proxyForId);
   }
 
   /**
    * Clears this operation queue.
    */
   public void clear() {
-    pendingOperations.clear();
+    synchronized (queueState) {
+      queueState.pendingOperations.clear();
+    }
+  }
+
+  /**
+   * Drains the queue atomically.
+   *
+   * @return the pending operations, in order, and clears the queue.
+   */
+  public List<OperationRequest> drainPendingOperations() {
+    synchronized (queueState) {
+      List<OperationRequest> operations = new ArrayList<OperationRequest>(
+          queueState.pendingOperations);
+      queueState.pendingOperations.clear();
+      return Collections.unmodifiableList(operations);
+    }
   }
 
   /**
@@ -422,8 +457,21 @@ public class OperationQueue implements Serializable {
    * @param other the other operation queue to merge this operation queue with.
    */
   public void submitWith(OperationQueue other) {
-    other.pendingOperations.addAll(this.pendingOperations);
-    this.pendingOperations = other.pendingOperations;
+    QueueState first = queueState;
+    QueueState second = other.queueState;
+    if (first == second) {
+      return;
+    }
+    if (System.identityHashCode(first) > System.identityHashCode(second)) {
+      first = other.queueState;
+      second = queueState;
+    }
+    synchronized (first) {
+      synchronized (second) {
+        other.queueState.pendingOperations.addAll(queueState.pendingOperations);
+        queueState.pendingOperations = other.queueState.pendingOperations;
+      }
+    }
   }
 
   /**
@@ -531,7 +579,10 @@ public class OperationQueue implements Serializable {
    */
   OperationRequest appendOperation(OperationType opType, WaveId waveId, WaveletId waveletId,
       String blipId, Parameter... parameters) {
-    return addOperation(opType, waveId, waveletId, blipId, pendingOperations.size(), parameters);
+    synchronized (queueState) {
+      return addOperation(opType, waveId, waveletId, blipId, queueState.pendingOperations.size(),
+          parameters);
+    }
   }
 
   /**
@@ -550,7 +601,9 @@ public class OperationQueue implements Serializable {
    */
   OperationRequest prependOperation(OperationType opType, WaveId waveId, WaveletId waveletId,
       String blipId, Parameter... parameters) {
-    return addOperation(opType, waveId, waveletId, blipId, 0, parameters);
+    synchronized (queueState) {
+      return addOperation(opType, waveId, waveletId, blipId, 0, parameters);
+    }
   }
 
   /**
@@ -582,7 +635,7 @@ public class OperationQueue implements Serializable {
     }
 
     OperationRequest operation = new OperationRequest(opType.method(),
-        String.format(OP_ID_FORMAT, nextOpId++),
+        String.format(OP_ID_FORMAT, NEXT_OP_ID.getAndIncrement()),
         waveIdString, waveletIdString, blipId, parameters);
 
     // Set the proxying for parameter, if necessary.
@@ -590,7 +643,7 @@ public class OperationQueue implements Serializable {
       operation.addParameter(Parameter.of(ParamsProperty.PROXYING_FOR, proxyForId));
     }
 
-    pendingOperations.add(index, operation);
+    queueState.pendingOperations.add(index, operation);
     return operation;
   }
 

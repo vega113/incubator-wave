@@ -474,7 +474,6 @@ public class WaveService {
    */
   public List<JsonRpcResponse> submit(Wavelet wavelet, String rpcServerUrl) throws IOException {
     List<JsonRpcResponse> responses = makeRpc(wavelet.getOperationQueue(), rpcServerUrl);
-    wavelet.getOperationQueue().clear();
     return responses;
   }
 
@@ -888,8 +887,9 @@ public class WaveService {
     }
 
     opQueue.notifyRobotInformation(PROTOCOL_VERSION, version);
+    List<OperationRequest> pendingOperations = opQueue.drainPendingOperations();
     String json =
-        SERIALIZER.toJson(opQueue.getPendingOperations(), GsonFactory.OPERATION_REQUEST_LIST_TYPE);
+        SERIALIZER.toJson(pendingOperations, GsonFactory.OPERATION_REQUEST_LIST_TYPE);
 
     try {
       InputStream bodyStream;
@@ -936,12 +936,26 @@ public class WaveService {
       responses.remove(0); // removes response to the notify operation.
       return responses;
     } catch (OAuthException e) {
+      restorePendingOperations(opQueue, pendingOperations);
       LOG.warning("OAuthException when constructing the OAuth parameters: " + e);
       throw new IOException(e);
     } catch (URISyntaxException e) {
+      restorePendingOperations(opQueue, pendingOperations);
       LOG.warning("URISyntaxException when constructing the OAuth parameters: " + e);
       throw new IOException(e);
+    } catch (IOException e) {
+      restorePendingOperations(opQueue, pendingOperations);
+      throw e;
+    } catch (RuntimeException e) {
+      restorePendingOperations(opQueue, pendingOperations);
+      throw e;
     }
+  }
+
+  private void restorePendingOperations(OperationQueue opQueue,
+      List<OperationRequest> pendingOperations) {
+    opQueue.submitWith(new OperationQueue(new ArrayList<OperationRequest>(pendingOperations),
+        opQueue.getProxyForId()));
   }
 
   /**

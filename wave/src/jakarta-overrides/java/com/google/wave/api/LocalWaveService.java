@@ -111,12 +111,18 @@ public class LocalWaveService {
     List<OperationRequest> operations = new ArrayList<>(opQueue.getPendingOperations());
     opQueue.clear();
 
-    List<JsonRpcResponse> responses = submitter.submitOperations(operations, robotId);
-    // Remove the response for the prepended robot.notify operation, matching WaveService behavior.
-    if (!responses.isEmpty()) {
-      responses.remove(0);
+    try {
+      List<JsonRpcResponse> responses = submitter.submitOperations(operations, robotId);
+      // Remove the response for the prepended robot.notify operation, matching WaveService behavior.
+      if (!responses.isEmpty()) {
+        responses.remove(0);
+      }
+      return responses;
+    } catch (RuntimeException e) {
+      opQueue.submitWith(new OperationQueue(new ArrayList<OperationRequest>(operations),
+          opQueue.getProxyForId()));
+      throw e;
     }
-    return responses;
   }
 
   /**
