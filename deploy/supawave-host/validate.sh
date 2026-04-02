@@ -87,18 +87,27 @@ check_swap() {
   local swap_path="/swapfile"
   local swap_size_gb=${SWAP_SIZE_GB:-32}
   local expected_bytes=$((swap_size_gb * 1024 * 1024 * 1024))
+  local minimum_bytes=$((expected_bytes > 4096 ? expected_bytes - 4096 : 0))
   local size
   size=$(swapon --show=NAME,SIZE --bytes --noheadings 2>/dev/null | awk '$1 == "'"$swap_path"'" {print $2}')
   if [[ -z "$size" ]]; then
     log "FAIL: swapfile not active"
     return 1
   fi
-  if [[ "$size" -lt "$expected_bytes" ]]; then
-    log "FAIL: swapfile size ${size} below expected ${expected_bytes}"
+  if [[ "$size" -lt "$minimum_bytes" ]]; then
+    log "FAIL: swapfile size ${size} below minimum ${minimum_bytes} for expected ${expected_bytes}"
     return 1
   fi
   log "OK: swapfile active (${size} bytes)"
   return 0
+}
+
+validate_swap_size_gb() {
+  local swap_size_gb=$1
+  if ! [[ "$swap_size_gb" =~ ^[0-9]+$ ]] || [[ "$swap_size_gb" -lt 1 ]]; then
+    log "FAIL: SWAP_SIZE_GB must be a positive integer"
+    return 1
+  fi
 }
 
 check_sysctl() {
@@ -156,6 +165,7 @@ run_checks() {
   if [[ "$mode" == "pre" || "$mode" == "all" ]]; then
     log "Running pre-flight checks"
     local swap_size_gb=${SWAP_SIZE_GB:-32}
+    validate_swap_size_gb "$swap_size_gb" || return 1
     local disk_required_mb=$(((swap_size_gb + 1) * 1024))
     check_sudo || failures=$((failures + 1))
     command -v ssh >/dev/null 2>&1 || log "WARN: ssh not found (not required for provisioning)"
@@ -167,6 +177,8 @@ run_checks() {
 
   if [[ "$mode" == "post" || "$mode" == "all" ]]; then
     log "Running post-flight checks"
+    local swap_size_gb=${SWAP_SIZE_GB:-32}
+    validate_swap_size_gb "$swap_size_gb" || return 1
     check_swap || failures=$((failures + 1))
     check_sysctl "fs.file-max" "2097152" || failures=$((failures + 1))
     check_sysctl "fs.nr_open" "1048576" || failures=$((failures + 1))

@@ -136,6 +136,10 @@ determine_target_slot() {
   fi
 }
 
+slot_env_suffix() {
+  printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+}
+
 cancel_cooldown() {
   local systemd_scope=""
   if [ "$(id -u)" -ne 0 ]; then
@@ -179,9 +183,6 @@ migrate_to_blue_green() {
   load_deploy_env 2>/dev/null || true
   detect_project_name
 
-  # Check for old compose file in multiple locations:
-  # 1. releases/previous/ (created by new activate_release)
-  # 2. current/ symlink (legacy layout from pre-blue-green deploys)
   local old_compose=""
   if [ -f "$deploy_root/releases/previous/compose.yml" ]; then
     old_compose="$deploy_root/releases/previous/compose.yml"
@@ -193,29 +194,55 @@ migrate_to_blue_green() {
     return 0
   fi
 
-  local current_image
-  current_image=$(docker compose -f "$old_compose" -p "$PROJECT_NAME" \
-    images wave --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | head -1)
-  if [ -z "$current_image" ] || [ "$current_image" = ":" ]; then
-    echo "[deploy] No running 'wave' service found — fresh install"
-    echo "blue" > "$deploy_root/shared/active-slot"
-    return 0
+  echo "[deploy] Inspecting legacy compose file: $old_compose"
+
+  local legacy_container_id=""
+  local legacy_container_ref=""
+  local current_image=""
+  local target_image="${WAVE_IMAGE:-}"
+  local legacy_fallback_container="${PROJECT_NAME}-wave-1"
+
+  echo "[deploy] Discovering legacy wave image"
+  legacy_container_id=$(docker compose -f "$old_compose" -p "$PROJECT_NAME" ps -aq wave 2>/dev/null | sed -n '1p' || true)
+  if [ -n "$legacy_container_id" ]; then
+    current_image=$(docker inspect --format '{{.Config.Image}}' "$legacy_container_id" 2>/dev/null || true)
+    if [ -n "$current_image" ]; then
+      legacy_container_ref="$legacy_container_id"
+      echo "[deploy] Resolved legacy wave image from compose service container $legacy_container_id"
+    fi
+  fi
+
+  if [ -z "$current_image" ]; then
+    echo "[deploy] Falling back to legacy container name $legacy_fallback_container"
+    current_image=$(docker inspect --format '{{.Config.Image}}' "$legacy_fallback_container" 2>/dev/null || true)
+    if [ -n "$current_image" ]; then
+      legacy_container_ref="$legacy_fallback_container"
+      echo "[deploy] Resolved legacy wave image from fallback container $legacy_fallback_container"
+    fi
+  fi
+
+  if [ -z "$current_image" ]; then
+    if [ -n "$target_image" ]; then
+      echo "[deploy] Legacy wave image unresolved; using target image fallback"
+      current_image="$target_image"
+    else
+      echo "[deploy] ERROR: unable to resolve legacy wave image and no fallback target image available" >&2
+      return 1
+    fi
   fi
 
   echo "[deploy] Migrating to blue-green (brief downtime expected)..."
+  echo "[deploy] Stopping legacy wave container"
   echo "[deploy] WARNING: stopping legacy 'wave' container to free port 9898"
   echo "[deploy]   wave-blue will start immediately after on the same port"
-  # Export all vars that the legacy compose file may require (${VAR:?} interpolation).
-  export WAVE_IMAGE="${current_image}"
   export WAVE_INTERNAL_PORT="${WAVE_INTERNAL_PORT:-9898}"
   export RESEND_API_KEY="${RESEND_API_KEY:-}"
   export WAVE_EMAIL_FROM="${WAVE_EMAIL_FROM:-}"
-  # DEPLOY_ROOT/CANONICAL_HOST/ROOT_HOST/WWW_HOST already exported at script top.
-  docker compose -f "$old_compose" -p "$PROJECT_NAME" stop wave
-  docker compose -f "$old_compose" -p "$PROJECT_NAME" rm -f wave
+  if [ -n "$legacy_container_ref" ]; then
+    echo "[deploy] Removing legacy wave container $legacy_container_ref"
+    docker rm -f "$legacy_container_ref"
+  fi
 
-  # Move existing index and session entries (files and directories) to blue slot.
-  # Skip the blue/green subdirectories themselves (created by ensure_layout).
   local f
   for f in "$deploy_root/shared/indexes"/*; do
     local base; base=$(basename "$f")
@@ -230,7 +257,6 @@ migrate_to_blue_green() {
 
   echo "blue" > "$deploy_root/shared/active-slot"
   echo "$current_image" > "$deploy_root/releases/blue/image-ref"
-  # Copy old application.conf to blue slot (check both new and legacy paths)
   local old_conf=""
   if [ -f "$deploy_root/releases/previous/application.conf" ]; then
     old_conf="$deploy_root/releases/previous/application.conf"
@@ -252,6 +278,7 @@ reverse_proxy wave-blue:9898 {
 UPSTREAM
 
   export WAVE_IMAGE_BLUE="$current_image"
+  echo "[deploy] Starting blue slot and caddy with legacy image"
   dc up -d wave-blue caddy
   echo "[deploy] Migration complete. Active slot: blue"
 }
@@ -298,8 +325,21 @@ render_slot_config() {
   echo "${WAVE_IMAGE:?}" > "$slot_dir/image-ref"
 }
 
+prepare_slot_runtime_dirs() {
+  local slot=$1
+  local index_dir="$deploy_root/shared/indexes/${slot}"
+  local lucene_dir="$index_dir/lucene9"
+  local session_dir="$deploy_root/shared/sessions/${slot}"
+
+  mkdir -p "$lucene_dir" "$session_dir"
+  chmod 2770 "$index_dir" "$lucene_dir" "$session_dir"
+}
+
 start_target_slot() {
-  export "WAVE_IMAGE_${TARGET_SLOT^^}=${WAVE_IMAGE:?}"
+  prepare_slot_runtime_dirs "$TARGET_SLOT"
+  local target_suffix
+  target_suffix=$(slot_env_suffix "$TARGET_SLOT")
+  export "WAVE_IMAGE_${target_suffix}=${WAVE_IMAGE:?}"
   if [ "$TARGET_SLOT" = "green" ]; then
     dc --profile green up -d "wave-${TARGET_SLOT}"
   else
@@ -547,7 +587,10 @@ rollback_release() {
       echo "[deploy] ERROR: No previous image recorded"
       exit 1
     fi
-    export "WAVE_IMAGE_${prev^^}=$prev_image"
+    prepare_slot_runtime_dirs "$prev"
+    local prev_suffix
+    prev_suffix=$(slot_env_suffix "$prev")
+    export "WAVE_IMAGE_${prev_suffix}=$prev_image"
     if [ "$prev" = "green" ]; then
       dc --profile green up -d "wave-${prev}"
     else

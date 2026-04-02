@@ -1,5 +1,23 @@
 [
   {
+    "releaseId": "2026-04-02-deploy-recovery-on-legacy-hosts",
+    "version": "PR #576",
+    "date": "2026-04-02",
+    "title": "Recover deploys on legacy hosts",
+    "summary": "Deploy tooling now discovers stopped legacy Compose containers, keeps migration moving when the legacy image cannot be resolved, and tightens swap/runtime validation.",
+    "sections": [
+      {
+        "type": "fix",
+        "items": [
+          "Discover stopped legacy wave containers with compose-v2-safe ps -aq probing before migration",
+          "Continue legacy data migration with a safe target-image fallback when the old image cannot be resolved",
+          "Reject invalid swap sizing and tolerate the observed 4KB swapfile shortfall",
+          "Create slot runtime directories with restricted permissions before starting blue or green"
+        ]
+      }
+    ]
+  },
+  {
     "releaseId": "2026-03-30-jakarta-session-websocket-auth-hardening",
     "version": "PR #480",
     "date": "2026-03-30",
