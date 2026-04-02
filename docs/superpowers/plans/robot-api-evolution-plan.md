@@ -538,13 +538,13 @@ Recommended migration rules:
 
 1. Add `jwtVersion` to human accounts with default value `0`.
 2. Persistence readers must treat missing stored `jwtVersion` values as `0`.
-3. JWT validation must treat missing `subjectVersion` claims as `0` only for legacy direct `DATA_API_ACCESS` human tokens. `DELEGATED_API_ACCESS` tokens are always freshly minted and must carry explicit version claims; missing version claims on a delegated token must be rejected, not defaulted.
+3. JWT validation must treat missing `subjectVersion` claims as `0` only for legacy direct `DATA_API_ACCESS` human tokens. `DELEGATED_API_ACCESS` tokens must always carry explicit version claims; missing version claims on a delegated token must be rejected, not defaulted.
 4. Existing session-based `DATA_API_ACCESS` tokens continue working until expiry because both token and stored version resolve to `0`.
 5. The first explicit user revocation event increments `jwtVersion` from `0` to `1`, invalidating all previously minted human tokens.
 
 This allows a rolling deploy without forcing all logged-in users to reauthenticate immediately.
 
-Rule 2 is the persistence layer default. Rule 3 is the validation layer default. Do not use the persistence fallback to weaken delegated-token claim requirements.
+Rule 2 is the persistence layer default for stored account state only. Rule 3 is the validation layer default for JWT claims only. Do not use the persistence fallback to weaken delegated-token claim requirements.
 
 Scope note:
 
@@ -702,6 +702,16 @@ Enforce this restriction at both layers:
 
 `DataApiTokenServlet` must re-check that the grant's `createdByUserId` and the robot's `ownerAddress` still satisfy the v1 self-owned rule before minting a delegated token.
 
+Validation logic for delegated token minting:
+
+- `grant.robotId` must equal the requested robot
+- `grant.subjectUserId` must equal the requesting user
+- `grant.createdByUserId` must equal the requesting user, so v1 remains a
+  self-grant flow
+- `robot.ownerAddress` must equal the requesting user, so the grant creator is
+  still the current robot owner
+- `grant.status` must be active and not expired or revoked
+
 If a robot's `ownerAddress` is cleared or changed after a delegated token has been minted, increment the robot's `tokenVersion` so previously issued delegated tokens are invalidated immediately. `DataApiTokenServlet` and `PUT /api/robots/{id}/delegations/me` both need to observe `tokenVersion` for this invalidation path.
 
 Failure behavior for legacy ownerless robots:
@@ -712,6 +722,19 @@ Failure behavior for legacy ownerless robots:
   since lost owner metadata or was never backfilled
 - do not infer ownership for `null` owners from callback URL, creator history,
   or grant state
+
+Error response format for `robot_owner_required`:
+
+- HTTP status: `400 Bad Request`
+- JSON body:
+
+```json
+{
+  "error": "robot_owner_required",
+  "message": "This robot must have an assigned owner before delegation grants can be created or used",
+  "robotId": "helper-bot@example.com"
+}
+```
 
 ### 4.9 Abuse Prevention
 
@@ -979,6 +1002,17 @@ Recommended phase-2 scope:
 
 Default `/robot/client/v1/*` to same-origin only.
 
+Validate `Origin` only when an `Origin` header is present. Apply the same
+decision table in `RobotClient*Servlet` requests and
+`RobotStreamWebSocketEndpoint` upgrade/auth handling:
+
+| Case | Behavior |
+| --- | --- |
+| No `Origin` header | Allow. Treat the request as a non-browser client such as `curl`, mobile, or server-to-server traffic. |
+| `Origin: null` | Reject unless the literal `null` origin is explicitly listed in the allowlist. |
+| Same-origin request and no allowlist configured | Allow without extra Origin validation. |
+| `Origin` present and allowlist configured | Allow only if the exact `Origin` value matches one of the configured entries. |
+
 If cross-origin browser clients are needed, add a strict allowlist config such as:
 
 - `robot.client.allowed_origins = ["https://example-ui.example.com"]`
@@ -987,6 +1021,9 @@ and validate `Origin` on:
 
 - `RobotClient*Servlet` requests
 - WebSocket upgrade/auth for `RobotStreamWebSocketEndpoint`
+
+Use camelCase consistently in all JSON examples below so JS clients and server
+implementations share one wire shape.
 
 #### Recommendation
 
@@ -1099,6 +1136,11 @@ high-level robot operation services, which execute against current server state.
 - if the submit fails for another reason, surface
   `error { code: "SUBMIT_FAILED", message: "<wave-server error>" }`
 
+All stream protocol examples use camelCase field names, including
+`requestId`, `waveId`, `waveletIdPrefixes`, `knownVersions`, `channelId`,
+`hashedVersion`, `historyHash`, `hashedVersionAfterApplication`, and
+`addressPath`.
+
 ### 6.5 Consistency Model
 
 Use the same underlying semantics as `ProtocolWaveletUpdate`.
@@ -1145,12 +1187,12 @@ Additional phase-2 blocker that must be designed up front:
 - `WaveViewSubscription` tracks `lastVersion` per wavelet and
   `checkUpdateVersion(...)` currently throws if the next delta does not start at
   that expected version
-- resumable subscribe therefore also requires seeding each
-  `WaveViewSubscription` channel state with the caller's known version before
-  any live deltas are delivered
-- if the server cannot seed a contiguous stream from that version, fail the
-  subscribe with `RESYNC_REQUIRED` instead of letting the precondition crash the
-  server thread
+- resumable subscribe therefore requires parsing all supplied `knownVersions`
+  into a per-wavelet map before any channel is opened
+- if any supplied known version is stale or outside the retained window, reject
+  the entire subscription with `RESYNC_REQUIRED`
+- do not partially open channels or silently downgrade only some wavelets to
+  full snapshots
 - the server should retain only a bounded window of recent deltas per wavelet,
   such as the last `N` deltas or the last `T` minutes, so `knownVersions`
   outside that window are considered stale
@@ -1162,11 +1204,11 @@ Additional phase-2 blocker that must be designed up front:
 Concrete phase-2 code changes:
 
 - extend the open path so `knownVersions` are parsed into a per-wavelet map
+- validate the full map before any channel is opened
 - initialize `WaveViewSubscription.WaveletChannelState.lastVersion` from that
-  map during subscription creation
-- update `UserManager.subscribe(...)` and related tests to pass the seed data
-- seed `lastVersion` from `knownVersions` only when the version falls inside the
-  retained window; otherwise fail the subscribe with `RESYNC_REQUIRED`
+  map only after the request passes the all-or-nothing check
+- update `UserManager.subscribe(...)` and related tests to return
+  `RESYNC_REQUIRED` when any requested wavelet is stale
 - keep the phase-1 reconnect story as full snapshot replay only
 
 Expected MVP reconnect cost:
@@ -1239,18 +1281,19 @@ Namespace rule for delegated streams:
 - delegated streams therefore need a separate subscription namespace keyed by
   something like `(robotId, effectiveSubject)` even though access checks still
   run as `effectiveSubject`
+- the exact namespace key is derived once and reused everywhere below
 - split the stream routing context into:
   - `accessSubject` for `visibleWaveletsFor(...)`, permission checks, and delta
     authorship
   - `subscriptionNamespace` for `WaveletInfo` / `UserManager` bookkeeping and
     own-submit suppression
-- direct browser and direct robot sessions can keep using
+- direct browser and direct robot sessions use
   `subscriptionNamespace = authenticatedSubject.toString()`
-- delegated robot sessions should use
+- delegated robot sessions use
   `subscriptionNamespace = "robot:" + robotId + ":as:" + effectiveSubject.toString()`
-- those namespace rules keep `WaveletInfo` / `UserManager` bookkeeping,
-  own-submit suppression, and logging deterministic across direct and delegated
-  sessions
+- `WaveletInfo`, `UserManager`, own-submit suppression, and logging must all
+  consume that exact namespace key so the routing remains deterministic across
+  direct and delegated sessions
 
 Recommended cleanup behavior:
 
@@ -1258,6 +1301,14 @@ Recommended cleanup behavior:
 - remove channel/session mappings from the direct or delegated subscription
   namespace manager
 - release any held-back delta buffers
+
+If a delegation grant is revoked while a delegated stream is active:
+
+- send `error { "code": "DELEGATION_REVOKED", "message": "Delegation grant was revoked" }`
+  before closing the socket
+- close the WebSocket with a policy-violation code
+- remove the session from the delegated namespace manager as part of the same
+  cleanup path used by `onClose` and `onError`
 
 ### 6.10 Effort Estimate
 
@@ -1493,6 +1544,7 @@ Recommended new test targets:
 - `RobotDelegationServiceTest`
 - `DataApiTokenServletDelegationTest`
 - `JwtRequestAuthenticatorDelegationTest`
+- `DelegatedSubmitDeltaRoutingTest`
 - `RobotStreamWebSocketEndpointTest`
 - `RobotStreamWebSocketEndpointIT`
 - `RobotClientProtocolIT`
@@ -1521,6 +1573,14 @@ Add at least one local server sanity verification for the streaming phase:
 - verify snapshot plus marker delivery
 - submit a write and verify `submit.ack`
 
+`DelegatedSubmitDeltaRoutingTest` should cover the submit-delta routing invariant
+directly:
+
+- both `delta.author` and `loggedInUser` equal `effectiveSubject` -> success
+- `delta.author` matches but `loggedInUser` differs -> failure
+- `loggedInUser` matches but `delta.author` differs -> failure
+- both differ -> failure
+
 
 ## 9. Open Questions
 
@@ -1529,3 +1589,4 @@ Add at least one local server sanity verification for the streaming phase:
 3. Do we want to consolidate existing first-party helper endpoints (`FetchServlet`, `FetchProfilesServlet`, `FolderServlet`) behind the new `/robot/client/v1/*` family, or keep both sets of endpoints indefinitely?
 4. What is the deprecation policy for the passive webhook protocol and `capabilities.xml` discovery model?
 5. If passive v2 webhook delivery is added later, should the server authenticate outbound deliveries with a server-signed bearer JWT, an HMAC signature, or both?
+6. Should the dashboard provide a dedicated "claim ownership" flow for legacy robots with `null ownerAddress`, or should those robots continue to rely on re-registration with a fresh secret and callback URL instead of a backfill path?
