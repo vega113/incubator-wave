@@ -157,12 +157,12 @@ sb.append("})();\n</script>\n");
 
 ### `HtmlRenderer.java` — Admin page (Step 2)
 
-`renderAdminPage(String currentUser, String domain, String callerRole)` at line 3735:
+`renderAdminPage(String currentUser, String domain, String contextPath, String callerRole)` at line 3735:
 - **Remove** `.admin-header` CSS block (lines ~3755-3766 in current file).
 - **After** existing `</style>` tag: append `"<style>\n" + renderSharedTopBarCss() + "\n</style>\n"`
 - **Remove** `<div class="admin-header">` ... `</div>` HTML block (lines ~3944-3953).
-- **Insert** `renderSharedTopBarHtml(currentUser, domain, "", callerRole)` in its place.
-- **Before** `</body>`: append `renderSharedTopBarJs("")`.
+- **Insert** `renderSharedTopBarHtml(currentUser, domain, contextPath, callerRole)` in its place.
+- **Before** `</body>`: append `renderSharedTopBarJs(contextPath)`.
 
 ### `HtmlRenderer.java` — Account Settings page (Step 3)
 
@@ -170,8 +170,8 @@ sb.append("})();\n</script>\n");
 - **Remove** `.settings-header` CSS block (lines ~7210-7219).
 - **After** existing `</style>` tag: append shared topbar CSS style block.
 - **Remove** `<div class="settings-header">` HTML block.
-- **Insert** `renderSharedTopBarHtml(currentUser, domain, "", null)` in its place.
-- **Before** `</body>`: append `renderSharedTopBarJs("")`.
+- **Insert** `renderSharedTopBarHtml(currentUser, domain, contextPath, account.getRole())` in its place.
+- **Before** `</body>`: append `renderSharedTopBarJs(contextPath)`.
 
 ### `HtmlRenderer.java` — Profile Edit page (Step 4)
 
@@ -179,8 +179,8 @@ sb.append("})();\n</script>\n");
 - **Remove** `.profile-header` CSS block (lines ~7525-7534).
 - **After** existing `</style>` tag: append shared topbar CSS style block.
 - **Remove** `<div class="profile-header">` HTML block.
-- **Insert** `renderSharedTopBarHtml(currentUser, domain, "", null)` in its place.
-- **Before** `</body>`: append `renderSharedTopBarJs("")`.
+- **Insert** `renderSharedTopBarHtml(currentUser, domain, contextPath, account.getRole())` in its place.
+- **Before** `</body>`: append `renderSharedTopBarJs(contextPath)`.
 
 ### `RobotDashboardServlet.java` — Robot Control Center (Step 5)
 
@@ -188,7 +188,7 @@ sb.append("})();\n</script>\n");
 - **Remove** `.back-link`, `.hdr`, `.hdr-row`, `.hdr-sub`, `.hdr-line`, `.wave-deco` CSS.
 - **After** `</style>` tag: append `"<style>\n" + HtmlRenderer.renderSharedTopBarCss() + "\n</style>\n"`
 - **Remove** `<a class="back-link"...>`, `<div class="hdr">...</div>`, `<div class="wave-deco">...</div>`.
-- **Insert** `HtmlRenderer.renderSharedTopBarHtml(userAddress, this.domain, contextPath, null)`.
+- **Insert** `HtmlRenderer.renderSharedTopBarHtml(userAddress, contextPath, null)`.
 - **Move page title** into `.main` section (before tabs div):
   ```java
   sb.append("<div style=\"margin-bottom:16px\">");
@@ -205,7 +205,7 @@ sb.append("})();\n</script>\n");
 | `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java` | Add 3 static methods; update `renderAdminPage`, `renderAccountSettingsPage`, `renderProfileEditPage`. |
 | `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/robots/RobotDashboardServlet.java` | Update `renderDashboardPage`. |
 
-`AdminServlet.java`, `AccountSettingsServlet.java`, `ProfileServlet.java` — NO changes needed.
+`AdminServlet.java`, `AccountSettingsServlet.java`, `ProfileServlet.java` — Updated to pass `req.getContextPath()` into their respective `HtmlRenderer.render*Page()` calls.
 
 ## Security Checklist
 

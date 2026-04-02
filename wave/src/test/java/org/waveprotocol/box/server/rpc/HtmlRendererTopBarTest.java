@@ -43,7 +43,7 @@ public final class HtmlRendererTopBarTest extends TestCase {
 
     assertTrue(topBarHtml.contains("href=\"/wave/account/robots\""));
     assertTrue(topBarHtml.contains("href=\"/wave/admin\""));
-    assertTrue(topBarHtml.contains("href=\"/wave/auth/signout?r=/\""));
+    assertTrue(topBarHtml.contains("href=\"/wave/auth/signout?r=%2Fwave%2F\""));
     assertTrue(topBarHtml.contains("aria-label=\"Language\""));
     assertTrue(topBarHtml.contains("aria-haspopup=\"menu\""));
     assertTrue(topBarHtml.contains("aria-expanded=\"false\""));
@@ -56,7 +56,8 @@ public final class HtmlRendererTopBarTest extends TestCase {
     String css = HtmlRenderer.renderSharedTopBarCss();
 
     assertTrue(css.contains(".topbar .info {"));
-    assertTrue(css.contains(".topbar .info a {"));
+    assertTrue(css.contains(".topbar .info > a {"));
+    assertTrue(css.contains(".lang-icon-btn:focus-within {"));
     assertFalse(css.contains("\n.info {"));
   }
 

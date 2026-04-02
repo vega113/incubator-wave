@@ -19,10 +19,12 @@
 package org.waveprotocol.box.server.rpc;
 
 import com.google.wave.api.SearchResult;
+import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import org.json.JSONArray;
@@ -3245,6 +3247,9 @@ public final class HtmlRenderer {
     sb.append(".lang-icon-btn {\n");
     sb.append("  cursor: pointer; position: relative;\n");
     sb.append("}\n");
+    sb.append(".lang-icon-btn:focus-within {\n");
+    sb.append("  box-shadow: 0 0 0 2px rgba(255,255,255,0.35);\n");
+    sb.append("}\n");
     sb.append(".lang-icon-btn select {\n");
     sb.append("  position: absolute; top: 0; left: 0; width: 100%; height: 100%;\n");
     sb.append("  opacity: 0; cursor: pointer; font-size: 14px;\n");
@@ -3284,8 +3289,8 @@ public final class HtmlRenderer {
     sb.append(".topbar-icon.offline::after { display: block; background: #fc8181; box-shadow: 0 0 4px #fc8181; }\n");
     sb.append("@keyframes indicator-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }\n");
     sb.append(".topbar .info { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: rgba(255,255,255,0.9); }\n");
-    sb.append(".topbar .info a { color: #fff; text-decoration: none; font-weight: 500; }\n");
-    sb.append(".topbar .info a:hover { text-decoration: underline; }\n");
+    sb.append(".topbar .info > a { color: #fff; text-decoration: none; font-weight: 500; }\n");
+    sb.append(".topbar .info > a:hover { text-decoration: underline; }\n");
     sb.append(".online svg, .connecting svg, .offline svg { color: white; stroke: white; }\n");
     sb.append(".user-avatar {\n");
     sb.append("  display: inline-flex; align-items: center; justify-content: center;\n");
@@ -3350,6 +3355,8 @@ public final class HtmlRenderer {
   public static String renderSharedTopBarHtml(String fullAddress,
       String contextPath, String userRole) {
     String safeCtx = escapeHtml(contextPath == null ? "" : contextPath);
+    String signOutReturn = (contextPath == null || contextPath.isEmpty()) ? "/" : contextPath + "/";
+    String safeSignOutReturn = escapeHtml(URLEncoder.encode(signOutReturn, StandardCharsets.UTF_8));
     String safeAddr = escapeHtml(fullAddress == null ? "" : fullAddress);
     String safeAddrFull = safeAddr;
     int atIdx = fullAddress == null ? -1 : fullAddress.indexOf('@');
@@ -3401,7 +3408,7 @@ public final class HtmlRenderer {
     sb.append("        <a role=\"menuitem\" href=\"").append(safeCtx).append("/terms\" target=\"_blank\" rel=\"noopener noreferrer\">Terms of Service</a>\n");
     sb.append("        <a role=\"menuitem\" href=\"").append(safeCtx).append("/privacy\" target=\"_blank\" rel=\"noopener noreferrer\">Privacy Policy</a>\n");
     sb.append("        <div class=\"divider\"></div>\n");
-    sb.append("        <a id=\"signout\" role=\"menuitem\" href=\"").append(safeCtx).append("/auth/signout?r=/\">Sign Out</a>\n");
+    sb.append("        <a id=\"signout\" role=\"menuitem\" href=\"").append(safeCtx).append("/auth/signout?r=").append(safeSignOutReturn).append("\">Sign Out</a>\n");
     sb.append("      </div>\n");
     sb.append("    </div>\n");
     sb.append("  </div>\n");
