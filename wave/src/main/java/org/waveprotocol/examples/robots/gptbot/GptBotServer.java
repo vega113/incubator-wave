@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -50,6 +51,10 @@ public final class GptBotServer {
             config.isCodexUnsafeBypassEnabled()));
     SupaWaveApiClient apiClient = new SupaWaveApiClient(config);
     GptBotRobot robot = new GptBotRobot(config, replyPlanner, apiClient);
+    if (!config.getPublicBaseUrl().isBlank() && config.getCallbackToken().isBlank()) {
+      LOG.warning("GPTBOT_PUBLIC_BASE_URL is set without GPTBOT_CALLBACK_TOKEN; public callback "
+          + "requests will be rejected until a token is configured");
+    }
 
     HttpServer server = HttpServer.create(new InetSocketAddress(config.getListenHost(),
         config.getListenPort()), 0);
@@ -59,7 +64,7 @@ public final class GptBotServer {
         "application/xml; charset=utf-8"));
     server.createContext(robot.getProfilePath(), new TextHandler(200, robot.getProfileJson(),
         "application/json; charset=utf-8"));
-    server.createContext(robot.getRpcPath(), new CallbackHandler(robot));
+    server.createContext(robot.getRpcPath(), new CallbackHandler(config, robot));
     int workerThreads = config.getHttpWorkerThreads();
     server.setExecutor(new ThreadPoolExecutor(workerThreads, workerThreads, 60L, TimeUnit.SECONDS,
         new LinkedBlockingQueue<Runnable>(workerThreads), new ThreadPoolExecutor.AbortPolicy()));
@@ -73,19 +78,27 @@ public final class GptBotServer {
 
   private static final class CallbackHandler implements HttpHandler {
 
+    private final GptBotConfig config;
     private final GptBotRobot robot;
 
-    private CallbackHandler(GptBotRobot robot) {
+    private CallbackHandler(GptBotConfig config, GptBotRobot robot) {
+      this.config = config;
       this.robot = robot;
     }
 
     @Override
     public void handle(HttpExchange exchange) throws IOException {
       if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+        exchange.getRequestBody().close();
         new TextHandler(405, "method not allowed\n", "text/plain; charset=utf-8")
             .handle(exchange);
       } else {
-        if (isRequestTooLarge(exchange)) {
+        if (!isCallbackAuthorized(exchange.getRequestURI().getRawQuery(),
+            config.getCallbackToken(), !config.getPublicBaseUrl().isBlank())) {
+          exchange.getRequestBody().close();
+          new TextHandler(403, "{\"error\":\"unauthorized\"}\n",
+              "application/json; charset=utf-8").handle(exchange);
+        } else if (isRequestTooLarge(exchange)) {
           exchange.getRequestBody().close();
           new TextHandler(413, "{\"error\":\"request too large\"}\n",
               "application/json; charset=utf-8").handle(exchange);
@@ -130,6 +143,33 @@ public final class GptBotServer {
     }
   }
 
+  static boolean isCallbackAuthorized(String rawQuery, String callbackToken,
+      boolean requireCallbackToken) {
+    if (callbackToken.isBlank()) {
+      return !requireCallbackToken;
+    }
+    String providedToken = queryParameter(rawQuery, "token");
+    return callbackToken.equals(providedToken);
+  }
+
+  private static String queryParameter(String rawQuery, String parameterName) {
+    String value = "";
+    if (rawQuery != null && !rawQuery.isBlank()) {
+      String[] parameters = rawQuery.split("&");
+      for (String parameter : parameters) {
+        int separator = parameter.indexOf('=');
+        String rawName = separator >= 0 ? parameter.substring(0, separator) : parameter;
+        String name = URLDecoder.decode(rawName, StandardCharsets.UTF_8);
+        if (parameterName.equals(name)) {
+          String rawValue = separator >= 0 ? parameter.substring(separator + 1) : "";
+          value = URLDecoder.decode(rawValue, StandardCharsets.UTF_8);
+          break;
+        }
+      }
+    }
+    return value;
+  }
+
   private static final class RootHandler implements HttpHandler {
 
     private final GptBotConfig config;
@@ -151,7 +191,7 @@ public final class GptBotServer {
       body.append("context mode: ").append(config.getContextMode().name().toLowerCase()).append('\n');
       body.append("profile: ").append(robot.getProfilePath()).append('\n');
       body.append("capabilities: ").append(robot.getCapabilitiesPath()).append('\n');
-      body.append("callback: ").append(robot.getRpcPath()).append('\n');
+      body.append("callback: ").append(config.getCallbackUrl(robot.getRpcPath())).append('\n');
       new TextHandler(200, body.toString(), "text/plain; charset=utf-8").handle(exchange);
     }
   }

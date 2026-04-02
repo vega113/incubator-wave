@@ -61,10 +61,11 @@ If you already have a named tunnel hostname, set it first:
 `GPTBOT_TUNNEL_HOSTNAME=bot.example.com scripts/cloudflare/gpt-bot-tunnel.sh`
 
 Set `GPTBOT_PUBLIC_BASE_URL` to the resulting public origin so the root page shows the same URL you register with SupaWave.
+Set `GPTBOT_CALLBACK_TOKEN` to a long random secret and include it in the callback URL you register.
 
-The callback URL you register is the public base URL:
+The callback URL you register is the public base URL with the token:
 
-`https://<public-host>`
+`https://<public-host>/_wave/robot/jsonrpc?token=<callback-token>`
 
 ## Registering The Robot
 
@@ -77,7 +78,7 @@ curl -sS -X POST "$SUPAWAVE_BASE_URL/api/robots" \
   -d '{
     "username": "gpt-bot@example.com",
     "description": "Example gpt-bot robot",
-    "callbackUrl": "https://<public-host>",
+    "callbackUrl": "https://<public-host>/_wave/robot/jsonrpc?token=<callback-token>",
     "tokenExpiry": 3600
   }'
 ```

@@ -23,6 +23,8 @@ import org.waveprotocol.wave.util.logging.Log;
 
 import java.time.Duration;
 import java.util.Locale;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Immutable configuration for the gpt-bot example robot.
@@ -60,6 +62,7 @@ public final class GptBotConfig {
   private final Duration codexTimeout;
   private final int httpWorkerThreads;
   private final boolean codexUnsafeBypass;
+  private final String callbackToken;
   private final ContextMode contextMode;
   private final ReplyMode replyMode;
   private final String apiRobotId;
@@ -69,6 +72,7 @@ public final class GptBotConfig {
       String publicBaseUrl, String profilePageUrl, String avatarUrl, String listenHost,
       int listenPort, String codexBinary, String codexModel, String codexReasoningEffort,
       Duration codexTimeout, int httpWorkerThreads, boolean codexUnsafeBypass,
+      String callbackToken,
       ContextMode contextMode, ReplyMode replyMode, String apiRobotId, String apiRobotSecret) {
     this.robotName = robotName;
     this.participantId = participantId;
@@ -84,6 +88,7 @@ public final class GptBotConfig {
     this.codexTimeout = codexTimeout;
     this.httpWorkerThreads = httpWorkerThreads;
     this.codexUnsafeBypass = codexUnsafeBypass;
+    this.callbackToken = callbackToken;
     this.contextMode = contextMode;
     this.replyMode = replyMode;
     this.apiRobotId = apiRobotId;
@@ -107,6 +112,7 @@ public final class GptBotConfig {
         120, 1, 3600));
     int httpWorkerThreads = readInt("GPTBOT_HTTP_WORKERS", null, 4, 1, 128);
     boolean codexUnsafeBypass = readBoolean("GPTBOT_CODEX_UNSAFE_BYPASS", null, false);
+    String callbackToken = readString("GPTBOT_CALLBACK_TOKEN", null, "");
     ContextMode contextMode = ContextMode.from(readString("GPTBOT_CONTEXT_MODE", null,
         DEFAULT_CONTEXT_MODE));
     ReplyMode replyMode = ReplyMode.from(readString("GPTBOT_REPLY_MODE", null,
@@ -115,15 +121,15 @@ public final class GptBotConfig {
     String apiRobotSecret = readString("GPTBOT_API_ROBOT_SECRET", null, "");
     return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
         avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,
-        codexTimeout, httpWorkerThreads, codexUnsafeBypass, contextMode, replyMode, apiRobotId,
-        apiRobotSecret);
+        codexTimeout, httpWorkerThreads, codexUnsafeBypass, callbackToken, contextMode,
+        replyMode, apiRobotId, apiRobotSecret);
   }
 
   static GptBotConfig forTest() {
     return new GptBotConfig(DEFAULT_BOT_NAME, DEFAULT_PARTICIPANT_ID, DEFAULT_BASE_URL, "",
         DEFAULT_PROFILE_URL, DEFAULT_AVATAR_URL, "0.0.0.0", 8087, DEFAULT_CODEX_BINARY,
         DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT, Duration.ofSeconds(120), 4, false,
-        ContextMode.NONE, ReplyMode.PASSIVE, "test-robot", "test-secret");
+        "", ContextMode.NONE, ReplyMode.PASSIVE, "test-robot", "test-secret");
   }
 
   public String getRobotName() {
@@ -198,6 +204,10 @@ public final class GptBotConfig {
     return codexUnsafeBypass;
   }
 
+  public String getCallbackToken() {
+    return callbackToken;
+  }
+
   public ContextMode getContextMode() {
     return contextMode;
   }
@@ -225,8 +235,23 @@ public final class GptBotConfig {
   public GptBotConfig withReplyMode(ReplyMode newReplyMode) {
     return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
         avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,
-        codexTimeout, httpWorkerThreads, codexUnsafeBypass, contextMode, newReplyMode, apiRobotId,
-        apiRobotSecret);
+        codexTimeout, httpWorkerThreads, codexUnsafeBypass, callbackToken, contextMode,
+        newReplyMode, apiRobotId, apiRobotSecret);
+  }
+
+  public GptBotConfig withCallbackToken(String newCallbackToken) {
+    return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
+        avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,
+        codexTimeout, httpWorkerThreads, codexUnsafeBypass, newCallbackToken, contextMode,
+        replyMode, apiRobotId, apiRobotSecret);
+  }
+
+  public String getCallbackUrl(String rpcPath) {
+    String callbackUrl = getAdvertisedBaseUrl() + rpcPath;
+    if (!callbackToken.isBlank()) {
+      callbackUrl = callbackUrl + "?token=" + URLEncoder.encode(callbackToken, StandardCharsets.UTF_8);
+    }
+    return callbackUrl;
   }
 
   private static String readString(String primaryName, String legacyName, String defaultValue) {
