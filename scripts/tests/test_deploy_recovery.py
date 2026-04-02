@@ -440,7 +440,7 @@ class DeployRecoveryTest(unittest.TestCase):
         docker_commands = docker_log.read_text(encoding="utf-8")
         self.assertIn("ps -aq wave", docker_commands)
         self.assertIn("inspect --format {{.Config.Image}} supawave-wave-1", docker_commands)
-        self.assertIn("rm -f supawave-wave-1", docker_commands)
+        self.assertNotIn("rm -f supawave-wave-1", docker_commands)
         self.assertEqual(
             "ghcr.io/example/wave:target",
             (deploy_root / "releases/blue/image-ref").read_text(encoding="utf-8").strip(),

@@ -205,18 +205,18 @@ migrate_to_blue_green() {
   echo "[deploy] Discovering legacy wave image"
   legacy_container_id=$(docker compose -f "$old_compose" -p "$PROJECT_NAME" ps -aq wave 2>/dev/null | sed -n '1p' || true)
   if [ -n "$legacy_container_id" ]; then
-    legacy_container_ref="$legacy_container_id"
     current_image=$(docker inspect --format '{{.Config.Image}}' "$legacy_container_id" 2>/dev/null || true)
     if [ -n "$current_image" ]; then
+      legacy_container_ref="$legacy_container_id"
       echo "[deploy] Resolved legacy wave image from compose service container $legacy_container_id"
     fi
   fi
 
   if [ -z "$current_image" ]; then
     echo "[deploy] Falling back to legacy container name $legacy_fallback_container"
-    legacy_container_ref="$legacy_fallback_container"
     current_image=$(docker inspect --format '{{.Config.Image}}' "$legacy_fallback_container" 2>/dev/null || true)
     if [ -n "$current_image" ]; then
+      legacy_container_ref="$legacy_fallback_container"
       echo "[deploy] Resolved legacy wave image from fallback container $legacy_fallback_container"
     fi
   fi
