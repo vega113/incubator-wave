@@ -124,6 +124,13 @@ public final class GptBotConfig {
         apiRobotSecret);
   }
 
+  static GptBotConfig forTest() {
+    return new GptBotConfig(DEFAULT_BOT_NAME, DEFAULT_PARTICIPANT_ID, DEFAULT_BASE_URL, "",
+        DEFAULT_PROFILE_URL, DEFAULT_AVATAR_URL, "0.0.0.0", 8087, DEFAULT_CODEX_BINARY,
+        DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT, Duration.ofSeconds(120), 4, false,
+        ContextMode.NONE, ReplyMode.PASSIVE, "test-robot", "test-secret");
+  }
+
   public String getRobotName() {
     return robotName;
   }

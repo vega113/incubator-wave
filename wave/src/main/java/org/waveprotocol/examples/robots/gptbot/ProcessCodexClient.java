@@ -44,14 +44,22 @@ public final class ProcessCodexClient implements CodexClient {
   private final String reasoningEffort;
   private final Duration timeout;
   private final boolean unsafeBypassApprovalsAndSandbox;
+  private final ProcessLauncher processLauncher;
 
   public ProcessCodexClient(String codexBinary, String model, String reasoningEffort,
       Duration timeout, boolean unsafeBypassApprovalsAndSandbox) {
+    this(codexBinary, model, reasoningEffort, timeout, unsafeBypassApprovalsAndSandbox,
+        ProcessCodexClient::startProcess);
+  }
+
+  ProcessCodexClient(String codexBinary, String model, String reasoningEffort, Duration timeout,
+      boolean unsafeBypassApprovalsAndSandbox, ProcessLauncher processLauncher) {
     this.codexBinary = codexBinary;
     this.model = model;
     this.reasoningEffort = reasoningEffort;
     this.timeout = timeout;
     this.unsafeBypassApprovalsAndSandbox = unsafeBypassApprovalsAndSandbox;
+    this.processLauncher = processLauncher;
   }
 
   @Override
@@ -80,15 +88,12 @@ public final class ProcessCodexClient implements CodexClient {
       }
       command.add("-");
 
-      ProcessBuilder builder = new ProcessBuilder(command);
-      builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-      builder.redirectError(errorFile.toFile());
-      Process process = builder.start();
+      Process process = processLauncher.start(command, errorFile);
       try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
           process.getOutputStream(), StandardCharsets.UTF_8))) {
         writer.write(prompt);
       } catch (IOException e) {
-        LOG.warning("Unable to write the Codex prompt", e);
+        throw new IllegalStateException("Unable to write Codex prompt", e);
       }
 
       boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -143,5 +148,16 @@ public final class ProcessCodexClient implements CodexClient {
         LOG.warning("Unable to delete temporary Codex file", e);
       }
     }
+  }
+
+  private static Process startProcess(List<String> command, Path errorFile) throws IOException {
+    ProcessBuilder builder = new ProcessBuilder(command);
+    builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+    builder.redirectError(errorFile.toFile());
+    return builder.start();
+  }
+
+  interface ProcessLauncher {
+    Process start(List<String> command, Path errorFile) throws IOException;
   }
 }

@@ -52,8 +52,12 @@ public final class SupaWaveApiClient implements SupaWaveClient {
   private volatile AccessToken robotApiToken;
 
   public SupaWaveApiClient(GptBotConfig config) {
+    this(config, HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build());
+  }
+
+  SupaWaveApiClient(GptBotConfig config, HttpClient httpClient) {
     this.config = config;
-    this.httpClient = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+    this.httpClient = httpClient;
   }
 
   @Override
@@ -65,7 +69,7 @@ public final class SupaWaveApiClient implements SupaWaveClient {
             contextAccessToken());
         context = Optional.ofNullable(summarizeFetchResponse(response)).filter(value -> !value.isBlank());
       } catch (IOException | InterruptedException | RuntimeException e) {
-        LOG.warning("Unable to fetch SupaWave context", e);
+        logWarningAndRestoreInterrupt("Unable to fetch SupaWave context", e);
       }
     }
     return context;
@@ -79,7 +83,7 @@ public final class SupaWaveApiClient implements SupaWaveClient {
         JsonArray response = postRpc(searchRequest(query), searchRpcEndpoint(), searchAccessToken());
         summary = Optional.ofNullable(summarizeSearchResponse(response)).filter(value -> !value.isBlank());
       } catch (IOException | InterruptedException | RuntimeException e) {
-        LOG.warning("Unable to search SupaWave", e);
+        logWarningAndRestoreInterrupt("Unable to search SupaWave", e);
       }
     }
     return summary;
@@ -94,7 +98,7 @@ public final class SupaWaveApiClient implements SupaWaveClient {
             activeRpcEndpoint(), getRobotAccessToken());
         appended = !responseContainsError(response);
       } catch (IOException | InterruptedException | RuntimeException e) {
-        LOG.warning("Unable to append a reply through the active API", e);
+        logWarningAndRestoreInterrupt("Unable to append a reply through the active API", e);
       }
     }
     return appended;
@@ -359,6 +363,13 @@ public final class SupaWaveApiClient implements SupaWaveClient {
 
   private static String encode(String value) {
     return URLEncoder.encode(value, StandardCharsets.UTF_8);
+  }
+
+  private void logWarningAndRestoreInterrupt(String message, Exception e) {
+    if (e instanceof InterruptedException) {
+      Thread.currentThread().interrupt();
+    }
+    LOG.warning(message, e);
   }
 
   private static String clamp(String value) {

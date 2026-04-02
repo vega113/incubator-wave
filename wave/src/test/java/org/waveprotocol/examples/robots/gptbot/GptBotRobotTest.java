@@ -38,15 +38,16 @@ import java.util.Optional;
  */
 public class GptBotRobotTest extends TestCase {
 
+  private static final GptBotConfig TEST_CONFIG = GptBotConfig.forTest();
+
   public void testCallbackBundleGeneratesReplyOperationsInPassiveMode() {
     RecordingCodexClient codexClient = new RecordingCodexClient();
     codexClient.response = "Here is a helpful answer.";
     RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
-    GptBotConfig config = GptBotConfig.fromEnvironment();
-    GptBotRobot robot = new GptBotRobot(config,
-        new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), codexClient), apiClient);
 
-    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId(),
+    String response = robot.handleEventBundle(exampleBundleJson(TEST_CONFIG.getParticipantId(),
         "\n@gpt-bot please answer", new BlipSubmittedEvent(null, null, "alice@example.com", 1L,
             "b+root")));
 
@@ -62,7 +63,7 @@ public class GptBotRobotTest extends TestCase {
     codexClient.response = "Reply from the active API.";
     RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
     apiClient.appendSucceeds = true;
-    GptBotConfig config = GptBotConfig.fromEnvironment().withReplyMode(GptBotConfig.ReplyMode.ACTIVE);
+    GptBotConfig config = TEST_CONFIG.withReplyMode(GptBotConfig.ReplyMode.ACTIVE);
     GptBotRobot robot = new GptBotRobot(config,
         new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
 
@@ -81,11 +82,10 @@ public class GptBotRobotTest extends TestCase {
   public void testCallbackBundleDoesNotFetchContextWithoutMention() {
     RecordingCodexClient codexClient = new RecordingCodexClient();
     RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
-    GptBotConfig config = GptBotConfig.fromEnvironment();
-    GptBotRobot robot = new GptBotRobot(config,
-        new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), codexClient), apiClient);
 
-    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId(),
+    String response = robot.handleEventBundle(exampleBundleJson(TEST_CONFIG.getParticipantId(),
         "Just chatting", new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root")));
 
     assertFalse(response.contains("blip.createChild"));
@@ -97,11 +97,10 @@ public class GptBotRobotTest extends TestCase {
     RecordingCodexClient codexClient = new RecordingCodexClient();
     codexClient.response = "Here is a helpful answer.";
     RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
-    GptBotConfig config = GptBotConfig.fromEnvironment();
-    GptBotRobot robot = new GptBotRobot(config,
-        new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), codexClient), apiClient);
 
-    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId(),
+    String response = robot.handleEventBundle(exampleBundleJson(TEST_CONFIG.getParticipantId(),
         "\n@gpt-bot please answer",
         new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root"),
         new DocumentChangedEvent(null, null, "alice@example.com", 2L, "b+root"),
@@ -113,9 +112,8 @@ public class GptBotRobotTest extends TestCase {
   }
 
   public void testCapabilitiesXmlIncludesTheExpectedEventsAndContextAttribute() {
-    GptBotConfig config = GptBotConfig.fromEnvironment();
-    GptBotRobot robot = new GptBotRobot(config,
-        new GptBotReplyPlanner(config.getRobotName(), new RecordingCodexClient()),
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), new RecordingCodexClient()),
         new RecordingSupaWaveClient());
 
     String xml = robot.getCapabilitiesXml();
@@ -128,15 +126,14 @@ public class GptBotRobotTest extends TestCase {
   }
 
   public void testProfileJsonIncludesRobotIdentity() {
-    GptBotConfig config = GptBotConfig.fromEnvironment();
-    GptBotRobot robot = new GptBotRobot(config,
-        new GptBotReplyPlanner(config.getRobotName(), new RecordingCodexClient()),
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), new RecordingCodexClient()),
         new RecordingSupaWaveClient());
 
     String profile = robot.getProfileJson();
 
-    assertTrue(profile.contains(config.getRobotName()));
-    assertTrue(profile.contains(config.getParticipantId()));
+    assertTrue(profile.contains(TEST_CONFIG.getRobotName()));
+    assertTrue(profile.contains(TEST_CONFIG.getParticipantId()));
   }
 
   private static String exampleBundleJson(String participantId, String content, Event... events) {
