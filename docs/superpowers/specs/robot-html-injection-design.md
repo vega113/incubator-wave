@@ -1,6 +1,6 @@
 # Robot HTML Injection Design
 
-Status: investigation draft for architectural review
+Status: architectural review complete — ready for implementation
 Date: 2026-04-02
 Scope: replace legacy OpenSocial gadgets with robot-managed HTML in normal Wave blips, rendered safely in the current GWT client and survivable in a future J2CL migration
 
@@ -518,8 +518,8 @@ Recommended sanitizer policy for v1:
   - **src attributes (v1):** Allow `http://`, `https://`, relative URLs, and `data:image/` with ONLY safe formats (PNG, JPEG, GIF, WebP). Explicitly block `data:image/svg+xml`, `data:text/html`, `javascript:`, etc.
     - **Rationale**: SVG can embed active content and scripting; v1 excludes it despite `<svg>` tag ban to prevent policy bypass via data URLs
     - **Future (v2+)**: SVG support via `data:image/svg+xml` can be added with explicit XML sanitization if needed
-  - **Normalization:** Before protocol check, trim whitespace and unescape HTML entities (e.g., `javascript%3a` → `javascript:`)
-  - **Rationale:** Blacklist-based checks (`reject "javascript:"`) are bypassable via encoding; allowlist approach is safer
+  - **Normalization:** Before protocol check, apply all three decoding steps in order: (1) trim leading/trailing whitespace and strip ASCII control characters, (2) percent-decode the URL (e.g., `javascript%3a` → `javascript:`), (3) decode HTML character references (e.g., `&#106;avascript:` → `javascript:`). Repeat until stable (no further decoding changes the result) to prevent double-encoding bypasses.
+  - **Rationale:** Blacklist-based checks (`reject "javascript:"`) are bypassable via encoding; allowlist approach after full canonicalization is safer
 
 **CSS sanitization (property whitelist):**
   - **style attribute:** If present, apply a CSS property whitelist. Only allow safe properties: `color`, `background-color`, `font-size`, `font-family`, `font-weight`, `margin*`, `padding*`, `text-align`, `text-decoration`, `line-height`, `border`, `border-radius`
@@ -536,8 +536,7 @@ Recommended sanitizer policy for v1:
     - Table: `colspan`, `rowspan`
   - **If custom data-* attributes are needed:** Implement a prefix check (e.g., `attr.startsWith("data-") && isWhitelistedDataAttribute(attr)`) instead of relying on glob matching
   - **Rationale:** Set.contains() is exact-match only; to support `data-*` patterns, either enumerate specific attributes or implement custom prefix logic
-
-- clamp payload size before and after sanitization
+  - clamp payload size before and after sanitization
 - canonicalize the sanitized output so equal input produces equal stored output
 
 Important design choice:
@@ -559,18 +558,19 @@ Recommended client path:
 1. `ConversationSchemas` permits `<robot-html>` in the body and line-container contexts.
 2. `ElementSerializer` can serialize and deserialize the new element in API fetch/export paths.
 3. `StageTwo` or `Editors.initRootRegistries()` registers a `RobotHtmlRenderer`.
-4. The renderer extracts the sanitized HTML from the `<data>` child element.
-5. The widget renders the fragment into an iframe:
+4. The renderer extracts the HTML from the `<data>` child element.
+5. **Re-sanitize the extracted HTML** using the same sanitization pipeline as insertion time (defense-in-depth: protects against insertion-time bugs, data corruption, or retroactive policy changes).
+6. The widget renders the re-sanitized fragment into an iframe:
    - `srcdoc` = wrapper HTML document containing the sanitized fragment
    - `sandbox` = no `allow-same-origin` (robot HTML is display-only and does not need parent API access)
    - no `allow-scripts`
    - no top-navigation privileges
-6. The iframe wrapper document sets a strict local CSP, for example:
+7. The iframe wrapper document sets a strict local CSP, for example:
    - `default-src 'none'`
    - `img-src data: https:`
    - `style-src 'unsafe-inline'`
    - `font-src data: https:`
-7. Host-side code sizes the iframe using:
+8. Host-side code sizes the iframe using:
    - **v1 (Recommended)**: Preferred height from element metadata (element attribute or initial CSS) as fixed layout
    - **Post-v2**: Auto-height can be added if iframe script support is enabled (requires careful design to allow trusted sizing script but not robot payload scripts)
 
@@ -605,7 +605,7 @@ What not to do:
 
 Register a `RobotHtmlRenderer` in `ServerHtmlRenderer` to handle `<robot-html>` elements:
 
-```
+```text
 When rendering a <robot-html> element:
   1. Extract the <data> child element containing XML-escaped HTML
   2. Apply full sanitization pipeline (attribute whitelist, URL protocol allowlist, CSS property whitelist)
@@ -617,6 +617,11 @@ When rendering a <robot-html> element:
   <div class="robot-html-container" data-robot-key="build-card-123" data-title="Build status">
     <section class="card"><h2>Build passing</h2></section>
   </div>
+  
+  IMPORTANT: All metadata attributes (data-robot-key, data-title, etc.) MUST be
+  HTML-attribute-escaped before interpolation into the output div. Robot-provided
+  metadata values are untrusted input. Use standard attribute escaping (encode
+  &, <, >, ", ' as HTML entities) to prevent attribute-context XSS on public/SSR pages.
 ```
 
 **Rationale:**
@@ -625,7 +630,7 @@ When rendering a <robot-html> element:
   - Insertion-time sanitizer bugs or incomplete implementation
   - Data corruption or tampering of stored HTML content
   - Future changes to the sanitization policy that should apply to all render paths
-- Public waves do not run JavaScript, so no `<script>` or event handlers will execute (if somehow present after sanitization)
+- **SSR output is served to browsers and MUST be treated as script-capable.** Even though public waves are read-only, the rendered HTML is still interpreted by browsers. If the server CSP allows inline scripts (e.g., `script-src 'unsafe-inline'`), any unsanitized `<script>` or event handler could execute. Therefore: (1) re-sanitization is mandatory on all SSR render paths, (2) the server SHOULD set a restrictive CSP for public wave pages (e.g., `script-src 'none'` or at minimum `script-src 'self'`), and (3) do not rely on "SSR doesn't execute JS" as a security guarantee
 - Wrapping in a div allows CSS styling in public/SSR views
 - Metadata attributes are preserved for debugging and audit purposes
 - No iframe is needed in static/read-only contexts; direct HTML is appropriate
@@ -736,7 +741,7 @@ Store state in a new `<robot-state>` element (sibling to or child of `<robot-htm
 
 Robots maintain an external database (Redis, PostgreSQL, DynamoDB) mapping wave-id → state.
 
-```
+```text
 Robot logic:
 1. When rendering HTML: fetch state from robot DB (wave-id lookup)
 2. Include state in HTML template variables
@@ -800,7 +805,7 @@ Wave stores a **state reference** (robot-id + state-version-id); robot DB holds 
 
 Use Wave's existing **FormElement** infrastructure for state that participants interact with.
 
-```
+```text
 Robot logic:
 1. Inject HTML for visual display
 2. Also inject FormElements (INPUT, TEXTAREA, CHECKBOX, etc.)
@@ -909,8 +914,14 @@ public class RobotStateUpdateService extends OperationService {
       }
     }
     
-    // Find or create <robot-state> child element
-    XmlElement stateElem = htmlElem.getFirstChild("robot-state");
+    // Find existing <robot-state> by matching data-state-key, or create new
+    XmlElement stateElem = null;
+    for (XmlElement child : htmlElem.getChildren("robot-state")) {
+      if (stateKey.equals(child.getAttribute("data-state-key"))) {
+        stateElem = child;
+        break;
+      }
+    }
     if (stateElem == null) {
       stateElem = XmlElement.create("robot-state");
       htmlElem.appendChild(stateElem);
@@ -919,7 +930,7 @@ public class RobotStateUpdateService extends OperationService {
     // Update state attributes and content
     stateElem.setAttribute("type", stateType);
     stateElem.setAttribute("data-state-key", stateKey);
-    stateElem.setAttribute("data-timestamp", System.currentTimeMillis());
+    stateElem.setAttribute("data-timestamp", Instant.now().toString());  // ISO 8601
     stateElem.setAttribute("data-robot-id", robot.getId());
     stateElem.setText(stateValue);
   }
@@ -980,7 +991,7 @@ if (!context.getRobotId().equals(stateElem.getAttribute("data-robot-id"))) {
 ```
 
 **Design Pattern:**
-```
+```text
 User Action (Wave UI) 
   ↓
 Participant submits form or triggers event
@@ -1005,7 +1016,7 @@ All participants see consistent state (no conflicts)
 - Scalable (no OT transform needed for state; only robot operations)
 
 **Conflict Scenario (Handled Correctly):**
-```
+```text
 Scenario: User A and User B both click "refresh" at same time
 
 1. Both trigger Robot.handle_user_action() → Robot receives 2 events
@@ -1071,9 +1082,10 @@ public class RobotStateUpdateService extends OperationService {
     String stateVersion = context.getParameter("stateVersion", "1");  // default v1
     String stateType = context.getParameter("stateType", "json");
     
-    // Validate size limit
-    if (stateValue.length() > 100_000) {  // 100 KB limit
-      throw new BadRequestException("State exceeds max size of 100 KB");
+    // Validate size limit using UTF-8 byte length (not char count)
+    int byteLen = stateValue.getBytes(StandardCharsets.UTF_8).length;
+    if (byteLen > 100_000) {  // 100 KB limit
+      throw new BadRequestException("State exceeds max size of 100 KB (" + byteLen + " bytes)");
     }
     
     // Validate JSON/XML/text format
@@ -1085,19 +1097,27 @@ public class RobotStateUpdateService extends OperationService {
       }
     }
     
-    // Create/update state element
-    XmlElement stateElem = htmlElem.getFirstChild("robot-state");
+    // Find existing <robot-state> by matching stateKey, or create new
+    String stateKey = context.getParameter("stateKey");
+    XmlElement stateElem = null;
+    for (XmlElement child : htmlElem.getChildren("robot-state")) {
+      if (stateKey.equals(child.getAttribute("data-state-key"))) {
+        stateElem = child;
+        break;
+      }
+    }
     if (stateElem == null) {
       stateElem = XmlElement.create("robot-state");
       htmlElem.appendChild(stateElem);
     }
     
     stateElem.setAttribute("data-robot-id", robot.getId());
-    stateElem.setAttribute("data-state-key", context.getParameter("stateKey"));
+    stateElem.setAttribute("data-state-key", stateKey);
     stateElem.setAttribute("data-version", stateVersion);
     stateElem.setAttribute("type", stateType);
-    stateElem.setAttribute("data-timestamp", System.currentTimeMillis());
-    stateElem.setAttribute("data-size-bytes", stateValue.length());
+    stateElem.setAttribute("data-timestamp", Instant.now().toString());  // ISO 8601
+    stateElem.setAttribute("data-size-bytes", 
+        String.valueOf(stateValue.getBytes(StandardCharsets.UTF_8).length));
     stateElem.setText(stateValue);
   }
 }
@@ -1183,7 +1203,7 @@ def test_auto_migrate_on_fetch():
 
 The Wave server enforces a **100 KB per-element limit** for `<robot-state>` content:
 
-```
+```text
 Max state size = 100 KB per <robot-state> element
 Rationale:
 - Prevents unbounded blip growth (impacts snapshots, exports, diffs)
@@ -1308,7 +1328,7 @@ html = f"""
   <div class="weather-widget">
     <h3>Weather in {location}</h3>
     <p>{weather['condition']}, {weather['temp']}°{units[0]}</p>
-    <button onclick="window.parent.postMessage({{'action': 'refresh'}}, '*')">Refresh</button>
+    <button onclick="window.parent.postMessage({{'action': 'refresh', 'elementKey': 'build-card-123'}}, window.location.origin)">Refresh</button>
   </div>
 """
 
@@ -1319,6 +1339,8 @@ def handle_iframe_message(event, wavelet):
     # Fetch updated data and re-render
     ...
 ```
+
+**v2+ security requirement**: When `allow-scripts` is enabled, the host-side `message` event listener MUST validate `event.origin` against a known allowlist (e.g., the Wave server origin) and verify `event.source` matches the expected iframe's `contentWindow` before acting on any message. The iframe MUST NOT use wildcard `'*'` as the `postMessage` target origin. This prevents cross-frame message spoofing from unrelated iframes or windows.
 
 **v1 constraint**: This interactive pattern requires `allow-scripts` in iframe sandbox (v2+). Current design uses static server-rendered HTML.
 
@@ -1457,11 +1479,11 @@ Add or change:
 
 **Scope:** Wave protocol serialization and deserialization of `<robot-html>` elements in API fetch/export paths.
 
-**Implementation:**
+**Implementation note:** The pseudo-code below shows the logical interface. The actual codebase's `com.google.wave.api.data.ElementSerializer` is an abstract class with static registration methods. Implementers should extend the existing abstract class and follow its method signatures (which may differ from the simplified interface shown here). Consult the current `ElementSerializer` source for the actual method shapes and registration pattern.
 
-Create `RobotHtmlElementSerializer` implementing the standard `ElementSerializer` interface:
+Create `RobotHtmlElementSerializer` following the existing `ElementSerializer` pattern:
 
-```
+```java
 public class RobotHtmlElementSerializer implements ElementSerializer {
   
   public Element deserialize(XmlElement xmlElem) {
@@ -1482,6 +1504,19 @@ public class RobotHtmlElementSerializer implements ElementSerializer {
       Element dataElem = new Element("data");
       dataElem.appendText(dataXml.getText());
       elem.appendChild(dataElem);
+    }
+    
+    // Copy all <robot-state> child elements (state is part of the element model)
+    for (XmlElement stateXml : xmlElem.getChildren("robot-state")) {
+      Element stateElem = new Element("robot-state");
+      // Copy state attributes
+      for (String attr : new String[]{"data-robot-id", "data-state-key", "data-version",
+                                       "type", "data-timestamp", "data-size-bytes"}) {
+        String val = stateXml.getAttribute(attr);
+        if (val != null) stateElem.setAttribute(attr, val);
+      }
+      stateElem.appendText(stateXml.getText());
+      elem.appendChild(stateElem);
     }
     
     return elem;
@@ -1507,6 +1542,18 @@ public class RobotHtmlElementSerializer implements ElementSerializer {
       xml.appendChild(dataXml);
     }
     
+    // Serialize all <robot-state> children
+    for (Element stateElem : elem.getChildren("robot-state")) {
+      XmlElement stateXml = XmlElement.create("robot-state");
+      for (String attr : new String[]{"data-robot-id", "data-state-key", "data-version",
+                                       "type", "data-timestamp", "data-size-bytes"}) {
+        String val = stateElem.getAttribute(attr);
+        if (val != null) stateXml.setAttribute(attr, val);
+      }
+      stateXml.setText(stateElem.getTextContent());
+      xml.appendChild(stateXml);
+    }
+    
     return xml;
   }
 }
@@ -1514,7 +1561,7 @@ public class RobotHtmlElementSerializer implements ElementSerializer {
 
 **Registration in module initialization:**
 
-```
+```java
 ElementSerializerRegistry.register("robot-html", new RobotHtmlElementSerializer());
 ```
 
@@ -1522,15 +1569,16 @@ ElementSerializerRegistry.register("robot-html", new RobotHtmlElementSerializer(
 
 **Operation dispatch flow:**
 
-```
+```text
 Robot API Request
   ↓
-DocumentModifyService.execute(OperationRequest)
+ActiveApiOperationServiceRegistry / DataApiOperationServiceRegistry
+  routes by OperationType enum to dedicated OperationService instance
+  (NOT through DocumentModifyService — each robot-html op gets its own service)
   ↓
-RouteByOperationType:
-  - if type == "document.insertRobotHtml": dispatch to RobotHtmlInsertService
-  - if type == "document.updateRobotHtml": dispatch to RobotHtmlUpdateService
-  - if type == "document.deleteRobotHtml": dispatch to RobotHtmlDeleteService
+OperationType.DOCUMENT_INSERT_ROBOT_HTML → RobotHtmlInsertService
+OperationType.DOCUMENT_UPDATE_ROBOT_HTML → RobotHtmlUpdateService
+OperationType.DOCUMENT_DELETE_ROBOT_HTML → RobotHtmlDeleteService
   ↓
 RobotHtmlInsertService:
   1. Validate robot authentication and "wave.robot" scope
@@ -1659,7 +1707,7 @@ This section documents revisions made to address critical architectural feedback
   - **Status:** ✅ RESOLVED
 
 **ISSUE 3 (Critical - Safety):** URL sanitization via `startsWith("javascript:")` is bypassable.
-  - **Fix:** Replaced with protocol allowlist in section 4.4. URLs are normalized (trim, unescape HTML entities) before protocol check. href allows `http://`, `https://`, relative only. src allows those plus `data:image/*` with v1 limited to PNG, JPEG, GIF, WebP only (SVG excluded in v1 to prevent policy bypass via data URLs).
+  - **Fix:** Replaced with protocol allowlist in section 4.4. URLs are fully canonicalized (trim, strip control chars, percent-decode, decode HTML character references, repeat until stable) before protocol check. href allows `http://`, `https://`, relative only. src allows those plus `data:image/*` with v1 limited to PNG, JPEG, GIF, WebP only (SVG excluded in v1 to prevent policy bypass via data URLs).
   - **Status:** ✅ RESOLVED
 
 **ISSUE 4 (Critical - Correctness):** `<html>` tag collides with existing schema.
