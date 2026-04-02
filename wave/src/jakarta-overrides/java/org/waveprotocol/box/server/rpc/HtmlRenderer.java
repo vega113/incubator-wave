@@ -3330,7 +3330,6 @@ public final class HtmlRenderer {
    * Returns shared topbar HTML for server-rendered pages (not GWT wave client).
    *
    * @param fullAddress full user address e.g. alice@example.com (HTML-escaped internally)
-   * @param domain      server domain e.g. example.com
    * @param contextPath servlet context path, typically "" for root deployments
    * @param userRole    user role for conditional admin link; null to omit admin link
    */
