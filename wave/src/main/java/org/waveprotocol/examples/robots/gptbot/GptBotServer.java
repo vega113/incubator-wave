@@ -101,9 +101,13 @@ public final class GptBotServer {
                 String response = robot.handleEventBundle(body);
                 new TextHandler(200, response, "application/json; charset=utf-8")
                     .handle(exchange);
+              } catch (IllegalArgumentException e) {
+                LOG.warning("gpt-bot callback rejected invalid bundle", e);
+                new TextHandler(400, "{\"error\":\"invalid event bundle\"}\n",
+                    "application/json; charset=utf-8").handle(exchange);
               } catch (RuntimeException e) {
                 LOG.warning("gpt-bot callback failed", e);
-                new TextHandler(400, "{\"error\":\"invalid event bundle\"}\n",
+                new TextHandler(500, "{\"error\":\"internal server error\"}\n",
                     "application/json; charset=utf-8").handle(exchange);
               }
             }

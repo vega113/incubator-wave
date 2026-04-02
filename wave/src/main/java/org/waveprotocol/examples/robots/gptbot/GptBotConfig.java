@@ -91,33 +91,28 @@ public final class GptBotConfig {
   }
 
   public static GptBotConfig fromEnvironment() {
-    String robotName = readString("GPTBOT_ROBOT_NAME", "GOTBOT_ROBOT_NAME", DEFAULT_BOT_NAME);
-    String participantId = readString("GPTBOT_PARTICIPANT_ID", "GOTBOT_PARTICIPANT_ID",
-        DEFAULT_PARTICIPANT_ID);
+    String robotName = readString("GPTBOT_ROBOT_NAME", null, DEFAULT_BOT_NAME);
+    String participantId = readString("GPTBOT_PARTICIPANT_ID", null, DEFAULT_PARTICIPANT_ID);
     String baseUrl = readString("SUPAWAVE_BASE_URL", null, DEFAULT_BASE_URL);
-    String publicBaseUrl = readString("GPTBOT_PUBLIC_BASE_URL", "GOTBOT_PUBLIC_BASE_URL", "");
-    String profilePageUrl = readString("GPTBOT_PROFILE_URL", "GOTBOT_PROFILE_URL",
-        DEFAULT_PROFILE_URL);
-    String avatarUrl = readString("GPTBOT_AVATAR_URL", "GOTBOT_AVATAR_URL", DEFAULT_AVATAR_URL);
-    String listenHost = readString("GPTBOT_LISTEN_HOST", "GOTBOT_LISTEN_HOST", "0.0.0.0");
-    int listenPort = readInt("GPTBOT_LISTEN_PORT", "GOTBOT_LISTEN_PORT", 8087, 1, 65535);
-    String codexBinary = readString("GPTBOT_CODEX_BINARY", "GOTBOT_CODEX_BINARY",
-        DEFAULT_CODEX_BINARY);
-    String codexModel = readString("GPTBOT_CODEX_MODEL", "GOTBOT_CODEX_MODEL",
-        DEFAULT_CODEX_MODEL);
-    String codexReasoningEffort = readString("GPTBOT_CODEX_REASONING_EFFORT",
-        "GOTBOT_CODEX_REASONING_EFFORT", DEFAULT_CODEX_REASONING_EFFORT);
-    Duration codexTimeout = Duration.ofSeconds(readInt("GPTBOT_CODEX_TIMEOUT_SECONDS",
-        "GOTBOT_CODEX_TIMEOUT_SECONDS", 120, 1, 3600));
-    int httpWorkerThreads = readInt("GPTBOT_HTTP_WORKERS", "GOTBOT_HTTP_WORKERS", 4, 1, 128);
-    boolean codexUnsafeBypass = readBoolean("GPTBOT_CODEX_UNSAFE_BYPASS",
-        "GOTBOT_CODEX_UNSAFE_BYPASS", false);
-    ContextMode contextMode = ContextMode.from(readString("GPTBOT_CONTEXT_MODE",
-        "GOTBOT_CONTEXT_MODE", DEFAULT_CONTEXT_MODE));
-    ReplyMode replyMode = ReplyMode.from(readString("GPTBOT_REPLY_MODE", "GOTBOT_REPLY_MODE",
+    String publicBaseUrl = readString("GPTBOT_PUBLIC_BASE_URL", null, "");
+    String profilePageUrl = readString("GPTBOT_PROFILE_URL", null, DEFAULT_PROFILE_URL);
+    String avatarUrl = readString("GPTBOT_AVATAR_URL", null, DEFAULT_AVATAR_URL);
+    String listenHost = readString("GPTBOT_LISTEN_HOST", null, "0.0.0.0");
+    int listenPort = readInt("GPTBOT_LISTEN_PORT", null, 8087, 1, 65535);
+    String codexBinary = readString("GPTBOT_CODEX_BINARY", null, DEFAULT_CODEX_BINARY);
+    String codexModel = readString("GPTBOT_CODEX_MODEL", null, DEFAULT_CODEX_MODEL);
+    String codexReasoningEffort = readString("GPTBOT_CODEX_REASONING_EFFORT", null,
+        DEFAULT_CODEX_REASONING_EFFORT);
+    Duration codexTimeout = Duration.ofSeconds(readInt("GPTBOT_CODEX_TIMEOUT_SECONDS", null,
+        120, 1, 3600));
+    int httpWorkerThreads = readInt("GPTBOT_HTTP_WORKERS", null, 4, 1, 128);
+    boolean codexUnsafeBypass = readBoolean("GPTBOT_CODEX_UNSAFE_BYPASS", null, false);
+    ContextMode contextMode = ContextMode.from(readString("GPTBOT_CONTEXT_MODE", null,
+        DEFAULT_CONTEXT_MODE));
+    ReplyMode replyMode = ReplyMode.from(readString("GPTBOT_REPLY_MODE", null,
         DEFAULT_REPLY_MODE));
-    String apiRobotId = readString("GPTBOT_API_ROBOT_ID", "GOTBOT_API_ROBOT_ID", participantId);
-    String apiRobotSecret = readString("GPTBOT_API_ROBOT_SECRET", "GOTBOT_API_ROBOT_SECRET", "");
+    String apiRobotId = readString("GPTBOT_API_ROBOT_ID", null, participantId);
+    String apiRobotSecret = readString("GPTBOT_API_ROBOT_SECRET", null, "");
     return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
         avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,
         codexTimeout, httpWorkerThreads, codexUnsafeBypass, contextMode, replyMode, apiRobotId,

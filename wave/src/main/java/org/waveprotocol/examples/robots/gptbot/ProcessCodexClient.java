@@ -151,10 +151,12 @@ public final class ProcessCodexClient implements CodexClient {
   }
 
   private static Process startProcess(List<String> command, Path errorFile) throws IOException {
-    ProcessBuilder builder = new ProcessBuilder(command);
-    builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-    builder.redirectError(errorFile.toFile());
-    return builder.start();
+      ProcessBuilder builder = new ProcessBuilder(command);
+      builder.environment().remove("GPTBOT_API_ROBOT_SECRET");
+      builder.environment().remove("GOTBOT_API_ROBOT_SECRET");
+      builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+      builder.redirectError(errorFile.toFile());
+      return builder.start();
   }
 
   interface ProcessLauncher {

@@ -100,14 +100,22 @@ public final class GptBotReplyPlanner {
 
   private static String sanitize(String text, int limit) {
     String sanitized = text == null ? "" : text.trim();
-    sanitized = sanitized.replaceAll("(?i)(bearer\\s+)[A-Za-z0-9._\\-]+", "$1[redacted]");
-    sanitized = sanitized.replaceAll("(?i)(client_secret\\s*[:=]\\s*)\\S+", "$1[redacted]");
-    sanitized = sanitized.replaceAll("(?i)(secret\\s*[:=]\\s*)\\S+", "$1[redacted]");
-    sanitized = sanitized.replaceAll("(?i)(password\\s*[:=]\\s*)\\S+", "$1[redacted]");
-    sanitized = sanitized.replaceAll("(?i)(api[_-]?key\\s*[:=]\\s*)\\S+", "$1[redacted]");
-    sanitized = sanitized.replaceAll("(?i)(apikey\\s*[:=]\\s*)\\S+", "$1[redacted]");
-    sanitized = sanitized.replaceAll("(?i)(token\\s*[:=]\\s*)\\S+", "$1[redacted]");
-    sanitized = sanitized.replaceAll("(?i)(key\\s*[:=]\\s*)\\S+", "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?bearer[\"']?\\s+)[A-Za-z0-9._\\-]+",
+        "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?client_secret[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+        "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?secret[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+        "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?password[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+        "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?api[_-]?key[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+        "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?apikey[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+        "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?token[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+        "$1[redacted]");
+    sanitized = sanitized.replaceAll("(?i)([\"']?key[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"',}]+",
+        "$1[redacted]");
     if (sanitized.length() > limit) {
       sanitized = sanitized.substring(0, limit).trim() + "…";
     }

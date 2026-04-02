@@ -89,6 +89,22 @@ public class GptBotReplyPlannerTest extends TestCase {
     assertFalse(codexClient.lastPrompt.contains("lm11"));
   }
 
+  public void testRedactsQuotedJsonSecretsFromWaveContext() {
+    RecordingCodexClient codexClient = new RecordingCodexClient();
+    codexClient.response = "ok";
+    GptBotReplyPlanner planner = new GptBotReplyPlanner("gpt-bot", codexClient);
+
+    planner.replyFor("@gpt-bot summarize",
+        "{\"client_secret\":\"abc123\",\"secret\":\"def456\",\"password\":\"ghi789\","
+            + "\"Authorization\":\"Bearer token-123\"}");
+
+    assertFalse(codexClient.lastPrompt.contains("abc123"));
+    assertFalse(codexClient.lastPrompt.contains("def456"));
+    assertFalse(codexClient.lastPrompt.contains("ghi789"));
+    assertFalse(codexClient.lastPrompt.contains("token-123"));
+    assertTrue(codexClient.lastPrompt.contains("[redacted]"));
+  }
+
   private static final class RecordingCodexClient implements CodexClient {
 
     private String lastPrompt;

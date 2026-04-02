@@ -36,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Fetches extra context from SupaWave and can optionally post replies through the active API.
@@ -138,7 +139,8 @@ public final class SupaWaveApiClient implements SupaWaveClient {
   private JsonArray createChildRequest(String waveId, String waveletId, String blipId,
       String content) {
     JsonObject blipData = new JsonObject();
-    blipData.addProperty("blipId", "TBD_gptbot_reply_1");
+    blipData.addProperty("blipId", "TBD_gptbot_reply_" + UUID.randomUUID().toString()
+        .replace("-", ""));
     blipData.addProperty("content", "\n" + content.strip());
 
     JsonObject params = new JsonObject();
