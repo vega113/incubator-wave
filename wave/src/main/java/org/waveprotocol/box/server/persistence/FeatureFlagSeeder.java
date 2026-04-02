@@ -46,4 +46,13 @@ public final class FeatureFlagSeeder {
             config.getBoolean(OT_SEARCH_CONFIG_KEY),
             existingFlag != null ? existingFlag.getAllowedUsers() : Collections.emptyMap()));
   }
+
+  public static boolean isSearchWaveletUpdaterEnabled(FeatureFlagStore store)
+      throws PersistenceException {
+    FeatureFlag otSearchFlag = store != null ? store.get(OT_SEARCH_FLAG_NAME) : null;
+    boolean enabled = otSearchFlag != null
+        && (otSearchFlag.isEnabled()
+            || otSearchFlag.getAllowedUsers().containsValue(Boolean.TRUE));
+    return enabled;
+  }
 }

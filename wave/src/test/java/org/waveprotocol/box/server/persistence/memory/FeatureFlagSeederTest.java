@@ -73,6 +73,19 @@ public final class FeatureFlagSeederTest {
     assertFalse(service.getEnabledFlagNames(null).contains("ot-search"));
   }
 
+  @Test
+  public void searchWaveletUpdaterIsEnabledWhenFlagHasAllowlist() throws Exception {
+    MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
+    store.save(
+        new FeatureFlag(
+            "ot-search",
+            "Real-time search wavelets (replaces 15s polling)",
+            false,
+            allowedUsers(true)));
+
+    assertTrue(FeatureFlagSeeder.isSearchWaveletUpdaterEnabled(store));
+  }
+
   private static Map<String, Boolean> allowedUsers(boolean enabled) {
     Map<String, Boolean> allowedUsers = new LinkedHashMap<>();
     allowedUsers.put("vega@supawave.ai", enabled);

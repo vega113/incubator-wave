@@ -753,7 +753,15 @@ public class ServerMain {
 
     // Register OT search wavelet updater AFTER PerUserWaveViewDistpatcher
     // so that the per-user wave view index is current before search updates.
-    if (config.hasPath("search.ot_search_enabled") && config.getBoolean("search.ot_search_enabled")) {
+    FeatureFlagStore featureFlagStore = injector.getInstance(FeatureFlagStore.class);
+    boolean searchWaveletUpdaterEnabled = false;
+    try {
+      searchWaveletUpdaterEnabled = FeatureFlagSeeder.isSearchWaveletUpdaterEnabled(
+          featureFlagStore);
+    } catch (PersistenceException e) {
+      LOG.log(Level.WARNING, "Failed to read ot-search feature flag; search updates stay off", e);
+    }
+    if (searchWaveletUpdaterEnabled) {
       org.waveprotocol.box.server.waveserver.search.SearchWaveletUpdater searchUpdater =
           injector.getInstance(org.waveprotocol.box.server.waveserver.search.SearchWaveletUpdater.class);
       waveBus.subscribe(searchUpdater);
