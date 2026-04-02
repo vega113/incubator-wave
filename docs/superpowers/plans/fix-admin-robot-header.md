@@ -111,7 +111,7 @@ Returns self-contained CSS for the shared topbar, suitable for any server-render
 Extracted from `renderWaveClientPage` CSS block minus GWT-specific parts. Includes `.section-label`
 and `.section-link-strong` CSS additions noted above.
 
-### `renderSharedTopBarHtml(String fullAddress, String domain, String contextPath, String userRole)` — `public static String`
+### `renderSharedTopBarHtml(String fullAddress, String contextPath, String userRole)` — `public static String`
 
 Adapted topbar HTML. Key differences from `renderTopBar`:
 - Accepts `fullAddress` (splits internally to get `localPart` for avatar initial)
