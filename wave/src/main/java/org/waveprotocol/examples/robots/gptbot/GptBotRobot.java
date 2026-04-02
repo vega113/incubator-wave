@@ -92,8 +92,14 @@ public final class GptBotRobot {
   }
 
   public String handleEventBundle(String jsonBody) {
-    EventMessageBundle bundle = gson.fromJson(jsonBody, EventMessageBundle.class);
-    if (bundle == null || bundle.getWavelet() == null) {
+    EventMessageBundle bundle;
+    try {
+      bundle = gson.fromJson(jsonBody, EventMessageBundle.class);
+    } catch (RuntimeException e) {
+      throw new IllegalArgumentException("Invalid event bundle", e);
+    }
+    if (bundle == null || bundle.getWavelet() == null
+        || bundle.getWavelet().getOperationQueue() == null) {
       throw new IllegalArgumentException("Invalid event bundle");
     }
 

@@ -133,6 +133,19 @@ public class GptBotRobotTest extends TestCase {
     assertEquals(1, codexClient.completeCalls);
   }
 
+  public void testCallbackBundleRejectsMalformedJsonAsInvalidInput() {
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), new RecordingCodexClient()),
+        new RecordingSupaWaveClient());
+
+    try {
+      robot.handleEventBundle("{}");
+      fail("Expected invalid bundle failure");
+    } catch (IllegalArgumentException e) {
+      assertEquals("Invalid event bundle", e.getMessage());
+    }
+  }
+
   public void testCapabilitiesXmlIncludesTheExpectedEventsAndContextAttribute() {
     GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
         new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), new RecordingCodexClient()),
