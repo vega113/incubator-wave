@@ -29,7 +29,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Embedded HTTP server for the gpt-bot example robot.
@@ -42,7 +44,8 @@ public final class GptBotServer {
     GptBotConfig config = GptBotConfig.fromEnvironment();
     GptBotReplyPlanner replyPlanner = new GptBotReplyPlanner(config.getRobotName(),
         new ProcessCodexClient(config.getCodexBinary(), config.getCodexModel(),
-            config.getCodexReasoningEffort(), config.getCodexTimeout()));
+            config.getCodexReasoningEffort(), config.getCodexTimeout(),
+            config.isCodexUnsafeBypassEnabled()));
     SupaWaveApiClient apiClient = new SupaWaveApiClient(config);
     GptBotRobot robot = new GptBotRobot(config, replyPlanner, apiClient);
 
@@ -55,7 +58,9 @@ public final class GptBotServer {
     server.createContext(robot.getProfilePath(), new TextHandler(200, robot.getProfileJson(),
         "application/json; charset=utf-8"));
     server.createContext(robot.getRpcPath(), new CallbackHandler(robot));
-    server.setExecutor(Executors.newCachedThreadPool());
+    int workerThreads = config.getHttpWorkerThreads();
+    server.setExecutor(new ThreadPoolExecutor(workerThreads, workerThreads, 60L, TimeUnit.SECONDS,
+        new LinkedBlockingQueue<Runnable>(workerThreads), new ThreadPoolExecutor.AbortPolicy()));
     server.start();
 
     LOG.info("gpt-bot listening on " + config.getLocalBaseUrl());

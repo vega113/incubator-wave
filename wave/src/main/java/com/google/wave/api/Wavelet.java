@@ -423,7 +423,7 @@ public class Wavelet implements Serializable {
    * @return an instance of {@link OperationQueue} that represents this
    *     wavelet's operation queue.
    */
-  protected OperationQueue getOperationQueue() {
+  public OperationQueue getOperationQueue() {
     return operationQueue;
   }
 

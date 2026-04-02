@@ -19,6 +19,8 @@
 
 package org.waveprotocol.examples.robots.gptbot;
 
+import org.waveprotocol.wave.util.logging.Log;
+
 import java.util.Optional;
 
 /**
@@ -26,6 +28,7 @@ import java.util.Optional;
  */
 public final class GptBotReplyPlanner {
 
+  private static final Log LOG = Log.get(GptBotReplyPlanner.class);
   private static final int MAX_CONTEXT_CHARS = 2000;
   private static final int MAX_PROMPT_CHARS = 3000;
   private static final String CLARIFYING_PROMPT =
@@ -43,24 +46,38 @@ public final class GptBotReplyPlanner {
 
   public Optional<String> replyFor(String text, String waveContext) {
     Optional<String> reply = Optional.empty();
-    Optional<String> prompt = mentionDetector.extractPrompt(text);
+    Optional<String> prompt = extractPrompt(text);
     if (prompt.isPresent()) {
-      String promptText = prompt.get().strip();
-      if (promptText.isEmpty()) {
-        promptText = CLARIFYING_PROMPT;
-      }
-      String codexPrompt = buildPrompt(promptText, waveContext);
-      String response;
-      try {
-        response = codexClient.complete(codexPrompt).strip();
-      } catch (RuntimeException e) {
-        response = "I’m having trouble generating a full answer right now, but I’m here to help.";
-      }
-      if (response.isEmpty()) {
-        response = "I’m here — what would you like me to help with?";
-      }
-      reply = Optional.of(response);
+      reply = replyForPrompt(prompt.get(), waveContext);
     }
+    return reply;
+  }
+
+  Optional<String> extractPrompt(String text) {
+    return mentionDetector.extractPrompt(text);
+  }
+
+  Optional<String> replyForPrompt(String promptText, String waveContext) {
+    Optional<String> reply = Optional.empty();
+    String normalizedPrompt = promptText == null ? "" : promptText.strip();
+    if (normalizedPrompt.isEmpty()) {
+      normalizedPrompt = CLARIFYING_PROMPT;
+    }
+    String codexPrompt = buildPrompt(normalizedPrompt, waveContext);
+    String response = "";
+    try {
+      String codexResponse = codexClient.complete(codexPrompt);
+      if (codexResponse != null) {
+        response = codexResponse.strip();
+      }
+    } catch (RuntimeException e) {
+      LOG.warning("Codex completion failed", e);
+      response = "I’m having trouble generating a full answer right now, but I’m here to help.";
+    }
+    if (response.isEmpty()) {
+      response = "I’m here — what would you like me to help with?";
+    }
+    reply = Optional.of(response);
     return reply;
   }
 

@@ -34,12 +34,13 @@ import com.google.wave.api.impl.GsonFactory;
 
 import org.waveprotocol.wave.util.logging.Log;
 
-import java.lang.reflect.Field;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Plain JSON-RPC robot engine for the gpt-bot example.
@@ -96,7 +97,7 @@ public final class GptBotRobot {
       throw new IllegalArgumentException("Invalid event bundle");
     }
 
-    OperationQueue operationQueue = operationQueue(bundle);
+    OperationQueue operationQueue = bundle.getWavelet().getOperationQueue();
     operationQueue.notifyRobotInformation(ProtocolVersion.DEFAULT, capabilitiesHash());
     processEvents(bundle);
     List<OperationRequest> operations = operationQueue.getPendingOperations();
@@ -106,16 +107,20 @@ public final class GptBotRobot {
   private void processEvents(EventMessageBundle bundle) {
     List<Event> events = bundle.getEvents();
     if (events != null) {
+      Set<String> handledBlipIds = new HashSet<String>();
       for (Event event : events) {
         switch (event.getType()) {
           case BLIP_SUBMITTED:
-            handleBlip(BlipSubmittedEvent.as(event).getBlip(), event.getModifiedBy());
+            handleBlip(BlipSubmittedEvent.as(event).getBlip(), event.getModifiedBy(),
+                handledBlipIds);
             break;
           case DOCUMENT_CHANGED:
-            handleBlip(DocumentChangedEvent.as(event).getBlip(), event.getModifiedBy());
+            handleBlip(DocumentChangedEvent.as(event).getBlip(), event.getModifiedBy(),
+                handledBlipIds);
             break;
           case WAVELET_BLIP_CREATED:
-            handleBlip(WaveletBlipCreatedEvent.as(event).getNewBlip(), event.getModifiedBy());
+            handleBlip(WaveletBlipCreatedEvent.as(event).getNewBlip(), event.getModifiedBy(),
+                handledBlipIds);
             break;
           default:
             break;
@@ -124,26 +129,38 @@ public final class GptBotRobot {
     }
   }
 
-  private void handleBlip(Blip blip, String modifiedBy) {
-    if (blip != null && !shouldIgnore(modifiedBy)) {
+  private void handleBlip(Blip blip, String modifiedBy, Set<String> handledBlipIds) {
+    if (blip != null && !shouldIgnore(modifiedBy) && shouldHandle(blip, handledBlipIds)) {
       String waveId = blip.getWaveId() == null ? "" : blip.getWaveId().toString();
       String waveletId = blip.getWaveletId() == null ? "" : blip.getWaveletId().toString();
-      String waveContext = apiClient.fetchWaveContext(waveId, waveletId).orElse("");
-      Optional<String> reply = replyPlanner.replyFor(blip.getContent(), waveContext);
-      if (reply.isPresent()) {
-        String replyText = reply.get();
-        boolean appended = false;
-        if (config.getReplyMode() == GptBotConfig.ReplyMode.ACTIVE) {
-          appended = apiClient.appendReply(waveId, waveletId, blip.getBlipId(), replyText);
-          if (!appended) {
-            LOG.warning("Falling back to passive callback reply after active API delivery failed");
+      Optional<String> prompt = replyPlanner.extractPrompt(blip.getContent());
+      if (prompt.isPresent()) {
+        String waveContext = apiClient.fetchWaveContext(waveId, waveletId).orElse("");
+        Optional<String> reply = replyPlanner.replyForPrompt(prompt.get(), waveContext);
+        if (reply.isPresent()) {
+          String replyText = reply.get();
+          boolean appended = false;
+          if (config.getReplyMode() == GptBotConfig.ReplyMode.ACTIVE) {
+            appended = apiClient.appendReply(waveId, waveletId, blip.getBlipId(), replyText);
+            if (!appended) {
+              LOG.warning("Falling back to passive callback reply after active API delivery failed");
+            }
           }
-        }
-        if (!appended) {
-          blip.reply().append(replyText);
+          if (!appended) {
+            blip.reply().append(replyText);
+          }
         }
       }
     }
+  }
+
+  private boolean shouldHandle(Blip blip, Set<String> handledBlipIds) {
+    String blipId = blip.getBlipId();
+    boolean shouldHandle = true;
+    if (blipId != null) {
+      shouldHandle = handledBlipIds.add(blipId);
+    }
+    return shouldHandle;
   }
 
   private boolean shouldIgnore(String modifiedBy) {
@@ -195,13 +212,4 @@ public final class GptBotRobot {
     return hex.toString();
   }
 
-  private static OperationQueue operationQueue(EventMessageBundle bundle) {
-    try {
-      Field field = bundle.getWavelet().getClass().getDeclaredField("operationQueue");
-      field.setAccessible(true);
-      return (OperationQueue) field.get(bundle.getWavelet());
-    } catch (ReflectiveOperationException e) {
-      throw new IllegalStateException("Unable to access the operation queue", e);
-    }
-  }
 }

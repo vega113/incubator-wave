@@ -43,13 +43,15 @@ public final class ProcessCodexClient implements CodexClient {
   private final String model;
   private final String reasoningEffort;
   private final Duration timeout;
+  private final boolean unsafeBypassApprovalsAndSandbox;
 
   public ProcessCodexClient(String codexBinary, String model, String reasoningEffort,
-      Duration timeout) {
+      Duration timeout, boolean unsafeBypassApprovalsAndSandbox) {
     this.codexBinary = codexBinary;
     this.model = model;
     this.reasoningEffort = reasoningEffort;
     this.timeout = timeout;
+    this.unsafeBypassApprovalsAndSandbox = unsafeBypassApprovalsAndSandbox;
   }
 
   @Override
@@ -73,7 +75,9 @@ public final class ProcessCodexClient implements CodexClient {
       command.add("never");
       command.add("--output-last-message");
       command.add(outputFile.toString());
-      command.add("--dangerously-bypass-approvals-and-sandbox");
+      if (unsafeBypassApprovalsAndSandbox) {
+        command.add("--dangerously-bypass-approvals-and-sandbox");
+      }
       command.add("-");
 
       ProcessBuilder builder = new ProcessBuilder(command);

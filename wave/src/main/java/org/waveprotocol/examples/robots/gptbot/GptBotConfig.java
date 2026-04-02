@@ -19,6 +19,8 @@
 
 package org.waveprotocol.examples.robots.gptbot;
 
+import org.waveprotocol.wave.util.logging.Log;
+
 import java.time.Duration;
 import java.util.Locale;
 
@@ -27,6 +29,7 @@ import java.util.Locale;
  */
 public final class GptBotConfig {
 
+  private static final Log LOG = Log.get(GptBotConfig.class);
   private static final String DEFAULT_BOT_NAME = "gpt-bot";
   private static final String DEFAULT_PARTICIPANT_ID = "gpt-bot@example.com";
   private static final String DEFAULT_BASE_URL = "https://supawave.ai";
@@ -55,6 +58,8 @@ public final class GptBotConfig {
   private final String codexModel;
   private final String codexReasoningEffort;
   private final Duration codexTimeout;
+  private final int httpWorkerThreads;
+  private final boolean codexUnsafeBypass;
   private final ContextMode contextMode;
   private final ReplyMode replyMode;
   private final String apiRobotId;
@@ -63,8 +68,8 @@ public final class GptBotConfig {
   private GptBotConfig(String robotName, String participantId, String baseUrl,
       String publicBaseUrl, String profilePageUrl, String avatarUrl, String listenHost,
       int listenPort, String codexBinary, String codexModel, String codexReasoningEffort,
-      Duration codexTimeout, ContextMode contextMode, ReplyMode replyMode, String apiRobotId,
-      String apiRobotSecret) {
+      Duration codexTimeout, int httpWorkerThreads, boolean codexUnsafeBypass,
+      ContextMode contextMode, ReplyMode replyMode, String apiRobotId, String apiRobotSecret) {
     this.robotName = robotName;
     this.participantId = participantId;
     this.baseUrl = stripTrailingSlash(baseUrl);
@@ -77,6 +82,8 @@ public final class GptBotConfig {
     this.codexModel = codexModel;
     this.codexReasoningEffort = codexReasoningEffort;
     this.codexTimeout = codexTimeout;
+    this.httpWorkerThreads = httpWorkerThreads;
+    this.codexUnsafeBypass = codexUnsafeBypass;
     this.contextMode = contextMode;
     this.replyMode = replyMode;
     this.apiRobotId = apiRobotId;
@@ -93,7 +100,7 @@ public final class GptBotConfig {
         DEFAULT_PROFILE_URL);
     String avatarUrl = readString("GPTBOT_AVATAR_URL", "GOTBOT_AVATAR_URL", DEFAULT_AVATAR_URL);
     String listenHost = readString("GPTBOT_LISTEN_HOST", "GOTBOT_LISTEN_HOST", "0.0.0.0");
-    int listenPort = readInt("GPTBOT_LISTEN_PORT", "GOTBOT_LISTEN_PORT", 8087);
+    int listenPort = readInt("GPTBOT_LISTEN_PORT", "GOTBOT_LISTEN_PORT", 8087, 1, 65535);
     String codexBinary = readString("GPTBOT_CODEX_BINARY", "GOTBOT_CODEX_BINARY",
         DEFAULT_CODEX_BINARY);
     String codexModel = readString("GPTBOT_CODEX_MODEL", "GOTBOT_CODEX_MODEL",
@@ -101,7 +108,10 @@ public final class GptBotConfig {
     String codexReasoningEffort = readString("GPTBOT_CODEX_REASONING_EFFORT",
         "GOTBOT_CODEX_REASONING_EFFORT", DEFAULT_CODEX_REASONING_EFFORT);
     Duration codexTimeout = Duration.ofSeconds(readInt("GPTBOT_CODEX_TIMEOUT_SECONDS",
-        "GOTBOT_CODEX_TIMEOUT_SECONDS", 120));
+        "GOTBOT_CODEX_TIMEOUT_SECONDS", 120, 1, 3600));
+    int httpWorkerThreads = readInt("GPTBOT_HTTP_WORKERS", "GOTBOT_HTTP_WORKERS", 4, 1, 128);
+    boolean codexUnsafeBypass = readBoolean("GPTBOT_CODEX_UNSAFE_BYPASS",
+        "GOTBOT_CODEX_UNSAFE_BYPASS", false);
     ContextMode contextMode = ContextMode.from(readString("GPTBOT_CONTEXT_MODE",
         "GOTBOT_CONTEXT_MODE", DEFAULT_CONTEXT_MODE));
     ReplyMode replyMode = ReplyMode.from(readString("GPTBOT_REPLY_MODE", "GOTBOT_REPLY_MODE",
@@ -110,7 +120,8 @@ public final class GptBotConfig {
     String apiRobotSecret = readString("GPTBOT_API_ROBOT_SECRET", "GOTBOT_API_ROBOT_SECRET", "");
     return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
         avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,
-        codexTimeout, contextMode, replyMode, apiRobotId, apiRobotSecret);
+        codexTimeout, httpWorkerThreads, codexUnsafeBypass, contextMode, replyMode, apiRobotId,
+        apiRobotSecret);
   }
 
   public String getRobotName() {
@@ -177,6 +188,14 @@ public final class GptBotConfig {
     return codexTimeout;
   }
 
+  public int getHttpWorkerThreads() {
+    return httpWorkerThreads;
+  }
+
+  public boolean isCodexUnsafeBypassEnabled() {
+    return codexUnsafeBypass;
+  }
+
   public ContextMode getContextMode() {
     return contextMode;
   }
@@ -204,7 +223,8 @@ public final class GptBotConfig {
   public GptBotConfig withReplyMode(ReplyMode newReplyMode) {
     return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
         avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,
-        codexTimeout, contextMode, newReplyMode, apiRobotId, apiRobotSecret);
+        codexTimeout, httpWorkerThreads, codexUnsafeBypass, contextMode, newReplyMode, apiRobotId,
+        apiRobotSecret);
   }
 
   private static String readString(String primaryName, String legacyName, String defaultValue) {
@@ -219,13 +239,42 @@ public final class GptBotConfig {
   }
 
   private static int readInt(String primaryName, String legacyName, int defaultValue) {
+    return readInt(primaryName, legacyName, defaultValue, Integer.MIN_VALUE, Integer.MAX_VALUE);
+  }
+
+  private static int readInt(String primaryName, String legacyName, int defaultValue,
+      int minimumValue, int maximumValue) {
     String value = readEnvironment(primaryName);
     if (value.isBlank()) {
       value = readEnvironment(legacyName);
     }
     int parsed = defaultValue;
     if (!value.isBlank()) {
-      parsed = Integer.parseInt(value.trim());
+      String trimmed = value.trim();
+      try {
+        int candidate = Integer.parseInt(trimmed);
+        if (candidate >= minimumValue && candidate <= maximumValue) {
+          parsed = candidate;
+        } else {
+          LOG.warning("Ignoring out-of-range value for " + environmentName(primaryName, legacyName)
+              + "; using default " + defaultValue);
+        }
+      } catch (NumberFormatException e) {
+        LOG.warning("Ignoring invalid integer value for " + environmentName(primaryName, legacyName)
+            + "; using default " + defaultValue, e);
+      }
+    }
+    return parsed;
+  }
+
+  private static boolean readBoolean(String primaryName, String legacyName, boolean defaultValue) {
+    String value = readEnvironment(primaryName);
+    if (value.isBlank()) {
+      value = readEnvironment(legacyName);
+    }
+    boolean parsed = defaultValue;
+    if (!value.isBlank()) {
+      parsed = Boolean.parseBoolean(value.trim());
     }
     return parsed;
   }
@@ -239,6 +288,14 @@ public final class GptBotConfig {
       }
     }
     return value;
+  }
+
+  private static String environmentName(String primaryName, String legacyName) {
+    String name = primaryName;
+    if (name == null || name.isBlank()) {
+      name = legacyName;
+    }
+    return name;
   }
 
   private static String stripTrailingSlash(String value) {

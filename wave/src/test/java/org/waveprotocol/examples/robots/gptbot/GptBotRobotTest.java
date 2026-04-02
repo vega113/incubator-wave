@@ -21,10 +21,13 @@ package org.waveprotocol.examples.robots.gptbot;
 
 import com.google.wave.api.BlipData;
 import com.google.wave.api.BlipThread;
+import com.google.wave.api.event.DocumentChangedEvent;
 import com.google.wave.api.impl.EventMessageBundle;
 import com.google.wave.api.impl.GsonFactory;
 import com.google.wave.api.impl.WaveletData;
 import com.google.wave.api.event.BlipSubmittedEvent;
+import com.google.wave.api.event.Event;
+import com.google.wave.api.event.WaveletBlipCreatedEvent;
 
 import junit.framework.TestCase;
 
@@ -43,11 +46,15 @@ public class GptBotRobotTest extends TestCase {
     GptBotRobot robot = new GptBotRobot(config,
         new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
 
-    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId()));
+    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId(),
+        "\n@gpt-bot please answer", new BlipSubmittedEvent(null, null, "alice@example.com", 1L,
+            "b+root")));
 
     assertTrue(response.contains("Here is a helpful answer."));
     assertTrue(response.contains("blip.createChild"));
     assertEquals(0, apiClient.appendCalls);
+    assertEquals(1, apiClient.fetchCalls);
+    assertEquals(1, codexClient.completeCalls);
   }
 
   public void testCallbackBundleCanReplyThroughActiveApi() {
@@ -59,12 +66,50 @@ public class GptBotRobotTest extends TestCase {
     GptBotRobot robot = new GptBotRobot(config,
         new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
 
-    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId()));
+    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId(),
+        "\n@gpt-bot please answer", new BlipSubmittedEvent(null, null, "alice@example.com", 1L,
+            "b+root")));
 
     assertFalse(response.contains("Reply from the active API."));
     assertFalse(response.contains("blip.createChild"));
     assertEquals(1, apiClient.appendCalls);
     assertEquals("Reply from the active API.", apiClient.lastReply);
+    assertEquals(1, apiClient.fetchCalls);
+    assertEquals(1, codexClient.completeCalls);
+  }
+
+  public void testCallbackBundleDoesNotFetchContextWithoutMention() {
+    RecordingCodexClient codexClient = new RecordingCodexClient();
+    RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
+    GptBotConfig config = GptBotConfig.fromEnvironment();
+    GptBotRobot robot = new GptBotRobot(config,
+        new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
+
+    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId(),
+        "Just chatting", new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root")));
+
+    assertFalse(response.contains("blip.createChild"));
+    assertEquals(0, apiClient.fetchCalls);
+    assertEquals(0, codexClient.completeCalls);
+  }
+
+  public void testCallbackBundleDeduplicatesOverlappingBlipEvents() {
+    RecordingCodexClient codexClient = new RecordingCodexClient();
+    codexClient.response = "Here is a helpful answer.";
+    RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
+    GptBotConfig config = GptBotConfig.fromEnvironment();
+    GptBotRobot robot = new GptBotRobot(config,
+        new GptBotReplyPlanner(config.getRobotName(), codexClient), apiClient);
+
+    String response = robot.handleEventBundle(exampleBundleJson(config.getParticipantId(),
+        "\n@gpt-bot please answer",
+        new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root"),
+        new DocumentChangedEvent(null, null, "alice@example.com", 2L, "b+root"),
+        new WaveletBlipCreatedEvent(null, null, "alice@example.com", 3L, "b+root", "b+root")));
+
+    assertTrue(response.contains("Here is a helpful answer."));
+    assertEquals(1, apiClient.fetchCalls);
+    assertEquals(1, codexClient.completeCalls);
   }
 
   public void testCapabilitiesXmlIncludesTheExpectedEventsAndContextAttribute() {
@@ -94,7 +139,7 @@ public class GptBotRobotTest extends TestCase {
     assertTrue(profile.contains(config.getParticipantId()));
   }
 
-  private static String exampleBundleJson(String participantId) {
+  private static String exampleBundleJson(String participantId, String content, Event... events) {
     EventMessageBundle bundle = new EventMessageBundle(participantId,
         "http://localhost:8087/_wave/robot/jsonrpc");
     WaveletData waveletData = new WaveletData("example.com!w+abc123", "example.com!conv+root",
@@ -102,17 +147,21 @@ public class GptBotRobotTest extends TestCase {
     waveletData.addParticipant("alice@example.com");
     bundle.setWaveletData(waveletData);
     bundle.addBlip("b+root", new BlipData("example.com!w+abc123",
-        "example.com!conv+root", "b+root", "\n@gpt-bot please answer"));
-    bundle.addEvent(new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root"));
+        "example.com!conv+root", "b+root", content));
+    for (Event event : events) {
+      bundle.addEvent(event);
+    }
     return new GsonFactory().create().toJson(bundle);
   }
 
   private static final class RecordingCodexClient implements CodexClient {
 
+    private int completeCalls;
     private String response = "answer";
 
     @Override
     public String complete(String prompt) {
+      completeCalls++;
       return response;
     }
   }
@@ -120,11 +169,13 @@ public class GptBotRobotTest extends TestCase {
   private static final class RecordingSupaWaveClient implements SupaWaveClient {
 
     private int appendCalls;
+    private int fetchCalls;
     private boolean appendSucceeds;
     private String lastReply;
 
     @Override
     public Optional<String> fetchWaveContext(String waveId, String waveletId) {
+      fetchCalls++;
       return Optional.empty();
     }
 

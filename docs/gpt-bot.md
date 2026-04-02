@@ -42,6 +42,11 @@ The Codex subprocess path uses:
 - model: `gpt-5.4-mini`
 - reasoning effort: `low`
 - non-interactive mode: `codex exec --output-last-message ... -`
+- sandbox and approval checks stay on by default; set `GPTBOT_CODEX_UNSAFE_BYPASS=true` only
+  on a trusted local machine
+
+The embedded HTTP server uses a bounded worker pool. Set `GPTBOT_HTTP_WORKERS` if you want to
+adjust the concurrency limit.
 
 ## Cloudflare Tunnel
 
