@@ -36,6 +36,8 @@ public final class FeatureFlagSeeder {
     if (store == null || config == null || !config.hasPath(OT_SEARCH_CONFIG_KEY)) {
       return;
     }
+    // FeatureFlagSeeder.seedSearchFeatureFlags uses FeatureFlagStore.save to upsert OT_SEARCH_FLAG_NAME
+    // from OT_SEARCH_CONFIG_KEY on restart.
     store.save(
         new FeatureFlag(
             OT_SEARCH_FLAG_NAME,

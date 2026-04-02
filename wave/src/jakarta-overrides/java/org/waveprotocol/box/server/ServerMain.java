@@ -25,6 +25,9 @@ import org.waveprotocol.box.server.mail.MailModule;
 import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.persistence.AccountStore;
+import org.waveprotocol.box.server.persistence.FeatureFlagSeeder;
+import org.waveprotocol.box.server.persistence.FeatureFlagService;
+import org.waveprotocol.box.server.persistence.FeatureFlagStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.persistence.PersistenceModule;
 import org.waveprotocol.box.server.persistence.SignerInfoStore;
@@ -147,6 +150,7 @@ public class ServerMain {
     AccountStore accountStore = injector.getInstance(AccountStore.class);
     accountStore.initializeAccountStore();
     AccountStoreHolder.init(accountStore, waveDomain);
+    initializeFeatureFlags(injector);
 
     CertPathStore certPathStore = injector.getInstance(CertPathStore.class);
     if (certPathStore instanceof SignerInfoStore) {
@@ -158,6 +162,14 @@ public class ServerMain {
 
     WaveletProvider waveServer = injector.getInstance(WaveletProvider.class);
     waveServer.initialize();
+  }
+
+  /** Seeds config-driven feature flags into the persistent store before services read them. */
+  private static void initializeFeatureFlags(Injector injector) throws PersistenceException {
+    Config config = injector.getInstance(Config.class);
+    FeatureFlagStore featureFlagStore = injector.getInstance(FeatureFlagStore.class);
+    FeatureFlagSeeder.seedSearchFeatureFlags(featureFlagStore, config);
+    injector.getInstance(FeatureFlagService.class).refreshCache();
   }
 
   /** Initializes ContactMessageStore asynchronously to avoid blocking if MongoDB is unavailable. */
