@@ -84,13 +84,22 @@ validate_swap() {
   log "Swap active at $swap_path (${size} bytes)"
 }
 
+validate_swap_size_gb() {
+  local swap_size_gb=$1
+  if ! [[ "$swap_size_gb" =~ ^[0-9]+$ ]] || [[ "$swap_size_gb" -lt 1 ]]; then
+    log "FAIL: SWAP_SIZE_GB must be a positive integer"
+    exit 1
+  fi
+}
+
 main() {
   require_root "$@"
 
   local swap_path="/swapfile"
   local swap_size_gb="${SWAP_SIZE_GB:-32}"
+  validate_swap_size_gb "$swap_size_gb"
   local swap_bytes=$((swap_size_gb * 1024 * 1024 * 1024))
-  local minimum_bytes=$((swap_bytes - 4096))
+  local minimum_bytes=$((swap_bytes > 4096 ? swap_bytes - 4096 : 0))
   local backup_dir="${BACKUP_DIR:-/var/backups/wave-supawave}"
   local required_mb=$((swap_size_gb * 1024 + 1024))
 

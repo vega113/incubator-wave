@@ -139,13 +139,25 @@ class DeployRecoveryTest(unittest.TestCase):
         script_path.chmod(0o755)
         return script_path
 
-    def write_migration_mocks(self, bin_dir: Path, docker_log: Path) -> None:
+    def write_migration_mocks(
+        self,
+        bin_dir: Path,
+        docker_log: Path,
+        compose_container_id: str | None = "legacy-wave-container",
+        compose_container_image: str | None = "ghcr.io/example/wave:legacy",
+        fallback_container_name: str | None = None,
+        fallback_container_image: str | None = None,
+    ) -> None:
         docker_log_path = shlex.quote(str(docker_log))
         write_executable(
             bin_dir / "docker",
             f"""
             #!/usr/bin/env bash
             set -euo pipefail
+            compose_container_id={shlex.quote(compose_container_id or "")}
+            compose_container_image={shlex.quote(compose_container_image or "")}
+            fallback_container_name={shlex.quote(fallback_container_name or "")}
+            fallback_container_image={shlex.quote(fallback_container_image or "")}
             printf '%s\n' "$*" >> {docker_log_path}
 
             if [[ "${{1:-}}" == "compose" && "${{2:-}}" == "version" ]]; then
@@ -157,12 +169,26 @@ class DeployRecoveryTest(unittest.TestCase):
               exit 1
             fi
 
-            if [[ "${{1:-}}" == "compose" && "$*" == *" ps -q wave"* ]]; then
+            if [[ "${{1:-}}" == "compose" && "$*" == *" ps -aq wave"* ]]; then
+              if [[ -n "$compose_container_id" ]]; then
+                printf '%s\n' "$compose_container_id"
+              fi
               exit 0
             fi
 
-            if [[ "${{1:-}}" == "inspect" && "${{2:-}}" == "--format" && "${{4:-}}" == "supawave-wave-1" ]]; then
-              echo "ghcr.io/example/wave:legacy"
+            if [[ "${{1:-}}" == "inspect" && "${{2:-}}" == "--format" ]]; then
+              if [[ -n "$compose_container_id" && "${{4:-}}" == "$compose_container_id" && -n "$compose_container_image" ]]; then
+                printf '%s\n' "$compose_container_image"
+                exit 0
+              fi
+
+              if [[ -n "$fallback_container_name" && "${{4:-}}" == "$fallback_container_name" ]]; then
+                if [[ -n "$fallback_container_image" ]]; then
+                  printf '%s\n' "$fallback_container_image"
+                fi
+                exit 0
+              fi
+
               exit 0
             fi
 
@@ -316,8 +342,8 @@ class DeployRecoveryTest(unittest.TestCase):
         self.assertIn("Starting blue slot and caddy", result.stdout)
 
         docker_commands = docker_log.read_text(encoding="utf-8")
-        self.assertIn("ps -q wave", docker_commands)
-        self.assertIn("inspect --format {{.Config.Image}} supawave-wave-1", docker_commands)
+        self.assertIn("ps -aq wave", docker_commands)
+        self.assertIn("inspect --format {{.Config.Image}} legacy-wave-container", docker_commands)
         self.assertNotIn("images wave --format", docker_commands)
         self.assertEqual(
             "ghcr.io/example/wave:legacy",
@@ -326,6 +352,64 @@ class DeployRecoveryTest(unittest.TestCase):
         self.assertEqual(
             "ghcr.io/example/wave:target",
             (deploy_root / "releases/green/image-ref").read_text(encoding="utf-8").strip(),
+        )
+        self.assertEqual(
+            "green",
+            (deploy_root / "shared/active-slot").read_text(encoding="utf-8").strip(),
+        )
+        self.assertTrue((deploy_root / "shared/indexes/green/lucene9").is_dir())
+
+    def test_deploy_migration_uses_target_image_fallback_when_legacy_image_unresolved(self) -> None:
+        temp_dir = self.make_temp_dir("deploy-recovery-migration-fallback-")
+        deploy_root = temp_dir / "supawave"
+        legacy_dir = deploy_root / "current"
+        legacy_dir.mkdir(parents=True)
+        (legacy_dir / "compose.yml").write_text("services:\n  wave:\n    image: ghcr.io/example/wave:legacy\n", encoding="utf-8")
+
+        bin_dir = temp_dir / "bin"
+        bin_dir.mkdir()
+        docker_log = temp_dir / "docker.log"
+        self.write_migration_mocks(
+            bin_dir,
+            docker_log,
+            compose_container_id=None,
+            compose_container_image=None,
+            fallback_container_name="supawave-wave-1",
+            fallback_container_image=None,
+        )
+        deploy_script = self.write_testable_deploy_bundle(temp_dir)
+
+        result = subprocess.run(
+            [str(deploy_script), "deploy"],
+            capture_output=True,
+            text=True,
+            env=self.build_env(
+                bin_dir,
+                {
+                    "DEPLOY_ROOT": str(deploy_root),
+                    "WAVE_IMAGE": "ghcr.io/example/wave:target",
+                },
+            ),
+        )
+
+        self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+        self.assertIn("Legacy wave image unresolved; using target image fallback", result.stdout)
+        self.assertIn("Falling back to legacy container name supawave-wave-1", result.stdout)
+
+        docker_commands = docker_log.read_text(encoding="utf-8")
+        self.assertIn("ps -aq wave", docker_commands)
+        self.assertIn("inspect --format {{.Config.Image}} supawave-wave-1", docker_commands)
+        self.assertEqual(
+            "ghcr.io/example/wave:target",
+            (deploy_root / "releases/blue/image-ref").read_text(encoding="utf-8").strip(),
+        )
+        self.assertEqual(
+            "ghcr.io/example/wave:target",
+            (deploy_root / "releases/green/image-ref").read_text(encoding="utf-8").strip(),
+        )
+        self.assertEqual(
+            "green",
+            (deploy_root / "shared/active-slot").read_text(encoding="utf-8").strip(),
         )
         self.assertTrue((deploy_root / "shared/indexes/green/lucene9").is_dir())
 
@@ -403,6 +487,46 @@ class DeployRecoveryTest(unittest.TestCase):
             self.assertIn("Running post-flight checks", result.stdout)
             self.assertIn("OK: swapfile active", result.stdout)
             self.assertIn("Validation completed", result.stdout)
+
+        with self.subTest("setup-swap rejects invalid swap sizes"):
+            temp_dir = self.make_temp_dir("deploy-recovery-invalid-swap-")
+            setup_script = self.write_testable_setup_swap_script(temp_dir)
+
+            result = subprocess.run(
+                [str(setup_script)],
+                capture_output=True,
+                text=True,
+                env=self.build_env(
+                    temp_dir / "bin",
+                    {
+                        "SWAP_SIZE_GB": "0",
+                    },
+                ),
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("SWAP_SIZE_GB must be a positive integer", result.stdout + result.stderr)
+
+        with self.subTest("validate rejects invalid swap sizes"):
+            temp_dir = self.make_temp_dir("deploy-recovery-invalid-swap-validate-")
+            log_dir = temp_dir / "logs"
+            validate_script = self.write_testable_validate_script(temp_dir)
+
+            result = subprocess.run(
+                [str(validate_script), "post"],
+                capture_output=True,
+                text=True,
+                env=self.build_env(
+                    temp_dir / "bin",
+                    {
+                        "SWAP_SIZE_GB": "0",
+                        "TEST_LOG_DIR": str(log_dir),
+                    },
+                ),
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("SWAP_SIZE_GB must be a positive integer", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

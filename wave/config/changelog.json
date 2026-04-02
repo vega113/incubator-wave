@@ -1,26 +1,18 @@
 [
   {
-    "releaseId": "2026-04-01-jwt-robot-api-migration",
-    "version": "PR #557",
-    "date": "2026-04-01",
-    "title": "JWT Robot API Migration with Scope Enforcement",
-    "summary": "Robot and Data APIs now enforce per-operation JWT scopes, add a /robot/token endpoint alias, and provide migration support for legacy pre-scoped long-lived tokens.",
+    "releaseId": "2026-04-02-deploy-recovery-on-legacy-hosts",
+    "version": "PR #576",
+    "date": "2026-04-02",
+    "title": "Recover deploys on legacy hosts",
+    "summary": "Deploy tooling now discovers stopped legacy Compose containers, keeps migration moving when the legacy image cannot be resolved, and tightens swap/runtime validation.",
     "sections": [
-      {
-        "type": "feature",
-        "items": [
-          "Added /robot/token endpoint as an alias for /robot/dataapi/token for improved API discoverability",
-          "Implemented per-operation JWT scope enforcement for Data and Robot APIs",
-          "Notify operations (robot.notify, robot.notifyCapabilitiesHash) now require only data:read scope instead of wave:robot:active"
-        ]
-      },
       {
         "type": "fix",
         "items": [
-          "Fixed shared mutable state race condition in BaseApiServlet operations list handling",
-          "Added migration fallback for legacy unscoped tokens that defaults scopes by token type",
-          "Scope validation errors now return HTTP 403 instead of 401 to properly distinguish insufficient scope from invalid token",
-          "Removed duplicate JWT validation in DataApiServlet and ActiveApiServlet"
+          "Discover stopped legacy wave containers with compose-v2-safe ps -aq probing before migration",
+          "Continue legacy data migration with a safe target-image fallback when the old image cannot be resolved",
+          "Reject invalid swap sizing and tolerate the observed 4KB swapfile shortfall",
+          "Create slot runtime directories with restricted permissions before starting blue or green"
         ]
       }
     ]

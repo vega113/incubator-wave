@@ -136,6 +136,10 @@ determine_target_slot() {
   fi
 }
 
+slot_env_suffix() {
+  printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
+}
+
 cancel_cooldown() {
   local systemd_scope=""
   if [ "$(id -u)" -ne 0 ]; then
@@ -195,9 +199,10 @@ migrate_to_blue_green() {
   local legacy_container_id=""
   local current_image=""
   local target_image="${WAVE_IMAGE:-}"
+  local legacy_fallback_container="${PROJECT_NAME}-wave-1"
 
   echo "[deploy] Discovering legacy wave image"
-  legacy_container_id=$(docker compose -f "$old_compose" -p "$PROJECT_NAME" ps -q wave 2>/dev/null || true)
+  legacy_container_id=$(docker compose -f "$old_compose" -p "$PROJECT_NAME" ps -aq wave 2>/dev/null | sed -n '1p' || true)
   if [ -n "$legacy_container_id" ]; then
     current_image=$(docker inspect --format '{{.Config.Image}}' "$legacy_container_id" 2>/dev/null || true)
     if [ -n "$current_image" ]; then
@@ -206,34 +211,32 @@ migrate_to_blue_green() {
   fi
 
   if [ -z "$current_image" ]; then
-    echo "[deploy] Falling back to legacy container name supawave-wave-1"
-    current_image=$(docker inspect --format '{{.Config.Image}}' supawave-wave-1 2>/dev/null || true)
+    echo "[deploy] Falling back to legacy container name $legacy_fallback_container"
+    current_image=$(docker inspect --format '{{.Config.Image}}' "$legacy_fallback_container" 2>/dev/null || true)
     if [ -n "$current_image" ]; then
-      echo "[deploy] Resolved legacy wave image from fallback container supawave-wave-1"
+      echo "[deploy] Resolved legacy wave image from fallback container $legacy_fallback_container"
     fi
   fi
 
   if [ -z "$current_image" ]; then
-    echo "[deploy] No legacy wave image found — fresh install"
-    echo "blue" > "$deploy_root/shared/active-slot"
-    return 0
+    if [ -n "$target_image" ]; then
+      echo "[deploy] Legacy wave image unresolved; using target image fallback"
+      current_image="$target_image"
+    else
+      echo "[deploy] ERROR: unable to resolve legacy wave image and no fallback target image available" >&2
+      return 1
+    fi
   fi
 
   echo "[deploy] Migrating to blue-green (brief downtime expected)..."
   echo "[deploy] Stopping legacy wave container"
   echo "[deploy] WARNING: stopping legacy 'wave' container to free port 9898"
   echo "[deploy]   wave-blue will start immediately after on the same port"
-  export WAVE_IMAGE="${current_image}"
   export WAVE_INTERNAL_PORT="${WAVE_INTERNAL_PORT:-9898}"
   export RESEND_API_KEY="${RESEND_API_KEY:-}"
   export WAVE_EMAIL_FROM="${WAVE_EMAIL_FROM:-}"
-  docker compose -f "$old_compose" -p "$PROJECT_NAME" stop wave
-  docker compose -f "$old_compose" -p "$PROJECT_NAME" rm -f wave
-  if [ -n "$target_image" ]; then
-    export WAVE_IMAGE="$target_image"
-  else
-    unset WAVE_IMAGE
-  fi
+  docker compose -f "$old_compose" -p "$PROJECT_NAME" stop wave 2>/dev/null || true
+  docker compose -f "$old_compose" -p "$PROJECT_NAME" rm -f wave 2>/dev/null || true
 
   local f
   for f in "$deploy_root/shared/indexes"/*; do
@@ -324,12 +327,14 @@ prepare_slot_runtime_dirs() {
   local session_dir="$deploy_root/shared/sessions/${slot}"
 
   mkdir -p "$lucene_dir" "$session_dir"
-  chmod 0777 "$index_dir" "$lucene_dir" "$session_dir"
+  chmod 2770 "$index_dir" "$lucene_dir" "$session_dir"
 }
 
 start_target_slot() {
   prepare_slot_runtime_dirs "$TARGET_SLOT"
-  export "WAVE_IMAGE_${TARGET_SLOT^^}=${WAVE_IMAGE:?}"
+  local target_suffix
+  target_suffix=$(slot_env_suffix "$TARGET_SLOT")
+  export "WAVE_IMAGE_${target_suffix}=${WAVE_IMAGE:?}"
   if [ "$TARGET_SLOT" = "green" ]; then
     dc --profile green up -d "wave-${TARGET_SLOT}"
   else
@@ -578,7 +583,9 @@ rollback_release() {
       exit 1
     fi
     prepare_slot_runtime_dirs "$prev"
-    export "WAVE_IMAGE_${prev^^}=$prev_image"
+    local prev_suffix
+    prev_suffix=$(slot_env_suffix "$prev")
+    export "WAVE_IMAGE_${prev_suffix}=$prev_image"
     if [ "$prev" = "green" ]; then
       dc --profile green up -d "wave-${prev}"
     else
