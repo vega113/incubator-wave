@@ -1334,16 +1334,16 @@ def handle_form_submit(event, wavelet):
 
 **Future (v2+): Interactive updates with postMessage**
 
-When iframe script execution is enabled (allow-scripts), robots can implement interactive state updates:
+When iframe script execution is enabled (allow-scripts), robots can implement interactive state updates through a trusted wrapper script. The robot-supplied HTML still avoids inline event handlers:
 
 ```python
 # v2+: With interactive iframe (allow-scripts enabled)
-# hostOrigin is injected by the parent page/template, not derived from the iframe origin.
+# The wrapper script is trusted host code, not robot-supplied HTML.
 html = f"""
   <div class="weather-widget">
     <h3>Weather in {location}</h3>
     <p>{weather['condition']}, {weather['temp']}°{units[0]}</p>
-    <button onclick="window.parent.postMessage({{'action': 'refresh', 'elementKey': 'build-card-123'}}, '{hostOrigin}')">Refresh</button>
+    <button data-action="refresh" data-element-key="build-card-123">Refresh</button>
   </div>
 """
 
@@ -1355,7 +1355,18 @@ def handle_iframe_message(event, wavelet):
     ...
 ```
 
-**v2+ security requirement**: When `allow-scripts` is enabled, the host-side `message` event listener MUST validate `event.origin` against a known allowlist (e.g., the Wave server origin) and verify `event.source` matches the expected iframe's `contentWindow` before acting on any message. The iframe MUST use the host's explicit allowlisted origin string as the `postMessage` target origin and MUST NOT use wildcard `'*'`. This prevents cross-frame message spoofing from unrelated iframes or windows.
+```javascript
+// Trusted wrapper script, not robot-supplied HTML, attaches the click handler.
+const button = document.querySelector('[data-action="refresh"]');
+button.addEventListener('click', () => {
+  window.parent.postMessage(
+    { action: 'refresh', elementKey: 'build-card-123', capabilityToken },
+    hostOrigin
+  );
+});
+```
+
+**v2+ security requirement**: Because a sandboxed `srcdoc` iframe without `allow-same-origin` has an opaque origin, the host MUST NOT rely on `event.origin` as the primary trust signal. Instead, it MUST validate `event.source === expectedIframe.contentWindow` and a per-iframe capability token included in the message payload before acting on any message. The iframe MUST use the host's explicit allowlisted origin string as the `postMessage` target origin and MUST NOT use wildcard `'*'`. This prevents cross-frame message spoofing from unrelated iframes or windows while keeping the sandbox boundary intact.
 
 **v1 constraint**: This interactive pattern requires `allow-scripts` in iframe sandbox (v2+). Current design uses static server-rendered HTML.
 
