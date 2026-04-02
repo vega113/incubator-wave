@@ -1,7 +1,7 @@
 [
   {
     "releaseId": "2026-04-02-ot-search-public-wave-batching",
-    "version": "PR #TBD",
+    "version": "PR #579",
     "date": "2026-04-02",
     "title": "Reduce OT search write amplification on hot public waves",
     "summary": "OT search now keeps low-latency updates for low-fanout searches while batching hot public-wave updates back to a polling-equivalent cadence with new ops visibility.",
