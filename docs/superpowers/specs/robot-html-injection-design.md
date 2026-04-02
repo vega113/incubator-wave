@@ -924,15 +924,22 @@ public class RobotStateUpdateService extends OperationService {
 }
 ```
 
-**Client-side usage:**
+**Client-side state usage (v1 model):**
 
-In the GWT renderer, when rendering `<robot-html>` with a child `<robot-state>`, the element handler can:
-1. Parse the state JSON
-2. Make it available to JavaScript in the iframe (via hidden data attributes or postMessage)
-3. Store it for future robot interactions
+In v1 (no JavaScript execution in iframe), state is consumed **server-side**:
+
+1. Robot reads `<robot-state>` from blip document
+2. Robot renders HTML with state values baked into the template
+3. Robot injects final static HTML (no runtime state updates)
+4. Example: `<h1>Preferences: {refreshInterval} seconds</h1>` (state interpolated at render time)
+
+**Future (v2+): Interactive state with postMessage**
+
+When script execution is enabled in iframe (via `allow-scripts` policy change), clients could implement:
 
 ```javascript
-// In injected HTML (inside iframe)
+// Future: In injected HTML (inside iframe with allow-scripts)
+// NOTE: This pattern applies ONLY if iframe sandbox policy is updated to allow-scripts
 let stateJson = document.currentScript.dataset.robotState;
 let state = JSON.parse(stateJson);
 
@@ -945,6 +952,8 @@ window.parent.postMessage(
   origin
 );
 ```
+
+**v1 constraint**: `allow-scripts` is NOT set in iframe sandbox (section 4.5). Robot state is read-only from iframe's perspective in v1.
 
 ### 4.8.5 Concurrent State Updates and Conflict Resolution
 
@@ -1244,13 +1253,13 @@ If robot needs >100 KB state:
 </robot-html>
 ```
 
-**Robot code:**
+**Robot code (v1 - server-driven rendering):**
 ```python
 @robot.handle(document_ops.DocumentChangedEvent)
 def on_blip_change(event, wavelet):
   blip = event.blip
   
-  # Fetch user preferences from wave state (or robot DB)
+  # Fetch user preferences from wave state
   state = wavelet.get_robot_state(blip.id, state_key="user-prefs")
   location = state.get("location", "SF")
   units = state.get("units", "C")
@@ -1258,28 +1267,58 @@ def on_blip_change(event, wavelet):
   # Fetch weather data from external API
   weather = fetch_weather(location)  # Returns {temp: 22, condition: "Sunny"}
   
-  # Render HTML with injected state
+  # Render HTML with state baked in (v1: static, no onclick handlers)
   html = f"""
     <div class="weather-widget">
       <h3>Weather in {location}</h3>
       <p>{weather['condition']}, {weather['temp']}°{units[0]}</p>
-      <button onclick="window.parent.postMessage({{'action': 'refresh'}}, '*')">Refresh</button>
+      <p><em>Last updated: {state.get('lastUpdate', 'never')}</em></p>
     </div>
   """
   
-  blip.inject_robot_html(html, state)
+  # Inject static HTML
+  blip.inject_robot_html(html)
 
-# On user action (button click), robot receives message and updates
-def handle_user_action(action):
+# On user action via Wave FormElement or participant interaction, robot responds
+@robot.handle(document_ops.FormSubmitEvent)
+def handle_form_submit(event, wavelet):
+  # User submitted form with new location preference
+  new_location = event.form.get("location_select")
+  
+  # Update state atomically
   new_state = {
-    "location": "NYC",
-    "units": "F",
-    "refreshInterval": 15,
+    "location": new_location,
+    "units": "C",
+    "refreshInterval": 30,
     "lastUpdate": time.time()
   }
-  wavelet.update_robot_state(blip_id, state_key="user-prefs", state_value=new_state)
-  # ... re-render HTML with new state
+  wavelet.update_robot_state(blip_id, state_key="user-prefs", state_value=new_state, version="1")
+  # Wave broadcasts state change; robot re-renders on next event
 ```
+
+**Future (v2+): Interactive updates with postMessage**
+
+When iframe script execution is enabled (allow-scripts), robots can implement interactive state updates:
+
+```python
+# v2+: With interactive iframe (allow-scripts enabled)
+html = f"""
+  <div class="weather-widget">
+    <h3>Weather in {location}</h3>
+    <p>{weather['condition']}, {weather['temp']}°{units[0]}</p>
+    <button onclick="window.parent.postMessage({{'action': 'refresh'}}, '*')">Refresh</button>
+  </div>
+"""
+
+# And listen for postMessage events from iframe
+@robot.handle(CustomRobotEvent("iframe-message"))
+def handle_iframe_message(event, wavelet):
+  if event.message.action == "refresh":
+    # Fetch updated data and re-render
+    ...
+```
+
+**v1 constraint**: This interactive pattern requires `allow-scripts` in iframe sandbox (v2+). Current design uses static server-rendered HTML.
 
 ### 4.8.10 Testing State Management
 
@@ -1402,7 +1441,15 @@ Add or change:
 
 - `wave/src/main/java/org/waveprotocol/wave/model/schema/conversation/ConversationSchemas.java`
   - allow the new tag `<robot-html>` in `body` and line-container contexts
-  - register `<data>` as a valid child element of `<robot-html>`
+  - register `<data>` as a valid child element of `<robot-html>` (contains XML-escaped HTML payload)
+  - register `<robot-state>` as a valid child element of `<robot-html>` (up to 5 per element)
+  - register `<robot-state>` attributes:
+    - `data-robot-id` (required): string, non-empty
+    - `data-state-key` (required): string, unique per `<robot-html>`
+    - `data-version` (required): positive integer (default "1")
+    - `type` (required): enum {"json", "xml", "text"}
+    - `data-timestamp` (optional): ISO 8601 timestamp
+    - `data-size-bytes` (optional): integer (for quota tracking)
 
 ### 6.2.2 ElementSerializer Registration
 
