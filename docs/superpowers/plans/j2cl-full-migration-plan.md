@@ -166,16 +166,19 @@ Phase 0 must also enumerate and clean every gadget-coupled file outside the gadg
 | `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/ServerMain.java` | Jakarta server registration for `/gadget/gadgetlist` | Remove gadget servlet registration |
 | `wave/src/main/java/org/waveprotocol/box/server/robots/passive/EventGenerator.java` | Emits `GadgetStateChangedEvent` and inspects `com.google.wave.api.Gadget` elements | Delete the gadget-state event generation branch and stop inspecting gadget elements in passive robot events |
 | `wave/src/main/java/org/waveprotocol/box/server/robots/operations/DocumentModifyService.java` | Treats `com.google.wave.api.Gadget` as a document element during modify operations | Remove gadget element handling from document modify operations |
-| `wave/src/main/java/com/google/wave/api/Gadget.java` | Server/API gadget element type | Delete the gadget element type or move it into a server-only compatibility module if robot API compatibility must outlive browser gadget removal; do not leave it in the main wave module by accident |
-| `wave/src/main/java/com/google/wave/api/BlipData.java` | Deserializes gadget elements into `com.google.wave.api.Gadget` | Remove gadget element deserialization or isolate it with the server-only compatibility module |
-| `wave/src/main/java/com/google/wave/api/data/ApiView.java` | Matches gadget element properties in the data API | Remove gadget element matching from the view serializer path or isolate it with the server-only compatibility module |
-| `wave/src/main/java/com/google/wave/api/data/ElementSerializer.java` | Serializes gadget elements in the data API | Remove gadget serialization support or isolate it with the server-only compatibility module |
-| `wave/src/main/java/com/google/wave/api/impl/ElementGsonAdaptor.java` | Gson adapter reconstructs gadget elements | Remove gadget JSON adapter support or isolate it with the server-only compatibility module |
-| `wave/src/main/java/com/google/wave/api/event/EventHandler.java` | Declares `onGadgetStateChanged(...)` | Delete the gadget-state callback from the robot event contract |
-| `wave/src/main/java/com/google/wave/api/event/EventType.java` | Defines `GADGET_STATE_CHANGED` event type | Delete the gadget-state event enum entry |
-| `wave/src/main/java/com/google/wave/api/event/GadgetStateChangedEvent.java` | Gadget-specific robot event payload | Delete the event type class |
-| `wave/src/main/java/com/google/wave/api/AbstractRobot.java` | Dispatches gadget-state events to robot handlers | Delete the gadget-state event dispatch branch |
-| `wave/src/main/java/com/google/wave/api/oauth/impl/PopupLoginFormHandler.java` | Builds gadget XML during OAuth popup handling | Delete or rewrite this handler so it no longer constructs gadget elements |
+
+> **Decision for `com.google.wave.api` robot API types:** The robot API is still active and its published FQNs must not change. Do **not** move types to a sub-package — that renames their FQN and breaks all existing robot integrations compiled against `com.google.wave.api.*`. Instead, deprecate the four gadget-coupled types **in-place** with `@Deprecated(forRemoval = true)` on each individual class or method. The gadget-state event infrastructure (`GADGET_STATE_CHANGED`, `onGadgetStateChanged`, `GadgetStateChangedEvent`) will never fire once gadget elements are gone from documents, but must stay present and compilable until a formal robot API sunset date is agreed (target: Phase 5). The `gadgetCompatEnabled` SBT flag below is a **source filter** in `build.sbt` — set it to `false` to exclude gadget-element serialization paths from J2CL-only builds. It is not a Java annotation or a Closure define.
+
+| `wave/src/main/java/com/google/wave/api/Gadget.java` | Server/API gadget element type | Mark `@Deprecated(forRemoval = true)` in-place — do **not** move; FQN must remain `com.google.wave.api.Gadget` |
+| `wave/src/main/java/com/google/wave/api/BlipData.java` | Deserializes gadget elements into `com.google.wave.api.Gadget` | Mark gadget-element deserialization methods `@Deprecated(forRemoval = true)` in-place |
+| `wave/src/main/java/com/google/wave/api/data/ApiView.java` | Matches gadget element properties in the data API | Mark gadget element matching code `@Deprecated(forRemoval = true)`; guard behind `gadgetCompatEnabled` SBT source filter |
+| `wave/src/main/java/com/google/wave/api/data/ElementSerializer.java` | Serializes gadget elements in the data API | Mark gadget serialization code `@Deprecated(forRemoval = true)`; guard behind `gadgetCompatEnabled` SBT source filter |
+| `wave/src/main/java/com/google/wave/api/impl/ElementGsonAdaptor.java` | Gson adapter reconstructs gadget elements | Mark `@Deprecated(forRemoval = true)` in-place — do **not** move |
+| `wave/src/main/java/com/google/wave/api/event/EventHandler.java` | Declares `onGadgetStateChanged(...)` | Mark `onGadgetStateChanged` `@Deprecated(forRemoval = true)` — do **not** delete; removing it breaks the robot API contract |
+| `wave/src/main/java/com/google/wave/api/event/EventType.java` | Defines `GADGET_STATE_CHANGED` event type | Mark `GADGET_STATE_CHANGED` `@Deprecated(forRemoval = true)` — do **not** delete the enum entry |
+| `wave/src/main/java/com/google/wave/api/event/GadgetStateChangedEvent.java` | Gadget-specific robot event payload | Mark class `@Deprecated(forRemoval = true)` — do **not** delete |
+| `wave/src/main/java/com/google/wave/api/AbstractRobot.java` | Dispatches gadget-state events to robot handlers | Mark gadget-state dispatch branch `@Deprecated(forRemoval = true)` — do **not** delete |
+| `wave/src/main/java/com/google/wave/api/oauth/impl/PopupLoginFormHandler.java` | Builds gadget XML during OAuth popup handling | Delete or rewrite — this handler is not part of the robot event API contract |
 
 ### 3.4 Test And Fixture Cleanup Required By The Wider Gadget Delete
 
@@ -309,6 +312,8 @@ Phase 4 search prerequisites:
 - Authentication still uses the existing `ProtocolAuthenticate` JSON message.
 - `ProtocolOpenRequest` round-trips and the client receives a `ProtocolWaveletUpdate`.
 - `ProtocolSubmitRequest` returns `ProtocolSubmitResponse`.
+- Initial wavelet snapshot hydration succeeds: `SnapshotFetcher` and `SnapshotSerializer` complete a full open→snapshot→apply-delta cycle against a live server, producing the same in-memory wavelet state as the GWT client.
+- Reconnect/resync behavior is verified: the J2CL client reconnects after a dropped WebSocket and re-receives pending updates without state divergence.
 - Search request/response codecs exist in the J2CL target before the Phase 4 search slice starts.
 - The server does not need a protobuf-js or alternate transport stack.
 
@@ -535,6 +540,7 @@ Acceptance criteria:
 - all `wave/concurrencycontrol` JVM tests pass without `GWTTestCase`
 - the J2CL sidecar compiles the model and OT core
 - `wave/model/**` no longer has compile-time imports from `wave/client/**`
+- OT regression corpus is established and all corpus cases pass (this is the hard gate — Phase 3 must not start until this passes)
 - no production behavior changes are required to prove this phase
 
 Rollback:
@@ -672,7 +678,7 @@ Before Phase 1 starts, all of the following should be true:
 - [ ] `Popup.gwt.xml`, `Util.gwt.xml`, `useragents.gwt.xml`, `Logger.gwt.xml`, `EditorHarness.gwt.xml`, and `UndercurrentHarness.gwt.xml` no longer rely on deferred binding for runtime behavior
 - [ ] `WaveContext.java` no longer imports `org.waveprotocol.wave.client.state.BlipReadStateMonitor`, and the shared read-state monitor contract now lives under `wave/model/**` or another shared package
 - [ ] total `.gwt.xml` count is 130 or lower
-- [ ] model and concurrency-control test ownership is explicit and an OT regression suite exists
+- [ ] model and concurrency-control test ownership is explicit and the scope of the OT regression corpus is agreed (the corpus itself is built and gated in Phase 2, not Phase 1)
 - [ ] the first UI slice is fixed as the search panel, not the editor
 - [ ] the J2CL sidecar output directory and feature-flag bootstrap plan are agreed
 - [ ] the J2CL sidecar/compiler config is agreed: `BUNDLE_JAR` + sourcemaps for sidecar/watch, `BUNDLE` only for targeted debugging, `ADVANCED_OPTIMIZATIONS` for production
