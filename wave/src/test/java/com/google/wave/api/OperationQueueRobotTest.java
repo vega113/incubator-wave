@@ -93,6 +93,16 @@ public class OperationQueueRobotTest extends TestCase {
     assertEquals(queue.getPendingOperations(), queue2.getPendingOperations());
   }
 
+  public void testDrainPendingOperationsReturnsAndClearsAtomically() throws Exception {
+    OperationQueue queue = new OperationQueue();
+    queue.createWavelet("example.com", Collections.<String>emptySet());
+
+    List<OperationRequest> ops = queue.drainPendingOperations();
+
+    assertEquals(1, ops.size());
+    assertEquals(0, queue.getPendingOperations().size());
+  }
+
   public void testCreateChildOfBlip() throws Exception {
     Blip blip = mock(Blip.class);
     when(blip.getBlipId()).thenReturn("blip1");

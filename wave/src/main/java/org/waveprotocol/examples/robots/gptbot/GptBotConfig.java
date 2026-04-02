@@ -114,9 +114,9 @@ public final class GptBotConfig {
     boolean codexUnsafeBypass = readBoolean("GPTBOT_CODEX_UNSAFE_BYPASS", null, false);
     String callbackToken = readString("GPTBOT_CALLBACK_TOKEN", null, "");
     ContextMode contextMode = ContextMode.from(readString("GPTBOT_CONTEXT_MODE", null,
-        DEFAULT_CONTEXT_MODE));
+        DEFAULT_CONTEXT_MODE), "GPTBOT_CONTEXT_MODE", DEFAULT_CONTEXT_MODE);
     ReplyMode replyMode = ReplyMode.from(readString("GPTBOT_REPLY_MODE", null,
-        DEFAULT_REPLY_MODE));
+        DEFAULT_REPLY_MODE), "GPTBOT_REPLY_MODE", DEFAULT_REPLY_MODE);
     String apiRobotId = readString("GPTBOT_API_ROBOT_ID", null, participantId);
     String apiRobotSecret = readString("GPTBOT_API_ROBOT_SECRET", null, "");
     return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
@@ -341,14 +341,16 @@ public final class GptBotConfig {
     DATA,
     ACTIVE;
 
-    private static ContextMode from(String value) {
+    private static ContextMode from(String value, String environmentName, String defaultValue) {
       String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
       ContextMode mode = NONE;
       if ("data".equals(normalized)) {
         mode = DATA;
-      }
-      if ("active".equals(normalized)) {
+      } else if ("active".equals(normalized)) {
         mode = ACTIVE;
+      } else if (!normalized.isEmpty() && !"none".equals(normalized)) {
+        LOG.warning("Ignoring invalid value for " + environmentName + ": " + value
+            + "; allowed values: none,data,active; using default " + defaultValue);
       }
       return mode;
     }
@@ -361,11 +363,14 @@ public final class GptBotConfig {
     PASSIVE,
     ACTIVE;
 
-    private static ReplyMode from(String value) {
+    private static ReplyMode from(String value, String environmentName, String defaultValue) {
       String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
       ReplyMode mode = PASSIVE;
       if ("active".equals(normalized)) {
         mode = ACTIVE;
+      } else if (!normalized.isEmpty() && !"passive".equals(normalized)) {
+        LOG.warning("Ignoring invalid value for " + environmentName + ": " + value
+            + "; allowed values: passive,active; using default " + defaultValue);
       }
       return mode;
     }

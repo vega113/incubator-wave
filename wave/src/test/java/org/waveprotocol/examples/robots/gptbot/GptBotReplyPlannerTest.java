@@ -102,7 +102,10 @@ public class GptBotReplyPlannerTest extends TestCase {
     assertFalse(codexClient.lastPrompt.contains("def456"));
     assertFalse(codexClient.lastPrompt.contains("ghi789"));
     assertFalse(codexClient.lastPrompt.contains("token-123"));
-    assertTrue(codexClient.lastPrompt.contains("[redacted]"));
+    assertTrue(codexClient.lastPrompt.contains("\"client_secret\":\"[redacted]\""));
+    assertTrue(codexClient.lastPrompt.contains("\"secret\":\"[redacted]\""));
+    assertTrue(codexClient.lastPrompt.contains("\"password\":\"[redacted]\""));
+    assertTrue(codexClient.lastPrompt.contains("\"Authorization\":\"Bearer [redacted]\""));
   }
 
   private static final class RecordingCodexClient implements CodexClient {

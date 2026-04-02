@@ -29,7 +29,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -38,6 +40,33 @@ import java.util.concurrent.TimeUnit;
 public final class ProcessCodexClient implements CodexClient {
 
   private static final Log LOG = Log.get(ProcessCodexClient.class);
+  private static final String[] CHILD_ENVIRONMENT_VARIABLES = {
+      "HOME",
+      "PATH",
+      "USER",
+      "LOGNAME",
+      "SHELL",
+      "LANG",
+      "LC_ALL",
+      "TMPDIR",
+      "XDG_CONFIG_HOME",
+      "XDG_CACHE_HOME",
+      "XDG_STATE_HOME",
+      "XDG_DATA_HOME",
+      "CODEX_HOME",
+      "NO_PROXY",
+      "HTTPS_PROXY",
+      "HTTP_PROXY",
+      "ALL_PROXY",
+      "SSL_CERT_FILE",
+      "SSL_CERT_DIR",
+      "REQUESTS_CA_BUNDLE",
+      "CURL_CA_BUNDLE",
+      "OPENAI_API_KEY",
+      "OPENAI_BASE_URL",
+      "OPENAI_ORGANIZATION",
+      "OPENAI_PROJECT"
+  };
 
   private final String codexBinary;
   private final String model;
@@ -66,6 +95,7 @@ public final class ProcessCodexClient implements CodexClient {
   public String complete(String prompt) {
     Path outputFile = null;
     Path errorFile = null;
+    Process process = null;
     String response = "";
     try {
       outputFile = Files.createTempFile("gpt-bot-codex-", ".txt");
@@ -75,9 +105,10 @@ public final class ProcessCodexClient implements CodexClient {
       command.add("exec");
       command.add("--model");
       command.add(model);
-      if (!reasoningEffort.isBlank()) {
+      String sanitizedReasoningEffort = normalizedReasoningEffort();
+      if (!sanitizedReasoningEffort.isEmpty()) {
         command.add("-c");
-        command.add("model_reasoning_effort=\"" + reasoningEffort + "\"");
+        command.add("model_reasoning_effort=\"" + sanitizedReasoningEffort + "\"");
       }
       command.add("--color");
       command.add("never");
@@ -88,11 +119,12 @@ public final class ProcessCodexClient implements CodexClient {
       }
       command.add("-");
 
-      Process process = processLauncher.start(command, errorFile);
+      process = processLauncher.start(command, errorFile);
       try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
           process.getOutputStream(), StandardCharsets.UTF_8))) {
         writer.write(prompt);
       } catch (IOException e) {
+        destroyProcess(process);
         throw new IllegalStateException("Unable to write Codex prompt", e);
       }
 
@@ -125,6 +157,35 @@ public final class ProcessCodexClient implements CodexClient {
     return response;
   }
 
+  static Map<String, String> buildChildEnvironment(Map<String, String> parentEnvironment) {
+    Map<String, String> childEnvironment = new LinkedHashMap<String, String>();
+    for (String variableName : CHILD_ENVIRONMENT_VARIABLES) {
+      String value = parentEnvironment.get(variableName);
+      if (value != null) {
+        childEnvironment.put(variableName, value);
+      }
+    }
+    return childEnvironment;
+  }
+
+  private String normalizedReasoningEffort() {
+    String normalized = reasoningEffort == null ? "" : reasoningEffort.trim();
+    if (normalized.isEmpty()) {
+      return "";
+    }
+    if (normalized.matches("[A-Za-z0-9._-]+")) {
+      return normalized;
+    }
+    LOG.warning("Ignoring invalid reasoning effort value: " + reasoningEffort);
+    return "";
+  }
+
+  private static void destroyProcess(Process process) {
+    if (process != null) {
+      process.destroyForcibly();
+    }
+  }
+
   private static String readErrorSummary(Path errorFile) {
     String summary = "no stderr captured";
     try {
@@ -151,12 +212,13 @@ public final class ProcessCodexClient implements CodexClient {
   }
 
   private static Process startProcess(List<String> command, Path errorFile) throws IOException {
-      ProcessBuilder builder = new ProcessBuilder(command);
-      builder.environment().remove("GPTBOT_API_ROBOT_SECRET");
-      builder.environment().remove("GOTBOT_API_ROBOT_SECRET");
-      builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-      builder.redirectError(errorFile.toFile());
-      return builder.start();
+    ProcessBuilder builder = new ProcessBuilder(command);
+    Map<String, String> environment = builder.environment();
+    environment.clear();
+    environment.putAll(buildChildEnvironment(System.getenv()));
+    builder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+    builder.redirectError(errorFile.toFile());
+    return builder.start();
   }
 
   interface ProcessLauncher {

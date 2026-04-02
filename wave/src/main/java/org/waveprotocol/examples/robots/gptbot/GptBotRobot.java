@@ -100,7 +100,7 @@ public final class GptBotRobot {
     OperationQueue operationQueue = bundle.getWavelet().getOperationQueue();
     operationQueue.notifyRobotInformation(ProtocolVersion.DEFAULT, capabilitiesHash());
     processEvents(bundle);
-    List<OperationRequest> operations = operationQueue.getPendingOperations();
+    List<OperationRequest> operations = operationQueue.drainPendingOperations();
     return gson.toJson(operations, GsonFactory.OPERATION_REQUEST_LIST_TYPE);
   }
 

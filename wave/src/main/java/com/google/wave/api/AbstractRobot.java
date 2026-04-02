@@ -620,8 +620,7 @@ public abstract class AbstractRobot extends HttpServlet implements EventHandler 
     processEvents(events);
 
     // Serialize the operations.
-    serializeOperations(operationQueue.getPendingOperations(), resp);
-    operationQueue.clear();
+    serializeOperations(operationQueue.drainPendingOperations(), resp);
   }
 
   /**
