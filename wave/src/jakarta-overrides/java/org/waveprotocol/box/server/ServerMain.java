@@ -60,9 +60,13 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
 
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class ServerMain {
   private static final Log LOG = Log.get(ServerMain.class);
+  private static final long SEARCH_WAVELET_UPDATER_RETRY_SECONDS = 30L;
 
   private static void printStackTraceLite(Throwable t) {
     org.waveprotocol.box.server.util.StackTraces.printStackTraceLite(t, System.err);
@@ -175,6 +179,46 @@ public class ServerMain {
       LOG.log(java.util.logging.Level.WARNING,
           "Failed to seed ot-search feature flag; search updates stay off", e);
     }
+  }
+
+  private static void initializeSearchWaveletUpdater(
+      Injector injector, WaveBus waveBus, FeatureFlagStore featureFlagStore) {
+    try {
+      if (FeatureFlagSeeder.isSearchWaveletUpdaterEnabled(featureFlagStore)) {
+        subscribeSearchWaveletUpdater(injector, waveBus);
+      }
+    } catch (PersistenceException e) {
+      LOG.log(java.util.logging.Level.WARNING,
+          "Failed to read ot-search feature flag; retrying search updates later", e);
+      retrySearchWaveletUpdaterInitialization(injector, waveBus, featureFlagStore);
+    }
+  }
+
+  private static void retrySearchWaveletUpdaterInitialization(
+      Injector injector, WaveBus waveBus, FeatureFlagStore featureFlagStore) {
+    ScheduledExecutorService retryExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+      Thread thread = new Thread(r, "SearchWaveletUpdater-Initializer");
+      thread.setDaemon(true);
+      return thread;
+    });
+    retryExecutor.scheduleWithFixedDelay(() -> {
+      try {
+        if (FeatureFlagSeeder.isSearchWaveletUpdaterEnabled(featureFlagStore)) {
+          subscribeSearchWaveletUpdater(injector, waveBus);
+          retryExecutor.shutdown();
+        }
+      } catch (PersistenceException e) {
+        LOG.log(java.util.logging.Level.WARNING,
+            "Failed to read ot-search feature flag during retry; search updates stay off", e);
+      }
+    }, SEARCH_WAVELET_UPDATER_RETRY_SECONDS, SEARCH_WAVELET_UPDATER_RETRY_SECONDS, TimeUnit.SECONDS);
+  }
+
+  private static void subscribeSearchWaveletUpdater(Injector injector, WaveBus waveBus) {
+    org.waveprotocol.box.server.waveserver.search.SearchWaveletUpdater searchUpdater =
+        injector.getInstance(org.waveprotocol.box.server.waveserver.search.SearchWaveletUpdater.class);
+    waveBus.subscribe(searchUpdater);
+    LOG.info("SearchWaveletUpdater subscribed to WaveBus (ot-search enabled)");
   }
 
   /** Initializes ContactMessageStore asynchronously to avoid blocking if MongoDB is unavailable. */
@@ -454,20 +498,7 @@ public class ServerMain {
     // Register OT search wavelet updater AFTER PerUserWaveViewDistpatcher
     // so that the per-user wave view index is current before search updates.
     FeatureFlagStore featureFlagStore = injector.getInstance(FeatureFlagStore.class);
-    boolean searchWaveletUpdaterEnabled = false;
-    try {
-      searchWaveletUpdaterEnabled = FeatureFlagSeeder.isSearchWaveletUpdaterEnabled(
-          featureFlagStore);
-    } catch (PersistenceException e) {
-      LOG.log(java.util.logging.Level.WARNING,
-          "Failed to read ot-search feature flag; search updates stay off", e);
-    }
-    if (searchWaveletUpdaterEnabled) {
-      org.waveprotocol.box.server.waveserver.search.SearchWaveletUpdater searchUpdater =
-          injector.getInstance(org.waveprotocol.box.server.waveserver.search.SearchWaveletUpdater.class);
-      waveBus.subscribe(searchUpdater);
-      LOG.info("SearchWaveletUpdater subscribed to WaveBus (ot-search enabled)");
-    }
+    initializeSearchWaveletUpdater(injector, waveBus, featureFlagStore);
 
     warmUpWaveView(injector, config);
 
