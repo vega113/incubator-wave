@@ -63,9 +63,19 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SearchWaveletUpdaterTest extends TestCase {
 
@@ -427,6 +437,88 @@ public final class SearchWaveletUpdaterTest extends TestCase {
     }
   }
 
+  public void testConcurrentReenqueueKeepsPendingTaskScheduled() throws Exception {
+    SearchWaveletManager waveletManager = new SearchWaveletManager();
+    SearchIndexer indexer = mock(SearchIndexer.class);
+    SearchProvider searchProvider = mock(SearchProvider.class);
+    SearchWaveletDataProvider dataProvider = new SearchWaveletDataProvider();
+    ControllableScheduler scheduler = new ControllableScheduler();
+    SearchWaveletUpdater updater =
+        new SearchWaveletUpdater(
+            waveletManager,
+            indexer,
+            searchProvider,
+            dataProvider,
+            null,
+            SearchWaveletUpdater.SearchUpdateBatchingPolicy.defaults(),
+            scheduler);
+
+    try {
+      ParticipantId user = ParticipantId.ofUnsafe("user@example.com");
+      String query = "in:inbox";
+      SearchIndexer.SubscriptionKey key =
+          new SearchIndexer.SubscriptionKey(user, SearchWaveletManager.md5Hex(query));
+      SearchResult searchResult = createSearchResult(query, "example.com/w+abc", 1);
+      CountDownLatch firstSearchStarted = new CountDownLatch(1);
+      CountDownLatch releaseFirstSearch = new CountDownLatch(1);
+      AtomicInteger searchCalls = new AtomicInteger();
+
+      when(indexer.getRawQuery(key)).thenReturn(query);
+      when(searchProvider.search(eq(user), eq(query), eq(0), eq(50)))
+          .thenAnswer(
+              invocation -> {
+                if (searchCalls.incrementAndGet() == 1) {
+                  firstSearchStarted.countDown();
+                  awaitLatch(releaseFirstSearch);
+                }
+                return searchResult;
+              });
+
+      invokeEnqueueUpdate(updater, key);
+      ControllableScheduledFuture firstFuture = scheduler.takeScheduledFuture();
+      Thread firstExecutionThread = new Thread(firstFuture::runTask);
+      firstExecutionThread.start();
+      awaitLatch(firstSearchStarted);
+
+      Thread secondEnqueueThread = new Thread(() -> {
+        try {
+          invokeEnqueueUpdate(updater, key);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      });
+      secondEnqueueThread.start();
+      scheduler.awaitSecondSchedule();
+      releaseFirstSearch.countDown();
+      firstExecutionThread.join(1500L);
+      scheduler.releaseSecondSchedule();
+      secondEnqueueThread.join(1500L);
+
+      ControllableScheduledFuture secondFuture = scheduler.takeScheduledFuture();
+      assertNotNull(secondFuture);
+      assertFalse(secondFuture.isCancelled());
+      secondFuture.runTask();
+
+      verify(searchProvider, times(2)).search(eq(user), eq(query), eq(0), eq(50));
+
+      ConcurrentHashMap<String, Object> userCounters =
+          (ConcurrentHashMap<String, Object>) getField(updater, "userCounters");
+      Object updateCounter = userCounters.get(user.getAddress());
+      assertNotNull(updateCounter);
+      assertEquals(0, invokeIntMethod(updateCounter, "getQueueSize"));
+
+      ConcurrentHashMap<?, ?> pendingTasks =
+          (ConcurrentHashMap<?, ?>) getField(updater, "pendingTasks");
+      ConcurrentHashMap<?, ?> firstSeenTimestamps =
+          (ConcurrentHashMap<?, ?>) getField(updater, "firstSeenTimestamps");
+      assertFalse(pendingTasks.containsKey(key.toString()));
+      assertFalse(firstSeenTimestamps.containsKey(key.toString()));
+    } finally {
+      updater.shutdown();
+      scheduler.shutdownNow();
+    }
+  }
+
   private static void waitForRecomputeCount(
       SearchWaveletUpdater updater, long expectedCount, long timeoutMs) throws Exception {
     long deadline = System.currentTimeMillis() + timeoutMs;
@@ -508,5 +600,155 @@ public final class SearchWaveletUpdaterTest extends TestCase {
     Field field = SearchWaveletUpdater.class.getDeclaredField(fieldName);
     field.setAccessible(true);
     return field.get(updater);
+  }
+
+  private static void awaitLatch(CountDownLatch latch) {
+    try {
+      if (!latch.await(1500L, TimeUnit.MILLISECONDS)) {
+        fail("Timed out waiting for latch");
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static final class ControllableScheduler extends AbstractExecutorService
+      implements ScheduledExecutorService {
+
+    private final BlockingQueue<ControllableScheduledFuture> futures = new LinkedBlockingQueue<>();
+    private final AtomicInteger scheduleCalls = new AtomicInteger();
+    private final CountDownLatch secondScheduleEntered = new CountDownLatch(1);
+    private final CountDownLatch releaseSecondSchedule = new CountDownLatch(1);
+    private final AtomicBoolean shutdown = new AtomicBoolean();
+
+    @Override
+    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+      if (shutdown.get()) {
+        throw new RejectedExecutionException("scheduler is shut down");
+      }
+      ControllableScheduledFuture future = new ControllableScheduledFuture(command);
+      futures.add(future);
+      if (scheduleCalls.incrementAndGet() == 2) {
+        secondScheduleEntered.countDown();
+        awaitLatch(releaseSecondSchedule);
+      }
+      return future;
+    }
+
+    ControllableScheduledFuture takeScheduledFuture() throws InterruptedException {
+      return futures.take();
+    }
+
+    void awaitSecondSchedule() {
+      awaitLatch(secondScheduleEntered);
+    }
+
+    void releaseSecondSchedule() {
+      releaseSecondSchedule.countDown();
+    }
+
+    @Override
+    public void shutdown() {
+      shutdown.set(true);
+    }
+
+    @Override
+    public java.util.List<Runnable> shutdownNow() {
+      shutdown.set(true);
+      return Collections.emptyList();
+    }
+
+    @Override
+    public boolean isShutdown() {
+      return shutdown.get();
+    }
+
+    @Override
+    public boolean isTerminated() {
+      return shutdown.get();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit unit) {
+      return true;
+    }
+
+    @Override
+    public void execute(Runnable command) {
+      command.run();
+    }
+
+    @Override
+    public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleAtFixedRate(
+        Runnable command, long initialDelay, long period, TimeUnit unit) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ScheduledFuture<?> scheduleWithFixedDelay(
+        Runnable command, long initialDelay, long delay, TimeUnit unit) {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  private static final class ControllableScheduledFuture implements ScheduledFuture<Object> {
+
+    private final Runnable command;
+    private final AtomicBoolean cancelled = new AtomicBoolean();
+    private final AtomicBoolean done = new AtomicBoolean();
+
+    private ControllableScheduledFuture(Runnable command) {
+      this.command = command;
+    }
+
+    void runTask() {
+      if (!cancelled.get()) {
+        command.run();
+      }
+      done.set(true);
+    }
+
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+      cancelled.set(true);
+      done.set(true);
+      return true;
+    }
+
+    @Override
+    public boolean isCancelled() {
+      return cancelled.get();
+    }
+
+    @Override
+    public boolean isDone() {
+      return done.get();
+    }
+
+    @Override
+    public Object get() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Object get(long timeout, TimeUnit unit) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getDelay(TimeUnit unit) {
+      return 0L;
+    }
+
+    @Override
+    public int compareTo(java.util.concurrent.Delayed other) {
+      return 0;
+    }
   }
 }

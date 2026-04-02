@@ -361,7 +361,9 @@ public class SearchWaveletUpdater implements WaveBus.Subscriber {
             delayMs,
             TimeUnit.MILLISECONDS);
     synchronized (taskHolder) {
-      if (taskHolder.generation.get() == generation && taskHolder.queued) {
+      if (taskHolder.generation.get() == generation) {
+        pendingTasks.putIfAbsent(taskKey, taskHolder);
+        taskHolder.queued = true;
         taskHolder.future = future;
       } else {
         future.cancel(false);
