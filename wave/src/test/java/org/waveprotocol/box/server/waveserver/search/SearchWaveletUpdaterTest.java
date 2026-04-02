@@ -23,7 +23,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -56,7 +55,6 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -120,15 +118,10 @@ public final class SearchWaveletUpdaterTest extends TestCase {
     when(waveletManager.getOrCreateSearchWavelet(user, query)).thenReturn(searchWaveletName);
 
     try {
-      Object holder = newTaskHolder();
-      putPendingTask(updater, key.toString(), holder);
       Method executeUpdate = SearchWaveletUpdater.class.getDeclaredMethod(
-          "executeUpdate",
-          SearchIndexer.SubscriptionKey.class,
-          String.class,
-          holder.getClass());
+          "executeUpdate", SearchIndexer.SubscriptionKey.class, String.class);
       executeUpdate.setAccessible(true);
-      executeUpdate.invoke(updater, key, key.toString(), holder);
+      executeUpdate.invoke(updater, key, key.toString());
 
       assertEquals(5, dataProvider.getCurrentTotal(searchWaveletName));
     } finally {
@@ -159,15 +152,10 @@ public final class SearchWaveletUpdaterTest extends TestCase {
     when(waveletManager.getOrCreateSearchWavelet(user, query)).thenReturn(searchWaveletName);
 
     try {
-      Object holder = newTaskHolder();
-      putPendingTask(updater, key.toString(), holder);
       Method executeUpdate = SearchWaveletUpdater.class.getDeclaredMethod(
-          "executeUpdate",
-          SearchIndexer.SubscriptionKey.class,
-          String.class,
-          holder.getClass());
+          "executeUpdate", SearchIndexer.SubscriptionKey.class, String.class);
       executeUpdate.setAccessible(true);
-      executeUpdate.invoke(updater, key, key.toString(), holder);
+      executeUpdate.invoke(updater, key, key.toString());
 
       verify(searchProvider).search(user, query, 0, 50);
     } finally {
@@ -210,15 +198,10 @@ public final class SearchWaveletUpdaterTest extends TestCase {
 
     SearchIndexer.SubscriptionKey key =
         new SearchIndexer.SubscriptionKey(user, SearchWaveletManager.md5Hex(query));
-    Object holder = newTaskHolder();
-    putPendingTask(updater, key.toString(), holder);
     Method executeUpdate = SearchWaveletUpdater.class.getDeclaredMethod(
-        "executeUpdate",
-        SearchIndexer.SubscriptionKey.class,
-        String.class,
-        holder.getClass());
+        "executeUpdate", SearchIndexer.SubscriptionKey.class, String.class);
     executeUpdate.setAccessible(true);
-    executeUpdate.invoke(updater, key, key.toString(), holder);
+    executeUpdate.invoke(updater, key, key.toString());
 
     ArgumentCaptor<CommittedWaveletSnapshot> snapshotCaptor =
         ArgumentCaptor.forClass(CommittedWaveletSnapshot.class);
@@ -237,42 +220,6 @@ public final class SearchWaveletUpdaterTest extends TestCase {
         versionCaptor.getAllValues().get(1));
 
     updater.shutdown();
-  }
-
-  public void testStalePendingTaskDoesNotClearReplacement() throws Exception {
-    SearchWaveletDispatcher dispatcher = new SearchWaveletDispatcher();
-    SearchWaveletManager waveletManager = new SearchWaveletManager();
-    SearchIndexer indexer = new SearchIndexer();
-    SearchProvider searchProvider = mock(SearchProvider.class);
-    SearchWaveletDataProvider dataProvider = new SearchWaveletDataProvider();
-    SearchWaveletSnapshotPublisher snapshotPublisher =
-        new SearchWaveletSnapshotPublisher(dispatcher, waveletManager, indexer, dataProvider);
-    SearchWaveletUpdater updater =
-        new SearchWaveletUpdater(waveletManager, indexer, searchProvider, dataProvider, snapshotPublisher);
-
-    try {
-      ParticipantId user = ParticipantId.ofUnsafe("alice@example.com");
-      SearchIndexer.SubscriptionKey key =
-          new SearchIndexer.SubscriptionKey(user, SearchWaveletManager.md5Hex("in:inbox"));
-      Object staleHolder = newTaskHolder();
-      Object replacementHolder = newTaskHolder();
-      putPendingTask(updater, key.toString(), replacementHolder);
-
-      Method executeUpdate = SearchWaveletUpdater.class.getDeclaredMethod(
-          "executeUpdate",
-          SearchIndexer.SubscriptionKey.class,
-          String.class,
-          staleHolder.getClass());
-      executeUpdate.setAccessible(true);
-      executeUpdate.invoke(updater, key, key.toString(), staleHolder);
-
-      ConcurrentHashMap<?, ?> pendingTasks =
-          (ConcurrentHashMap<?, ?>) getField(updater, "pendingTasks");
-      assertSame(replacementHolder, pendingTasks.get(key.toString()));
-      verify(searchProvider, never()).search(any(), anyString(), eq(0), eq(50));
-    } finally {
-      updater.shutdown();
-    }
   }
 
   public void testHotPublicWaveCollapsesRepeatedEditsIntoOneSlowPathFlush() throws Exception {
@@ -485,21 +432,6 @@ public final class SearchWaveletUpdaterTest extends TestCase {
     ConcurrentHashMap<String, Object> userCounters =
         (ConcurrentHashMap<String, Object>) getField(updater, "userCounters");
     userCounters.put(userAddress, updateCounter);
-  }
-
-  private static Object newTaskHolder() throws Exception {
-    Class<?> taskHolderClass =
-        Class.forName(SearchWaveletUpdater.class.getName() + "$TaskHolder");
-    Constructor<?> constructor = taskHolderClass.getDeclaredConstructor();
-    constructor.setAccessible(true);
-    return constructor.newInstance();
-  }
-
-  private static void putPendingTask(
-      SearchWaveletUpdater updater, String taskKey, Object taskHolder) throws Exception {
-    ConcurrentHashMap<String, Object> pendingTasks =
-        (ConcurrentHashMap<String, Object>) getField(updater, "pendingTasks");
-    pendingTasks.put(taskKey, taskHolder);
   }
 
   private static Object getField(SearchWaveletUpdater updater, String fieldName) throws Exception {
