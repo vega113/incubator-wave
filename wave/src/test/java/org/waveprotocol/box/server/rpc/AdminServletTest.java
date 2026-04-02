@@ -139,8 +139,8 @@ public final class AdminServletTest {
             waveletProvider,
             featureFlagService,
             featureFlagStore,
-            searchWaveletUpdaterProvider,
-            lucene9Indexer);
+            lucene9Indexer,
+            searchWaveletUpdaterProvider);
     try {
       servlet.doGet(request, response);
       writer.flush();

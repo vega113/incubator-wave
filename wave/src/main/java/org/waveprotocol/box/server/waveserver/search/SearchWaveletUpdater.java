@@ -34,7 +34,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import org.waveprotocol.box.common.DeltaSequence;
 import org.waveprotocol.box.server.util.WaveletDataUtil;
 import org.waveprotocol.box.server.waveserver.SearchProvider;
@@ -63,7 +62,7 @@ public class SearchWaveletUpdater implements WaveBus.Subscriber {
   private final SearchWaveletSnapshotPublisher snapshotPublisher;
   private final SearchUpdateBatchingPolicy batchingPolicy;
   private final ScheduledExecutorService scheduler;
-  private final ConcurrentHashMap<String, ScheduledFuture<?>> pendingTasks =
+  private final ConcurrentHashMap<String, TaskHolder> pendingTasks =
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Long> firstSeenTimestamps =
       new ConcurrentHashMap<>();
@@ -214,72 +213,88 @@ public class SearchWaveletUpdater implements WaveBus.Subscriber {
   private void enqueueUpdate(SearchIndexer.SubscriptionKey key) {
     String taskKey = key.toString();
     long now = System.currentTimeMillis();
-    firstSeenTimestamps.putIfAbsent(taskKey, now);
-    long firstSeen = firstSeenTimestamps.get(taskKey);
+    long firstSeen = firstSeenTimestamps.computeIfAbsent(taskKey, ignored -> now);
     UpdateCounter counter = userCounters.computeIfAbsent(
         key.getUser().getAddress(), ignored -> new UpdateCounter(MAX_UPDATES_PER_SEC));
-    ScheduledFuture<?> existing = pendingTasks.get(taskKey);
-    boolean hasPendingTask = existing != null && !existing.isDone();
-    if (!hasPendingTask && counter.getQueueSize() >= MAX_QUEUE_PER_USER) {
-      LOG.warning("Dropping search update for " + key + " -- queue full");
-      firstSeenTimestamps.remove(taskKey);
-    } else {
+    TaskHolder taskHolder = pendingTasks.computeIfAbsent(taskKey, ignored -> new TaskHolder());
+    long delay;
+    long generation;
+    synchronized (taskHolder) {
+      boolean hasPendingTask = taskHolder.queued;
+      if (!hasPendingTask && counter.getQueueSize() >= MAX_QUEUE_PER_USER) {
+        LOG.warning("Dropping search update for " + key + " -- queue full");
+        firstSeenTimestamps.remove(taskKey);
+        pendingTasks.remove(taskKey, taskHolder);
+        return;
+      }
       long elapsed = now - firstSeen;
-      long delay = elapsed >= MAX_WAIT_MS ? 0 : Math.min(DEBOUNCE_MS, MAX_WAIT_MS - elapsed);
+      delay = elapsed >= MAX_WAIT_MS ? 0 : Math.min(DEBOUNCE_MS, MAX_WAIT_MS - elapsed);
+      generation = taskHolder.generation.incrementAndGet();
       if (hasPendingTask) {
-        existing.cancel(false);
+        ScheduledFuture<?> existing = taskHolder.future;
+        if (existing != null) {
+          existing.cancel(false);
+        }
       } else {
+        taskHolder.queued = true;
         counter.incrementQueue();
       }
-      scheduleUpdate(key, taskKey, delay, hasPendingTask ? existing : null, counter);
     }
+    scheduleUpdate(key, taskKey, delay, taskHolder, generation);
   }
 
   private void executeUpdate(SearchIndexer.SubscriptionKey key, String taskKey) {
-    executeUpdate(key, taskKey, null);
+    executeSearchUpdate(key);
   }
 
-  private void executeUpdate(
+  private void executePendingUpdate(
       SearchIndexer.SubscriptionKey key,
       String taskKey,
-      ScheduledFuture<?> expectedFuture) {
+      TaskHolder taskHolder,
+      long generation) {
     try {
-      if (expectedFuture != null && pendingTasks.get(taskKey) != expectedFuture) {
-        return;
-      }
       UpdateCounter counter = userCounters.get(key.getUser().getAddress());
-      boolean acquired = counter == null || counter.tryAcquire();
-      if (!acquired) {
-        if (expectedFuture != null && pendingTasks.get(taskKey) != expectedFuture) {
+      synchronized (taskHolder) {
+        if (taskHolder.generation.get() != generation) {
           return;
         }
-        scheduleUpdate(key, taskKey, 100, expectedFuture, counter);
-      } else {
-        ScheduledFuture<?> pendingTask =
-            expectedFuture != null
-                ? (pendingTasks.remove(taskKey, expectedFuture) ? expectedFuture : null)
-                : pendingTasks.remove(taskKey);
-        if (expectedFuture != null && pendingTask == null) {
+        boolean acquired = counter == null || counter.tryAcquire();
+        if (!acquired) {
+          long retryGeneration = taskHolder.generation.incrementAndGet();
+          scheduleUpdate(key, taskKey, 100, taskHolder, retryGeneration);
           return;
         }
-        firstSeenTimestamps.remove(taskKey);
-        if (pendingTask != null && counter != null) {
+        if (!pendingTasks.remove(taskKey, taskHolder)) {
+          return;
+        }
+        taskHolder.queued = false;
+        taskHolder.future = null;
+        if (counter != null) {
           counter.decrementQueue();
         }
-        String rawQuery = indexer.getRawQuery(key);
-        if (rawQuery == null) {
-          LOG.fine("Subscription " + key + " no longer registered, skipping update");
+      }
+      firstSeenTimestamps.remove(taskKey);
+      executeSearchUpdate(key);
+    } catch (Exception e) {
+      LOG.severe("Failed to update search wavelet for " + key, e);
+    }
+  }
+
+  private void executeSearchUpdate(SearchIndexer.SubscriptionKey key) {
+    try {
+      String rawQuery = indexer.getRawQuery(key);
+      if (rawQuery == null) {
+        LOG.fine("Subscription " + key + " no longer registered, skipping update");
+      } else {
+        ParticipantId user = key.getUser();
+        searchRecomputeCount.incrementAndGet();
+        SearchResult searchResult =
+            searchProvider.search(
+                user, rawQuery, 0, SearchWaveletSnapshotPublisher.LIVE_SEARCH_NUM_RESULTS);
+        if (snapshotPublisher != null) {
+          snapshotPublisher.publishUpdate(user, rawQuery, searchResult);
         } else {
-          ParticipantId user = key.getUser();
-          searchRecomputeCount.incrementAndGet();
-          SearchResult searchResult =
-              searchProvider.search(
-                  user, rawQuery, 0, SearchWaveletSnapshotPublisher.LIVE_SEARCH_NUM_RESULTS);
-          if (snapshotPublisher != null) {
-            snapshotPublisher.publishUpdate(user, rawQuery, searchResult);
-          } else {
-            updateCachedSearchWavelet(key, user, rawQuery, searchResult);
-          }
+          updateCachedSearchWavelet(key, user, rawQuery, searchResult);
         }
       }
     } catch (Exception e) {
@@ -291,24 +306,18 @@ public class SearchWaveletUpdater implements WaveBus.Subscriber {
       SearchIndexer.SubscriptionKey key,
       String taskKey,
       long delayMs,
-      ScheduledFuture<?> previousFuture,
-      UpdateCounter counter) {
-    AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
+      TaskHolder taskHolder,
+      long generation) {
     ScheduledFuture<?> future =
         scheduler.schedule(
-            () -> executeUpdate(key, taskKey, futureRef.get()),
+            () -> executePendingUpdate(key, taskKey, taskHolder, generation),
             delayMs,
             TimeUnit.MILLISECONDS);
-    futureRef.set(future);
-    if (previousFuture != null) {
-      if (!pendingTasks.replace(taskKey, previousFuture, future)) {
+    synchronized (taskHolder) {
+      if (taskHolder.generation.get() == generation) {
+        taskHolder.future = future;
+      } else {
         future.cancel(false);
-      }
-    } else {
-      ScheduledFuture<?> existingFuture = pendingTasks.putIfAbsent(taskKey, future);
-      if (existingFuture != null) {
-        future.cancel(false);
-        counter.decrementQueue();
       }
     }
   }
@@ -428,6 +437,7 @@ public class SearchWaveletUpdater implements WaveBus.Subscriber {
 
   public void shutdown() {
     scheduler.shutdownNow();
+    pendingTasks.clear();
     slowPathBatches.clear();
   }
 
@@ -525,6 +535,12 @@ public class SearchWaveletUpdater implements WaveBus.Subscriber {
   private static final class SlowPathBatchState {
     private final Set<SearchIndexer.SubscriptionKey> pendingKeys = new HashSet<>();
     private ScheduledFuture<?> future;
+  }
+
+  private static final class TaskHolder {
+    private final AtomicLong generation = new AtomicLong();
+    private ScheduledFuture<?> future;
+    private boolean queued;
   }
 
   private static final class UpdateCounter {
