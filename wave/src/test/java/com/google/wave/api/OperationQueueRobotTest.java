@@ -31,6 +31,10 @@ import junit.framework.TestCase;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -101,6 +105,25 @@ public class OperationQueueRobotTest extends TestCase {
 
     assertEquals(1, ops.size());
     assertEquals(0, queue.getPendingOperations().size());
+  }
+
+  public void testOperationQueueIsSerializable() throws Exception {
+    OperationQueue queue = new OperationQueue();
+    queue.createWavelet("example.com", Collections.<String>emptySet());
+
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+    objectOutputStream.writeObject(queue);
+    objectOutputStream.close();
+
+    ObjectInputStream objectInputStream = new ObjectInputStream(new ByteArrayInputStream(
+        outputStream.toByteArray()));
+    OperationQueue copy = (OperationQueue) objectInputStream.readObject();
+    objectInputStream.close();
+
+    assertEquals(1, copy.getPendingOperations().size());
+    assertEquals(OperationType.ROBOT_CREATE_WAVELET.method(),
+        copy.getPendingOperations().get(0).getMethod());
   }
 
   public void testCreateChildOfBlip() throws Exception {

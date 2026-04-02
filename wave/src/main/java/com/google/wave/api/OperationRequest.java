@@ -21,6 +21,7 @@ package com.google.wave.api;
 
 import com.google.wave.api.JsonRpcConstant.ParamsProperty;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,7 +30,9 @@ import java.util.Map;
  *
  * @author mprasetya@google.com (Marcel Prasetya)
  */
-public class OperationRequest {
+public class OperationRequest implements Serializable {
+
+  private static final long serialVersionUID = 1L;
 
   /**
    * A helper inner class that represents an operation parameter. Useful for
@@ -37,7 +40,9 @@ public class OperationRequest {
    *
    * @author mprasetya@google.com (Marcel Prasetya)
    */
-  public static class Parameter {
+  public static class Parameter implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final ParamsProperty key;
     private final Object value;

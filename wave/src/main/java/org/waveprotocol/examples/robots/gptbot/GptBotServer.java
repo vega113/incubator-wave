@@ -53,8 +53,8 @@ public final class GptBotServer {
     SupaWaveApiClient apiClient = new SupaWaveApiClient(config);
     GptBotRobot robot = new GptBotRobot(config, replyPlanner, apiClient);
     if (!config.getPublicBaseUrl().isBlank() && config.getCallbackToken().isBlank()) {
-      LOG.warning("GPTBOT_PUBLIC_BASE_URL is set without GPTBOT_CALLBACK_TOKEN; public callback "
-          + "requests will be rejected until a token is configured");
+      LOG.warning("GPTBOT_PUBLIC_BASE_URL is set without GPTBOT_CALLBACK_TOKEN; callback "
+          + "requests will be unauthenticated");
     }
 
     HttpServer server = HttpServer.create(new InetSocketAddress(config.getListenHost(),
@@ -95,7 +95,7 @@ public final class GptBotServer {
             .handle(exchange);
       } else {
         if (!isCallbackAuthorized(exchange.getRequestURI().getRawQuery(),
-            config.getCallbackToken(), !config.getPublicBaseUrl().isBlank())) {
+            config.getCallbackToken())) {
           exchange.getRequestBody().close();
           new TextHandler(403, "{\"error\":\"unauthorized\"}\n",
               "application/json; charset=utf-8").handle(exchange);
@@ -144,10 +144,9 @@ public final class GptBotServer {
     }
   }
 
-  static boolean isCallbackAuthorized(String rawQuery, String callbackToken,
-      boolean requireCallbackToken) {
+  static boolean isCallbackAuthorized(String rawQuery, String callbackToken) {
     if (callbackToken.isBlank()) {
-      return !requireCallbackToken;
+      return true;
     }
     String providedToken = queryParameter(rawQuery, "token");
     return callbackToken.equals(providedToken);

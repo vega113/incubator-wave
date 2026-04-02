@@ -21,6 +21,7 @@ package com.google.wave.api.impl;
 
 import com.google.wave.api.BlipThread;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +33,9 @@ import java.util.Map;
  *
  * @author scovitz@google.com (Seth Covitz)
  */
-public class WaveletData {
+public class WaveletData implements Serializable {
+
+  private static final long serialVersionUID = 1L;
 
   private long creationTime = -1L;
   private long lastModifiedTime = -1L;

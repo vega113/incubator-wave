@@ -23,14 +23,14 @@ import junit.framework.TestCase;
 
 public class GptBotServerTest extends TestCase {
 
-  public void testCallbackAuthorizationAllowsLocalRequestsWithoutToken() {
-    assertTrue(GptBotServer.isCallbackAuthorized(null, "", false));
+  public void testCallbackAuthorizationAllowsRequestsWithoutTokenWhenNoTokenConfigured() {
+    assertTrue(GptBotServer.isCallbackAuthorized(null, ""));
   }
 
   public void testCallbackAuthorizationRequiresMatchingTokenWhenConfigured() {
-    assertFalse(GptBotServer.isCallbackAuthorized(null, "", true));
-    assertTrue(GptBotServer.isCallbackAuthorized("token=abc123", "abc123", true));
-    assertFalse(GptBotServer.isCallbackAuthorized("token=wrong", "abc123", true));
+    assertFalse(GptBotServer.isCallbackAuthorized(null, "abc123"));
+    assertTrue(GptBotServer.isCallbackAuthorized("token=abc123", "abc123"));
+    assertFalse(GptBotServer.isCallbackAuthorized("token=wrong", "abc123"));
   }
 
   public void testCallbackUrlIncludesTokenWhenConfigured() {

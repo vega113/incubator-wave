@@ -72,7 +72,10 @@ public class OperationQueue implements Serializable {
   /** Some class global counters. */
   private static final AtomicLong NEXT_OP_ID = new AtomicLong(1);
 
-  private static final class QueueState {
+  private static final class QueueState implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     private List<OperationRequest> pendingOperations;
 
     private QueueState(List<OperationRequest> pendingOperations) {

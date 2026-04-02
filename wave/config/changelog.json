@@ -19,7 +19,7 @@
         "items": [
           "Codex runs stay sandboxed by default unless GPTBOT_CODEX_UNSAFE_BYPASS=true is set",
           "Mention handling now deduplicates overlapping blip events and fetches SupaWave context only for actionable mentions",
-          "HTTP worker threads now use caller-runs backpressure, callback tokens are redacted from status output, and invalid env values fall back to defaults with warnings"
+          "HTTP worker threads now use caller-runs backpressure, callback tokens are redacted from status output, callback auth no longer depends on public URL exposure, and invalid env values fall back to defaults with warnings"
         ]
       }
     ]
