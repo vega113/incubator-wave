@@ -944,6 +944,29 @@ public class RobotStateUpdateService extends OperationService {
       throw new ConflictException("Duplicate <robot-state> key " + stateKey);
     }
     if (stateElem == null) {
+      if (!robot.getId().equals(htmlElem.getAttribute("data-robot-id"))) {
+        throw new UnauthorizedException("Only robot " + htmlElem.getAttribute("data-robot-id")
+          + " can create state for this widget");
+      }
+      if (htmlElem.getChildren("robot-state").size() >= 5) {
+        throw new PayloadTooLargeException("Too many <robot-state> children for this widget");
+      }
+      int byteLen = stateValue.getBytes(StandardCharsets.UTF_8).length;
+      if (byteLen > 100_000) {
+        throw new PayloadTooLargeException("State exceeds max size of 100 KB");
+      }
+      int totalStateBytes = 0;
+      for (XmlElement child : doc.getDescendants()) {
+        if ("robot-state".equals(child.getTagName())) {
+          String existingSize = child.getAttribute("data-size-bytes");
+          if (existingSize != null) {
+            totalStateBytes += Integer.parseInt(existingSize);
+          }
+        }
+      }
+      if (totalStateBytes + byteLen > 500_000) {
+        throw new PayloadTooLargeException("State quota exceeded for this blip");
+      }
       stateElem = XmlElement.create("robot-state");
       htmlElem.appendChild(stateElem);
       stateElem.setAttribute("data-robot-id", robot.getId());
@@ -954,10 +977,32 @@ public class RobotStateUpdateService extends OperationService {
     
     // Update state attributes and content
     // data-robot-id stays fixed after creation; data-version is refreshed on every write.
+    int byteLen = stateValue.getBytes(StandardCharsets.UTF_8).length;
+    if (byteLen > 100_000) {
+      throw new PayloadTooLargeException("State exceeds max size of 100 KB");
+    }
+    int totalStateBytes = 0;
+    for (XmlElement child : doc.getDescendants()) {
+      if ("robot-state".equals(child.getTagName())) {
+        String existingSize = child.getAttribute("data-size-bytes");
+        if (existingSize != null) {
+          totalStateBytes += Integer.parseInt(existingSize);
+        }
+      }
+    }
+    int existingStateBytes = 0;
+    String existingSize = stateElem.getAttribute("data-size-bytes");
+    if (existingSize != null) {
+      existingStateBytes = Integer.parseInt(existingSize);
+    }
+    if (totalStateBytes - existingStateBytes + byteLen > 500_000) {
+      throw new PayloadTooLargeException("State quota exceeded for this blip");
+    }
     stateElem.setAttribute("type", stateType);
     stateElem.setAttribute("data-state-key", stateKey);
     stateElem.setAttribute("data-version", stateVersion);
     stateElem.setAttribute("data-timestamp", Instant.now().toString());  // ISO 8601
+    stateElem.setAttribute("data-size-bytes", String.valueOf(byteLen));
     stateElem.setText(stateValue);
   }
 }
@@ -1139,16 +1184,18 @@ public class RobotStateUpdateService extends OperationService {
       throw new UnauthorizedException("Only robot " + htmlElem.getAttribute("data-robot-id")
         + " can create state for this widget");
     }
-    if (stateElem == null) {
-      if (htmlElem.getChildren("robot-state").size() >= 5) {
-        throw new PayloadTooLargeException("Too many <robot-state> children for this widget");
-      }
-      int totalStateBytes = 0;
-      for (XmlElement child : htmlElem.getChildren("robot-state")) {
+    int totalStateBytes = 0;
+    for (XmlElement child : doc.getDescendants()) {
+      if ("robot-state".equals(child.getTagName())) {
         String existingSize = child.getAttribute("data-size-bytes");
         if (existingSize != null) {
           totalStateBytes += Integer.parseInt(existingSize);
         }
+      }
+    }
+    if (stateElem == null) {
+      if (htmlElem.getChildren("robot-state").size() >= 5) {
+        throw new PayloadTooLargeException("Too many <robot-state> children for this widget");
       }
       if (totalStateBytes + byteLen > 500_000) {
         throw new PayloadTooLargeException("State quota exceeded for this blip");
@@ -1159,14 +1206,22 @@ public class RobotStateUpdateService extends OperationService {
     } else if (!robot.getId().equals(stateElem.getAttribute("data-robot-id"))) {
       throw new UnauthorizedException("Only robot " + stateElem.getAttribute("data-robot-id")
         + " can update this state");
+    } else {
+      int currentStateBytes = 0;
+      String currentSize = stateElem.getAttribute("data-size-bytes");
+      if (currentSize != null) {
+        currentStateBytes = Integer.parseInt(currentSize);
+      }
+      if (totalStateBytes - currentStateBytes + byteLen > 500_000) {
+        throw new PayloadTooLargeException("State quota exceeded for this blip");
+      }
     }
     
     stateElem.setAttribute("data-state-key", stateKey);
     stateElem.setAttribute("data-version", stateVersion);
     stateElem.setAttribute("type", stateType);
     stateElem.setAttribute("data-timestamp", Instant.now().toString());  // ISO 8601
-    stateElem.setAttribute("data-size-bytes", 
-        String.valueOf(stateValue.getBytes(StandardCharsets.UTF_8).length));
+    stateElem.setAttribute("data-size-bytes", String.valueOf(byteLen));
     stateElem.setText(stateValue);
   }
 }
@@ -1250,7 +1305,7 @@ def test_auto_migrate_on_fetch():
 
 **Size Limit Enforcement:**
 
-The Wave server enforces a **100 KB per-element limit** for `<robot-state>` content:
+The Wave server enforces a **100 KB per-element limit** for each `<robot-state>` content block:
 
 ```text
 Max state size = 100 KB per <robot-state> element
@@ -1275,7 +1330,7 @@ Each `<robot-state>` element includes `data-size-bytes` attribute for quota moni
 **Per-Blip State Quota:**
 
 - Max `<robot-state>` elements per `<robot-html>`: 5 (prevents state explosion)
-- Max total state per blip: 500 KB (sum of all `<robot-state>` elements)
+- Max total state per blip: 500 KB across all `<robot-state>` elements in the blip
 - Robots exceeding quota get error: HTTP 413 Payload Too Large with clear message
 
 **Migration Path for Oversized State:**
@@ -1531,7 +1586,7 @@ Add or change:
 - `wave/src/main/java/org/waveprotocol/wave/model/schema/conversation/ConversationSchemas.java`
   - allow the new tag `<robot-html>` in `body` and line-container contexts
   - register `<data>` as a valid child element of `<robot-html>` (contains XML-escaped HTML payload)
-  - register `<robot-state>` as a valid child element of `<robot-html>` (up to 5 per element)
+  - register `<robot-state>` as a valid child element of `<robot-html>` (child-only, up to 5 per `<robot-html>`)
   - register `<robot-state>` attributes:
     - `data-robot-id` (required): string, non-empty
     - `data-state-key` (required): string, unique per `<robot-html>`
@@ -1638,20 +1693,26 @@ ElementSerializerRegistry.register("robot-html", new RobotHtmlElementSerializer(
 Robot API Request
   ↓
 ActiveApiOperationServiceRegistry / DataApiOperationServiceRegistry
-  routes by OperationType enum to dedicated OperationService instance
-  (NOT through DocumentModifyService — each robot-html op gets its own service)
+  routes by OperationType enum to the appropriate top-level OperationService
   ↓
-OperationType.DOCUMENT_INSERT_ROBOT_HTML → RobotHtmlInsertService
-OperationType.DOCUMENT_UPDATE_ROBOT_HTML → RobotHtmlUpdateService
-OperationType.DOCUMENT_DELETE_ROBOT_HTML → RobotHtmlDeleteService
+OperationType.DOCUMENT_INSERT_ROBOT_HTML → DocumentModifyService.execute(...)
+OperationType.DOCUMENT_UPDATE_ROBOT_HTML → DocumentModifyService.execute(...)
+OperationType.ROBOT_STATE_UPDATE → RobotStateUpdateService.execute(...)
+  ↓
+DocumentModifyService.execute(OperationRequest):
+  1. Dispatch internally by modifyAction.getModifyHow()
+  2. Modify how = INSERT_ROBOT_HTML → RobotHtmlInsertService
+  3. Modify how = UPDATE_ROBOT_HTML → RobotHtmlUpdateService
+  4. Modify how = DELETE_ROBOT_HTML → RobotHtmlDeleteService (optional later; omit until delete is part of the required API surface)
   ↓
 RobotHtmlInsertService:
   1. Validate robot authentication and "wave.robot" scope
-  2. Extract HTML payload from request
-  3. HtmlSanitizer.sanitize(html) → sanitized HTML
-  4. ElementSerializer creates <robot-html><data>...</data></robot-html> element
-  5. Document.insertElement(index, element)
-  6. Return operation result with element key/id
+  2. Verify the target `<robot-html>` key is unique within the blip before insert
+  3. Extract HTML payload from request
+  4. HtmlSanitizer.sanitize(html) → sanitized HTML
+  5. ElementSerializer creates <robot-html><data>...</data></robot-html> element
+  6. Document.insertElement(index, element)
+  7. Return operation result with element key/id
   ↓
 Wave document updated + broadcast to all clients
   ↓
