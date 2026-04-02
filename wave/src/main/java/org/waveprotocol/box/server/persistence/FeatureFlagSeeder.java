@@ -36,13 +36,14 @@ public final class FeatureFlagSeeder {
     if (store == null || config == null || !config.hasPath(OT_SEARCH_CONFIG_KEY)) {
       return;
     }
-    // FeatureFlagSeeder.seedSearchFeatureFlags uses FeatureFlagStore.save to upsert OT_SEARCH_FLAG_NAME
-    // from OT_SEARCH_CONFIG_KEY on restart.
+    FeatureFlag existingFlag = store.get(OT_SEARCH_FLAG_NAME);
+    // FeatureFlagSeeder.seedSearchFeatureFlags upserts OT_SEARCH_FLAG_NAME from OT_SEARCH_CONFIG_KEY
+    // while preserving any existing allowedUsers overrides.
     store.save(
         new FeatureFlag(
             OT_SEARCH_FLAG_NAME,
             OT_SEARCH_DESCRIPTION,
             config.getBoolean(OT_SEARCH_CONFIG_KEY),
-            Collections.emptyMap()));
+            existingFlag != null ? existingFlag.getAllowedUsers() : Collections.emptyMap()));
   }
 }

@@ -22,9 +22,12 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.typesafe.config.ConfigFactory;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.Test;
 import org.waveprotocol.box.server.persistence.FeatureFlagSeeder;
 import org.waveprotocol.box.server.persistence.FeatureFlagService;
+import org.waveprotocol.box.server.persistence.FeatureFlagStore.FeatureFlag;
 
 public final class FeatureFlagSeederTest {
   @Test
@@ -49,5 +52,30 @@ public final class FeatureFlagSeederTest {
     FeatureFlagService service = new FeatureFlagService(store);
 
     assertFalse(service.getEnabledFlagNames(null).contains("ot-search"));
+  }
+
+  @Test
+  public void preservesExistingAllowedUsersWhenSeedingOtSearchFlag() throws Exception {
+    MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
+    store.save(
+        new FeatureFlag(
+            "ot-search",
+            "Real-time search wavelets (replaces 15s polling)",
+            false,
+            allowedUsers(true)));
+
+    FeatureFlagSeeder.seedSearchFeatureFlags(
+        store, ConfigFactory.parseString("search.ot_search_enabled = false"));
+
+    FeatureFlagService service = new FeatureFlagService(store);
+
+    assertTrue(service.isEnabled("ot-search", "vega@supawave.ai"));
+    assertFalse(service.getEnabledFlagNames(null).contains("ot-search"));
+  }
+
+  private static Map<String, Boolean> allowedUsers(boolean enabled) {
+    Map<String, Boolean> allowedUsers = new LinkedHashMap<>();
+    allowedUsers.put("vega@supawave.ai", enabled);
+    return allowedUsers;
   }
 }
