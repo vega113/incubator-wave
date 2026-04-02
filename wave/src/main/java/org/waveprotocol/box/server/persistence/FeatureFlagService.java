@@ -108,7 +108,7 @@ public final class FeatureFlagService {
    */
   public void refreshCache() {
     try {
-      List<FeatureFlag> all = store.getAll();
+      List<FeatureFlag> all = KnownFeatureFlags.mergeWithStored(store.getAll());
       Map<String, FeatureFlag> newCache = new ConcurrentHashMap<>();
       for (FeatureFlag f : all) {
         newCache.put(f.getName(), f);

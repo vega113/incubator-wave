@@ -29,6 +29,29 @@ import org.waveprotocol.box.server.persistence.memory.MemoryFeatureFlagStore;
 
 public final class FeatureFlagServiceTest {
   @Test
+  public void knownFlagsAreEnabledForFreshStores() throws Exception {
+    MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
+    FeatureFlagService service = new FeatureFlagService(store);
+
+    assertTrue(service.getEnabledFlagNames(null).contains("ot-search"));
+  }
+
+  @Test
+  public void storedFlagOverridesKnownDefault() throws Exception {
+    MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
+    store.save(
+        new FeatureFlag(
+            "ot-search",
+            "Real-time search wavelets (replaces 15s polling)",
+            false,
+            new LinkedHashMap<>()));
+
+    FeatureFlagService service = new FeatureFlagService(store);
+
+    assertFalse(service.getEnabledFlagNames(null).contains("ot-search"));
+  }
+
+  @Test
   public void disabledAllowedUserDoesNotEnableFlag() throws Exception {
     MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
     store.save(new FeatureFlag("new-ui", "New UI", false, allowedUsers(false)));
