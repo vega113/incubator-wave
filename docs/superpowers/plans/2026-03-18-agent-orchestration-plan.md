@@ -170,9 +170,9 @@ PR:
 
 ## Failure Handling
 
-- If Claude review is blocked by provider overload, record that in issue comments and continue with direct review instead of stalling the task indefinitely.
-- If a worker cannot produce a failing test, stop and revisit the architect findings.
-- If a reviewer finds a broader architectural issue, reopen the architect phase before more coding.
+- Record provider overload in issue comments and continue with direct review instead of stalling the task indefinitely when Claude review is blocked.
+- Stop and revisit the architect findings when a worker cannot produce a failing test.
+- Reopen the architect phase before more coding when review finds a broader architectural issue.
 
 ## Definition Of Ready
 
