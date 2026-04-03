@@ -161,8 +161,8 @@ isolated git worktrees.
 - Keep entries concise: a 1-2 sentence summary and short bullet-style change
   lists.
 - Treat `scripts/validate-changelog.py` as mandatory before merge or deploy,
-  and run it against both changelog file paths before landing user-facing
-  changes.
+  and run it against `wave/config/changelog.json`, the single source of truth,
+  before landing user-facing changes.
 
 ## Code Guidelines
 - Follow [CODE_GUIDELINES.md](CODE_GUIDELINES.md) for repo-wide code style and
