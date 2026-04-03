@@ -8,14 +8,31 @@ from pathlib import Path
 
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "jakarta-wrong-edit-guard.sh"
+DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 30
+
+
+def run_command(
+    args: list[str], *, check: bool, timeout_context: str
+) -> subprocess.CompletedProcess[str]:
+  try:
+    return subprocess.run(
+        args,
+        check=check,
+        text=True,
+        capture_output=True,
+        timeout=DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+  except subprocess.TimeoutExpired as exc:
+    raise AssertionError(
+        f"{timeout_context} timed out after {DEFAULT_SUBPROCESS_TIMEOUT_SECONDS}s: {args}"
+    ) from exc
 
 
 def run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-  return subprocess.run(
+  return run_command(
       ["git", "-C", str(repo), *args],
       check=True,
-      text=True,
-      capture_output=True,
+      timeout_context="git command",
   )
 
 
@@ -176,20 +193,20 @@ class JakartaWrongEditGuardTest(unittest.TestCase):
   def test_script_is_executable_and_runs_directly(self) -> None:
     self.assertTrue(os.access(SCRIPT_PATH, os.X_OK))
 
-    result = subprocess.run(
+    result = run_command(
         [str(SCRIPT_PATH), "--repo-root", str(self.repo)],
-        text=True,
-        capture_output=True,
+        check=False,
+        timeout_context="direct guard invocation",
     )
 
     self.assertEqual(0, result.returncode)
     self.assertNotIn("WARNING", result.stdout)
 
   def _run_guard(self, *extra_args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    return run_command(
         ["bash", str(SCRIPT_PATH), "--repo-root", str(self.repo), *extra_args],
-        text=True,
-        capture_output=True,
+        check=False,
+        timeout_context="guard script invocation",
     )
 
   def _write(self, relative_path: str, content: str) -> None:
