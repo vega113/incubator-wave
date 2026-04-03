@@ -909,8 +909,9 @@ public class WaveService {
     ConsumerData consumerDataObj = consumerDataMap.get(rpcServerUrl);
     if (jwtToken == null && consumerDataObj == null) {
       throw new IllegalStateException("RPC authentication for the JSON-RPC server URL "
-          + "has to be set first, by calling AbstractRobot.setupOAuth() or "
-          + "AbstractRobot.setupJwt(), before invoking AbstractRobot.submit().");
+          + "has to be set first, by calling WaveService.setupOAuth() or "
+          + "WaveService.setupJwt() (or AbstractRobot.setupOAuth() / "
+          + "AbstractRobot.setupJwt() when using AbstractRobot), before invoking this operation.");
     }
 
     opQueue.notifyRobotInformation(PROTOCOL_VERSION, version);
