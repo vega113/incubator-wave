@@ -239,6 +239,13 @@ public final class GptBotConfig {
         newReplyMode, apiRobotId, apiRobotSecret);
   }
 
+  public GptBotConfig withContextMode(ContextMode newContextMode) {
+    return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
+        avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,
+        codexTimeout, httpWorkerThreads, codexUnsafeBypass, callbackToken, newContextMode,
+        replyMode, apiRobotId, apiRobotSecret);
+  }
+
   public GptBotConfig withCallbackToken(String newCallbackToken) {
     return new GptBotConfig(robotName, participantId, baseUrl, publicBaseUrl, profilePageUrl,
         avatarUrl, listenHost, listenPort, codexBinary, codexModel, codexReasoningEffort,

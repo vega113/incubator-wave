@@ -191,8 +191,12 @@ public final class GptBotRobot {
   }
 
   private String capabilitiesHash() {
+    return capabilitiesHashFor(config.getRobotName());
+  }
+
+  static String capabilitiesHashFor(String robotName) {
     String payload = String.join("|",
-        config.getRobotName(),
+        robotName,
         "BLIP_SUBMITTED:SELF,SIBLINGS",
         "DOCUMENT_CHANGED:SELF,SIBLINGS",
         "WAVELET_BLIP_CREATED:SELF,SIBLINGS");

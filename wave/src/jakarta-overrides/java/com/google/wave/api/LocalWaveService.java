@@ -44,9 +44,10 @@ import java.util.logging.Logger;
  * {@link AbstractRobot} and the built-in agents use: {@code newWave},
  * {@code submit}, {@code fetchWavelet}, {@code blindWavelet}, {@code search}.
  *
- * <p>OAuth-related methods ({@code setupOAuth}, {@code getConsumerDataMap},
- * {@code hasConsumerData}, {@code validateOAuthRequest}) are no-ops or return
- * empty results since in-JVM bots have no need for OAuth.
+   * <p>Outgoing-auth-related methods ({@code setupOAuth}, {@code setupJwt},
+   * {@code getConsumerDataMap},
+   * {@code hasConsumerData}, {@code validateOAuthRequest}) are no-ops or return
+   * empty results since in-JVM bots have no need for OAuth.
  */
 public class LocalWaveService {
 
@@ -79,6 +80,13 @@ public class LocalWaveService {
    */
   public void setupOAuth(String consumerKey, String consumerSecret, String rpcServerUrl) {
     // No-op: in-JVM bots do not need OAuth.
+  }
+
+  /**
+   * No-op for in-JVM bots.
+   */
+  public void setupJwt(String token, String rpcServerUrl) {
+    // No-op: in-JVM bots do not need outbound bearer auth setup.
   }
 
   /**

@@ -19,11 +19,16 @@
 
 package org.waveprotocol.examples.robots.gptbot;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.wave.api.Blip;
+import com.google.wave.api.JsonRpcResponse;
+import com.google.wave.api.SearchResult;
+import com.google.wave.api.WaveService;
+import com.google.wave.api.Wavelet;
 
+import org.waveprotocol.wave.model.id.WaveId;
+import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.util.logging.Log;
 
 import java.io.IOException;
@@ -35,8 +40,10 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Fetches extra context from SupaWave and can optionally post replies through the active API.
@@ -49,16 +56,25 @@ public final class SupaWaveApiClient implements SupaWaveClient {
 
   private final GptBotConfig config;
   private final HttpClient httpClient;
+  private final WaveServiceFactory waveServiceFactory;
+  private final String robotCapabilitiesHash;
   private volatile AccessToken dataApiToken;
   private volatile AccessToken robotApiToken;
 
   public SupaWaveApiClient(GptBotConfig config) {
-    this(config, HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build());
+    this(config, HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build(), WaveService::new);
   }
 
   SupaWaveApiClient(GptBotConfig config, HttpClient httpClient) {
+    this(config, httpClient, WaveService::new);
+  }
+
+  SupaWaveApiClient(GptBotConfig config, HttpClient httpClient,
+      WaveServiceFactory waveServiceFactory) {
     this.config = config;
     this.httpClient = httpClient;
+    this.waveServiceFactory = waveServiceFactory;
+    this.robotCapabilitiesHash = GptBotRobot.capabilitiesHashFor(config.getRobotName());
   }
 
   @Override
@@ -66,9 +82,10 @@ public final class SupaWaveApiClient implements SupaWaveClient {
     Optional<String> context = Optional.empty();
     if (config.getContextMode() != GptBotConfig.ContextMode.NONE && config.hasApiCredentials()) {
       try {
-        JsonArray response = postRpc(fetchWaveRequest(waveId, waveletId), contextRpcEndpoint(),
-            contextAccessToken());
-        context = Optional.ofNullable(summarizeFetchResponse(response)).filter(value -> !value.isBlank());
+        String endpoint = readRpcEndpoint();
+        String token = readAccessToken();
+        Wavelet wavelet = fetchWavelet(waveId, waveletId, endpoint, token);
+        context = Optional.ofNullable(summarizeWavelet(wavelet)).filter(value -> !value.isBlank());
       } catch (IOException | InterruptedException | RuntimeException e) {
         logWarningAndRestoreInterrupt("Unable to fetch SupaWave context", e);
       }
@@ -81,8 +98,10 @@ public final class SupaWaveApiClient implements SupaWaveClient {
     Optional<String> summary = Optional.empty();
     if (!query.isBlank() && config.hasApiCredentials()) {
       try {
-        JsonArray response = postRpc(searchRequest(query), searchRpcEndpoint(), searchAccessToken());
-        summary = Optional.ofNullable(summarizeSearchResponse(response)).filter(value -> !value.isBlank());
+        String endpoint = readRpcEndpoint();
+        String token = readAccessToken();
+        SearchResult result = authenticatedService(endpoint, token).search(query, 0, 5, endpoint);
+        summary = Optional.ofNullable(summarizeSearchResult(result)).filter(value -> !value.isBlank());
       } catch (IOException | InterruptedException | RuntimeException e) {
         logWarningAndRestoreInterrupt("Unable to search SupaWave", e);
       }
@@ -93,11 +112,22 @@ public final class SupaWaveApiClient implements SupaWaveClient {
   @Override
   public boolean appendReply(String waveId, String waveletId, String blipId, String content) {
     boolean appended = false;
-    if (!content.isBlank() && config.hasApiCredentials()) {
+    String replyText = content == null ? "" : content.strip();
+    if (!replyText.isBlank() && config.hasApiCredentials()) {
       try {
-        JsonArray response = postRpc(createChildRequest(waveId, waveletId, blipId, content),
-            activeRpcEndpoint(), getRobotAccessToken());
-        appended = !responseContainsError(response);
+        String endpoint = activeRpcEndpoint();
+        String token = getRobotAccessToken();
+        WaveService waveService = authenticatedService(endpoint, token);
+        Wavelet wavelet = waveService.fetchWavelet(
+            WaveId.deserialise(waveId), WaveletId.deserialise(waveletId), endpoint);
+        Blip parentBlip = wavelet.getBlip(blipId);
+        if (parentBlip == null) {
+          LOG.warning("Unable to find parent blip for active reply: " + blipId);
+        } else {
+          parentBlip.reply().append(replyText);
+          List<JsonRpcResponse> responses = waveService.submit(wavelet, endpoint);
+          appended = !containsError(responses);
+        }
       } catch (IOException | InterruptedException | RuntimeException e) {
         logWarningAndRestoreInterrupt("Unable to append a reply through the active API", e);
       }
@@ -105,86 +135,32 @@ public final class SupaWaveApiClient implements SupaWaveClient {
     return appended;
   }
 
-  private JsonArray fetchWaveRequest(String waveId, String waveletId) {
-    JsonObject params = new JsonObject();
-    params.addProperty("waveId", waveId);
-    params.addProperty("waveletId", waveletId);
-
-    JsonObject request = new JsonObject();
-    request.addProperty("id", "gpt-bot-context-1");
-    request.addProperty("method", "robot.fetchWave");
-    request.add("params", params);
-
-    JsonArray body = new JsonArray();
-    body.add(request);
-    return body;
+  private Wavelet fetchWavelet(String waveId, String waveletId, String endpoint, String token)
+      throws IOException {
+    WaveService waveService = authenticatedService(endpoint, token);
+    return waveService.fetchWavelet(WaveId.deserialise(waveId), WaveletId.deserialise(waveletId),
+        endpoint);
   }
 
-  private JsonArray searchRequest(String query) {
-    JsonObject params = new JsonObject();
-    params.addProperty("query", query);
-    params.addProperty("index", 0);
-    params.addProperty("numResults", 5);
-
-    JsonObject request = new JsonObject();
-    request.addProperty("id", "gpt-bot-search-1");
-    request.addProperty("method", "robot.search");
-    request.add("params", params);
-
-    JsonArray body = new JsonArray();
-    body.add(request);
-    return body;
+  private WaveService authenticatedService(String endpoint, String token) {
+    WaveService waveService = waveServiceFactory.create(robotCapabilitiesHash);
+    waveService.setupJwt(token, endpoint);
+    return waveService;
   }
 
-  private JsonArray createChildRequest(String waveId, String waveletId, String blipId,
-      String content) {
-    JsonObject blipData = new JsonObject();
-    blipData.addProperty("blipId", "TBD_gptbot_reply_" + UUID.randomUUID().toString()
-        .replace("-", ""));
-    blipData.addProperty("content", "\n" + content.strip());
-
-    JsonObject params = new JsonObject();
-    params.addProperty("waveId", waveId);
-    params.addProperty("waveletId", waveletId);
-    params.addProperty("blipId", blipId);
-    params.add("blipData", blipData);
-
-    JsonObject request = new JsonObject();
-    request.addProperty("id", "gpt-bot-reply-1");
-    request.addProperty("method", "blip.createChild");
-    request.add("params", params);
-
-    JsonArray body = new JsonArray();
-    body.add(request);
-    return body;
-  }
-
-  private JsonArray postRpc(JsonArray body, String endpoint, String accessToken)
-      throws IOException, InterruptedException {
-    HttpRequest httpRequest = HttpRequest.newBuilder()
-        .uri(URI.create(endpoint))
-        .timeout(REQUEST_TIMEOUT)
-        .header("Authorization", "Bearer " + accessToken)
-        .header("Content-Type", "application/json")
-        .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
-        .build();
-
-    HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-    if (response.statusCode() < 200 || response.statusCode() >= 300) {
-      throw new IOException("Unexpected SupaWave RPC status: " + response.statusCode());
+  private boolean containsError(List<JsonRpcResponse> responses) {
+    boolean containsError = false;
+    if (responses != null) {
+      for (JsonRpcResponse response : responses) {
+        if (response != null && response.isError()) {
+          containsError = true;
+        }
+      }
     }
-    return JsonParser.parseString(response.body()).getAsJsonArray();
+    return containsError;
   }
 
-  private String contextAccessToken() throws IOException, InterruptedException {
-    String token = getDataApiAccessToken();
-    if (config.getContextMode() == GptBotConfig.ContextMode.ACTIVE) {
-      token = getRobotAccessToken();
-    }
-    return token;
-  }
-
-  private String searchAccessToken() throws IOException, InterruptedException {
+  private String readAccessToken() throws IOException, InterruptedException {
     String token = getDataApiAccessToken();
     if (config.getContextMode() == GptBotConfig.ContextMode.ACTIVE) {
       token = getRobotAccessToken();
@@ -251,38 +227,28 @@ public final class SupaWaveApiClient implements SupaWaveClient {
     return token;
   }
 
-  private String summarizeFetchResponse(JsonArray response) {
+  private String summarizeWavelet(Wavelet wavelet) {
     StringBuilder summary = new StringBuilder();
-    if (response.size() > 0) {
-      JsonElement first = response.get(0);
-      if (first.isJsonObject()) {
-        JsonObject result = first.getAsJsonObject();
-        if (result.has("data") && result.get("data").isJsonObject()) {
-          JsonObject data = result.getAsJsonObject("data");
-          appendField(summary, data, "message", "Fetch tag");
-          if (data.has("waveletData") && data.get("waveletData").isJsonObject()) {
-            JsonObject waveletData = data.getAsJsonObject("waveletData");
-            appendField(summary, waveletData, "title", "Title");
-            appendField(summary, waveletData, "waveId", "Wave ID");
-            appendField(summary, waveletData, "waveletId", "Wavelet ID");
-            appendField(summary, waveletData, "rootBlipId", "Root blip");
-          }
-          if (data.has("blips") && data.get("blips").isJsonObject()) {
-            JsonObject blips = data.getAsJsonObject("blips");
-            int count = 0;
-            for (String currentBlipId : blips.keySet()) {
-              if (count >= 4) {
-                break;
-              }
-              JsonElement blipElement = blips.get(currentBlipId);
-              if (blipElement != null && blipElement.isJsonObject()) {
-                JsonObject blip = blipElement.getAsJsonObject();
-                String content = blip.has("content") ? blip.get("content").getAsString() : "";
-                summary.append("Blip ").append(currentBlipId).append(": ")
-                    .append(content.strip()).append('\n');
-                count++;
-              }
-            }
+    if (wavelet != null) {
+      appendField(summary, wavelet.getTitle(), "Title");
+      appendField(summary, wavelet.getWaveId().serialise(), "Wave ID");
+      appendField(summary, wavelet.getWaveletId().serialise(), "Wavelet ID");
+      appendField(summary, wavelet.getRootBlipId(), "Root blip");
+
+      List<String> blipIds = new ArrayList<String>(wavelet.getBlips().keySet());
+      Collections.sort(blipIds);
+      int count = 0;
+      for (String currentBlipId : blipIds) {
+        if (count >= 4) {
+          break;
+        }
+        Blip blip = wavelet.getBlip(currentBlipId);
+        if (blip != null) {
+          String content = blip.getContent();
+          if (content != null && !content.strip().isEmpty()) {
+            summary.append("Blip ").append(currentBlipId).append(": ")
+                .append(content.strip()).append('\n');
+            count++;
           }
         }
       }
@@ -290,60 +256,28 @@ public final class SupaWaveApiClient implements SupaWaveClient {
     return clamp(summary.toString());
   }
 
-  private String summarizeSearchResponse(JsonArray response) {
+  private String summarizeSearchResult(SearchResult searchResult) {
     StringBuilder summary = new StringBuilder();
-    if (response.size() > 0) {
-      JsonElement first = response.get(0);
-      if (first.isJsonObject()) {
-        JsonObject result = first.getAsJsonObject();
-        if (result.has("data") && result.get("data").isJsonObject()) {
-          JsonObject data = result.getAsJsonObject("data");
-          if (data.has("searchResults") && data.get("searchResults").isJsonObject()) {
-            JsonObject searchResults = data.getAsJsonObject("searchResults");
-            appendField(summary, searchResults, "query", "Search query");
-            if (searchResults.has("digests") && searchResults.get("digests").isJsonArray()) {
-              JsonArray digests = searchResults.getAsJsonArray("digests");
-              int count = Math.min(3, digests.size());
-              for (int index = 0; index < count; index++) {
-                JsonObject digest = digests.get(index).getAsJsonObject();
-                appendField(summary, digest, "title", "Result title");
-                appendField(summary, digest, "waveId", "Result wave");
-                appendField(summary, digest, "snippet", "Snippet");
-              }
-            }
-          }
-        }
+    if (searchResult != null) {
+      appendField(summary, searchResult.getQuery(), "Search query");
+      int count = Math.min(3, searchResult.getDigests().size());
+      for (int index = 0; index < count; index++) {
+        SearchResult.Digest digest = searchResult.getDigests().get(index);
+        appendField(summary, digest.getTitle(), "Result title");
+        appendField(summary, digest.getWaveId(), "Result wave");
+        appendField(summary, digest.getSnippet(), "Snippet");
       }
     }
     return clamp(summary.toString());
   }
 
-  private static boolean responseContainsError(JsonArray response) {
-    boolean containsError = false;
-    for (JsonElement element : response) {
-      if (element.isJsonObject() && element.getAsJsonObject().has("error")) {
-        containsError = true;
-      }
-    }
-    return containsError;
-  }
-
-  private static void appendField(StringBuilder summary, JsonObject object, String key,
-      String label) {
-    if (object.has(key)) {
-      summary.append(label).append(": ").append(object.get(key).getAsString()).append('\n');
+  private static void appendField(StringBuilder summary, String value, String label) {
+    if (value != null && !value.isBlank()) {
+      summary.append(label).append(": ").append(value).append('\n');
     }
   }
 
-  private String contextRpcEndpoint() {
-    String endpoint = dataRpcEndpoint();
-    if (config.getContextMode() == GptBotConfig.ContextMode.ACTIVE) {
-      endpoint = activeRpcEndpoint();
-    }
-    return endpoint;
-  }
-
-  private String searchRpcEndpoint() {
+  private String readRpcEndpoint() {
     String endpoint = dataRpcEndpoint();
     if (config.getContextMode() == GptBotConfig.ContextMode.ACTIVE) {
       endpoint = activeRpcEndpoint();
@@ -380,6 +314,10 @@ public final class SupaWaveApiClient implements SupaWaveClient {
       clamped = clamped.substring(0, 2000).trim() + "…";
     }
     return clamped;
+  }
+
+  interface WaveServiceFactory {
+    WaveService create(String version);
   }
 
   private static final class AccessToken {
