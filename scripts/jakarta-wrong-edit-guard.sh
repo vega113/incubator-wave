@@ -37,6 +37,7 @@ MAIN_PREFIX="wave/src/main/java/"
 OVERRIDE_PREFIX="wave/src/jakarta-overrides/java/"
 
 MAIN_EXCLUDES=""
+MAIN_DIR_EXCLUDES=""
 JAKARTA_EXCLUDES=""
 CHANGED_MAIN=""
 CHANGED_OVERRIDE=""
@@ -61,6 +62,21 @@ extract_set_entries() {
   ' "$BUILD_FILE"
 }
 
+extract_main_dir_entries() {
+  awk '
+    /val mainDirExcluded = underMain && \(/ {
+      inside = 1
+      next
+    }
+    inside {
+      if ($0 ~ /^[[:space:]]*\)/) {
+        exit
+      }
+      print
+    }
+  ' "$BUILD_FILE" | sed -n 's/.*p\.contains("\([^"]*\)").*/\1/p' | sed 's#^/##'
+}
+
 load_excludes() {
   local entry=""
 
@@ -69,6 +85,12 @@ load_excludes() {
       append_unique_line MAIN_EXCLUDES "$entry"
     fi
   done < <(extract_set_entries "mainExactExcludes")
+
+  while IFS= read -r entry; do
+    if [[ -n "$entry" ]]; then
+      append_unique_line MAIN_DIR_EXCLUDES "$entry"
+    fi
+  done < <(extract_main_dir_entries)
 
   while IFS= read -r entry; do
     if [[ -n "$entry" ]]; then
@@ -96,6 +118,19 @@ contains_line() {
   fi
 
   printf '%s' "$haystack" | grep -Fqx "$needle"
+}
+
+matches_directory_exclude() {
+  local relative_path="$1"
+  local directory_prefix=""
+
+  while IFS= read -r directory_prefix; do
+    if [[ -n "$directory_prefix" && "$relative_path" == "$directory_prefix"* ]]; then
+      return 0
+    fi
+  done < <(printf '%s' "$MAIN_DIR_EXCLUDES")
+
+  return 1
 }
 
 collect_changed_paths() {
@@ -128,7 +163,9 @@ collect_changed_paths() {
 
     case "$path" in
       "$MAIN_PREFIX"*)
-        append_unique_line CHANGED_MAIN "${path#$MAIN_PREFIX}"
+        if [[ "$code" != "D" ]]; then
+          append_unique_line CHANGED_MAIN "${path#$MAIN_PREFIX}"
+        fi
         ;;
       "$OVERRIDE_PREFIX"*)
         append_unique_line CHANGED_OVERRIDE "${path#$OVERRIDE_PREFIX}"
@@ -140,8 +177,18 @@ collect_changed_paths() {
 is_runtime_active_override() {
   local relative_path="$1"
   local override_path="$REPO_ROOT/$OVERRIDE_PREFIX$relative_path"
+  local in_exact_excludes=1
+  local in_directory_excludes=1
 
-  if ! contains_line "$MAIN_EXCLUDES" "$relative_path"; then
+  if contains_line "$MAIN_EXCLUDES" "$relative_path"; then
+    in_exact_excludes=0
+  fi
+
+  if matches_directory_exclude "$relative_path"; then
+    in_directory_excludes=0
+  fi
+
+  if [[ "$in_exact_excludes" -ne 0 && "$in_directory_excludes" -ne 0 ]]; then
     return 1
   fi
 

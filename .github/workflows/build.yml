@@ -47,12 +47,10 @@ jobs:
           elif [ -n "${{ github.event.before || '' }}" ] \
             && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             base_ref="${{ github.event.before }}"
-          fi
-          if [ -n "$base_ref" ]; then
-            ./scripts/jakarta-wrong-edit-guard.sh --base-ref "$base_ref"
           else
-            ./scripts/jakarta-wrong-edit-guard.sh
+            base_ref="origin/main"
           fi
+          ./scripts/jakarta-wrong-edit-guard.sh --base-ref "$base_ref"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

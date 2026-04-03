@@ -36,6 +36,10 @@ class JakartaWrongEditGuardTest(unittest.TestCase):
               "org/example/JakartaHttpRequestMessage.java"
             )
 
+            val mainDirExcluded = underMain && (
+              p.contains("/org/example/dirshadow/")
+            )
+
             val jakartaExactExcludes: Set[String] = Set(
               "org/example/JakartaHttpRequestMessage.java"
             )
@@ -46,6 +50,14 @@ class JakartaWrongEditGuardTest(unittest.TestCase):
     self._write("ORCHESTRATOR.md", "Jakarta override guidance lives here.\n")
     self._write("wave/src/main/java/org/example/Foo.java", "class Foo {}\n")
     self._write("wave/src/jakarta-overrides/java/org/example/Foo.java", "class Foo {}\n")
+    self._write(
+        "wave/src/main/java/org/example/dirshadow/DirShadow.java",
+        "class DirShadow {}\n",
+    )
+    self._write(
+        "wave/src/jakarta-overrides/java/org/example/dirshadow/DirShadow.java",
+        "class DirShadow {}\n",
+    )
     self._write(
         "wave/src/main/java/org/example/JakartaHttpRequestMessage.java",
         "class JakartaHttpRequestMessage {}\n",
@@ -94,6 +106,18 @@ class JakartaWrongEditGuardTest(unittest.TestCase):
     self.assertEqual(0, result.returncode)
     self.assertNotIn("WARNING", result.stdout)
 
+  def test_warns_for_directory_level_shadowed_files(self) -> None:
+    self._write(
+        "wave/src/main/java/org/example/dirshadow/DirShadow.java",
+        "class DirShadow { int value = 1; }\n",
+    )
+
+    result = self._run_guard()
+
+    self.assertEqual(0, result.returncode)
+    self.assertIn("WARNING", result.stdout)
+    self.assertIn("wave/src/main/java/org/example/dirshadow/DirShadow.java", result.stdout)
+
   def test_handles_rename_entries_without_warning(self) -> None:
     run_git(
         self.repo,
@@ -101,6 +125,14 @@ class JakartaWrongEditGuardTest(unittest.TestCase):
         "wave/src/main/java/org/example/Foo.java",
         "wave/src/main/java/org/example/FooRenamed.java",
     )
+
+    result = self._run_guard()
+
+    self.assertEqual(0, result.returncode)
+    self.assertNotIn("WARNING", result.stdout)
+
+  def test_skips_delete_only_changes(self) -> None:
+    run_git(self.repo, "rm", "wave/src/main/java/org/example/Foo.java")
 
     result = self._run_guard()
 
