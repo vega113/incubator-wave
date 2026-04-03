@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import tempfile
@@ -119,6 +120,18 @@ class JakartaWrongEditGuardTest(unittest.TestCase):
 
   def test_returns_success_with_clean_tree(self) -> None:
     result = self._run_guard()
+
+    self.assertEqual(0, result.returncode)
+    self.assertNotIn("WARNING", result.stdout)
+
+  def test_script_is_executable_and_runs_directly(self) -> None:
+    self.assertTrue(os.access(SCRIPT_PATH, os.X_OK))
+
+    result = subprocess.run(
+        [str(SCRIPT_PATH), "--repo-root", str(self.repo)],
+        text=True,
+        capture_output=True,
+    )
 
     self.assertEqual(0, result.returncode)
     self.assertNotIn("WARNING", result.stdout)
