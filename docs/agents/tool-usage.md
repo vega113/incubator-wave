@@ -52,5 +52,6 @@ for the execution flow.
 - Select among matches: `fzf`
 - JSON: `jq`
 - YAML/XML: `yq`
-- If `ast-grep` is available, avoid `rg` or `grep` unless a plain-text search
-  is explicitly requested.
+- If `ast-grep` is available, prefer it for supported structural queries.
+  Use `rg` or `grep` when parser coverage is missing or the task is plain-text
+  or regex search.
