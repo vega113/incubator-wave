@@ -1,8 +1,7 @@
 # Building with SBT
 
-SBT is the sole build system for Apache Wave (Gradle was removed in Phase 8).
-The SBT build compiles the server on JDK 17 with all dependencies managed via
-Coursier, and is aligned with the checked-in `wave/config/` layout.
+SBT is the canonical build system for Apache Wave. This document describes the
+supported JDK 17 / Jakarta server path and the repo's current SBT layout.
 
 ## Prerequisites
 
@@ -32,12 +31,8 @@ Coursier, and is aligned with the checked-in `wave/config/` layout.
 
 - Compile Java sources:
   - `sbt compile`
-  - Current state: WIP. Protobuf staging now succeeds and `compile` gets through
-    `protoc`, then fails later in Java compilation on remaining library-upgrade
-    debt plus a smaller set of SBT-only source and codegen gaps tracked outside
-    the original descriptor/bootstrap fix. Until `incubator-wave-modernization.3`
-    and the follow-on SBT-only cleanup close, this path is not a working build
-    for end users.
+  - This is the primary compile entry point for the Jakarta-only server path.
+    Some legacy client and persistence surfaces remain outside this build.
 
 - Run the server (from repo root):
   - First-time setup: `sbt prepareServerConfig`
@@ -159,8 +154,8 @@ persistence/migration.
   `config/reference.conf` from `wave/config/`.
 - Protobuf staging now runs before `protoc`, and `descriptor.proto` is resolved
   from the bundled PST proto sources.
-- SBT compile now gets past `protoc` and fails later in Java compilation instead
-  of dying on the missing `google/protobuf/descriptor.proto` include.
+- SBT compile stages protobuf sources before `protoc` and keeps the manual
+  generation tasks out of the default path.
 - Simplified SBT task ordering to avoid races: `generatePstMessages` depends on
   `Compile / PB.generate`; `compile` still keeps the manual generation tasks out
   of the default path.
