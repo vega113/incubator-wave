@@ -20,12 +20,77 @@ export SUPAWAVE_BASE_URL="${SUPAWAVE_BASE_URL:-https://supawave.ai}"
 PID_DIR="/tmp/gptbot"
 mkdir -p "$PID_DIR"
 
+matches_command() {
+  local pid="$1"
+  local needle="$2"
+  local command
+  command="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+  [[ -n "$command" && "$command" == *"$needle"* ]]
+}
+
+terminate_pid() {
+  local pid="$1"
+  local needle="$2"
+  local label="$3"
+
+  if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+    return 0
+  fi
+  if ! kill -0 "$pid" 2>/dev/null; then
+    return 0
+  fi
+  if ! matches_command "$pid" "$needle"; then
+    echo "Skipping $label pid $pid; command no longer matches $needle" >&2
+    return 0
+  fi
+
+  kill "$pid" 2>/dev/null || return 0
+  for _ in $(seq 1 5); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "Stopped $label"
+      return 0
+    fi
+    sleep 1
+  done
+
+  if kill -0 "$pid" 2>/dev/null && matches_command "$pid" "$needle"; then
+    kill -9 "$pid" 2>/dev/null && echo "Force-stopped $label"
+  fi
+}
+
+terminate_pid_file() {
+  local pid_file="$1"
+  local needle="$2"
+  local label="$3"
+  local pid
+
+  pid="$(cat "$pid_file" 2>/dev/null || true)"
+  if [[ -n "$pid" ]]; then
+    terminate_pid "$pid" "$needle" "$label"
+  fi
+}
+
+report_update_failure() {
+  local message="$1"
+  local response_file="$2"
+  echo "$message" >&2
+  if [[ -s "$response_file" ]]; then
+    echo "Response body:" >&2
+    cat "$response_file" >&2
+  fi
+  rm -f "$response_file"
+  exit 1
+}
+
 cleanup() {
   echo ""
   echo "Shutting down..."
-  kill "$(cat "$PID_DIR/cloudflared.pid" 2>/dev/null)" 2>/dev/null || true
-  kill "$(cat "$PID_DIR/sbt.pid" 2>/dev/null)" 2>/dev/null || true
-  lsof -ti:"$GPTBOT_LISTEN_PORT" | xargs kill -9 2>/dev/null || true
+  terminate_pid_file "$PID_DIR/cloudflared.pid" "cloudflared" "tunnel"
+  terminate_pid_file "$PID_DIR/sbt.pid" "org.waveprotocol.examples.robots.gptbot.GptBotServer" "bot"
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] || continue
+    terminate_pid "$pid" "org.waveprotocol.examples.robots.gptbot.GptBotServer" "port listener"
+  done < <(lsof -ti:"$GPTBOT_LISTEN_PORT" 2>/dev/null || true)
   rm -f "$PID_DIR"/*.pid
   echo "Done."
 }
@@ -51,7 +116,10 @@ if ! command -v cloudflared >/dev/null 2>&1; then
 fi
 
 # ── kill leftovers on the listen port ─────────────────────────────────
-lsof -ti:"$GPTBOT_LISTEN_PORT" | xargs kill -9 2>/dev/null || true
+while IFS= read -r pid; do
+  [[ -n "$pid" ]] || continue
+  terminate_pid "$pid" "org.waveprotocol.examples.robots.gptbot.GptBotServer" "port listener"
+done < <(lsof -ti:"$GPTBOT_LISTEN_PORT" 2>/dev/null || true)
 sleep 1
 
 # ── start bot ─────────────────────────────────────────────────────────
@@ -100,10 +168,28 @@ fi
 # ── update prod URL if token is available ─────────────────────────────
 if [[ -n "${GPTBOT_MANAGEMENT_TOKEN:-}" ]]; then
   echo "Updating callback URL on $SUPAWAVE_BASE_URL..."
-  curl -sS -X PUT "$SUPAWAVE_BASE_URL/api/robots/$GPTBOT_PARTICIPANT_ID/url" \
-    -H "Authorization: Bearer $GPTBOT_MANAGEMENT_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{\"url\": \"$TUNNEL_URL\"}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'  callback: {d.get(\"callbackUrl\",\"?\")}')" 2>/dev/null || true
+  update_response_file="$(mktemp "$PID_DIR/update-response.XXXXXX")"
+  set +e
+  update_http_code="$(
+    curl -sS -o "$update_response_file" -w '%{http_code}' -X PUT \
+      "$SUPAWAVE_BASE_URL/api/robots/$GPTBOT_PARTICIPANT_ID/url" \
+      -H "Authorization: Bearer $GPTBOT_MANAGEMENT_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"url\": \"$TUNNEL_URL\"}"
+  )"
+  update_curl_status=$?
+  set -e
+  if [[ $update_curl_status -ne 0 ]]; then
+    report_update_failure "Failed to update callback URL (curl exit $update_curl_status)." \
+      "$update_response_file"
+  fi
+  if [[ ${update_http_code:0:1} != 2 ]]; then
+    report_update_failure "Failed to update callback URL (HTTP $update_http_code)." \
+      "$update_response_file"
+  fi
+  python3 -c "import json,sys; d=json.load(sys.stdin); print(f'  callback: {d.get(\"callbackUrl\",\"?\")}')" \
+    < "$update_response_file"
+  rm -f "$update_response_file"
 fi
 
 # ── summary ───────────────────────────────────────────────────────────
