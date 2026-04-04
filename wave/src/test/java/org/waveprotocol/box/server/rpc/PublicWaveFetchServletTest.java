@@ -117,6 +117,7 @@ public class PublicWaveFetchServletTest extends TestCase {
     // Should return 404, NOT 403, to avoid leaking wave existence
     verify(response, times(1)).sendError(HttpServletResponse.SC_NOT_FOUND);
     assertEquals(0L, viewTracker.getCombinedViews(wavelet.getWaveId()));
+    assertEquals(0L, viewTracker.getTotalApiViews());
   }
 
   /**

@@ -22,8 +22,6 @@ import org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.util.WaveletDataUtil;
-import org.waveprotocol.wave.model.document.DocumentConstants;
-import org.waveprotocol.wave.model.id.IdConstants;
 import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
@@ -147,7 +145,9 @@ public final class AdminAnalyticsService {
             snapshot,
             now,
             refreshStartedAt,
-            "Analytics refresh exceeded the 5s budget; serving the last good summary.");
+            "Analytics refresh exceeded the "
+                + refreshBudgetMs
+                + "ms budget; serving the last good summary.");
       } catch (PersistenceException | WaveServerException | IOException | RuntimeException e) {
         return fallbackSnapshot(
             snapshot,
@@ -482,10 +482,8 @@ public final class AdminAnalyticsService {
     ranked.sort(
         Comparator.comparingLong(TopWave::getViews)
             .reversed()
-            .thenComparingInt(TopWave::getContributorCount)
-            .reversed()
-            .thenComparingLong(TopWave::getLastModifiedTime)
-            .reversed());
+            .thenComparing(Comparator.comparingInt(TopWave::getContributorCount).reversed())
+            .thenComparing(Comparator.comparingLong(TopWave::getLastModifiedTime).reversed()));
     return truncate(ranked, 10);
   }
 
@@ -500,12 +498,9 @@ public final class AdminAnalyticsService {
     ranked.sort(
         Comparator.comparingInt(TopWave::getContributorCount)
             .reversed()
-            .thenComparingInt(TopWave::getParticipantCount)
-            .reversed()
-            .thenComparingLong(TopWave::getViews)
-            .reversed()
-            .thenComparingLong(TopWave::getLastModifiedTime)
-            .reversed());
+            .thenComparing(Comparator.comparingInt(TopWave::getParticipantCount).reversed())
+            .thenComparing(Comparator.comparingLong(TopWave::getViews).reversed())
+            .thenComparing(Comparator.comparingLong(TopWave::getLastModifiedTime).reversed()));
     return truncate(ranked, 10);
   }
 
@@ -520,10 +515,8 @@ public final class AdminAnalyticsService {
     ranked.sort(
         Comparator.comparingLong(TopUser::getWriteCount)
             .reversed()
-            .thenComparingLong(TopUser::getBlipsCreated)
-            .reversed()
-            .thenComparingLong(TopUser::getLastWriteTime)
-            .reversed());
+            .thenComparing(Comparator.comparingLong(TopUser::getBlipsCreated).reversed())
+            .thenComparing(Comparator.comparingLong(TopUser::getLastWriteTime).reversed()));
     return truncate(ranked, 10);
   }
 

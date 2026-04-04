@@ -4621,7 +4621,7 @@ public final class HtmlRenderer {
     sb.append("      if (tab.dataset.tab === 'contacts' && !contactsLoaded) { fetchContacts(); }\n");
     sb.append("      if (tab.dataset.tab === 'flags' && !flagsLoaded) { fetchFlags(); }\n");
     sb.append("      if (tab.dataset.tab === 'ops' && !opsLoaded) { loadOpsStatus(); }\n");
-    sb.append("      if (tab.dataset.tab === 'analytics' && !analyticsLoaded) { loadAnalyticsStatus(); }\n");
+    sb.append("      if (tab.dataset.tab === 'analytics') { loadAnalyticsStatus(); }\n");
     sb.append("    });\n");
     sb.append("  });\n");
 
@@ -5082,10 +5082,9 @@ public final class HtmlRenderer {
     sb.append("  };\n");
 
     // ---- Analytics tab logic ----
-    sb.append("  var analyticsLoaded = false;\n");
     sb.append("  function analyticsWaveCell(wave) {\n");
     sb.append("    if (!wave || !wave.waveId) return '\\u2014';\n");
-    sb.append("    return '<a href=\"/wave/' + encodeURIComponent(wave.waveId) + '\">' + esc(wave.title || wave.waveId) + '</a>';\n");
+    sb.append("    return '<a href=\"/waveref/' + encodeURIComponent(wave.waveId) + '\">' + esc(wave.title || wave.waveId) + '</a>';\n");
     sb.append("  }\n");
     sb.append("  function analyticsRows(items, emptyHtml, rowBuilder) {\n");
     sb.append("    if (!items || !items.length) return emptyHtml;\n");
@@ -5095,7 +5094,6 @@ public final class HtmlRenderer {
     sb.append("  }\n");
     sb.append("  function loadAnalyticsStatus() {\n");
     sb.append("    fetch('/admin/api/analytics/status').then(function(r){return r.json();}).then(function(d){\n");
-    sb.append("      analyticsLoaded = true;\n");
     sb.append("      var s = d.summary || {};\n");
     sb.append("      document.getElementById('analyticsTotalWaves').textContent = s.totalWaves || 0;\n");
     sb.append("      document.getElementById('analyticsTotalBlips').textContent = s.totalBlipsCreated || 0;\n");
