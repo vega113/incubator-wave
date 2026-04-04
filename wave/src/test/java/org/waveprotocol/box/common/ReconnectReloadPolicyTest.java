@@ -14,6 +14,18 @@ public class ReconnectReloadPolicyTest {
   }
 
   @Test
+  public void doesNotReloadAtTheExactThreshold() {
+    assertFalse(
+        ReconnectReloadPolicy.shouldReloadAfterProlongedDisconnect(false, 5000d));
+  }
+
+  @Test
+  public void doesNotReloadBelowTheThreshold() {
+    assertFalse(
+        ReconnectReloadPolicy.shouldReloadAfterProlongedDisconnect(false, 4999d));
+  }
+
+  @Test
   public void reloadsAfterAProlongedDisconnectWhenNoWaveIsOpen() {
     assertTrue(
         ReconnectReloadPolicy.shouldReloadAfterProlongedDisconnect(false, 5001d));
