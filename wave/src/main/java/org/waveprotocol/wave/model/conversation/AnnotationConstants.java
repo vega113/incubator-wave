@@ -96,6 +96,14 @@ public class AnnotationConstants {
  /** A link to another wave */
   public static final String LINK_WAVE = LINK_PREFIX + "/wave";
 
+  // Mentions
+
+  /** Prefix for mention annotations. */
+  public static final String MENTION_PREFIX = "mention";
+
+  /** Denotes a user mention with value = participant address. */
+  public static final String MENTION_USER = MENTION_PREFIX + "/user";
+
   // Other
 
   /** Prefix for spelling annotations. (e.g. Spelly) */
