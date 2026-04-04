@@ -12,8 +12,8 @@
 
 ## Baseline Findings
 
-- `sbt compile test` passes on the baseline (`827` tests passed).
-- `sbt compileGwt` also passes on the baseline, so the stronger "GWT app still compiles" gate is currently achievable.
+- `sbt compile test` passes on the pre-rebase PR-head checkpoint (`a32c702e53123ab69793d6884881a45a02bc53eb`), with `827` tests passed.
+- `sbt compileGwt` also passes on that same checkpoint, so the stronger "GWT app still compiles" gate was achievable there.
 - Current `.gwt.xml` count is `139`, so Phase 0 must retire at least `9` modules net to meet the `<= 130` target.
 - Gadget, htmltemplate, gadget-state supplement, gadget servlet, gadget flags, and deferred-binding surfaces named in the Phase 0 prompt all still exist on this branch.
 - `wave/src/main/java/org/waveprotocol/wave/model/document/WaveContext.java` still imports `org.waveprotocol.wave.client.state.BlipReadStateMonitor`.
