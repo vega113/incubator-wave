@@ -106,7 +106,9 @@ supported JDK 17 / Jakarta server path and the repo's current SBT layout.
 - SBT automatically stages protobuf sources before `PB.generate`:
   - `.protodevel` files are rewritten into `target/proto-pb-src` as `.proto`.
   - `descriptor.proto` is resolved from `pst/src/main/proto/google/protobuf/descriptor.proto`.
-- PST and client flags remain manual generation tasks.
+- `generatePstMessages` and `generateFlags` run automatically as part of
+  `sbt compile`; invoke them directly only when you want to regenerate those
+  sources without a full compile.
 - Stable project naming now produces `incubator-wave-server-0.1.0-SNAPSHOT.jar`
   instead of varying with the worktree directory.
 - `prepareServerConfig` now bootstraps the root `config/` directory from
@@ -167,11 +169,10 @@ persistence/migration.
   `config/reference.conf` from `wave/config/`.
 - Protobuf staging now runs before `protoc`, and `descriptor.proto` is resolved
   from the bundled PST proto sources.
-- SBT compile stages protobuf sources before `protoc` and keeps the manual
-  generation tasks out of the default path.
+- `compile` depends on `generatePstMessages` and `generateFlags`, so the
+  generated sources stay in sync with the Java compile.
 - Simplified SBT task ordering to avoid races: `generatePstMessages` depends on
-  `Compile / PB.generate`; `compile` still keeps the manual generation tasks out
-  of the default path.
+  `Compile / PB.generate`; `generateFlags` follows the same compile-time path.
 - Removed an unused `raw.proto` import from `block-store.proto`, eliminating
   protoc warnings.
 - Jetty upgraded to 12 EE10 (Jakarta); the legacy Jetty 9.4 / javax path has
@@ -187,6 +188,5 @@ persistence/migration.
   access on first use unless local Ivy/Maven/Coursier caches are already warm;
   offline options are to pre-populate those caches or use a local SBT launcher
   and artifact proxy.
-- If `gen/` directories are missing, initial compile may still pass; features
-  depending on generated sources may be unavailable until you run the
-  corresponding manual tasks.
+- If `gen/messages/` or `gen/flags/` are missing, run `sbt compile` or the
+  individual generation tasks to recreate them.
