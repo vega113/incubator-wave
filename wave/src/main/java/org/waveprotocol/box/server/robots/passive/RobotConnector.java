@@ -75,8 +75,7 @@ public class RobotConnector implements RobotCapabilityFetcher {
     String serializedBundle = serializer.serialize(bundle, version);
 
     String storedUrl = robot.getAccount().getUrl();
-    String robotUrl = storedUrl.contains("/_wave/robot/jsonrpc")
-        ? storedUrl : storedUrl + Robot.RPC_URL;
+    String robotUrl = robotRpcUrl(storedUrl);
     LOG.info("Sending: " + serializedBundle + " to " + robotUrl);
 
     try {
@@ -127,6 +126,13 @@ public class RobotConnector implements RobotCapabilityFetcher {
     }
     try {
       URI uri = URI.create(callbackUrl);
+      String path = uri.getPath();
+      if (path != null && path.endsWith(Robot.RPC_URL)) {
+        String scheme = uri.getScheme();
+        String authority = uri.getAuthority();
+        String baseUrl = scheme != null && authority != null ? scheme + "://" + authority : "";
+        return baseUrl + path.substring(0, path.length() - Robot.RPC_URL.length());
+      }
       String scheme = uri.getScheme();
       String authority = uri.getAuthority();
       if (scheme != null && authority != null) {
@@ -136,5 +142,25 @@ public class RobotConnector implements RobotCapabilityFetcher {
       LOG.warning("Unable to parse robot callback URL: " + callbackUrl, e);
     }
     return callbackUrl;
+  }
+
+  /**
+   * Returns the passive robot RPC endpoint for the stored robot URL, appending
+   * {@link Robot#RPC_URL} only when the stored URL does not already point at it.
+   */
+  static String robotRpcUrl(String storedUrl) {
+    if (storedUrl == null || storedUrl.isBlank()) {
+      return "";
+    }
+    try {
+      URI uri = URI.create(storedUrl);
+      String path = uri.getPath();
+      if (path != null && path.endsWith(Robot.RPC_URL)) {
+        return storedUrl;
+      }
+    } catch (IllegalArgumentException e) {
+      LOG.warning("Unable to parse robot callback URL: " + storedUrl, e);
+    }
+    return storedUrl + Robot.RPC_URL;
   }
 }
