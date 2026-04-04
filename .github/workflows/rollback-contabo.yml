@@ -125,7 +125,7 @@ jobs:
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WAVE_EMAIL_FROM: ${{ secrets.WAVE_EMAIL_FROM }}
-          NOTIFICATION_RECIPIENTS: ${{ vars.NOTIFICATION_RECIPIENTS || secrets.ON_CALL_EMAILS || 'vega113@gmail.com' }}
+          NOTIFICATION_RECIPIENTS: ${{ vars.NOTIFICATION_RECIPIENTS || secrets.ON_CALL_EMAILS }}
         run: |
           status="${{ steps.rollback.outcome }}"
           if [ "$status" = "success" ]; then
@@ -138,24 +138,29 @@ jobs:
           recipients_json=$(python3 - <<'PY'
           import json
           import os
+          import sys
 
           raw = os.getenv("NOTIFICATION_RECIPIENTS", "").strip()
           if not raw:
-              print(json.dumps(["vega113@gmail.com"]))
-              raise SystemExit(0)
+              print("")
+              sys.exit(0)
 
           if raw.startswith("["):
               try:
                   recipients = [item.strip() for item in json.loads(raw) if isinstance(item, str) and item.strip()]
-                  print(json.dumps(recipients or ["vega113@gmail.com"]))
-                  raise SystemExit(0)
+                  print(json.dumps(recipients))
+                  sys.exit(0)
               except Exception:
                   pass
 
           recipients = [item.strip() for item in raw.split(",") if item.strip()]
-          print(json.dumps(recipients or ["vega113@gmail.com"]))
+          print(json.dumps(recipients))
           PY
           )
+          if [ -z "$recipients_json" ] || [ "$recipients_json" = "[]" ]; then
+            echo "No rollback notification recipients configured; skipping email notification."
+            exit 0
+          fi
           curl -s --fail-with-body -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer ${RESEND_API_KEY:-}" \
             -H "Content-Type: application/json" \
