@@ -252,7 +252,7 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
    * @param user the participant whose wave view to search within.
    * @param queryText the user's search terms.
    * @param field the index field to search (CONTENT or TITLE).
-   * @return set of matching wave IDs, empty if none or on error.
+   * @return set of matching wave IDs, or null if the search cannot be completed.
    */
   @Override
   public Set<WaveId> searchByText(ParticipantId user, String queryText, IndexFieldType field) {
@@ -279,6 +279,7 @@ public class LucenePerUserWaveViewHandlerImpl implements PerUserWaveViewHandler,
       }
     } catch (Exception e) {
       LOG.log(Level.WARNING, "Text search failed for user " + user + " query: " + queryText, e);
+      return null;
     } finally {
       release(indexSearcher, user);
     }

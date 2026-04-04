@@ -78,8 +78,9 @@ public final class WaveletTextExtractor {
   }
 
   /**
-   * Extracts the title text from a wavelet's root blip. The title is the
-   * text content of the first blip referenced in the conversation manifest.
+   * Extracts the title text from a wavelet's root blip. The title is the text
+   * content of the first line in the first blip referenced in the conversation
+   * manifest.
    *
    * @param wavelet the conversation root wavelet.
    * @return the title text, or empty string if not found.
@@ -93,7 +94,7 @@ public final class WaveletTextExtractor {
     if (rootBlip == null) {
       return "";
     }
-    return extractTextFromBlip(rootBlip, MAX_TITLE_CHARS);
+    return extractFirstLineFromBlip(rootBlip, MAX_TITLE_CHARS);
   }
 
   /**
@@ -129,6 +130,61 @@ public final class WaveletTextExtractor {
           } else {
             textBuilder.append(chars, 0, remaining);
           }
+        }
+      }
+
+      @Override
+      public void annotationBoundary(AnnotationBoundaryMap map) {
+      }
+    });
+    return textBuilder.toString().trim();
+  }
+
+  /**
+   * Extracts only the first line of text from a blip document.
+   */
+  private static String extractFirstLineFromBlip(ReadableBlipData blip, int maxChars) {
+    if (maxChars <= 0) {
+      return "";
+    }
+    DocInitialization docOp = blip.getContent().asOperation();
+
+    final int limit = maxChars;
+    final StringBuilder textBuilder = new StringBuilder(Math.min(limit, 1024));
+    final boolean[] sawFirstLine = {false};
+    final boolean[] capturing = {false};
+    final boolean[] finished = {false};
+    docOp.apply(new DocInitializationCursor() {
+      @Override
+      public void elementStart(String type, Attributes attrs) {
+        if (finished[0]) {
+          return;
+        }
+        if ("line".equals(type)) {
+          if (!sawFirstLine[0]) {
+            sawFirstLine[0] = true;
+            capturing[0] = true;
+          } else {
+            finished[0] = true;
+            capturing[0] = false;
+          }
+        }
+      }
+
+      @Override
+      public void elementEnd() {
+      }
+
+      @Override
+      public void characters(String chars) {
+        if (finished[0] || !capturing[0] || chars == null || textBuilder.length() >= limit) {
+          return;
+        }
+        int remaining = limit - textBuilder.length();
+        if (chars.length() <= remaining) {
+          textBuilder.append(chars);
+        } else {
+          textBuilder.append(chars, 0, remaining);
         }
       }
 

@@ -31,8 +31,8 @@ import java.util.logging.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.FSDirectory;
 import org.waveprotocol.box.server.persistence.file.FileUtils;
-import org.waveprotocol.box.server.persistence.lucene.FSIndexDirectory;
 import org.waveprotocol.box.server.persistence.lucene.IndexDirectory;
+import org.waveprotocol.box.server.persistence.lucene.Lucene9SearchIndexDirectory;
 import org.waveprotocol.box.server.waveserver.*;
 
 /**
@@ -43,13 +43,11 @@ public class SearchModule extends AbstractModule {
   private static final Logger LOG = Logger.getLogger(SearchModule.class.getName());
 
   private final String searchType;
-  private final String indexDirectory;
   private final String lucene9IndexDirectory;
 
   @Inject
   public SearchModule(Config config) {
     this.searchType = config.getString("core.search_type");
-    this.indexDirectory = config.getString("core.index_directory");
     this.lucene9IndexDirectory = config.getString("core.lucene9_index_directory");
   }
 
@@ -63,8 +61,8 @@ public class SearchModule extends AbstractModule {
           Singleton.class);
       bind(PerUserWaveViewHandler.class).to(LucenePerUserWaveViewHandlerImpl.class).in(
           Singleton.class);
-      bind(IndexDirectory.class).to(FSIndexDirectory.class);
-      boolean needsRebuild = !FileUtils.isDirExistsAndNonEmpty(indexDirectory)
+      bind(IndexDirectory.class).to(Lucene9SearchIndexDirectory.class);
+      boolean needsRebuild = !FileUtils.isDirExistsAndNonEmpty(lucene9IndexDirectory)
           || indexLacksContentField();
       if (needsRebuild) {
         LOG.info("Lucene index rebuild required (empty or missing CONTENT field)");
@@ -121,8 +119,8 @@ public class SearchModule extends AbstractModule {
       LOG.info("Existing Lucene index lacks CONTENT field, will trigger rebuild");
       return true;
     } catch (IOException e) {
-      LOG.log(Level.WARNING, "Failed to check Lucene index for CONTENT field", e);
-      return false; // On error, don't force rebuild.
+      LOG.log(Level.WARNING, "Failed to check Lucene index for CONTENT field, will trigger rebuild", e);
+      return true;
     }
   }
 }
