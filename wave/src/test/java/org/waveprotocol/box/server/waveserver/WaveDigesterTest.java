@@ -236,9 +236,8 @@ public class WaveDigesterTest extends TestCase {
    * Non-blip documents must not contribute to unread counts.
    */
   public void testCountUnreadViaContextPathIgnoresNonBlipDocuments() {
-    ParticipantId viewer = ParticipantId.ofUnsafe("viewer@example.com");
     TestingWaveletData data =
-        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, viewer, true);
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, CROSS_DOMAIN_VIEWER, true);
     data.appendBlipWithText("blip 1");
     data.appendBlipWithText("blip 2");
     List<ObservableWaveletData> allData = data.copyWaveletData();
@@ -247,8 +246,8 @@ public class WaveDigesterTest extends TestCase {
 
     convData.createDocument(
         "data+token",
-        viewer,
-        Collections.singleton(viewer),
+        CROSS_DOMAIN_VIEWER,
+        Collections.singleton(CROSS_DOMAIN_VIEWER),
         EmptyDocument.EMPTY_DOCUMENT,
         42L,
         42L);
@@ -261,7 +260,7 @@ public class WaveDigesterTest extends TestCase {
             convData, udwData, conversationalWavelets, null, conversations);
 
     Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters = new IdentityHashMap<>();
-    int unreadCount = digester.countUnread(viewer, context, waveletAdapters);
+    int unreadCount = digester.countUnread(CROSS_DOMAIN_VIEWER, context, waveletAdapters);
     assertEquals(2, unreadCount);
   }
 }
