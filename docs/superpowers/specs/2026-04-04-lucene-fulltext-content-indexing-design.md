@@ -23,7 +23,7 @@ Add `CONTENT` and `TITLE` TextFields to the existing Lucene per-user-view index.
 | `CONTENT` | TextField (analyzed) | No | All blip text from the wavelet, concatenated |
 | `TITLE` | TextField (analyzed) | No | Root blip's first line (title text) |
 
-Existing fields (`WAVEID`, `WAVELETID`, `WITH`, `LMT`, `DOC_ID`) unchanged.
+Existing fields (`WAVEID`, `WAVELETID`, `WITH`, `LMT`, and `DOC_ID` private constant) unchanged.
 
 ### Content Extraction Utility
 
@@ -55,7 +55,9 @@ Add a method to `LucenePerUserWaveViewHandlerImpl` that accepts a user + query s
 
 On startup, check if the existing index has any documents with a `CONTENT` field. If not (old index format), trigger `remakeIndex()` automatically. This makes the upgrade seamless — no manual config change needed.
 
-**Detection logic:** In `ServerMain.initializeSearch()`, after opening the index, sample a document. If the `CONTENT` field is absent, force a full re-index by calling `WaveIndexer.remakeIndex()` regardless of `lucene9_rebuild_on_startup` setting.
+**Detection logic:** In `SearchModule.configure()`, where the rebuild decision is made. Currently it binds `LuceneWaveIndexerImpl` (rebuild) only when the index directory is empty, and `NoOpWaveIndexerImpl` otherwise. The `lucene9_rebuild_on_startup` config key exists in `reference.conf` but is never read by any Java code — it's dead config.
+
+Change the decision logic to: bind `LuceneWaveIndexerImpl` when the directory is empty **OR** when the existing index lacks a `CONTENT` field (sampled via a quick IndexReader check). This triggers a full rebuild on first startup after the upgrade, then subsequent starts skip it.
 
 ### Search Paths — No Changes Needed
 
@@ -75,11 +77,11 @@ The indexer reads wavelet data through `ReadableWaveletDataProvider`, which abst
 | File | Change |
 |------|--------|
 | `LucenePerUserWaveViewHandlerImpl` | Add CONTENT/TITLE fields to `createDocument()`, add `searchContent(user, query)` method |
-| `IndexFieldType` | Add `CONTENT` and `TITLE` enum values |
+| `IndexFieldType` | Add `CONTENT` enum value (`TITLE` already exists but is unused in index) |
 | `SimpleSearchProviderImpl` | Replace `filterByContent()` and `filterByTitle()` with Lucene queries via the handler |
 | `WaveletTextExtractor` (new) | Shared utility: extract text/title from wavelet blips |
 | `PerUserWaveViewDistpatcher` | Extend to trigger re-index on content changes, not just participant changes |
-| `ServerMain` | Add auto-detect logic for content field presence, trigger rebuild if missing |
+| `SearchModule` | Add auto-detect logic for content field presence, bind `LuceneWaveIndexerImpl` when rebuild needed |
 
 ## Performance
 
