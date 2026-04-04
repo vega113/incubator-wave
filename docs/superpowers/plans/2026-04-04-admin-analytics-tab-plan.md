@@ -75,9 +75,9 @@
 - Before implementation starts:
   - post the plan path to issue `#605`
   - run an Opus plan review and address findings
-  - run a Codex `gpt-5.4` `high` review on the plan and address findings
+  - run a Codex `gpt-5.4` `xhigh` review on the plan and address findings
 - Before PR creation:
-  - run a Codex `gpt-5.4` `high` review on the implementation diff
+  - run a Codex `gpt-5.4` `medium` review on the implementation diff
   - fix or explicitly disposition every material finding
   - update issue `#605` with commits, review outcomes, verification commands, and PR link
 - If Opus is unavailable or times out after a reasonable retry, document that provider blockage in issue `#605` before continuing so the review gap is explicit.
