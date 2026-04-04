@@ -1,6 +1,6 @@
 # gpt-bot Example Robot
 
-`gpt-bot` is a small Java robot example for SupaWave. It exposes the Wave callback endpoints, watches for explicit mentions, and calls the local `codex` CLI in headless mode to generate a reply.
+`gpt-bot` is a small Java robot example for SupaWave. It exposes the current passive callback endpoints, watches for explicit mentions, and calls the local `codex` CLI in headless mode to generate a reply. For outbound SupaWave reads and writes, it uses the shared Java robot SDK with endpoint-scoped JWT bearer tokens.
 
 ## What It Serves
 
@@ -63,6 +63,8 @@ If you already have a named tunnel hostname, set it first:
 Set `GPTBOT_PUBLIC_BASE_URL` to the resulting public origin so the root page shows the same URL you register with SupaWave.
 Set `GPTBOT_CALLBACK_TOKEN` to a long random secret and include it in the callback URL you register.
 
+Today the passive callback path still uses a shared callback token in the URL. SupaWave does not yet send a server-signed callback bearer JWT on outbound webhook delivery, so the example keeps the callback-token protection that matches the live server contract.
+
 The callback URL you register is the public base URL with the token:
 
 `https://<public-host>/_wave/robot/jsonrpc?token=<callback-token>`
@@ -83,7 +85,7 @@ curl -sS -X POST "$SUPAWAVE_BASE_URL/api/robots" \
   }'
 ```
 
-The response includes the robot `id` and `secret`. Store them in `GPTBOT_API_ROBOT_ID` and `GPTBOT_API_ROBOT_SECRET` if you want the example to fetch extra context or send replies through the active API.
+The response includes the robot `id` and `secret`. Store them in `GPTBOT_API_ROBOT_ID` and `GPTBOT_API_ROBOT_SECRET` if you want the example to fetch extra context or send replies through the active API. The example exchanges that secret for short-lived JWTs at `/robot/dataapi/token` and applies them through the shared Java `WaveService` client.
 
 After registration, verify that SupaWave can reach the robot:
 
@@ -97,12 +99,12 @@ curl -sS -X POST "$SUPAWAVE_BASE_URL/api/robots/$GPTBOT_API_ROBOT_ID/verify" \
 `gpt-bot` supports both passive webhook replies and active API writes:
 
 - `GPTBOT_REPLY_MODE=passive` — default; the callback response returns Wave operations directly
-- `GPTBOT_REPLY_MODE=active` — the callback still receives events, but the robot posts the reply via `/robot/rpc` using `blip.createChild`
+- `GPTBOT_REPLY_MODE=active` — the callback still receives events, but the robot posts the reply via `/robot/rpc` through the shared Java SDK using a `ROBOT_ACCESS` JWT
 
 For extra read context before calling Codex:
 
 - `GPTBOT_CONTEXT_MODE=none` — callback-only mode
-- `GPTBOT_CONTEXT_MODE=data` — fetch context through `/robot/dataapi/rpc`
+- `GPTBOT_CONTEXT_MODE=data` — fetch context through `/robot/dataapi/rpc` with a `DATA_API_ACCESS` JWT
 - `GPTBOT_CONTEXT_MODE=active` — fetch context through `/robot/rpc` with `token_type=robot`
 
 The reusable Java client also supports `robot.search(...)` if you want to extend the example with inbox or keyword context.

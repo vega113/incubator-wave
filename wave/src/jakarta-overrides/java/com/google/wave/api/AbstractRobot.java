@@ -268,6 +268,13 @@ public abstract class AbstractRobot implements EventHandler, Serializable {
   }
 
   /**
+   * No-op for in-JVM bots. Outgoing bearer auth setup is not needed locally.
+   */
+  protected void setupJwt(String token, String rpcServerUrl) {
+    // No-op.
+  }
+
+  /**
    * No-op for in-JVM bots.
    */
   protected void setupOAuth(String consumerKey, String consumerSecret) {

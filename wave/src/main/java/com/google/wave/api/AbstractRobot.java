@@ -151,7 +151,7 @@ public abstract class AbstractRobot extends HttpServlet implements EventHandler 
   
   /**
    * Initializes the robot. Call it if required to re-compute robot's
-   * capabilities. Re-invoke {@link #setupOAuth} if needed.
+   * capabilities. Re-invoke {@link #setupOAuth} or {@link #setupJwt} if needed.
    */
   protected void initRobot() {
     capabilityMap = computeCapabilityMap();
@@ -423,6 +423,19 @@ public abstract class AbstractRobot extends HttpServlet implements EventHandler 
   protected void setupOAuth(String consumerKey, String consumerSecret, String rpcServerUrl) {
     waveService.setupOAuth(consumerKey, consumerSecret, rpcServerUrl);
     setAllowUnsignedRequests(false);
+  }
+
+  /**
+   * Sets the JWT bearer token used to authenticate outgoing robot API requests.
+   *
+   * <p>This configures outbound calls only. Incoming passive callbacks continue to use the
+   * existing unsigned or OAuth-validated request handling path.
+   *
+   * @param token the bearer token.
+   * @param rpcServerUrl the URL of the server that serves the JSON-RPC request.
+   */
+  protected void setupJwt(String token, String rpcServerUrl) {
+    waveService.setupJwt(token, rpcServerUrl);
   }
 
   /**
