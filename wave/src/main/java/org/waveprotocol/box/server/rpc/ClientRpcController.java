@@ -152,7 +152,11 @@ class ClientRpcController implements RpcController {
     // Hint to the internal callback that this RPC is finished (Normal RPCs
     // will always understand this as an error case, whereas streaming RPCs
     // will have to check their controller).
-    callbackToRun.run(null);
+    try {
+      callbackToRun.run(null);
+    } catch (RuntimeException e) {
+      e.printStackTrace();
+    }
   }
 
   @Override

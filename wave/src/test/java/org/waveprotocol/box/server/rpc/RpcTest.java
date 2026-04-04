@@ -34,8 +34,13 @@ import org.mockito.Mockito;
 import org.waveprotocol.box.common.comms.WaveClientRpc;
 import org.waveprotocol.box.common.comms.WaveClientRpc.*;
 import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.common.CoreWaveletOperationSerializer;
+import org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta;
+import org.waveprotocol.wave.federation.Proto.ProtocolWaveletOperation;
+import org.waveprotocol.wave.model.version.HashedVersion;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -48,6 +53,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  */
 public class RpcTest extends TestCase {
+
+  private static final ProtocolWaveletDelta SUBMIT_DELTA =
+      ProtocolWaveletDelta.newBuilder()
+          .setAuthor("test@example.com")
+          .setHashedVersion(
+              CoreWaveletOperationSerializer.serialize(HashedVersion.unsigned(101L)))
+          .addOperation(ProtocolWaveletOperation.newBuilder().setNoOp(true).build())
+          .build();
 
   private ServerRpcProvider server = null;
   private ClientRpcChannel client = null;
@@ -171,6 +184,61 @@ public class RpcTest extends TestCase {
     responseLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
     assertEquals(Arrays.asList(cannedResponse, null), responses);
     assertEquals(0, responseLatch.getCount());
+  }
+
+  /**
+   * Tests that a non-streaming RPC completes on its first response and is removed
+   * from the active controller map.
+   */
+  public void testSubmitRpcCompletesAndCleansUp() throws Exception {
+    final int TIMEOUT_SECONDS = Integer.getInteger("test.rpc.timeoutSeconds", 5);
+    final CountDownLatch responseLatch = new CountDownLatch(1);
+    final ProtocolSubmitResponse cannedResponse =
+        ProtocolSubmitResponse.newBuilder().setOperationsApplied(1).build();
+
+    WaveClientRpc.ProtocolWaveClientRpc.Interface rpcImpl =
+        new WaveClientRpc.ProtocolWaveClientRpc.Interface() {
+      @Override
+      public void open(RpcController controller, ProtocolOpenRequest request,
+          RpcCallback<ProtocolWaveletUpdate> callback) {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public void submit(RpcController controller, ProtocolSubmitRequest request,
+          RpcCallback<ProtocolSubmitResponse> callback) {
+        callback.run(cannedResponse);
+      }
+
+      @Override
+      public void authenticate(RpcController controller, ProtocolAuthenticate request,
+          RpcCallback<ProtocolAuthenticationResult> done) {
+        throw new UnsupportedOperationException();
+      }
+    };
+
+    server.registerService(WaveClientRpc.ProtocolWaveClientRpc.newReflectiveService(rpcImpl));
+    client = newClient();
+
+    WaveClientRpc.ProtocolWaveClientRpc.Stub stub =
+        WaveClientRpc.ProtocolWaveClientRpc.newStub(client);
+    RpcController controller = client.newRpcController();
+    ProtocolSubmitRequest request = ProtocolSubmitRequest.newBuilder()
+        .setDelta(SUBMIT_DELTA)
+        .setWaveletName("wave://example.com/w+test")
+        .build();
+
+    stub.submit(controller, request, new RpcCallback<ProtocolSubmitResponse>() {
+      @Override
+      public void run(ProtocolSubmitResponse response) {
+        assertEquals(cannedResponse, response);
+        responseLatch.countDown();
+      }
+    });
+
+    assertTrue(responseLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    assertFalse(controller.failed());
+    assertTrue(getActiveMethodMap().isEmpty());
   }
 
   /**
@@ -318,6 +386,12 @@ public class RpcTest extends TestCase {
     finishedLatch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
     assertEquals(0, finishedLatch.getCount());
     assertFalse(controller.failed());
+  }
+
+  private Map<?, ?> getActiveMethodMap() throws Exception {
+    Field field = WebSocketClientRpcChannel.class.getDeclaredField("activeMethodMap");
+    field.setAccessible(true);
+    return (Map<?, ?>) field.get(client);
   }
 
 }
