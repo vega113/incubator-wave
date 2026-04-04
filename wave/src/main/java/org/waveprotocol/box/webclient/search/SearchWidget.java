@@ -138,6 +138,8 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   SpanElement exTitle;
   @UiField
   SpanElement exContent;
+  @UiField
+  SpanElement exMentions;
 
   private Listener listener;
 
@@ -224,6 +226,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     wireExample(exCreatorArchive);
     wireExample(exTitle);
     wireExample(exContent);
+    wireExample(exMentions);
   }
 
   /** Stacks help columns vertically on narrow viewports (≤600 px). */
