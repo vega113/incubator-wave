@@ -30,9 +30,18 @@ public final class PublicWaveReadStateBootstrap {
   private PublicWaveReadStateBootstrap() {
   }
 
-  public static void seedIfImplicitPublicViewer(
+  /**
+   * Seeds all conversational wavelets as read when a new UDW is created for a
+   * public wave viewer. This covers both implicit viewers (seeing the wave via
+   * the shared domain participant) and explicit participants who have not yet
+   * opened the wave.
+   *
+   * <p>For private waves this is a no-op: the participant should see all
+   * existing content as unread.
+   */
+  public static void seedIfPublicWave(
       ObservablePrimitiveSupplement state, ObservableWaveView wave, ParticipantId viewer) {
-    if (!isImplicitPublicViewer(wave, viewer)) {
+    if (viewer == null || !isPublicWave(wave)) {
       return;
     }
     for (ObservableWavelet wavelet : wave.getWavelets()) {
@@ -42,28 +51,16 @@ public final class PublicWaveReadStateBootstrap {
     }
   }
 
-  private static boolean isImplicitPublicViewer(ObservableWaveView wave, ParticipantId viewer) {
-    return viewer != null
-        && hasSharedDomainParticipant(wave, viewer)
-        && !isExplicitParticipant(wave, viewer);
-  }
-
-  private static boolean hasSharedDomainParticipant(ObservableWaveView wave, ParticipantId viewer) {
-    ParticipantId sharedParticipant =
-        ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(viewer.getDomain());
+  /**
+   * Returns true if the wave has the shared domain participant on any
+   * conversational wavelet, making it a public wave.
+   */
+  private static boolean isPublicWave(ObservableWaveView wave) {
     for (ObservableWavelet wavelet : wave.getWavelets()) {
+      ParticipantId sharedParticipant =
+          ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(wavelet.getWaveId().getDomain());
       if (IdUtil.isConversationalId(wavelet.getId())
           && wavelet.getParticipantIds().contains(sharedParticipant)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean isExplicitParticipant(ObservableWaveView wave, ParticipantId viewer) {
-    for (ObservableWavelet wavelet : wave.getWavelets()) {
-      if (IdUtil.isConversationalId(wavelet.getId())
-          && wavelet.getParticipantIds().contains(viewer)) {
         return true;
       }
     }

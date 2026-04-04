@@ -523,7 +523,7 @@ public interface StageTwo {
             }
             ObservablePrimitiveSupplement state = WaveletBasedSupplement.create(udw);
             if (createdUserData) {
-                PublicWaveReadStateBootstrap.seedIfImplicitPublicViewer(
+                PublicWaveReadStateBootstrap.seedIfPublicWave(
                         state, getWave(), getSignedInUser());
             }
             ObservableSupplementedWave live = new LiveSupplementedWaveImpl(
