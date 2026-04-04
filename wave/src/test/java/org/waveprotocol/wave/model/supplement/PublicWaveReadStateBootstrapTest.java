@@ -52,7 +52,7 @@ public final class PublicWaveReadStateBootstrapTest extends TestCase {
 
     Wavelet userData = view.createUserData();
     ObservablePrimitiveSupplement state = WaveletBasedSupplement.create(userData);
-    PublicWaveReadStateBootstrap.seedIfImplicitPublicViewer(state, view, VIEWER);
+    PublicWaveReadStateBootstrap.seedIfPublicWave(state, view, VIEWER);
 
     ObservableSupplementedWave supplementedWave =
         new LiveSupplementedWaveImpl(state, view, VIEWER, SupplementedWaveImpl.DefaultFollow.ALWAYS,
@@ -62,7 +62,7 @@ public final class PublicWaveReadStateBootstrapTest extends TestCase {
     assertFalse(supplementedWave.isUnread(secondBlip));
   }
 
-  public void testExplicitParticipantRemainsUnreadWithoutReadState() {
+  public void testExplicitParticipantOnPublicWaveStartsFullyRead() {
     FakeWaveView view = BasicFactories.fakeWaveViewBuilder().with(ID_GENERATOR).build();
     WaveBasedConversationView conversationView = WaveBasedConversationView.create(view,
         ID_GENERATOR);
@@ -77,7 +77,31 @@ public final class PublicWaveReadStateBootstrapTest extends TestCase {
 
     Wavelet userData = view.createUserData();
     ObservablePrimitiveSupplement state = WaveletBasedSupplement.create(userData);
-    PublicWaveReadStateBootstrap.seedIfImplicitPublicViewer(state, view, VIEWER);
+    PublicWaveReadStateBootstrap.seedIfPublicWave(state, view, VIEWER);
+
+    ObservableSupplementedWave supplementedWave =
+        new LiveSupplementedWaveImpl(state, view, VIEWER, SupplementedWaveImpl.DefaultFollow.ALWAYS,
+            conversationView);
+
+    assertFalse(supplementedWave.isUnread(firstBlip));
+    assertFalse(supplementedWave.isUnread(secondBlip));
+  }
+
+  public void testPrivateWaveExplicitParticipantRemainsUnread() {
+    FakeWaveView view = BasicFactories.fakeWaveViewBuilder().with(ID_GENERATOR).build();
+    WaveBasedConversationView conversationView = WaveBasedConversationView.create(view,
+        ID_GENERATOR);
+    WaveletBasedConversation rootConversation = conversationView.createRoot();
+    view.getRoot().addParticipant(VIEWER);
+    // No shared domain participant — this is a private wave.
+
+    ConversationThread rootThread = rootConversation.getRootThread();
+    ConversationBlip firstBlip = rootThread.appendBlip();
+    ConversationBlip secondBlip = rootThread.appendBlip();
+
+    Wavelet userData = view.createUserData();
+    ObservablePrimitiveSupplement state = WaveletBasedSupplement.create(userData);
+    PublicWaveReadStateBootstrap.seedIfPublicWave(state, view, VIEWER);
 
     ObservableSupplementedWave supplementedWave =
         new LiveSupplementedWaveImpl(state, view, VIEWER, SupplementedWaveImpl.DefaultFollow.ALWAYS,
