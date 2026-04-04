@@ -514,7 +514,7 @@ public class WaveDigester {
     for (ObservableWaveletData waveletData : conversationalWavelets) {
       ParticipantId sharedDomainParticipant =
           ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(
-              waveletData.getWaveletId().getDomain());
+              waveletData.getWaveId().getDomain());
       if (waveletData.getParticipants().contains(sharedDomainParticipant)) {
         return true;
       }

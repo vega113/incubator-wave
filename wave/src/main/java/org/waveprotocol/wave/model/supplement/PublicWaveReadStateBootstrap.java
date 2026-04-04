@@ -58,7 +58,7 @@ public final class PublicWaveReadStateBootstrap {
   private static boolean isPublicWave(ObservableWaveView wave) {
     for (ObservableWavelet wavelet : wave.getWavelets()) {
       ParticipantId sharedParticipant =
-          ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(wavelet.getId().getDomain());
+          ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(wavelet.getWaveId().getDomain());
       if (IdUtil.isConversationalId(wavelet.getId())
           && wavelet.getParticipantIds().contains(sharedParticipant)) {
         return true;

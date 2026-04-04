@@ -35,9 +35,8 @@ import org.waveprotocol.wave.model.wave.Wavelet;
 
 public final class PublicWaveReadStateBootstrapTest extends TestCase {
 
-  private static final ParticipantId VIEWER = ParticipantId.ofUnsafe("viewer@example.com");
   private static final ParticipantId CROSS_DOMAIN_VIEWER =
-      ParticipantId.ofUnsafe("viewer@other.com");
+      ParticipantId.ofUnsafe("viewer@other.example");
   private static final IdGenerator ID_GENERATOR = FakeIdGenerator.create();
 
   public void testImplicitPublicViewerStartsFullyRead() {
@@ -46,7 +45,7 @@ public final class PublicWaveReadStateBootstrapTest extends TestCase {
         ID_GENERATOR);
     WaveletBasedConversation rootConversation = conversationView.createRoot();
     view.getRoot().addParticipant(ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(
-        VIEWER.getDomain()));
+        view.getRoot().getWaveId().getDomain()));
 
     ConversationThread rootThread = rootConversation.getRootThread();
     ConversationBlip firstBlip = rootThread.appendBlip();
@@ -54,11 +53,11 @@ public final class PublicWaveReadStateBootstrapTest extends TestCase {
 
     Wavelet userData = view.createUserData();
     ObservablePrimitiveSupplement state = WaveletBasedSupplement.create(userData);
-    PublicWaveReadStateBootstrap.seedIfPublicWave(state, view, VIEWER);
+    PublicWaveReadStateBootstrap.seedIfPublicWave(state, view, CROSS_DOMAIN_VIEWER);
 
     ObservableSupplementedWave supplementedWave =
-        new LiveSupplementedWaveImpl(state, view, VIEWER, SupplementedWaveImpl.DefaultFollow.ALWAYS,
-            conversationView);
+        new LiveSupplementedWaveImpl(state, view, CROSS_DOMAIN_VIEWER,
+            SupplementedWaveImpl.DefaultFollow.ALWAYS, conversationView);
 
     assertFalse(supplementedWave.isUnread(firstBlip));
     assertFalse(supplementedWave.isUnread(secondBlip));
@@ -94,7 +93,7 @@ public final class PublicWaveReadStateBootstrapTest extends TestCase {
     WaveBasedConversationView conversationView = WaveBasedConversationView.create(view,
         ID_GENERATOR);
     WaveletBasedConversation rootConversation = conversationView.createRoot();
-    view.getRoot().addParticipant(VIEWER);
+    view.getRoot().addParticipant(CROSS_DOMAIN_VIEWER);
     // No shared domain participant — this is a private wave.
 
     ConversationThread rootThread = rootConversation.getRootThread();
@@ -103,11 +102,11 @@ public final class PublicWaveReadStateBootstrapTest extends TestCase {
 
     Wavelet userData = view.createUserData();
     ObservablePrimitiveSupplement state = WaveletBasedSupplement.create(userData);
-    PublicWaveReadStateBootstrap.seedIfPublicWave(state, view, VIEWER);
+    PublicWaveReadStateBootstrap.seedIfPublicWave(state, view, CROSS_DOMAIN_VIEWER);
 
     ObservableSupplementedWave supplementedWave =
-        new LiveSupplementedWaveImpl(state, view, VIEWER, SupplementedWaveImpl.DefaultFollow.ALWAYS,
-            conversationView);
+        new LiveSupplementedWaveImpl(state, view, CROSS_DOMAIN_VIEWER,
+            SupplementedWaveImpl.DefaultFollow.ALWAYS, conversationView);
 
     assertTrue(supplementedWave.isUnread(firstBlip));
     assertTrue(supplementedWave.isUnread(secondBlip));

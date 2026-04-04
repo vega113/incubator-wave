@@ -57,6 +57,8 @@ import java.util.Map;
 public class WaveDigesterTest extends TestCase {
 
   private static final WaveletId CONVERSATION_WAVELET_ID = WaveletId.of("example.com", "conv+root");
+  private static final ParticipantId CROSS_DOMAIN_VIEWER =
+      ParticipantId.ofUnsafe("viewer@other.com");
 
   @Mock private IdGenerator idGenerator;
 
@@ -152,20 +154,18 @@ public class WaveDigesterTest extends TestCase {
     List<ObservableWaveletData> allData = data.copyWaveletData();
     ObservableWaveletData convData = allData.get(0);
 
-    // Add the wave's shared-domain participant to make it public.
+    convData.addParticipant(CROSS_DOMAIN_VIEWER);
     ParticipantId sharedDomain = ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(
-        convData.getWaveletId().getDomain());
+        convData.getWaveId().getDomain());
     convData.addParticipant(sharedDomain);
 
-    // Build supplement with NO UDW (null), viewer IS explicit participant (PARTICIPANT is creator)
     ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(convData);
     ObservableConversationView conversations = conversationUtil.buildConversation(wavelet);
     List<ObservableWaveletData> conversationalWavelets = Collections.singletonList(convData);
 
     SupplementedWave supplement =
-        digester.buildSupplement(PARTICIPANT, conversations, null, conversationalWavelets);
+        digester.buildSupplement(CROSS_DOMAIN_VIEWER, conversations, null, conversationalWavelets);
 
-    // On a public wave with no UDW, unread count should be 0
     Digest digest = digester.generateDigest(conversations, supplement, convData,
         conversationalWavelets);
     assertEquals(0, digest.getUnreadCount());
@@ -183,13 +183,14 @@ public class WaveDigesterTest extends TestCase {
     List<ObservableWaveletData> allData = data.copyWaveletData();
     ObservableWaveletData convData = allData.get(0);
 
+    convData.addParticipant(CROSS_DOMAIN_VIEWER);
     // NO shared domain participant — this is a private wave
     ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(convData);
     ObservableConversationView conversations = conversationUtil.buildConversation(wavelet);
     List<ObservableWaveletData> conversationalWavelets = Collections.singletonList(convData);
 
     SupplementedWave supplement =
-        digester.buildSupplement(PARTICIPANT, conversations, null, conversationalWavelets);
+        digester.buildSupplement(CROSS_DOMAIN_VIEWER, conversations, null, conversationalWavelets);
 
     Digest digest = digester.generateDigest(conversations, supplement, convData,
         conversationalWavelets);
@@ -209,8 +210,9 @@ public class WaveDigesterTest extends TestCase {
     List<ObservableWaveletData> allData = data.copyWaveletData();
     ObservableWaveletData convData = allData.get(0);
 
+    convData.addParticipant(CROSS_DOMAIN_VIEWER);
     ParticipantId sharedDomain = ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(
-        convData.getWaveletId().getDomain());
+        convData.getWaveId().getDomain());
     convData.addParticipant(sharedDomain);
 
     ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(convData);
@@ -218,14 +220,14 @@ public class WaveDigesterTest extends TestCase {
     List<ObservableWaveletData> conversationalWavelets = Collections.singletonList(convData);
 
     SupplementedWave supplement =
-        digester.buildSupplement(PARTICIPANT, conversations, null, conversationalWavelets);
+        digester.buildSupplement(CROSS_DOMAIN_VIEWER, conversations, null, conversationalWavelets);
 
     SimpleSearchProviderImpl.WaveSupplementContext context =
         new SimpleSearchProviderImpl.WaveSupplementContext(
             convData, null, conversationalWavelets, supplement, conversations);
 
     Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters = new IdentityHashMap<>();
-    int unreadCount = digester.countUnread(PARTICIPANT, context, waveletAdapters);
+    int unreadCount = digester.countUnread(CROSS_DOMAIN_VIEWER, context, waveletAdapters);
     assertEquals(0, unreadCount);
   }
 }

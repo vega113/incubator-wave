@@ -441,14 +441,7 @@ If any tests assert that public waves should have non-zero unread counts, they n
 Run: `sbt "wave / Test / testOnly *SimpleSearchProviderImplTest" 2>&1 | tail -20`
 Expected: All tests pass.
 
-- [ ] **Step 4: Verify the mirrored changelog copy stays aligned**
+- [ ] **Step 4: Verify changelog alignment**
 
-Run:
-`if [ -f wave/src/main/resources/config/changelog.json ]; then diff -u wave/config/changelog.json wave/src/main/resources/config/changelog.json; fi`
-Expected: no diff when the mirrored changelog file exists; if the mirror is present and differs, fail the check and update both copies together.
-
-- [ ] **Step 5: Verify changelog alignment is explicit in the final check**
-
-Run:
-`if [ -f wave/src/main/resources/config/changelog.json ]; then cmp -s wave/config/changelog.json wave/src/main/resources/config/changelog.json; fi`
-Expected: exit 0 only when the mirrored changelog file is absent or the two copies are byte-for-byte identical; if the mirror exists and differs, stop and fix both changelog copies before landing.
+Run: `if [ -f wave/src/main/resources/changelog.json ]; then cmp -s wave/config/changelog.json wave/src/main/resources/changelog.json; else test -f wave/config/changelog.json; fi`
+Expected: `wave/config/changelog.json` is updated, and any mirrored changelog copy stays byte-identical.
