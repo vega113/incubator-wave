@@ -22,6 +22,7 @@ package org.waveprotocol.box.server.robots.operations;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 import com.google.wave.api.Element;
+import com.google.wave.api.FormElement;
 import com.google.wave.api.Gadget;
 import com.google.wave.api.InvalidRequestException;
 import com.google.wave.api.JsonRpcConstant.ParamsProperty;
@@ -455,10 +456,13 @@ public class DocumentModifyService implements OperationService {
           int xmlStart = view.transformToXmlOffset(range.getStart());
           Doc.E docElem = Point.elementAfter(doc, doc.locate(xmlStart));
           updateExistingGadgetElement(doc, docElem, element);
+        } else if (element.isFormElement()) {
+          int xmlStart = view.transformToXmlOffset(range.getStart());
+          Doc.E docElem = Point.elementAfter(doc, doc.locate(xmlStart));
+          updateExistingFormElement(doc, docElem, element);
         } else {
-          // TODO (Yuri Z.) Updating other elements.
           throw new UnsupportedOperationException(
-              "Can't update other elements than gadgets at the moment");
+              "Can't update elements of type " + element.getType());
         }
       }
     }
@@ -536,6 +540,32 @@ public class DocumentModifyService implements OperationService {
           doc.insertXml(Point.<Doc.N> inElement(existingElement, null), xml);
         }
       }
+    }
+  }
+
+  /**
+   * Updates the existing form element properties.
+   *
+   * @param doc the document to update elements in.
+   * @param existingElement the form element to update.
+   * @param element the element that describes what existingElement should be
+   *        updated with.
+   */
+  private void updateExistingFormElement(Document doc, Doc.E existingElement, Element element) {
+    Preconditions.checkArgument(element.isFormElement(),
+        "Called with non-form element type %s", element.getType());
+
+    String name = element.getProperty(FormElement.NAME);
+    if (name != null) {
+      doc.setElementAttribute(existingElement, "name", name);
+    }
+    String value = element.getProperty(FormElement.VALUE);
+    if (value != null) {
+      doc.setElementAttribute(existingElement, "value", value);
+    }
+    String defaultValue = element.getProperty(FormElement.DEFAULT_VALUE);
+    if (defaultValue != null) {
+      doc.setElementAttribute(existingElement, "defaultValue", defaultValue);
     }
   }
 
