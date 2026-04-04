@@ -6,7 +6,7 @@ Owner: Project Maintainers
 
 This document is the single starting point for resuming work on the current
 `incubator-wave` tree. It points new agents to the docs map, the live
-GitHub-Issues workflow, and the current SBT/Jakarta entry points without
+GitHub Issues workflow, and the current SBT/Jakarta entry points without
 depending on the older merge notes that are still preserved elsewhere in the
 repo.
 
@@ -44,31 +44,31 @@ Read these files first when resuming work:
    - Verified current repository snapshot and prioritized backlog.
 3. [README.md](../README.md)
    - Developer entry point for SBT/Jakarta local setup and the quick docs links.
-4. [docs/agents/README.md](docs/agents/README.md)
+4. [docs/agents/README.md](agents/README.md)
    - Fast route for a new agent to the right docs and workflow surfaces.
-5. [docs/runbooks/README.md](docs/runbooks/README.md)
+5. [docs/runbooks/README.md](runbooks/README.md)
    - Operational, deployment, and local verification runbooks.
 6. [docs/architecture/README.md](architecture/README.md)
    - Durable technical references and ledgers that stay in place.
-7. [docs/github-issues.md](docs/github-issues.md)
+7. [docs/github-issues.md](github-issues.md)
    - Live GitHub Issues workflow, label conventions, and execution-log expectations.
-8. [AGENTS.md](../AGENTS.md) and [docs/agents/tool-usage.md](docs/agents/tool-usage.md)
+8. [AGENTS.md](../AGENTS.md) and [docs/agents/tool-usage.md](agents/tool-usage.md)
    - Repo operating rules plus Codex tool routing, model tiers, and MCP guidance.
-9. [docs/BUILDING-sbt.md](docs/BUILDING-sbt.md)
+9. [docs/BUILDING-sbt.md](BUILDING-sbt.md)
    - Canonical SBT build notes and current caveats.
-10. [docs/deployment/README.md](docs/deployment/README.md)
+10. [docs/deployment/README.md](deployment/README.md)
    - Canonical deployment runbook entry point.
-11. [docs/CONFIG_FLAGS.md](docs/CONFIG_FLAGS.md) and [docs/fragments-config.md](docs/fragments-config.md)
+11. [docs/CONFIG_FLAGS.md](CONFIG_FLAGS.md) and [docs/fragments-config.md](fragments-config.md)
     - Configuration behavior and fragments-specific settings.
-12. [docs/persistence-topology-audit.md](docs/persistence-topology-audit.md)
+12. [docs/persistence-topology-audit.md](persistence-topology-audit.md)
    - Current persistence topology, Mongo coverage, and multi-instance blockers.
-13. [docs/architecture/jakarta-dual-source.md](docs/architecture/jakarta-dual-source.md), [docs/architecture/runtime-entrypoints.md](docs/architecture/runtime-entrypoints.md), and [docs/architecture/dev-persistence-topology.md](docs/architecture/dev-persistence-topology.md)
+13. [docs/architecture/jakarta-dual-source.md](architecture/jakarta-dual-source.md), [docs/architecture/runtime-entrypoints.md](architecture/runtime-entrypoints.md), and [docs/architecture/dev-persistence-topology.md](architecture/dev-persistence-topology.md)
     - Durable source-selection, runtime wiring, and dev-persistence references.
-14. [docs/modernization-plan.md](docs/modernization-plan.md), [docs/jetty-migration.md](docs/jetty-migration.md), [docs/migrate-conversation-renderer-to-apache-wave.md](docs/migrate-conversation-renderer-to-apache-wave.md), and [docs/blocks-adoption-plan.md](docs/blocks-adoption-plan.md)
+14. [docs/modernization-plan.md](modernization-plan.md), [docs/jetty-migration.md](jetty-migration.md), [docs/migrate-conversation-renderer-to-apache-wave.md](migrate-conversation-renderer-to-apache-wave.md), and [docs/blocks-adoption-plan.md](blocks-adoption-plan.md)
     - Historical ledgers that still hold useful implementation detail.
-15. [docs/j2cl-gwt3-inventory.md](docs/j2cl-gwt3-inventory.md) and [docs/j2cl-gwt3-decision-memo.md](docs/j2cl-gwt3-decision-memo.md)
+15. [docs/j2cl-gwt3-inventory.md](j2cl-gwt3-inventory.md) and [docs/j2cl-gwt3-decision-memo.md](j2cl-gwt3-decision-memo.md)
     - Phase 8 inventory and no-go-for-now decision context.
-16. [docs/epics/README.md](docs/epics/README.md) and [../.beads/README.md](../.beads/README.md)
+16. [docs/epics/README.md](epics/README.md) and [../.beads/README.md](../.beads/README.md)
     - Historical Beads archive references only.
 
 ## Verified current state
