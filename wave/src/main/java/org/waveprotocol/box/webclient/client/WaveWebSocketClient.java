@@ -119,6 +119,13 @@ public class WaveWebSocketClient implements WaveSocket.WaveSocketCallback {
   private com.google.gwt.user.client.Timer reconnectTimer;
   private final String urlBase;
 
+  /**
+   * When set, a page reload is imminent (e.g. after a prolonged disconnect
+   * due to server deploy).  No further messages should be sent or processed
+   * because the channel state machines are stale.
+   */
+  private boolean reloadPending = false;
+
   public WaveWebSocketClient(boolean websocketNotAvailable, String urlBase) {
     this.urlBase = urlBase;
     submitRequestCallbacks = CollectionUtils.createIntMap();
@@ -154,6 +161,20 @@ public class WaveWebSocketClient implements WaveSocket.WaveSocketCallback {
     boolean wasReconnection = connectedAtLeastOnce;
     resetReconnectStateAfterConnect();
 
+    // Fire the status event BEFORE sending any protocol messages.
+    // For prolonged disconnects (server deploy), the handler triggers a
+    // page reload.  We must not send stale open/submit requests whose
+    // server-side responses would crash the channel state machines
+    // (WaveletDeltaChannelImpl expects INITIAL state for snapshots).
+    ConnectionStatus status = wasReconnection
+        ? ConnectionStatus.RECONNECTED : ConnectionStatus.CONNECTED;
+    ClientEvents.get().fireEvent(new NetworkStatusEvent(status));
+
+    if (reloadPending) {
+      LOG.info("Reload pending after prolonged disconnect, skipping message flush");
+      return;
+    }
+
     // Sends the session cookie to the server via an RPC to work around browser bugs.
     // See: http://code.google.com/p/wave-protocol/issues/detail?id=119
     String token = Cookies.getCookie(JETTY_SESSION_TOKEN_NAME);
@@ -167,10 +188,6 @@ public class WaveWebSocketClient implements WaveSocket.WaveSocketCallback {
     while (!messages.isEmpty() && connected == ConnectState.CONNECTED) {
       send(messages.poll());
     }
-
-    ConnectionStatus status = wasReconnection
-        ? ConnectionStatus.RECONNECTED : ConnectionStatus.CONNECTED;
-    ClientEvents.get().fireEvent(new NetworkStatusEvent(status));
   }
 
   @Override
@@ -194,6 +211,9 @@ public class WaveWebSocketClient implements WaveSocket.WaveSocketCallback {
 
   @Override
   public void onMessage(final String message) {
+    if (reloadPending) {
+      return;
+    }
     LOG.info("received JSON message " + message);
     Timer timer = Timing.start("deserialize message");
     MessageWrapper wrapper;
@@ -228,6 +248,14 @@ public class WaveWebSocketClient implements WaveSocket.WaveSocketCallback {
 
   public void open(ProtocolOpenRequestJsoImpl message) {
     send(MessageWrapper.create(sequenceNo++, "ProtocolOpenRequest", message));
+  }
+
+  /**
+   * Signals that a page reload is imminent.  After this call, no further
+   * messages will be sent to or processed from the server.
+   */
+  public void setReloadPending() {
+    reloadPending = true;
   }
 
   private void send(JsonMessage message) {
