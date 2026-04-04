@@ -10,7 +10,9 @@ supported JDK 17 / Jakarta server path and the repo's current SBT layout.
 - SBT 1.10+ installed.
 - `protoc` is provided by `sbt-protoc` (embedded protoc v3.25.x).
 - `ant` is no longer needed (the legacy `testBackend` fallback has been removed).
-- `generatePstMessages` and `generateFlags` remain manual tasks.
+- `generatePstMessages` and `generateFlags` run automatically as part of
+  `sbt compile`; invoke them directly only when you want to regenerate those
+  sources without a full compile.
 
 ## Layout and decisions
 
@@ -20,7 +22,8 @@ supported JDK 17 / Jakarta server path and the repo's current SBT layout.
   - `wave/src/test/java/` (JUnit tests)
   - `wave/src/proto/` (Protocol Buffer definitions)
   - `proto_src/` (generated Protobuf Java sources)
-  - `gen/gxp/`, `gen/messages/`, `gen/flags/` (generated sources)
+  - `gen/messages/`, `gen/flags/` (generated sources; `gen/gxp/` is historical
+    and no longer generated)
 - Dependencies: all managed via SBT `libraryDependencies` (Coursier).
 - Resources: `wave/war/` is added to the classpath for static content.
 - Main class: `org.waveprotocol.box.server.ServerMain`.

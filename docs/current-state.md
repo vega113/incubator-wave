@@ -14,10 +14,11 @@ repo.
 
 - `incubator-wave`
   - Active repository for resumed work.
-  - Task branches are created in `/Users/vega/devroot/worktrees/` and keep the
-    active implementation work isolated from the main checkout.
+  - Task branches should use git worktrees in the shared worktrees directory
+    described in `AGENTS.md`, keeping active implementation work isolated from
+    the main checkout.
 - `inc-wave-clone`
-  - Historical local staging clone used during the `pro-featues` merge stream.
+  - Historical local staging clone used during the `pro-features` merge stream.
   - Treat it as superseded by `incubator-wave` unless a specific file needs
     archaeological comparison.
 - `Wiab.pro`
