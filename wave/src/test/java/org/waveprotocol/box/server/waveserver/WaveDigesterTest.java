@@ -39,10 +39,15 @@ import org.waveprotocol.wave.model.id.IdGenerator;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.supplement.SupplementedWave;
 import org.waveprotocol.wave.model.wave.ObservableWavelet;
+import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
 import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 
 import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Unit tests for {@link WaveDigester}.
@@ -52,6 +57,8 @@ import java.util.Collections;
 public class WaveDigesterTest extends TestCase {
 
   private static final WaveletId CONVERSATION_WAVELET_ID = WaveletId.of("example.com", "conv+root");
+  private static final ParticipantId CROSS_DOMAIN_VIEWER =
+      ParticipantId.ofUnsafe("viewer@other.com");
 
   @Mock private IdGenerator idGenerator;
 
@@ -133,5 +140,94 @@ public class WaveDigesterTest extends TestCase {
 
     assertEquals(3, digest.getBlipCount());
     assertEquals(2, digest.getUnreadCount());
+  }
+
+  /**
+   * An explicit participant on a PUBLIC wave with no UDW should see 0 unread.
+   * The wave is public because its own shared-domain participant is present.
+   */
+  public void testExplicitParticipantOnPublicWaveWithNoUdwHasZeroUnread() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    data.appendBlipWithText("blip 1");
+    data.appendBlipWithText("blip 2");
+    List<ObservableWaveletData> allData = data.copyWaveletData();
+    ObservableWaveletData convData = allData.get(0);
+
+    convData.addParticipant(CROSS_DOMAIN_VIEWER);
+    ParticipantId sharedDomain = ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(
+        convData.getWaveId().getDomain());
+    convData.addParticipant(sharedDomain);
+
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(convData);
+    ObservableConversationView conversations = conversationUtil.buildConversation(wavelet);
+    List<ObservableWaveletData> conversationalWavelets = Collections.singletonList(convData);
+
+    SupplementedWave supplement =
+        digester.buildSupplement(CROSS_DOMAIN_VIEWER, conversations, null, conversationalWavelets);
+
+    Digest digest = digester.generateDigest(conversations, supplement, convData,
+        conversationalWavelets);
+    assertEquals(0, digest.getUnreadCount());
+  }
+
+  /**
+   * An explicit participant on a PRIVATE wave with no UDW should see all blips as unread.
+   * This is the case when someone is added to a wave but hasn't opened it yet.
+   */
+  public void testExplicitParticipantOnPrivateWaveWithNoUdwSeesAllUnread() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    data.appendBlipWithText("blip 1");
+    data.appendBlipWithText("blip 2");
+    List<ObservableWaveletData> allData = data.copyWaveletData();
+    ObservableWaveletData convData = allData.get(0);
+
+    convData.addParticipant(CROSS_DOMAIN_VIEWER);
+    // NO shared domain participant — this is a private wave
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(convData);
+    ObservableConversationView conversations = conversationUtil.buildConversation(wavelet);
+    List<ObservableWaveletData> conversationalWavelets = Collections.singletonList(convData);
+
+    SupplementedWave supplement =
+        digester.buildSupplement(CROSS_DOMAIN_VIEWER, conversations, null, conversationalWavelets);
+
+    Digest digest = digester.generateDigest(conversations, supplement, convData,
+        conversationalWavelets);
+    assertEquals(2, digest.getUnreadCount());
+  }
+
+  /**
+   * Tests the createReadState/countUnread path used by SimpleSearchProviderImpl.
+   * An explicit participant on a public wave with no UDW should get 0 unread
+   * through the WaveSupplementContext-based counting path.
+   */
+  public void testCountUnreadViaContextPathPublicWaveNoUdw() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    data.appendBlipWithText("blip 1");
+    data.appendBlipWithText("blip 2");
+    List<ObservableWaveletData> allData = data.copyWaveletData();
+    ObservableWaveletData convData = allData.get(0);
+
+    convData.addParticipant(CROSS_DOMAIN_VIEWER);
+    ParticipantId sharedDomain = ParticipantIdUtil.makeUnsafeSharedDomainParticipantId(
+        convData.getWaveId().getDomain());
+    convData.addParticipant(sharedDomain);
+
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(convData);
+    ObservableConversationView conversations = conversationUtil.buildConversation(wavelet);
+    List<ObservableWaveletData> conversationalWavelets = Collections.singletonList(convData);
+
+    SupplementedWave supplement =
+        digester.buildSupplement(CROSS_DOMAIN_VIEWER, conversations, null, conversationalWavelets);
+
+    SimpleSearchProviderImpl.WaveSupplementContext context =
+        new SimpleSearchProviderImpl.WaveSupplementContext(
+            convData, null, conversationalWavelets, supplement, conversations);
+
+    Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters = new IdentityHashMap<>();
+    int unreadCount = digester.countUnread(CROSS_DOMAIN_VIEWER, context, waveletAdapters);
+    assertEquals(0, unreadCount);
   }
 }
