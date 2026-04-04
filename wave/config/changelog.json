@@ -65,7 +65,7 @@
       {
         "type": "fix",
         "items": [
-          "Reload the page after a reconnect that follows a prolonged disconnect",
+          "Reload the page after a reconnect that follows a prolonged disconnect lasting longer than 30 seconds",
           "Skip the auto-reload when a wave is open so active editing is not interrupted",
           "Keep the existing offline and turbulence indicators for short disconnects"
         ]

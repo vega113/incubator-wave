@@ -44,6 +44,7 @@ import com.google.gwt.user.client.ui.RootPanel;
 import com.google.gwt.user.client.ui.SplitLayoutPanel;
 import com.google.gwt.user.client.ui.UIObject;
 
+import org.waveprotocol.box.common.ReconnectReloadPolicy;
 import org.waveprotocol.box.webclient.client.i18n.WebClientMessages;
 import org.waveprotocol.box.webclient.profile.RemoteProfileManagerImpl;
 import org.waveprotocol.box.webclient.search.RemoteSearchService;
@@ -261,12 +262,6 @@ public class WebClient implements EntryPoint {
 
   /** Persistent-toast id for the offline-while-editing warning. */
   private static final String OFFLINE_EDITING_TOAST_ID = "offline-editing";
-
-  /**
-   * If the WebSocket was disconnected for longer than this, assume a server
-   * restart (deploy) and force a full page reload on reconnect.
-   */
-  private static final double DEPLOY_DISCONNECT_THRESHOLD_MS = 5000;
 
   /** Show the turbulence banner (called after the delay). */
   private void showTurbulenceBanner() {
@@ -650,21 +645,24 @@ public class WebClient implements EntryPoint {
       @Override
       public void onNetworkStatus(NetworkStatusEvent event) {
         // After a prolonged disconnect (likely server restart / deploy),
-        // reload list/home views so the browser fetches the latest JS and
+        // the client's channel state machines are stale. Force a full page
+        // reload for list/home views so the browser fetches the latest JS and
         // opens fresh server-side subscriptions. If a wave is open, keep the
         // session alive and let the normal reconnect handling update the UI.
         if (event.getStatus() == ConnectionStatus.RECONNECTED
             && turbulenceStartTime > 0) {
           double disconnectMs = new Date().getTime() - turbulenceStartTime;
-          if (disconnectMs > DEPLOY_DISCONNECT_THRESHOLD_MS) {
-            if (wave == null) {
-              LOG.info("Prolonged disconnect (" + (int) disconnectMs
-                  + "ms), reloading page to resync with server");
-              hideTurbulenceBanner(false);
-              Window.Location.replace(Window.Location.getHref());
-              return;
-            }
-            LOG.info("Prolonged disconnect (" + (int) disconnectMs
+          if (ReconnectReloadPolicy.shouldReloadAfterProlongedDisconnect(
+              wave != null, disconnectMs)) {
+            LOG.info("Prolonged disconnect (" + Math.round(disconnectMs)
+                + "ms), reloading page to resync with server");
+            websocket.setReloadPending();
+            hideTurbulenceBanner(false);
+            Window.Location.replace(Window.Location.getHref());
+            return;
+          } else if (disconnectMs
+              > ReconnectReloadPolicy.PROLONGED_DISCONNECT_THRESHOLD_MS) {
+            LOG.info("Prolonged disconnect (" + Math.round(disconnectMs)
                 + "ms) while a wave is open; skipping auto-reload");
           }
         }
