@@ -440,3 +440,9 @@ If any tests assert that public waves should have non-zero unread counts, they n
 
 Run: `sbt "wave / Test / testOnly *SimpleSearchProviderImplTest" 2>&1 | tail -20`
 Expected: All tests pass.
+
+- [ ] **Step 4: Verify the mirrored changelog copy stays aligned**
+
+Run:
+`if [ -f wave/src/main/resources/config/changelog.json ]; then diff -u wave/config/changelog.json wave/src/main/resources/config/changelog.json; fi`
+Expected: no diff when the mirrored changelog file exists; if this checkout only carries the config source of truth, note that the second copy is absent in this branch.
