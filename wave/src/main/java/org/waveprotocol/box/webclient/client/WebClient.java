@@ -262,6 +262,12 @@ public class WebClient implements EntryPoint {
   /** Persistent-toast id for the offline-while-editing warning. */
   private static final String OFFLINE_EDITING_TOAST_ID = "offline-editing";
 
+  /**
+   * If the WebSocket was disconnected for longer than this, assume a server
+   * restart (deploy) and force a full page reload on reconnect.
+   */
+  private static final double DEPLOY_DISCONNECT_THRESHOLD_MS = 5000;
+
   /** Show the turbulence banner (called after the delay). */
   private void showTurbulenceBanner() {
     injectTurbulenceCss();
@@ -651,7 +657,9 @@ public class WebClient implements EntryPoint {
         if (event.getStatus() == ConnectionStatus.RECONNECTED
             && turbulenceStartTime > 0) {
           double disconnectMs = new Date().getTime() - turbulenceStartTime;
-          if (disconnectMs > 5000) {
+          if (disconnectMs > DEPLOY_DISCONNECT_THRESHOLD_MS) {
+            LOG.info("Prolonged disconnect (" + (int) disconnectMs
+                + "ms), reloading page to resync with server");
             hideTurbulenceBanner(false);
             Window.Location.replace(Window.Location.getHref());
             return;
