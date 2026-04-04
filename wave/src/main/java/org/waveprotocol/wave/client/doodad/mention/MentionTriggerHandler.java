@@ -45,7 +45,7 @@ public final class MentionTriggerHandler
     implements KeySignalListener, MentionPopupWidget.Listener {
 
   /** Debounce delay for filtering updates in milliseconds. */
-  private static final int FILTER_DELAY_MS = 150;
+  private static final int FILTER_DELAY_MS = 200;
 
   private final Conversation conversation;
   private Editor editor;

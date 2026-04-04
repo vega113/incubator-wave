@@ -21,7 +21,6 @@ package org.waveprotocol.wave.client.doodad.mention;
 import org.waveprotocol.wave.client.editor.content.AnnotationPainter.PaintFunction;
 import org.waveprotocol.wave.client.editor.content.PainterRegistry;
 import org.waveprotocol.wave.client.editor.content.Registries;
-import org.waveprotocol.wave.client.editor.content.misc.AnnotationPaint;
 import org.waveprotocol.wave.model.conversation.AnnotationConstants;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.DefaultAnnotationBehaviour;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.BiasDirection;
@@ -51,7 +50,10 @@ public class MentionAnnotationHandler implements AnnotationMutationHandler {
     public Map<String, String> apply(Map<String, Object> from, boolean isEditing) {
       Object value = from.get(AnnotationConstants.MENTION_USER);
       if (value != null && !value.toString().isEmpty()) {
-        return Collections.singletonMap(AnnotationPaint.BG_COLOUR_ATTR, MENTION_COLOUR);
+        Map<String, String> styles = new java.util.HashMap<String, String>();
+        styles.put("backgroundColor", MENTION_COLOUR);
+        styles.put("fontWeight", "600");
+        return styles;
       }
       return Collections.emptyMap();
     }
