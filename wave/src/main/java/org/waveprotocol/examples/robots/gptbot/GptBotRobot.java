@@ -178,6 +178,10 @@ public final class GptBotRobot {
    * skips these blips to avoid replying on every keystroke; the final
    * DOCUMENT_CHANGED event (after the editor moves away) will not carry
    * these annotations.
+   *
+   * <p>Note: if a client disconnects mid-edit (browser crash), these annotations
+   * may linger until session cleanup.  In that case the bot will not reply to the
+   * blip until the annotations are removed or a new edit session clears them.
    */
   private static boolean isBeingEdited(Blip blip) {
     if (blip.getAnnotations() != null) {
