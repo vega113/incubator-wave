@@ -35,6 +35,7 @@ import org.waveprotocol.box.server.robots.operations.TestingWaveletData;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
+import org.waveprotocol.wave.model.document.util.EmptyDocument;
 import org.waveprotocol.wave.model.id.IdGenerator;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.supplement.SupplementedWave;
@@ -229,5 +230,38 @@ public class WaveDigesterTest extends TestCase {
     Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters = new IdentityHashMap<>();
     int unreadCount = digester.countUnread(CROSS_DOMAIN_VIEWER, context, waveletAdapters);
     assertEquals(0, unreadCount);
+  }
+
+  /**
+   * Non-blip documents must not contribute to unread counts.
+   */
+  public void testCountUnreadViaContextPathIgnoresNonBlipDocuments() {
+    ParticipantId viewer = ParticipantId.ofUnsafe("viewer@example.com");
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, viewer, true);
+    data.appendBlipWithText("blip 1");
+    data.appendBlipWithText("blip 2");
+    List<ObservableWaveletData> allData = data.copyWaveletData();
+    ObservableWaveletData convData = allData.get(0);
+    ObservableWaveletData udwData = allData.get(1);
+
+    convData.createDocument(
+        "data+token",
+        viewer,
+        Collections.singleton(viewer),
+        EmptyDocument.EMPTY_DOCUMENT,
+        42L,
+        42L);
+
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(convData);
+    ObservableConversationView conversations = conversationUtil.buildConversation(wavelet);
+    List<ObservableWaveletData> conversationalWavelets = Collections.singletonList(convData);
+    SimpleSearchProviderImpl.WaveSupplementContext context =
+        new SimpleSearchProviderImpl.WaveSupplementContext(
+            convData, udwData, conversationalWavelets, null, conversations);
+
+    Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters = new IdentityHashMap<>();
+    int unreadCount = digester.countUnread(viewer, context, waveletAdapters);
+    assertEquals(2, unreadCount);
   }
 }
