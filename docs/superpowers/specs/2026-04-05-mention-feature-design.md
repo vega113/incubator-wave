@@ -122,6 +122,8 @@ The current implementation keeps the autocomplete scoped to existing wave partic
 | `TokenQueryType.java` | Add `MENTIONS` token |
 | `QueryHelper.java` | Parse `mentions:` with `me` resolution |
 | `SimpleSearchProviderImpl.java` | Mention filter stage |
+| `Lucene9SearchProviderImpl.java` | Lucene mention query |
+| `Lucene9QueryParser.java` | Mention query compilation |
 | `Lucene9QueryCompiler.java` | Lucene mention query compilation |
 | `Lucene9QueryModel.java` | Parsed mention query model |
 | `SearchPresenter.java` | Toolbar button |
