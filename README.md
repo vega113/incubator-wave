@@ -105,9 +105,9 @@ setup, build, and deployment guidance.
 Note:
 
 - requires vagrant and virtual box to be installed and an internet
-connection.
+  connection.
 - these images predate the current Java 17 baseline and may lag the supported
-SBT/Jakarta path.
+  SBT/Jakarta path.
 
 ### Ubuntu & Fedora ( recommended )
 

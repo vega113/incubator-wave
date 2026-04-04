@@ -10,9 +10,8 @@ supported JDK 17 / Jakarta server path and the repo's current SBT layout.
 - SBT 1.10+ installed.
 - `protoc` is provided by `sbt-protoc` (embedded protoc v3.25.x).
 - `ant` is no longer needed (the legacy `testBackend` fallback has been removed).
-- `generatePstMessages` and `generateFlags` run automatically as part of
-  `sbt compile`; invoke them directly only when you want to regenerate those
-  sources without a full compile.
+- `generatePstMessages` and `generateFlags`: see Prerequisites above for the
+  `sbt compile` wiring and manual regeneration guidance.
 
 ## Layout and decisions
 
