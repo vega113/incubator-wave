@@ -25,7 +25,9 @@ import com.google.wave.api.OperationQueue;
 import com.google.wave.api.OperationRequest;
 import com.google.wave.api.ParticipantProfile;
 import com.google.wave.api.ProtocolVersion;
+import com.google.wave.api.Annotation;
 import com.google.wave.api.event.BlipSubmittedEvent;
+import com.google.wave.api.event.DocumentChangedEvent;
 import com.google.wave.api.event.Event;
 import com.google.wave.api.event.WaveletBlipCreatedEvent;
 import com.google.wave.api.impl.EventMessageBundle;
@@ -119,6 +121,12 @@ public final class GptBotRobot {
             handleBlip(BlipSubmittedEvent.as(event).getBlip(), event.getModifiedBy(),
                 handledBlipIds);
             break;
+          case DOCUMENT_CHANGED:
+            Blip changedBlip = DocumentChangedEvent.as(event).getBlip();
+            if (changedBlip != null && !isBeingEdited(changedBlip)) {
+              handleBlip(changedBlip, event.getModifiedBy(), handledBlipIds);
+            }
+            break;
           case WAVELET_BLIP_CREATED:
             handleBlip(WaveletBlipCreatedEvent.as(event).getNewBlip(), event.getModifiedBy(),
                 handledBlipIds);
@@ -165,6 +173,23 @@ public final class GptBotRobot {
     return modifiedBy != null && modifiedBy.equalsIgnoreCase(config.getParticipantId());
   }
 
+  /**
+   * Returns true if the blip has active editor annotations ({@code user/d/} or
+   * {@code user/e/}), indicating a user is currently editing it.  The bot should
+   * wait until editing finishes before replying to avoid firing on every keystroke.
+   */
+  private static boolean isBeingEdited(Blip blip) {
+    if (blip.getAnnotations() != null) {
+      for (Annotation annotation : blip.getAnnotations()) {
+        String name = annotation.getName();
+        if (name != null && (name.startsWith("user/d/") || name.startsWith("user/e/"))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   private String buildCapabilitiesXml() {
     StringBuilder xml = new StringBuilder();
     xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
@@ -174,6 +199,7 @@ public final class GptBotRobot {
         .append("</w:protocolversion>\n");
     xml.append("  <w:capabilities>\n");
     xml.append(capabilityXml("BLIP_SUBMITTED", "SELF,SIBLINGS"));
+    xml.append(capabilityXml("DOCUMENT_CHANGED", "SELF,SIBLINGS"));
     xml.append(capabilityXml("WAVELET_BLIP_CREATED", "SELF,SIBLINGS"));
     xml.append("  </w:capabilities>\n");
     xml.append("</w:robot>\n");
@@ -188,6 +214,7 @@ public final class GptBotRobot {
     String payload = String.join("|",
         config.getRobotName(),
         "BLIP_SUBMITTED:SELF,SIBLINGS",
+        "DOCUMENT_CHANGED:SELF,SIBLINGS",
         "WAVELET_BLIP_CREATED:SELF,SIBLINGS");
     String hash = "sha256:";
     try {
