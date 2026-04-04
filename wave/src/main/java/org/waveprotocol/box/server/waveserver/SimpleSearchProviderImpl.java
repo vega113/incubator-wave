@@ -889,6 +889,10 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
               public void elementEnd() {
               }
             });
+
+            if (foundMentions.containsAll(requiredMentions)) {
+              break;
+            }
           }
         }
 
