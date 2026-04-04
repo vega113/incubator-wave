@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-contabo
+  group: rollback-contabo
   cancel-in-progress: false
 
 jobs:
@@ -32,11 +32,11 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      issues: write
     env:
       CANONICAL_HOST: supawave.ai
       ROOT_HOST: wave.supawave.ai
       WWW_HOST: www.supawave.ai
+      CONTABO_HOST_FINGERPRINT: ${{ vars.CONTABO_HOST_FINGERPRINT || secrets.CONTABO_HOST_FINGERPRINT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,7 +50,26 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.ssh"
-          ssh-keyscan -p "${{ secrets.CONTABO_SSH_PORT || '22' }}" -H "${{ secrets.CONTABO_SSH_HOST }}" >> "$HOME/.ssh/known_hosts"
+          scanned_host_keys="$RUNNER_TEMP/contabo_known_hosts"
+          ssh-keyscan -p "${{ secrets.CONTABO_SSH_PORT || '22' }}" -H "${{ secrets.CONTABO_SSH_HOST }}" > "$scanned_host_keys"
+          expected_fingerprint="${CONTABO_HOST_FINGERPRINT:-}"
+          actual_fingerprints="$(ssh-keygen -lf "$scanned_host_keys" | awk '{print $2}')"
+          if [ -z "$expected_fingerprint" ]; then
+            echo "CONTABO_HOST_FINGERPRINT must be set as a repo variable or secret" >&2
+            exit 1
+          fi
+          if [ -z "$actual_fingerprints" ]; then
+            echo "Failed to read SSH host key fingerprint for ${{ secrets.CONTABO_SSH_HOST }}" >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$actual_fingerprints" | grep -Fx -- "$expected_fingerprint" > /dev/null; then
+            echo "SSH host key fingerprint mismatch for ${{ secrets.CONTABO_SSH_HOST }}" >&2
+            echo "Expected: $expected_fingerprint" >&2
+            echo "Actual fingerprints:" >&2
+            printf '%s\n' "$actual_fingerprints" >&2
+            exit 1
+          fi
+          cat "$scanned_host_keys" >> "$HOME/.ssh/known_hosts"
 
       - name: Upload rollback bundle
         run: |
@@ -81,15 +100,18 @@ jobs:
           ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -p "${{ secrets.CONTABO_SSH_PORT || '22' }}" "${{ secrets.CONTABO_SSH_USER }}@${{ secrets.CONTABO_SSH_HOST }}" "
             set -euo pipefail
             incoming='$remote_root/incoming/rollback'
-            tar -xzf \"\$incoming/bundle.tgz\" -C \"\$incoming\"
-            chmod +x \"\$incoming/deploy.sh\"
+            rollback_dir='$remote_root/incoming/rollback-${{ github.run_id }}'
+            rm -rf \"\$rollback_dir\"
+            mkdir -p \"\$rollback_dir\"
+            tar -xzf \"\$incoming/bundle.tgz\" -C \"\$rollback_dir\"
+            chmod +x \"\$rollback_dir/deploy.sh\"
             DEPLOY_ROOT='$remote_root' \
             CANONICAL_HOST='$CANONICAL_HOST' \
             ROOT_HOST='$ROOT_HOST' \
             WWW_HOST='$WWW_HOST' \
             SANITY_ADDRESS=$sanity_address_q \
             SANITY_PASSWORD=$sanity_password_q \
-              bash \"\$incoming/deploy.sh\" rollback
+              bash \"\$rollback_dir/deploy.sh\" rollback
           "
 
       - name: Notify rollback result
