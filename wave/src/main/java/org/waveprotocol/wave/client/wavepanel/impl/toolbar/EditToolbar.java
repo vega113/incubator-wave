@@ -172,6 +172,8 @@ public class EditToolbar {
     createInsertLinkButton(group);
     createRemoveLinkButton(group);
 
+    // Gadget button removed — gadgets are not supported in current deployment.
+
     group = toolbarUi.addGroup();
     createInsertAttachmentButton(group, user);
   }
