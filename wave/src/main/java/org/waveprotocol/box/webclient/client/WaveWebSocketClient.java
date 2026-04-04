@@ -239,12 +239,18 @@ public class WaveWebSocketClient implements WaveSocket.WaveSocketCallback {
   }
 
   public void submit(ProtocolSubmitRequestJsoImpl message, SubmitResponseCallback callback) {
+    if (reloadPending) {
+      return;
+    }
     int submitId = sequenceNo++;
     submitRequestCallbacks.put(submitId, callback);
     send(MessageWrapper.create(submitId, "ProtocolSubmitRequest", message));
   }
 
   public void open(ProtocolOpenRequestJsoImpl message) {
+    if (reloadPending) {
+      return;
+    }
     send(MessageWrapper.create(sequenceNo++, "ProtocolOpenRequest", message));
   }
 
@@ -257,6 +263,9 @@ public class WaveWebSocketClient implements WaveSocket.WaveSocketCallback {
   }
 
   private void send(JsonMessage message) {
+    if (reloadPending) {
+      return;
+    }
     switch (connected) {
       case CONNECTED:
         Timer timing = Timing.start("serialize message");
