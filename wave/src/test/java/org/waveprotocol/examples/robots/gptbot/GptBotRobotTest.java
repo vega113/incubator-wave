@@ -52,7 +52,7 @@ public class GptBotRobotTest extends TestCase {
 
     String response = robot.handleEventBundle(exampleBundleJson(TEST_CONFIG,
         "\n@" + TEST_CONFIG.getRobotName() + " please answer",
-        new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root")));
+        new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root")));
 
     assertTrue(response.contains("Here is a helpful answer."));
     assertTrue(response.contains("blip.createChild"));
@@ -72,7 +72,7 @@ public class GptBotRobotTest extends TestCase {
 
     String response = robot.handleEventBundle(exampleBundleJson(config,
         "\n@" + config.getRobotName() + " please answer",
-        new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root")));
+        new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root")));
 
     assertFalse(response.contains("Reply from the active API."));
     assertFalse(response.contains("blip.createChild"));
@@ -93,7 +93,7 @@ public class GptBotRobotTest extends TestCase {
 
     String response = robot.handleEventBundle(exampleBundleJson(config,
         "\n@" + config.getRobotName() + " please answer",
-        new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root")));
+        new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root")));
 
     assertFalse(response.contains("Reply from the active API."));
     assertFalse(response.contains("blip.createChild"));
@@ -153,9 +153,8 @@ public class GptBotRobotTest extends TestCase {
 
     String response = robot.handleEventBundle(exampleBundleJson(TEST_CONFIG,
         "\n@" + TEST_CONFIG.getRobotName() + " please answer",
-        new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root"),
-        new DocumentChangedEvent(null, null, "alice@example.com", 2L, "b+root"),
-        new WaveletBlipCreatedEvent(null, null, "alice@example.com", 3L, "b+root", "b+root")));
+        new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root"),
+        new WaveletBlipCreatedEvent(null, null, "alice@example.com", 2L, "b+root", "b+root")));
 
     assertTrue(response.contains("Here is a helpful answer."));
     assertEquals(1, apiClient.fetchCalls);
@@ -182,7 +181,7 @@ public class GptBotRobotTest extends TestCase {
 
     String xml = robot.getCapabilitiesXml();
 
-    assertTrue(xml.contains("BLIP_SUBMITTED"));
+    assertFalse(xml.contains("BLIP_SUBMITTED"));
     assertTrue(xml.contains("DOCUMENT_CHANGED"));
     assertTrue(xml.contains("WAVELET_BLIP_CREATED"));
     assertTrue(xml.contains("protocolversion"));
