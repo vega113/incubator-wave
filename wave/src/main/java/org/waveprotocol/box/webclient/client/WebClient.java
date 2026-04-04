@@ -79,6 +79,7 @@ import org.waveprotocol.wave.client.wavepanel.event.EventDispatcherPanel;
 import org.waveprotocol.wave.client.wavepanel.event.WaveChangeHandler;
 import org.waveprotocol.wave.client.wavepanel.event.FocusManager;
 import org.waveprotocol.wave.client.widget.common.ImplPanel;
+import org.waveprotocol.wave.client.widget.dialog.ConfirmDialog;
 import org.waveprotocol.wave.client.widget.toast.ToastNotification;
 import org.waveprotocol.wave.model.id.IdGenerator;
 import org.waveprotocol.wave.model.id.WaveId;
@@ -660,8 +661,11 @@ public class WebClient implements EntryPoint {
           if (disconnectMs > DEPLOY_DISCONNECT_THRESHOLD_MS) {
             LOG.info("Prolonged disconnect (" + (int) disconnectMs
                 + "ms), reloading page to resync with server");
-            hideTurbulenceBanner(false);
-            Window.Location.replace(Window.Location.getHref());
+            if (wave != null) {
+              promptReloadAfterProlongedDisconnect(disconnectMs);
+            } else {
+              reloadAfterProlongedDisconnect();
+            }
             return;
           }
         }
@@ -670,11 +674,7 @@ public class WebClient implements EntryPoint {
           switch (event.getStatus()) {
             case CONNECTED:
             case RECONNECTED:
-              element.setInnerHTML(WIFI_ICON_SVG);
-              element.setClassName("topbar-icon online");
-              element.setTitle(messages.online());
-              hideTurbulenceBanner(true);
-              ToastNotification.dismissPersistent(OFFLINE_EDITING_TOAST_ID);
+              markConnectionRestored();
               break;
             case DISCONNECTED:
               element.setInnerHTML(WIFI_OFF_ICON_SVG);
@@ -711,6 +711,43 @@ public class WebClient implements EntryPoint {
         }
       }
     });
+  }
+
+  private void markConnectionRestored() {
+    Element element = Document.get().getElementById("netstatus");
+    if (element != null) {
+      element.setInnerHTML(WIFI_ICON_SVG);
+      element.setClassName("topbar-icon online");
+      element.setTitle(messages.online());
+    }
+    hideTurbulenceBanner(true);
+    ToastNotification.dismissPersistent(OFFLINE_EDITING_TOAST_ID);
+  }
+
+  private void reloadAfterProlongedDisconnect() {
+    hideTurbulenceBanner(false);
+    Window.Location.replace(Window.Location.getHref());
+  }
+
+  private void promptReloadAfterProlongedDisconnect(final double disconnectMs) {
+    int disconnectSeconds = Math.max(1, (int) Math.round(disconnectMs / 1000.0));
+    ConfirmDialog.show(
+        "Reload to resync?",
+        "You were disconnected for about " + disconnectSeconds
+            + " seconds. Reloading now can discard unsaved edits. Keep editing only if you"
+            + " are sure the current wave is safe.",
+        "Reload", "Keep editing",
+        new ConfirmDialog.Listener() {
+          @Override
+          public void onConfirm() {
+            reloadAfterProlongedDisconnect();
+          }
+
+          @Override
+          public void onCancel() {
+            markConnectionRestored();
+          }
+        });
   }
 
   private void setupStatistics() {
