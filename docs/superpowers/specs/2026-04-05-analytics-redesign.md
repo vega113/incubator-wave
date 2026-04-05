@@ -139,10 +139,10 @@ public interface AnalyticsCounterStore {
 
 | Event | Source file | Hook |
 |-------|-----------|------|
-| Wave created | `WaveServerImpl` (or delta submission path) | On first delta for a new wave |
-| Blip created | Delta submission path | On `WaveletBlipOperation` for new blip IDs |
-| User registered | `Mongo4AccountStore.putAccount()` | When account is first created |
-| User active | `AuthenticationServlet` / session touch | On login or authenticated request |
+| Wave created | `WaveServerImpl.submitDelta()` | On first delta (version 0) for a new wavelet with conversational ID |
+| Blip created | `WaveServerImpl.submitDelta()` | On `WaveletBlipOperation` targeting a new blip ID |
+| User registered | `AuthenticationServlet` (register flow) / `MagicLinkServlet` (first login) | When new `HumanAccountData` is persisted |
+| User active | `SessionManagerImpl.trackLastActivity()` | Already updates `lastActivityTime` via `accountStore.putAccount()` — add recorder call here |
 | Page view | `PublicWaveServlet` | On successful public wave render |
 | API view | `PublicWaveFetchServlet` | On successful public wave JSON fetch |
 
