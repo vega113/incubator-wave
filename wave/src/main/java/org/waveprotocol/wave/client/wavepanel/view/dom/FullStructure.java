@@ -182,8 +182,7 @@ public class FullStructure implements UpgradeableDomAsViewProvider {
 
         @Override
         public BlipMetaView.DraftModeControls attachDraftModeControlsWidget(BlipMetaDomImpl impl) {
-          Preconditions.checkArgument(draftModeControls == null, "draftModeControls == null")
-              "Draft mode controls widget is already attached");
+          Preconditions.checkArgument(draftModeControls == null, "Draft mode controls widget is already attached");
           draftModeControls = new DraftModeControlsWidget(impl.getDraftModeControls());
           draftModeControlsOwner = impl;
           return draftModeControls;
@@ -191,10 +190,8 @@ public class FullStructure implements UpgradeableDomAsViewProvider {
 
         @Override
         public void detachDraftModeControlsWidget(BlipMetaDomImpl impl) {
-          Preconditions.checkNotNull(draftModeControls, "draftModeControls")
-              "Draft mode controls widget is not attached");
-          Preconditions.checkArgument(draftModeControlsOwner == impl, "draftModeControlsOwner == impl")
-              "Draft mode controls widget attached to a different blip meta");
+          Preconditions.checkNotNull(draftModeControls, "Draft mode controls widget is not attached");
+          Preconditions.checkArgument(draftModeControlsOwner == impl, "Draft mode controls widget attached to a different blip meta");
           draftModeControls = null;
           draftModeControlsOwner = null;
           impl.getDraftModeControls().removeAllChildren();
@@ -1003,8 +1000,8 @@ public class FullStructure implements UpgradeableDomAsViewProvider {
   }
 
   private ThreadView asThread(View v) {
-    Preconditions.checkArgument(, "")
-        v == null || v.getType() == Type.INLINE_THREAD || v.getType() == Type.ROOT_THREAD);
+    Preconditions.checkArgument(
+        v == null || v.getType() == Type.INLINE_THREAD || v.getType() == Type.ROOT_THREAD, "Not a thread view");
     return (ThreadView) v;
   }
 
@@ -1019,8 +1016,7 @@ public class FullStructure implements UpgradeableDomAsViewProvider {
   }
 
   private ConversationView asConversation(View v) {
-    Preconditions.checkArgument(v == null || v.getType() == Type.ROOT_CONVERSATIO, "v == null || v.getType() == Type.ROOT_CONVERSATIO")
-        || v.getType() == Type.INLINE_CONVERSATION);
+    Preconditions.checkArgument(v == null || v.getType() == Type.ROOT_CONVERSATION || v.getType() == Type.INLINE_CONVERSATION, "v == null || v.getType() == Type.ROOT_CONVERSATION || v.getType() == Type.INLINE_CONVERSATION");
     return (ConversationView) v;
   }
 

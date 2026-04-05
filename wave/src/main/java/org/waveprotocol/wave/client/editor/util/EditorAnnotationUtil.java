@@ -42,7 +42,7 @@ public class EditorAnnotationUtil {
    * @return The first value annotation that covers the range at one of the given keys, else null.
    */
   public static String getFirstAnnotationOverSelection(EditorContext editor, String... keys) {
-    Range range = Preconditions.checkNotNull(, "")
+    Range range = Preconditions.checkNotNull(
         editor.getSelectionHelper().getSelectionRange(), "Editor must have selection").asRange();
 
     return getFirstCoveringAnnotationOverRange(editor.getDocument(), editor.getCaretAnnotations(),
@@ -81,7 +81,7 @@ public class EditorAnnotationUtil {
    * @param key Key of annotation to retrieve
    */
   public static String getAnnotationOverSelectionIfFull(EditorContext editor, String key) {
-    Range range = Preconditions.checkNotNull(, "")
+    Range range = Preconditions.checkNotNull(
         editor.getSelectionHelper().getSelectionRange(), "Editor must have selection").asRange();
 
     return getAnnotationOverRangeIfFull(editor.getDocument(), editor.getCaretAnnotations(),
@@ -125,7 +125,7 @@ public class EditorAnnotationUtil {
    * @param value Annotation value to set key to.
    */
   public static void setAnnotationOverSelection(EditorContext editor, String key, String value) {
-    Range range = Preconditions.checkNotNull(, "")
+    Range range = Preconditions.checkNotNull(
         editor.getSelectionHelper().getSelectionRange(), "Editor must have selection").asRange();
 
     setAnnotationOverRange(editor.getDocument(), editor.getCaretAnnotations(),
@@ -161,7 +161,7 @@ public class EditorAnnotationUtil {
    * @return true if annotations were actually changed
    */
   public static boolean clearAnnotationsOverSelection(EditorContext editor, String... keys) {
-    Range range = Preconditions.checkNotNull(, "")
+    Range range = Preconditions.checkNotNull(
         editor.getSelectionHelper().getSelectionRange(), "Editor must have selection").asRange();
 
     return clearAnnotationsOverRange(editor.getDocument(), editor.getCaretAnnotations(),

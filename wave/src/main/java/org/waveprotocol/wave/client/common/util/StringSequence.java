@@ -84,8 +84,8 @@ public final class StringSequence implements Sequence<String> {
 
   /** Creates a string sequence on a string from another {@code StringSequence}. */
   public static StringSequence create(String serializedSequence) {
-    Preconditions.checkArgument(serializedSequence.startsWith(DELIMITER, "serializedSequence.startsWith(DELIMITER")
-        && serializedSequence.endsWith(DELIMITER));
+    Preconditions.checkArgument(serializedSequence.startsWith(DELIMITER)
+        && serializedSequence.endsWith(DELIMITER), "Invalid serialized sequence");
     return new StringSequence(serializedSequence);
   }
 

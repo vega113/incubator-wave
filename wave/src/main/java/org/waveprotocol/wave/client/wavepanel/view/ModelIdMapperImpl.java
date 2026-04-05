@@ -210,8 +210,8 @@ public final class ModelIdMapperImpl implements ModelIdMapper {
    * @param longId long id (must conform to the grammar for model ids).
    */
   public void registerIdPair(String shortId, String longId) {
-    Preconditions.checkArgument(!shortIdToLongIdMap.containsKey(shortId) &, "!shortIdToLongIdMap.containsKey(shortId) &")
-        !longIdToShortIdMap.containsKey(longId), "Id already exist");
+    Preconditions.checkArgument(!shortIdToLongIdMap.containsKey(shortId)
+        && !longIdToShortIdMap.containsKey(longId), "Id already exist");
     shortIdToLongIdMap.put(shortId, longId);
     longIdToShortIdMap.put(longId, shortId);
   }

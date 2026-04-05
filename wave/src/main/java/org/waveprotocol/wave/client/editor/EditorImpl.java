@@ -1441,7 +1441,7 @@ public class EditorImpl extends LogicalPanel.Impl implements
 
   @Override
   public void init(Registries registries, KeyBindingRegistry bindings, EditorSettings settings) {
-    Preconditions.checkState(, "")
+    Preconditions.checkState(
         ownsDocument == (registries != null), "Can only set registries on owned documents");
     this.registries = registries;
     this.keyBindings = bindings;
@@ -2637,16 +2637,14 @@ public class EditorImpl extends LogicalPanel.Impl implements
 
   @Override
   public CaretAnnotations getCaretAnnotations() {
-    Preconditions.checkState(caretStyles != null, "caretStyles != null")
-        "Using the caret annotations of an editor not set up.");
+    Preconditions.checkState(caretStyles != null, "Using the caret annotations of an editor not set up.");
     checkContextConsistency();
     return caretStyles;
   }
 
   @Override
   public SelectionHelper getSelectionHelper() {
-    Preconditions.checkState(passiveSelectionHelper != null, "passiveSelectionHelper != null")
-        "Using the selection helper of an editor not set up.");
+    Preconditions.checkState(passiveSelectionHelper != null, "Using the selection helper of an editor not set up.");
     checkContextConsistency();
     return passiveSelectionHelper;
   }

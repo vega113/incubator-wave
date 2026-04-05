@@ -92,8 +92,7 @@ public final class JsoSearchBuilderImpl implements SearchBuilder {
 
   @Override
   public Request search(final Callback callback) {
-    Preconditions.checkArgument(searchRequest != null, "searchRequest != null")
-        "call SearchBuilder.newSearch method to construct a new query");
+    Preconditions.checkArgument(searchRequest != null, "call SearchBuilder.newSearch method to construct a new query");
     Preconditions.checkArgument(searchRequest.getQuery() != null, "new query should be set");
 
     String url = getUrl(searchRequest);

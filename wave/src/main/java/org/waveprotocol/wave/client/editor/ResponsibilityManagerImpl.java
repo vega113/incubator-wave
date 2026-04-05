@@ -53,7 +53,7 @@ public class ResponsibilityManagerImpl implements Responsibility.Manager {
 
   @Override
   public void endDirectSequence() {
-    Preconditions.checkState(!sequenceType.isEmpty(, "!sequenceType.isEmpty(")
+    Preconditions.checkState(!sequenceType.isEmpty()
         && sequenceType.peek() == SequenceType.DIRECT, "end undoable sequence without begin");
     sequenceType.pop();
   }
@@ -66,7 +66,7 @@ public class ResponsibilityManagerImpl implements Responsibility.Manager {
 
   @Override
   public void endIndirectSequence() {
-    Preconditions.checkState(!sequenceType.isEmpty(, "!sequenceType.isEmpty(")
+    Preconditions.checkState(!sequenceType.isEmpty()
         && sequenceType.peek() == SequenceType.INDIRECT,
         "end non-undoable sequence without begin");
     sequenceType.pop();
