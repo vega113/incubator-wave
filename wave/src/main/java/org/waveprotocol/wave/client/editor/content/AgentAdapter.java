@@ -199,7 +199,7 @@ public class AgentAdapter extends ContentElement implements
 
 
   /**  Public for testing purposes ONLY */
-  @VisibleForTesting public void debugSetNodeMutationHandler(
+  public void debugSetNodeMutationHandler(
       NodeMutationHandler<ContentNode, ContentElement> handler) {
     setNodeMutationHandler(handler);
   }

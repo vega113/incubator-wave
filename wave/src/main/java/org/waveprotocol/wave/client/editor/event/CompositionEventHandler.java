@@ -65,7 +65,7 @@ public class CompositionEventHandler<V> {
    * See notes inside {@link #compositionStart(Object)} for details about why we
    * care.
    */
-  @VisibleForTesting boolean delayAfterTextInput = false;
+  boolean delayAfterTextInput = false;
 
   /**
    * True if we are between a compositionstart...compositionend event sequence.
@@ -240,7 +240,7 @@ public class CompositionEventHandler<V> {
     return appComposing;
   }
 
-  @VisibleForTesting void checkAppComposing() {
+  void checkAppComposing() {
     // The appComposing variable should be equivalent to the expression on the right
     assert appComposing == (browserComposing || timer.isScheduled(endTask))
         : "appComposing variable does not match inferred state";

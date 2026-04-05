@@ -239,7 +239,7 @@ public class EditorImpl extends LogicalPanel.Impl implements
     void onIncomingOp(DocOp op);
   }
 
-  @VisibleForTesting final MiniBundle editorPackage = new MiniBundle() {
+  final MiniBundle editorPackage = new MiniBundle() {
 
     /** {@inheritDoc} */
     public TypingExtractor getTypingExtractor() {

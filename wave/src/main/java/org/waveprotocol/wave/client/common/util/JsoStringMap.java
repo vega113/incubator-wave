@@ -36,7 +36,7 @@ import java.util.Map;
  */
 public class JsoStringMap<V> implements StringMap<V> {
 
-  @VisibleForTesting public final JsoView backend;
+  public final JsoView backend;
 
   private JsoStringMap(JsoView backend) {
     this.backend = backend;

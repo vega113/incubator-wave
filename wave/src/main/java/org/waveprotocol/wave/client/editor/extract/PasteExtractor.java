@@ -187,7 +187,7 @@ public class PasteExtractor {
     return busy;
   }
 
-  @VisibleForTesting  // For testing with p/line container.
+  // For testing with p/line container.
   void extract(Element srcContainer, ContentRange previousSelection, BiasDirection cursorBias) {
     final CMutableDocument destDoc = mutableDocument;
     final OperationSequencer<Nindo> destOperationSequencer =

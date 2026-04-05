@@ -50,7 +50,7 @@ import org.waveprotocol.wave.model.document.util.Point;
 public class Repairer {
 
   /** For testing/debug purposes, treat repairs as fatal errors */
-  @VisibleForTesting public static boolean debugRepairIsFatal = getAssertionsOn();
+  public static boolean debugRepairIsFatal = getAssertionsOn();
 
   private static boolean getAssertionsOn() {
     try {

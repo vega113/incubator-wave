@@ -534,7 +534,7 @@ public class SelectionAnnotationHandler implements AnnotationMutationHandler, Pr
         }
       });
 
-  @VisibleForTesting CaretView getUiForSession(String session) {
+  CaretView getUiForSession(String session) {
     return sessions.get(session).ui;
   }
 

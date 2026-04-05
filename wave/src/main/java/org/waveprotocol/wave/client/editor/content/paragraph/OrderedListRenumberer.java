@@ -142,7 +142,7 @@ public class OrderedListRenumberer {
 
 
   /** Used to avoid a short-circuit optimisation when testing */
-  @VisibleForTesting boolean updateHtmlEvenWhenNullImplNodelet = false;
+  boolean updateHtmlEvenWhenNullImplNodelet = false;
 
   OrderedListRenumberer(ParagraphHtmlRenderer htmlRenderer) {
     this.htmlRenderer = htmlRenderer;
