@@ -166,6 +166,7 @@ public final class MentionTriggerHandler
 
     // Enter or Tab selects the current participant.
     if (keyCode == KeyCodes.KEY_ENTER || keyCode == KeyCodes.KEY_TAB) {
+      updateParticipantList();
       ParticipantId selected = popup.getSelectedParticipant();
       if (selected != null) {
         signal.preventDefault();
@@ -271,6 +272,7 @@ public final class MentionTriggerHandler
     if (!mentionMode || popup == null) {
       return;
     }
+    ParticipantId selected = popup.getSelectedParticipant();
     Set<ParticipantId> allParticipants = conversation.getParticipantIds();
     List<ParticipantId> filtered = new ArrayList<ParticipantId>();
     String lowerFilter = filterText.toLowerCase();
@@ -283,6 +285,7 @@ public final class MentionTriggerHandler
     }
 
     popup.update(filtered);
+    popup.selectParticipant(selected);
 
     if (filtered.isEmpty()) {
       exitMentionMode();
@@ -311,13 +314,7 @@ public final class MentionTriggerHandler
     int deleteEnd = atPosition + 1 + filterText.length(); // +1 for '@'
 
     // Build the replacement text: @displayName (using the address part before '@domain').
-    String address = participant.getAddress();
-    String displayName = address;
-    int atIdx = address.indexOf('@');
-    if (atIdx > 0) {
-      displayName = address.substring(0, atIdx);
-    }
-    String fullText = "@" + displayName;
+    String fullText = formatMentionText(participant);
 
     // Delete the old "@filter" text and insert the new mention text.
     doc.deleteRange(deleteStart, deleteEnd);
@@ -341,5 +338,15 @@ public final class MentionTriggerHandler
   @Override
   public void onDismiss() {
     exitMentionMode();
+  }
+
+  static String formatMentionText(ParticipantId participant) {
+    String address = participant.getAddress();
+    if (address.startsWith("@")) {
+      return address;
+    }
+    int atIdx = address.indexOf('@');
+    String displayName = atIdx > 0 ? address.substring(0, atIdx) : address;
+    return "@" + displayName;
   }
 }

@@ -8,6 +8,8 @@
 
 **Tech Stack:** Java (server-side Lucene 9 indexing, query parsing), GWT (client-side editor annotations, popup widget, search panel)
 
+## Implementation Tasks
+
 ---
 
 ### Task 1: Add `MENTIONS` to `TokenQueryType`
@@ -31,7 +33,7 @@ IN("in"), ORDERBY("orderby"), WITH("with"), CREATOR("creator"), ID("id"), TAG("t
 
 - [ ] **Step 2: Verify build compiles**
 
-Run: `cd /Users/vega/devroot/incubator-wave/.claude/worktrees/zealous-noyce && sbt compile 2>&1 | tail -5`
+Run: `sbt compile 2>&1 | tail -5`
 Expected: compilation succeeds (the reverse-lookup map is built dynamically from `values()`, so no other changes needed)
 
 - [ ] **Step 3: Commit**
@@ -732,6 +734,7 @@ package org.waveprotocol.wave.client.doodad.mention;
 
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.user.client.Timer;
+import com.google.gwt.user.client.ui.Widget;
 
 import org.waveprotocol.wave.client.common.util.KeySignalListener;
 import org.waveprotocol.wave.client.common.util.SignalEvent;
@@ -769,16 +772,15 @@ public class MentionTriggerHandler implements KeySignalListener, MentionPopupWid
   }
 
   @Override
-  public boolean onKeySignal(Editor editor, SignalEvent signal) {
+  public boolean onKeySignal(Widget sender, SignalEvent signal) {
     if (mentionMode) {
       return handleMentionModeKey(editor, signal);
     }
 
     // Detect '@' typed
-    if (signal.isTypingEvent()) {
-      String typed = signal.getTypedCharacter();
-      if ("@".equals(typed)) {
-        startMentionMode(editor);
+    if (signal.getKeySignalType() == SignalEvent.KeySignalType.INPUT) {
+      if (signal.getKeyCode() == '@') {
+        startMentionMode((Editor) sender);
         return false; // Let the '@' character be inserted normally
       }
     }
@@ -806,17 +808,14 @@ public class MentionTriggerHandler implements KeySignalListener, MentionPopupWid
 
   private boolean handleMentionModeKey(Editor editor, SignalEvent signal) {
     if (signal.getKeySignalType() == SignalEvent.KeySignalType.INPUT) {
-      String typed = signal.getTypedCharacter();
-      if (typed != null && !typed.isEmpty()) {
-        char c = typed.charAt(0);
-        if (c == ' ' || c == '\n') {
-          dismissPopup();
-          return false;
-        }
-        filterBuffer.append(c);
-        scheduleFilterUpdate();
+      int keyCode = signal.getKeyCode();
+      if (keyCode == ' ' || keyCode == 13) {
+        dismissPopup();
         return false;
       }
+      filterBuffer.append((char) keyCode);
+      scheduleFilterUpdate();
+      return false;
     }
 
     int keyCode = signal.getKeyCode();
@@ -1006,7 +1005,7 @@ git commit -m "feat(editor): create MentionTriggerHandler for @ autocomplete"
 ### Task 13: Wire mention handler into editor lifecycle
 
 **Files:**
-- Modify: `wave/src/main/java/org/waveprotocol/wave/client/StageTwo.java`
+- Modify: `wave/src/main/java/org/waveprotocol/wave/client/wavepanel/impl/edit/EditSession.java`
 
 - [ ] **Step 1: Add import**
 
@@ -1016,25 +1015,25 @@ import org.waveprotocol.wave.client.doodad.mention.MentionTriggerHandler;
 
 - [ ] **Step 2: Register key listener**
 
-Find where the editor is initialized and key listeners are added. In `StageTwo`, after the editor is created and available, add the mention trigger handler. The best place is in the `installFeatures` or similar setup method where the editor is accessible.
+Find where the editor is initialized and key listeners are added. In `EditSession`, after the editor is created and available, add the mention trigger handler alongside the other editor listeners.
 
-Look for where `editor.addKeySignalListener` is called or where the editor is first made available, and add:
+Look for where `editor.addKeySignalListener` is called in `startNewSession()` or where the session is torn down in `endSession()`, and add:
 
 ```java
 MentionTriggerHandler mentionHandler = new MentionTriggerHandler(getWavelet());
 editor.addKeySignalListener(mentionHandler);
 ```
 
-The exact insertion point depends on where the editor instance becomes available — likely in StageThree or the wave panel editor setup. Search for `addKeySignalListener` in the codebase to find the pattern.
+Remove the listener in `endSession()` before clearing the editor reference so the handler does not survive across edit sessions.
 
 - [ ] **Step 3: Verify build compiles**
 
-Run: `cd /Users/vega/devroot/incubator-wave/.claude/worktrees/zealous-noyce && sbt compile 2>&1 | tail -5`
+Run: `sbt compile 2>&1 | tail -5`
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add wave/src/main/java/org/waveprotocol/wave/client/StageTwo.java
+git add wave/src/main/java/org/waveprotocol/wave/client/wavepanel/impl/edit/EditSession.java
 git commit -m "feat(editor): wire MentionTriggerHandler into editor lifecycle"
 ```
 

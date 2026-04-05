@@ -144,6 +144,19 @@ public final class MentionPopupWidget extends Composite
     }
   }
 
+  /** Selects the given participant if it is currently visible. */
+  public void selectParticipant(ParticipantId participant) {
+    if (participant == null) {
+      return;
+    }
+    for (int i = 0; i < currentParticipants.size(); i++) {
+      if (participant.equals(currentParticipants.get(i))) {
+        setSelectedIndex(i);
+        return;
+      }
+    }
+  }
+
   /**
    * Returns the currently highlighted participant, or null if none.
    */
