@@ -33,6 +33,7 @@ import org.waveprotocol.box.server.persistence.file.FileSignerInfoStore;
 import org.waveprotocol.box.server.persistence.file.FileSnapshotStore;
 import org.waveprotocol.box.server.persistence.AnalyticsCounterStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryAnalyticsCounterStore;
+import org.waveprotocol.box.server.persistence.memory.NoOpAnalyticsCounterStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryContactMessageStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryDeltaStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryFeatureFlagStore;
@@ -79,6 +80,7 @@ public class PersistenceModule extends AbstractModule {
   private final String mongoDBUsername;
   private final String mongoDBPassword;
   private final String mongoDriver;
+  private final boolean analyticsCountersEnabled;
 
 
   @Inject
@@ -95,6 +97,8 @@ public class PersistenceModule extends AbstractModule {
     this.mongoDBUsername = config.hasPath("core.mongodb_username") ? config.getString("core.mongodb_username") : "";
     this.mongoDBPassword = config.hasPath("core.mongodb_password") ? config.getString("core.mongodb_password") : "";
     this.mongoDriver = config.hasPath("core.mongodb_driver") ? config.getString("core.mongodb_driver") : "v2";
+    this.analyticsCountersEnabled = config.hasPath("core.analytics_counters_enabled")
+        && config.getBoolean("core.analytics_counters_enabled");
   }
 
   /**
@@ -276,9 +280,14 @@ public class PersistenceModule extends AbstractModule {
 
   /**
    * Binds the AnalyticsCounterStore for incremental analytics counters.
-   * Uses MongoDB when available, otherwise falls back to in-memory.
+   * Uses NoOp when disabled, MongoDB when available, otherwise falls back to in-memory.
    */
   private void bindAnalyticsCounterStore() {
+    if (!analyticsCountersEnabled) {
+      bind(AnalyticsCounterStore.class)
+          .to(NoOpAnalyticsCounterStore.class).in(Singleton.class);
+      return;
+    }
     if (accountStoreType.equalsIgnoreCase("mongodb") && "v4".equalsIgnoreCase(mongoDriver)) {
       bind(AnalyticsCounterStore.class)
           .toInstance(getMongo4Provider().provideMongoDbAnalyticsCounterStore());

@@ -103,6 +103,7 @@ public final class AdminServlet extends HttpServlet {
   private final Provider<SearchWaveletUpdater> searchWaveletUpdaterProvider;
   private final AdminAnalyticsService adminAnalyticsService;
   private final AnalyticsCounterStore analyticsCounterStore;
+  private final boolean analyticsCountersEnabled;
   private volatile int cachedWaveCount = -1;
   private volatile long lastWaveCountTimeMs;
   private final String publicBaseUrl;
@@ -136,6 +137,8 @@ public final class AdminServlet extends HttpServlet {
     this.searchWaveletUpdaterProvider = searchWaveletUpdaterProvider;
     this.adminAnalyticsService = adminAnalyticsService;
     this.analyticsCounterStore = analyticsCounterStore;
+    this.analyticsCountersEnabled = config.hasPath("core.analytics_counters_enabled")
+        && config.getBoolean("core.analytics_counters_enabled");
     this.publicBaseUrl = PublicBaseUrlResolver.resolve(config);
   }
 
@@ -1140,7 +1143,8 @@ public final class AdminServlet extends HttpServlet {
     setJsonUtf8(resp);
     PrintWriter w = resp.getWriter();
     w.append('{');
-    w.append("\"window\":").append(jsonStr(window));
+    w.append("\"enabled\":").append(String.valueOf(analyticsCountersEnabled));
+    w.append(",\"window\":").append(jsonStr(window));
     w.append(",\"granularity\":").append(jsonStr(daily ? "daily" : "hourly"));
 
     // Compute totals
