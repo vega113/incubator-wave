@@ -193,10 +193,17 @@ public class DefaultParagraphHtmlRenderer implements ParagraphHtmlRenderer {
       style.clearMarginRight();
       style.clearProperty("marginInlineStart");
     } else {
-      // Use logical marginInlineStart so indentation stays on the correct side
-      // for both explicit RTL (dir="rtl") and auto-detected RTL (dir="auto").
-      style.clearMarginLeft();
-      style.clearMarginRight();
+      // Physical fallback for browsers without logical-property support.
+      // For explicit RTL, indent from the right; otherwise default to left.
+      if (direction == Direction.RTL) {
+        style.clearMarginLeft();
+        style.setMarginRight(margin, Unit.PX);
+      } else {
+        style.setMarginLeft(margin, Unit.PX);
+        style.clearMarginRight();
+      }
+      // Logical property overrides physical in modern browsers, ensuring correct
+      // indentation side for dir="auto" auto-detected RTL as well.
       style.setProperty("marginInlineStart", margin + "px");
     }
   }

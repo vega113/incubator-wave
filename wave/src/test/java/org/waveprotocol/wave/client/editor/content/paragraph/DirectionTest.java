@@ -38,12 +38,15 @@ public class DirectionTest extends TestCase {
     assertNull(Direction.fromValue(null));
   }
 
-  // In auto state (null), isApplied must return false for BOTH directions.
-  // This ensures neither toolbar button lights up when direction is auto-detected.
+  // In auto state the d attribute is absent (null), so fromValue(null) returns null.
+  // isApplied() is implemented as: this == fromValue(e.getAttribute(DIRECTION_ATTR))
+  // — when the attribute is absent, fromValue(null) == null, so both directions return false,
+  // ensuring neither toolbar button lights up in auto-detect mode.
   public void testIsAppliedInAutoState() {
-    Direction auto = Direction.fromValue(null); // null
-    assertFalse("LTR must not be applied in auto state", Direction.LTR == auto);
-    assertFalse("RTL must not be applied in auto state", Direction.RTL == auto);
+    Direction resolved = Direction.fromValue(null);
+    assertNull("absent attribute maps to null (auto state)", resolved);
+    assertNotSame("LTR.isApplied() must return false in auto state", Direction.LTR, resolved);
+    assertNotSame("RTL.isApplied() must return false in auto state", Direction.RTL, resolved);
   }
 
   // cssValue() returns the HTML dir attribute string

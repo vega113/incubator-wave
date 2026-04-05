@@ -172,8 +172,10 @@ public class Paragraph {
     @Override public void apply(ContentElement e, boolean on) {
       e.getMutableDoc().setElementAttribute(e, DIRECTION_ATTR, on ? value : null);
       if (on && oppositeAlignment.isApplied(e)) {
+        // Switching direction: flip the explicit alignment to match the new direction.
         alignment.apply(e, true);
       } else if (!on && alignment.isApplied(e)) {
+        // Returning to auto mode: clear the alignment that was set when direction was applied.
         alignment.apply(e, false);
       }
     }
