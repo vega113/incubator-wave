@@ -325,7 +325,7 @@ jobs:
 
           if lines:
               print('<h3>Recent Changes</h3><ul>' + ''.join(lines) + '</ul>')
-PY
+          PY
             ) || true
           fi
           echo "$CHANGELOG_HTML" > /tmp/changelog_html.txt
@@ -342,16 +342,16 @@ PY
           EMAIL_HTML="<h2>Deploy succeeded</h2><table><tr><td>Commit</td><td><code>${RELEASE_ID:0:8}</code></td></tr><tr><td>Image</td><td><code>$IMAGE_REF</code></td></tr><tr><td>Host</td><td>$CANONICAL_HOST</td></tr><tr><td>Run</td><td><a href='https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'>View run</a></td></tr></table>${CHANGELOG_HTML}"
           export WAVE_EMAIL_FROM_JSON EMAIL_SUBJECT EMAIL_HTML
           PAYLOAD=$(python3 - <<'PY'
-import json
-import os
+          import json
+          import os
 
-print(json.dumps({
-    "from": json.loads(os.environ["WAVE_EMAIL_FROM_JSON"]),
-    "to": ["vega113@gmail.com"],
-    "subject": os.environ["EMAIL_SUBJECT"],
-    "html": os.environ["EMAIL_HTML"],
-}))
-PY
+          print(json.dumps({
+              "from": json.loads(os.environ["WAVE_EMAIL_FROM_JSON"]),
+              "to": ["vega113@gmail.com"],
+              "subject": os.environ["EMAIL_SUBJECT"],
+              "html": os.environ["EMAIL_HTML"],
+          }))
+          PY
           )
           RESPONSE=$(curl -s --fail-with-body -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer $RESEND_API_KEY" \
