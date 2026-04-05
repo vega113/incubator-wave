@@ -46,6 +46,7 @@ import com.google.gwt.user.client.ui.UIObject;
 
 import org.waveprotocol.box.webclient.client.i18n.WebClientMessages;
 import org.waveprotocol.box.webclient.profile.RemoteProfileManagerImpl;
+import org.waveprotocol.box.common.ReconnectReloadPolicy;
 import org.waveprotocol.box.webclient.search.RemoteSearchService;
 import org.waveprotocol.box.webclient.search.Digest;
 import org.waveprotocol.box.webclient.search.Search;
@@ -649,17 +650,19 @@ public class WebClient implements EntryPoint {
 
       @Override
       public void onNetworkStatus(NetworkStatusEvent event) {
-        // After a prolonged disconnect (likely server restart / deploy),
-        // the client's channel state machines are stale.  Force a full
-        // page reload so the browser fetches the latest JS and opens
-        // fresh server-side subscriptions.  Short disconnects (< 5 s)
-        // are treated as network hiccups and not reloaded.
+        // The robot null-sink reconnect path needs a full reload after a
+        // prolonged disconnect. End any active edit session first so draft
+        // changes are saved, then reload to resync the client.
         if (event.getStatus() == ConnectionStatus.RECONNECTED
             && turbulenceStartTime > 0) {
-          double disconnectMs = new Date().getTime() - turbulenceStartTime;
-          if (disconnectMs > DEPLOY_DISCONNECT_THRESHOLD_MS) {
-            LOG.info("Prolonged disconnect (" + (int) disconnectMs
+          long disconnectMs = Math.round(new Date().getTime() - turbulenceStartTime);
+          if (ReconnectReloadPolicy.shouldReloadAfterProlongedDisconnect(disconnectMs)) {
+            LOG.info("Prolonged disconnect (" + disconnectMs
                 + "ms), reloading page to resync with server");
+            if (wave != null) {
+              wave.destroy();
+              wave = null;
+            }
             hideTurbulenceBanner(false);
             Window.Location.replace(Window.Location.getHref());
             return;
