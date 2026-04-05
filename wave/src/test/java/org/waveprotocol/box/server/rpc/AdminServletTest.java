@@ -244,7 +244,7 @@ public final class AdminServletTest {
             featureFlagStore,
             lucene9Indexer,
             searchWaveletUpdaterProvider,
-            analyticsService);
+            new org.waveprotocol.box.server.persistence.memory.MemoryAnalyticsCounterStore());
     try {
       servlet.doGet(request, response);
       writer.flush();
