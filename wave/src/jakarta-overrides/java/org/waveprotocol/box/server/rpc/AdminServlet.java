@@ -1117,7 +1117,7 @@ public final class AdminServlet extends HttpServlet {
    */
   private static long resolveWindowStart(String window) {
     long now = System.currentTimeMillis();
-    switch (window == null ? "" : window) {
+    switch (window == null ? "" : window.toLowerCase(java.util.Locale.ROOT)) {
       case "24h":  return now - 1L  * 86_400_000L;
       case "48h":  return now - 2L  * 86_400_000L;
       case "7d":   return now - 7L  * 86_400_000L;
@@ -1127,7 +1127,7 @@ public final class AdminServlet extends HttpServlet {
       case "6m":   return now - 180L * 86_400_000L;
       case "1y":   return now - 365L * 86_400_000L;
       case "ytd": {
-        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneOffset.UTC);
         return java.time.LocalDate.of(today.getYear(), 1, 1)
             .atStartOfDay(java.time.ZoneOffset.UTC)
             .toInstant().toEpochMilli();
