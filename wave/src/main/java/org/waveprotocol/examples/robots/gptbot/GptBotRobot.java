@@ -181,8 +181,8 @@ public final class GptBotRobot {
     xml.append("  <w:protocolversion>").append(ProtocolVersion.DEFAULT.getVersionString())
         .append("</w:protocolversion>\n");
     xml.append("  <w:capabilities>\n");
-    xml.append(capabilityXml("BLIP_SUBMITTED", "SELF,SIBLINGS"));
     xml.append(capabilityXml("DOCUMENT_CHANGED", "SELF,SIBLINGS"));
+    xml.append(capabilityXml("BLIP_SUBMITTED", "SELF,SIBLINGS"));
     xml.append(capabilityXml("WAVELET_BLIP_CREATED", "SELF,SIBLINGS"));
     xml.append("  </w:capabilities>\n");
     xml.append("</w:robot>\n");
@@ -196,8 +196,8 @@ public final class GptBotRobot {
   private String capabilitiesHash() {
     String payload = String.join("|",
         config.getRobotName(),
-        "BLIP_SUBMITTED:SELF,SIBLINGS",
         "DOCUMENT_CHANGED:SELF,SIBLINGS",
+        "BLIP_SUBMITTED:SELF,SIBLINGS",
         "WAVELET_BLIP_CREATED:SELF,SIBLINGS");
     String hash = "sha256:";
     try {
