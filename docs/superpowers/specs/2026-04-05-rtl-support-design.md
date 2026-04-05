@@ -36,6 +36,8 @@ Paragraph element in doc model
 - `Direction.LTR` → `dir="ltr"`
 - `null` (no stored direction) → `dir="auto"`
 
+The element reference in the renderer already supports `setAttribute`/`removeAttribute` via GWT's DOM API.
+
 ### 2. `EditToolbar.java`
 
 Add a single RTL toggle button after the existing alignment group:
