@@ -34,6 +34,7 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -79,6 +80,9 @@ public final class MentionTriggerHandler
    * @param editor the active editor, or null to clear
    */
   public void setEditor(Editor editor) {
+    if (this.editor != null) {
+      this.editor.removeKeySignalListener(this);
+    }
     this.editor = editor;
     if (editor == null) {
       exitMentionMode();
@@ -111,11 +115,13 @@ public final class MentionTriggerHandler
       return false;
     }
 
-    int keyCode = signal.getKeyCode();
-    // '@' is Shift+2 on US keyboards (keyCode == '2' with shift) or can come
-    // as keyCode 64 ('@') on some browsers. We check for '@' = 64 and also
-    // Shift+'2' (keyCode == 50 = '2').
-    boolean isAtSign = (keyCode == '@') || (signal.getShiftKey() && keyCode == '2');
+    String key = signal.getKey();
+    boolean isAtSign = "@".equals(key);
+    if (!isAtSign) {
+      int keyCode = signal.getKeyCode();
+      // Legacy fallback for browsers that do not expose a character key.
+      isAtSign = (keyCode == '@') || (signal.getShiftKey() && keyCode == '2');
+    }
     if (!isAtSign) {
       return false;
     }
@@ -193,12 +199,17 @@ public final class MentionTriggerHandler
 
     // Space or newline dismisses the popup.
     if (type == KeySignalType.INPUT) {
-      if (keyCode == ' ' || keyCode == KeyCodes.KEY_ENTER) {
+      String key = signal.getKey();
+      if (" ".equals(key) || keyCode == ' ' || keyCode == KeyCodes.KEY_ENTER) {
         exitMentionMode();
         return false;
       }
       // Append the typed character to the filter and update the popup.
-      char c = (char) keyCode;
+      Character typed = getTypedCharacter(signal);
+      if (typed == null) {
+        typed = Character.valueOf((char) keyCode);
+      }
+      char c = typed.charValue();
       if (Character.isLetterOrDigit(c) || c == '.' || c == '-' || c == '_' || c == '@') {
         filterText = filterText + Character.toLowerCase(c);
         scheduleFilterUpdate();
@@ -210,6 +221,14 @@ public final class MentionTriggerHandler
     }
 
     return false;
+  }
+
+  private static Character getTypedCharacter(SignalEvent signal) {
+    String key = signal.getKey();
+    if (key == null || key.length() != 1) {
+      return null;
+    }
+    return Character.valueOf(key.charAt(0));
   }
 
   /** Enters mention mode: records the '@' position and opens the popup. */
@@ -275,10 +294,10 @@ public final class MentionTriggerHandler
     ParticipantId selected = popup.getSelectedParticipant();
     Set<ParticipantId> allParticipants = conversation.getParticipantIds();
     List<ParticipantId> filtered = new ArrayList<ParticipantId>();
-    String lowerFilter = filterText.toLowerCase();
+    String lowerFilter = filterText.toLowerCase(Locale.ROOT);
 
     for (ParticipantId p : allParticipants) {
-      String address = p.getAddress().toLowerCase();
+      String address = p.getAddress().toLowerCase(Locale.ROOT);
       if (lowerFilter.isEmpty() || address.contains(lowerFilter)) {
         filtered.add(p);
       }

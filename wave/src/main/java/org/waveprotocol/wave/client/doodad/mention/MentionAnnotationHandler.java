@@ -98,7 +98,13 @@ public class MentionAnnotationHandler implements AnnotationMutationHandler {
           @Override
           public BiasDirection getBias(StringMap<Object> left, StringMap<Object> right,
               CursorDirection cursorDirection) {
-            return BiasDirection.LEFT;
+            if (left.get(AnnotationConstants.MENTION_USER) != null) {
+              return BiasDirection.RIGHT;
+            }
+            if (right.get(AnnotationConstants.MENTION_USER) != null) {
+              return BiasDirection.LEFT;
+            }
+            return BiasDirection.NEITHER;
           }
         });
 

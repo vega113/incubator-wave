@@ -35,13 +35,24 @@ public final class MentionQueryNormalizer {
    * @return canonical lower-case participant address
    */
   public static String normalize(String raw, ParticipantId user) {
+    if (raw == null || raw.isEmpty()) {
+      throw new IllegalArgumentException("raw mention value cannot be null or empty");
+    }
+    if (user == null) {
+      throw new IllegalArgumentException("user cannot be null");
+    }
+    String address = user.getAddress();
+    String domain = user.getDomain();
+    if (address == null || domain == null) {
+      throw new IllegalArgumentException("user address and domain cannot be null");
+    }
     String normalized;
     if ("me".equalsIgnoreCase(raw)) {
-      normalized = user.getAddress();
+      normalized = address;
     } else if (raw.contains("@")) {
       normalized = raw;
     } else {
-      normalized = raw + "@" + user.getDomain();
+      normalized = raw + "@" + domain;
     }
     return normalized.toLowerCase(Locale.ROOT);
   }

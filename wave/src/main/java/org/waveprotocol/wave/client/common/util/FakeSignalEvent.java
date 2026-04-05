@@ -40,6 +40,7 @@ public class FakeSignalEvent extends SignalEventImpl {
   private static class FakeNativeEvent implements NativeEvent {
     private final boolean altKey, ctrlKey, metaKey, shiftKey;
     private final String type;
+    private final String key;
     private final int mouseButton;
 
     boolean defaultPrevented = false;
@@ -48,6 +49,7 @@ public class FakeSignalEvent extends SignalEventImpl {
     public FakeNativeEvent(String type,
         int mouseButton, EnumSet<KeyModifier> modifiers) {
       this.type = type;
+      this.key = null;
       this.mouseButton = mouseButton;
       this.altKey = modifiers != null && modifiers.contains(KeyModifier.ALT);
       this.ctrlKey = modifiers != null && modifiers.contains(KeyModifier.CTRL);
@@ -83,6 +85,11 @@ public class FakeSignalEvent extends SignalEventImpl {
     @Override
     public String getType() {
       return type;
+    }
+
+    @Override
+    public String getKey() {
+      return key;
     }
 
     @Override
