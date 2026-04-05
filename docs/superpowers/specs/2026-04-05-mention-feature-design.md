@@ -19,7 +19,7 @@ New annotation prefix `mention/` added to `AnnotationConstants`:
 
 - Registers with `AnnotationRegistry` under `mention/` prefix
 - Paint function applies highlight background (`#D1E8FF`) and slightly bold styling to `@username` text
-- Annotation behavior: `BiasDirection.LEFT` (typing at boundary does not extend mention)
+- Annotation behavior: boundary-sensitive bias — when the cursor is at the right boundary of an existing mention (`left` side has the annotation), returns `BiasDirection.RIGHT` so typed characters stay outside; when at the left boundary (`right` side has the annotation), returns `BiasDirection.LEFT`; otherwise `BiasDirection.NEITHER`. Net effect: typing at either edge of a mention does not extend it.
 
 ## 2. Editor Autocomplete
 
@@ -122,6 +122,8 @@ The current implementation keeps the autocomplete scoped to existing wave partic
 | `TokenQueryType.java` | Add `MENTIONS` token |
 | `QueryHelper.java` | Parse `mentions:` with `me` resolution |
 | `SimpleSearchProviderImpl.java` | Mention filter stage |
+| `Lucene9SearchProviderImpl.java` | Lucene mention query |
+| `Lucene9QueryParser.java` | Mention query compilation |
 | `Lucene9QueryCompiler.java` | Lucene mention query compilation |
 | `Lucene9QueryModel.java` | Parsed mention query model |
 | `SearchPresenter.java` | Toolbar button |
