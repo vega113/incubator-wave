@@ -1,5 +1,21 @@
 [
   {
+    "releaseId": "2026-04-05-blip-panel-cleanup",
+    "version": "PR #634",
+    "date": "2026-04-05",
+    "title": "Clean up blip panel: remove ID display, hide edit hint on mobile",
+    "summary": "Removes the debugging blip-ID label from blip headers and hides the keyboard-shortcut hint on mobile viewports where it is irrelevant.",
+    "sections": [
+      {
+        "type": "fix",
+        "items": [
+          "Removed the monospace blip-ID span and click-to-copy handler from blip headers",
+          "Edit-mode hint (Shift+Enter / Esc) is now hidden on viewports narrower than 768px"
+        ]
+      }
+    ]
+  },
+  {
     "releaseId": "2026-04-05-feature-flag-persist-admin-set-ot-search",
     "version": "PR #636",
     "date": "2026-04-05",
@@ -37,22 +53,6 @@
         "items": [
           "Toggling direction off now clears any alignment that was implicitly set by the direction toggle",
           "Indentation uses margin-inline-start for bidi-correct indent on both auto-detected and explicit RTL paragraphs"
-        ]
-      }
-    ]
-  },
-  {
-    "releaseId": "2026-04-05-blip-panel-cleanup",
-    "version": "PR #634",
-    "date": "2026-04-05",
-    "title": "Clean up the blip panel",
-    "summary": "Removes the debug blip ID from blip headers and hides the edit hint on mobile-sized screens.",
-    "sections": [
-      {
-        "type": "fix",
-        "items": [
-          "Removed the blip ID display and click-to-copy affordance from blip headers",
-          "Hid the edit-mode keyboard hint on viewports 768px wide and below"
         ]
       }
     ]
