@@ -175,9 +175,6 @@ public class EditToolbar {
 
     group = toolbarUi.addGroup();
     createInsertAttachmentButton(group, user);
-
-    group = toolbarUi.addGroup();
-    createRtlDirectionButton(group);
   }
 
   private void createBoldButton(ToolbarView toolbar) {
