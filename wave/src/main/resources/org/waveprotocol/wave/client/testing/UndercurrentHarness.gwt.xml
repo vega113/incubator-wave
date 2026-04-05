@@ -36,7 +36,7 @@
  special meaning to the PRESUBMIT.py script. -->
  <!-- comment out the next line to build all client types -->
 
- <set-property name="loglevel" value="none"/>
+ <!-- TODO(j2cl): <set-property name="loglevel"> removed; LogLevel now uses runtime URL "ll" param. -->
  <set-property name="compiler.emulatedStack" value="false"/>
 
  <!-- For make CSS obfuscation more pretty -->
