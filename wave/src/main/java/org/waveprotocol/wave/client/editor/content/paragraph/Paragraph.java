@@ -170,16 +170,14 @@ public class Paragraph {
     }
 
     @Override public void apply(ContentElement e, boolean on) {
-      e.getMutableDoc().setElementAttribute(e, DIRECTION_ATTR,
-          this == LTR ? null : (on ? value : null));
+      e.getMutableDoc().setElementAttribute(e, DIRECTION_ATTR, on ? value : null);
       if (on && oppositeAlignment.isApplied(e)) {
         alignment.apply(e, true);
       }
     }
 
     @Override public boolean isApplied(ContentElement e) {
-      Direction val = fromValue(e.getAttribute(DIRECTION_ATTR));
-      return this == (val == null ? LTR : val);
+      return this == fromValue(e.getAttribute(DIRECTION_ATTR));
     }
 
     /**
