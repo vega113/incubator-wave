@@ -7,8 +7,7 @@ public final class ReconnectReloadPolicy {
 
   private ReconnectReloadPolicy() {}
 
-  public static boolean shouldReloadAfterProlongedDisconnect(
-      boolean waveOpen, long disconnectMs) {
-    return !waveOpen && disconnectMs > PROLONGED_DISCONNECT_THRESHOLD_MS;
+  public static boolean shouldReloadAfterProlongedDisconnect(long disconnectMs) {
+    return disconnectMs > PROLONGED_DISCONNECT_THRESHOLD_MS;
   }
 }

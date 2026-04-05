@@ -651,15 +651,18 @@ public class WebClient implements EntryPoint {
       @Override
       public void onNetworkStatus(NetworkStatusEvent event) {
         // The robot null-sink reconnect path needs a full reload after a
-        // prolonged disconnect, but only when no wave is open so we do not
-        // discard in-memory edits.
+        // prolonged disconnect. End any active edit session first so draft
+        // changes are saved, then reload to resync the client.
         if (event.getStatus() == ConnectionStatus.RECONNECTED
             && turbulenceStartTime > 0) {
           long disconnectMs = Math.round(new Date().getTime() - turbulenceStartTime);
-          if (ReconnectReloadPolicy.shouldReloadAfterProlongedDisconnect(
-              wave != null, disconnectMs)) {
+          if (ReconnectReloadPolicy.shouldReloadAfterProlongedDisconnect(disconnectMs)) {
             LOG.info("Prolonged disconnect (" + disconnectMs
                 + "ms), reloading page to resync with server");
+            if (wave != null) {
+              wave.destroy();
+              wave = null;
+            }
             hideTurbulenceBanner(false);
             Window.Location.replace(Window.Location.getHref());
             return;
