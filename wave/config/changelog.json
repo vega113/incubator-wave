@@ -121,10 +121,6 @@
         "items": [
           "Moved startup search warmup behind a new search.startup_wave_view_warmup config flag that defaults to false",
           "Added focused Jakarta coverage for disabled startup warmup, owner normalization, fallback wave-map warmup, and non-fatal warmup failures"
-=======
-          "Reloads after prolonged disconnects now skip open waves to preserve live edits",
-          "The reconnect path is documented as the null-sink recovery case in the client comment"
->>>>>>> e96f07b5f (fix(webclient): preserve edits on reconnect reload)
         ]
       }
     ]
