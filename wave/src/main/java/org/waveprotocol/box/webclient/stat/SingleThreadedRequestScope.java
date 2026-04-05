@@ -46,7 +46,7 @@ public class SingleThreadedRequestScope implements RequestScope {
 
   @Override
   public void enter(Map<Class, Value> values) {
-    this.values = Maps.<Class, Value>newHashMap(values);
+    this.values = new HashMap<>(values);
   }
 
   @Override
