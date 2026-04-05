@@ -5373,8 +5373,8 @@ public final class HtmlRenderer {
     sb.append("        }\n");
     // Format labels
     sb.append("        var labels = (data.series || []).map(function(pt) {\n");
-    sb.append("          var d = new Date(pt.timestamp);\n");
-    sb.append("          if (data.granularity === 'DAILY') {\n");
+    sb.append("          var d = new Date(pt.time);\n");
+    sb.append("          if (data.granularity === 'daily') {\n");
     sb.append("            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];\n");
     sb.append("            return months[d.getMonth()] + ' ' + d.getDate();\n");
     sb.append("          }\n");
