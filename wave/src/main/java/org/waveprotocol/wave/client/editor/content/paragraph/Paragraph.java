@@ -173,6 +173,8 @@ public class Paragraph {
       e.getMutableDoc().setElementAttribute(e, DIRECTION_ATTR, on ? value : null);
       if (on && oppositeAlignment.isApplied(e)) {
         alignment.apply(e, true);
+      } else if (!on && alignment.isApplied(e)) {
+        alignment.apply(e, false);
       }
     }
 
