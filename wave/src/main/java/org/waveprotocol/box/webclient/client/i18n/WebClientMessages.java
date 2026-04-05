@@ -83,6 +83,9 @@ public interface WebClientMessages extends Messages {
   @DefaultMessage("Back online!")
   String turbulenceBackOnline();
 
+  @DefaultMessage("Reconnected after server update. Consider saving and refreshing.")
+  String reconnectedAfterLongDisconnect();
+
   @DefaultMessage("You''re offline \u2014 changes will be saved when connection is restored")
   String offlineWhileEditing();
 

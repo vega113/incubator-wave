@@ -17,6 +17,22 @@
     ]
   },
   {
+    "releaseId": "2026-04-05-pr610-reconnect-warning",
+    "version": "PR #610",
+    "date": "2026-04-05",
+    "title": "Preserve open wave edits during reconnects",
+    "summary": "Prolonged reconnects now keep open-wave edits in place and show a localized warning toast when the client skips a page reload.",
+    "sections": [
+      {
+        "type": "fix",
+        "items": [
+          "Added a non-blocking reconnect warning when the client preserves in-memory edits instead of reloading the page",
+          "Localized the reconnect warning for Slovenian and Traditional Chinese"
+        ]
+      }
+    ]
+  },
+  {
     "releaseId": "2026-04-05-prolonged-reconnect-reload",
     "version": "PR #615",
     "date": "2026-04-05",

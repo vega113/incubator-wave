@@ -673,6 +673,7 @@ public class WebClient implements EntryPoint {
               Window.Location.replace(Window.Location.getHref());
               return;
             }
+            ToastNotification.showWarning(messages.reconnectedAfterLongDisconnect());
             LOG.info("Prolonged disconnect (" + Math.round(disconnectMs)
                 + "ms) while editing a wave; skipping page reload to"
                 + " preserve in-memory edits");
