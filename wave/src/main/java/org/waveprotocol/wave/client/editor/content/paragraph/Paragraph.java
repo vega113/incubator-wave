@@ -137,8 +137,8 @@ public class Paragraph {
    * Text direction, ltr vs rtl
    */
   public enum Direction implements ContentElement.Action, LineStyle {
-    /***/ LTR("l", "ltr", Alignment.LEFT, Alignment.RIGHT),
-    /***/ RTL("r", "rtl", Alignment.RIGHT, Alignment.LEFT);
+    /***/ LTR("l", "ltr"),
+    /***/ RTL("r", "rtl");
 
     private static final StringMap<Direction> map = CollectionUtils.createStringMap();
     static {
@@ -157,12 +157,9 @@ public class Paragraph {
     }
 
     final String value, css;
-    final Alignment alignment, oppositeAlignment;
-    private Direction(String value, String css, Alignment alignment, Alignment oppositeAlignment) {
+    private Direction(String value, String css) {
       this.value = value;
       this.css = css;
-      this.alignment = alignment;
-      this.oppositeAlignment = oppositeAlignment;
     }
 
     @Override public void execute(ContentElement e) {
@@ -170,14 +167,11 @@ public class Paragraph {
     }
 
     @Override public void apply(ContentElement e, boolean on) {
+      // Only manage the d= attribute. CSS text-align:start on the editor/document class
+      // already provides direction-aware alignment via the dir attribute, so we do not
+      // touch the a= (alignment) attribute here. Coupling direction changes to alignment
+      // changes would make user-set alignment lossy when toggling direction on and off.
       e.getMutableDoc().setElementAttribute(e, DIRECTION_ATTR, on ? value : null);
-      if (on && oppositeAlignment.isApplied(e)) {
-        // Switching direction: flip the explicit alignment to match the new direction.
-        alignment.apply(e, true);
-      } else if (!on && alignment.isApplied(e)) {
-        // Returning to auto mode: clear the alignment that was set when direction was applied.
-        alignment.apply(e, false);
-      }
     }
 
     @Override public boolean isApplied(ContentElement e) {
