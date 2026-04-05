@@ -413,6 +413,7 @@ public final class EditorEventHandler {
     // handler are not both active simultaneously — otherwise the typing
     // extractor's stale DOM tracking causes characters to be lost.
     editorInteractor.forceFlush();
+    cachedSelection = editorInteractor.getSelectionPoints();
 
     Point<ContentNode> caret;
     if (cachedSelection == null) {
@@ -420,8 +421,10 @@ public final class EditorEventHandler {
           "deep inside some doodad's html?");
       caret = null;
     } else if (cachedSelection.isCollapsed()) {
+      event.setCaret(ContentPoint.fromPoint(cachedSelection.getFocus()));
       caret = cachedSelection.getFocus();
     } else {
+      event.setCaret(ContentPoint.fromPoint(cachedSelection.getFocus()));
       caret = deleteCachedSelectionRangeAndInvalidate(true);
     }
 
