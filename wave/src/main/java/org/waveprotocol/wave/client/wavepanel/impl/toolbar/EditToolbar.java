@@ -179,7 +179,7 @@ public class EditToolbar {
     createInsertAttachmentButton(group, user);
 
     group = toolbarUi.addGroup();
-    createDirectionButtons(group);
+    createRtlDirectionButton(group);
   }
 
   private void createBoldButton(ToolbarView toolbar) {
@@ -408,7 +408,7 @@ public class EditToolbar {
         });
 }
 
-  private void createDirectionButtons(ToolbarView toolbar) {
+  private void createRtlDirectionButton(ToolbarView toolbar) {
     ToolbarToggleButton rtlButton = toolbar.addToggleButton();
     new ToolbarButtonViewBuilder()
         .setIcon(css.directionRtl())
