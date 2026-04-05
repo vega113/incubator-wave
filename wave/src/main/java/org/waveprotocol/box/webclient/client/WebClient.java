@@ -877,7 +877,7 @@ public class WebClient implements EntryPoint {
       // If this looks like a server-restart deserialization error, trigger a
       // graceful reconnect (shows the wavy banner) instead of the error dialog.
       if (isServerRestartError(e) && currentWebSocket != null) {
-        LOG.warning("Wavelet deserialization error — likely server restart, triggering reconnect");
+        LOG.info("Wavelet deserialization error — likely server restart, triggering reconnect");
         currentWebSocket.disconnect();
         return;
       }
@@ -905,7 +905,7 @@ public class WebClient implements EntryPoint {
         return false;
       }
       String msg = e.getMessage();
-      return msg == null || msg.contains("null history hash") || msg.contains("null wavelet name");
+      return msg != null && (msg.contains("null history hash") || msg.contains("null wavelet name"));
     }
 
     private void getStackTraceAsync(final Throwable t, final Accessor<SafeHtml> whenReady) {

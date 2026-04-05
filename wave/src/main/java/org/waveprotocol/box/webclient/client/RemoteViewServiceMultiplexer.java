@@ -126,7 +126,7 @@ public final class RemoteViewServiceMultiplexer implements WaveWebSocketCallback
       // that cause deserialization errors. Trigger a graceful reconnect rather than
       // letting the exception bubble up to the uncaught exception handler (which
       // would show the error banner).
-      LOG.warning("Error processing wavelet update (likely server restart): " + e.getMessage());
+      LOG.severe("Error processing wavelet update (likely server restart)", e);
       socket.disconnect();
     }
   }
