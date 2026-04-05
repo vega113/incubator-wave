@@ -330,24 +330,12 @@
   white-space: nowrap;
   font-style: italic;
 }
+@media (max-width: 768px) {
+  .editHint {
+    display: none;
+  }
+}
 
-/* ---- Blip ID display (debugging / internal links) ---- */
-@external .blipId;
-.blipId {
-  font-family: 'SF Mono', Consolas, monospace;
-  font-size: 10px;
-  color: #94a3b8;
-  opacity: 0.4;
-  cursor: pointer;
-  margin-left: 8px;
-  transition: opacity 0.2s;
-  white-space: nowrap;
-  order: 1;
-  flex-shrink: 0;
-}
-.blipId:hover {
-  opacity: 0.8;
-}
 
 /* ---- Draft-mode active indicator ---- */
 
