@@ -313,20 +313,7 @@ jobs:
         run: |
           CHANGELOG_HTML=""
           if [ -f wave/config/changelog.json ]; then
-            CHANGELOG_HTML=$(python3 - <<'PY' 2>/dev/null
-          import html, json
-          with open('wave/config/changelog.json') as f:
-              entries = json.load(f)
-          lines = []
-          for entry in entries[:5]:
-              title = html.escape(entry.get('title', ''))
-              version = html.escape(entry.get('version', ''))
-              date = html.escape(entry.get('date', ''))
-              lines.append(f'<li><strong>{title}</strong> ({version}, {date})</li>')
-          if lines:
-              print('<h3>Recent Changes</h3><ul>' + ''.join(lines) + '</ul>')
-          PY
-            ) || true
+            CHANGELOG_HTML=$(python3 -c 'import html, json; from pathlib import Path; entries = json.loads(Path("wave/config/changelog.json").read_text()); lines = [f"<li><strong>{html.escape(entry.get(\"title\", \"\"))}</strong> ({html.escape(entry.get(\"version\", \"\"))}, {html.escape(entry.get(\"date\", \"\"))})</li>" for entry in entries[:5]]; print("<h3>Recent Changes</h3><ul>" + "".join(lines) + "</ul>") if lines else None' 2>/dev/null) || true
           fi
           echo "$CHANGELOG_HTML" > /tmp/changelog_html.txt
 
@@ -336,21 +323,10 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WAVE_EMAIL_FROM: ${{ secrets.WAVE_EMAIL_FROM }}
         run: |
-          WAVE_EMAIL_FROM_JSON=$(python3 -c 'import json, os; print(json.dumps(os.getenv("WAVE_EMAIL_FROM") or "noreply@supawave.ai"))')
           CHANGELOG_HTML=$(cat /tmp/changelog_html.txt 2>/dev/null || true)
           EMAIL_SUBJECT="SupaWave deployed: ${RELEASE_ID:0:8}"
           EMAIL_HTML="<h2>Deploy succeeded</h2><table><tr><td>Commit</td><td><code>${RELEASE_ID:0:8}</code></td></tr><tr><td>Branch</td><td><code>${GITHUB_REF_NAME}</code></td></tr><tr><td>Image</td><td><code>$IMAGE_REF</code></td></tr><tr><td>Host</td><td>$CANONICAL_HOST</td></tr><tr><td>Run</td><td><a href='https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'>View run</a></td></tr></table>${CHANGELOG_HTML}"
-          export WAVE_EMAIL_FROM_JSON EMAIL_SUBJECT EMAIL_HTML
-          PAYLOAD=$(python3 - <<'PY'
-          import json, os
-          print(json.dumps({
-              "from": json.loads(os.environ["WAVE_EMAIL_FROM_JSON"]),
-              "to": ["vega113@gmail.com"],
-              "subject": os.environ["EMAIL_SUBJECT"],
-              "html": os.environ["EMAIL_HTML"],
-          }))
-          PY
-          )
+          PAYLOAD=$(WAVE_EMAIL_FROM_VALUE="${WAVE_EMAIL_FROM:-noreply@supawave.ai}" EMAIL_SUBJECT="$EMAIL_SUBJECT" EMAIL_HTML="$EMAIL_HTML" python3 -c 'import json, os; from_value = os.environ["WAVE_EMAIL_FROM_VALUE"]; print(json.dumps({"from": f"Wave Deploy <{from_value}>", "to": ["vega113@gmail.com"], "subject": os.environ["EMAIL_SUBJECT"], "html": os.environ["EMAIL_HTML"]}))')
           RESPONSE=$(curl -s --fail-with-body -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer $RESEND_API_KEY" \
             -H "Content-Type: application/json" \
@@ -362,13 +338,10 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WAVE_EMAIL_FROM: ${{ secrets.WAVE_EMAIL_FROM }}
         run: |
-          WAVE_EMAIL_FROM_JSON=$(python3 -c 'import json, os; print(json.dumps(os.getenv("WAVE_EMAIL_FROM") or "noreply@supawave.ai"))')
+          EMAIL_SUBJECT="SupaWave deploy FAILED: ${RELEASE_ID:0:8}"
+          EMAIL_HTML="<h2>Deploy failed</h2><p>The production deploy failed and the previous version is still running.</p><table><tr><td>Commit</td><td><code>${RELEASE_ID:0:8}</code></td></tr><tr><td>Branch</td><td><code>${GITHUB_REF_NAME}</code></td></tr><tr><td>Image</td><td><code>$IMAGE_REF</code></td></tr><tr><td>Host</td><td>$CANONICAL_HOST</td></tr><tr><td>Logs</td><td><a href='https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'>View full logs</a></td></tr></table><p><strong>Next steps:</strong> Check the deploy logs linked above. Previous version is auto-preserved.</p>"
+          PAYLOAD=$(WAVE_EMAIL_FROM_VALUE="${WAVE_EMAIL_FROM:-noreply@supawave.ai}" EMAIL_SUBJECT="$EMAIL_SUBJECT" EMAIL_HTML="$EMAIL_HTML" python3 -c 'import json, os; from_value = os.environ["WAVE_EMAIL_FROM_VALUE"]; print(json.dumps({"from": f"Wave Deploy <{from_value}>", "to": ["vega113@gmail.com"], "subject": os.environ["EMAIL_SUBJECT"], "html": os.environ["EMAIL_HTML"]}))')
           RESPONSE=$(curl -s --fail-with-body -X POST https://api.resend.com/emails \
             -H "Authorization: Bearer $RESEND_API_KEY" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"from\": ${WAVE_EMAIL_FROM_JSON},
-              \"to\": [\"vega113@gmail.com\"],
-              \"subject\": \"SupaWave deploy FAILED: ${RELEASE_ID:0:8}\",
-              \"html\": \"<h2>Deploy failed</h2><p>The production deploy failed and the previous version is still running.</p><table><tr><td>Commit</td><td><code>${RELEASE_ID:0:8}</code></td></tr><tr><td>Branch</td><td><code>${GITHUB_REF_NAME}</code></td></tr><tr><td>Image</td><td><code>$IMAGE_REF</code></td></tr><tr><td>Host</td><td>$CANONICAL_HOST</td></tr><tr><td>Logs</td><td><a href='https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID'>View full logs</a></td></tr></table><p><strong>Next steps:</strong> Check the deploy logs linked above. Previous version is auto-preserved.</p>\"
-            }") || echo "Email notification failed (non-blocking): $RESPONSE"
+            -d "$PAYLOAD") || echo "Email notification failed (non-blocking): $RESPONSE"
