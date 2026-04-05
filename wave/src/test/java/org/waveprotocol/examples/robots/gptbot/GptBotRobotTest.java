@@ -202,6 +202,35 @@ public class GptBotRobotTest extends TestCase {
     assertEquals(1, codexClient.completeCalls);
   }
 
+  /** An empty or blank follow-up blip under a bot blip must NOT trigger a reply. */
+  public void testEmptyFollowUpUnderBotBlipDoesNotTriggerReply() {
+    RecordingCodexClient codexClient = new RecordingCodexClient();
+    RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), codexClient), apiClient);
+
+    // b+followup has blank content — simulates WAVELET_BLIP_CREATED before user types anything.
+    String response = robot.handleEventBundle(exampleBundleJsonWithFollowUp(TEST_CONFIG,
+        "\n@" + TEST_CONFIG.getRobotName() + " what is 2+2?",
+        "2+2 = 4.",
+        "\n",
+        new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+followup")));
+
+    assertFalse(response.contains("blip.createChild"));
+    assertEquals(0, codexClient.completeCalls);
+  }
+
+  /** Capabilities XML must declare PARENT context so the server includes parent blips. */
+  public void testCapabilitiesXmlIncludesParentContext() {
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), new RecordingCodexClient()),
+        new RecordingSupaWaveClient());
+
+    String xml = robot.getCapabilitiesXml();
+
+    assertTrue(xml.contains("PARENT"));
+  }
+
   public void testCapabilitiesXmlIncludesTheExpectedEventsAndContextAttribute() {
     GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
         new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), new RecordingCodexClient()),
@@ -213,7 +242,7 @@ public class GptBotRobotTest extends TestCase {
     assertTrue(xml.contains("DOCUMENT_CHANGED"));
     assertTrue(xml.contains("WAVELET_BLIP_CREATED"));
     assertTrue(xml.contains("protocolversion"));
-    assertTrue(xml.contains("context=\"SELF,SIBLINGS\""));
+    assertTrue(xml.contains("context=\"SELF,SIBLINGS,PARENT\""));
   }
 
   public void testProfileJsonIncludesRobotIdentity() {

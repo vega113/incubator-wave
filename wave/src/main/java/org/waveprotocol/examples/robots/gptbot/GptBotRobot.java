@@ -152,7 +152,10 @@ public final class GptBotRobot {
           String lastContributor = (parentContributors != null && !parentContributors.isEmpty())
               ? parentContributors.get(parentContributors.size() - 1) : null;
           if (config.getParticipantId().equalsIgnoreCase(lastContributor)) {
-            prompt = Optional.of(blip.getContent() == null ? "" : blip.getContent());
+            String content = blip.getContent() == null ? "" : blip.getContent().strip();
+            if (!content.isEmpty()) {
+              prompt = Optional.of(content);
+            }
           }
         }
       }
@@ -194,9 +197,9 @@ public final class GptBotRobot {
     xml.append("  <w:protocolversion>").append(ProtocolVersion.DEFAULT.getVersionString())
         .append("</w:protocolversion>\n");
     xml.append("  <w:capabilities>\n");
-    xml.append(capabilityXml("DOCUMENT_CHANGED", "SELF,SIBLINGS"));
-    xml.append(capabilityXml("BLIP_SUBMITTED", "SELF,SIBLINGS"));
-    xml.append(capabilityXml("WAVELET_BLIP_CREATED", "SELF,SIBLINGS"));
+    xml.append(capabilityXml("DOCUMENT_CHANGED", "SELF,SIBLINGS,PARENT"));
+    xml.append(capabilityXml("BLIP_SUBMITTED", "SELF,SIBLINGS,PARENT"));
+    xml.append(capabilityXml("WAVELET_BLIP_CREATED", "SELF,SIBLINGS,PARENT"));
     xml.append("  </w:capabilities>\n");
     xml.append("</w:robot>\n");
     return xml.toString();
@@ -209,9 +212,9 @@ public final class GptBotRobot {
   private String capabilitiesHash() {
     String payload = String.join("|",
         config.getRobotName(),
-        "DOCUMENT_CHANGED:SELF,SIBLINGS",
-        "BLIP_SUBMITTED:SELF,SIBLINGS",
-        "WAVELET_BLIP_CREATED:SELF,SIBLINGS");
+        "DOCUMENT_CHANGED:SELF,SIBLINGS,PARENT",
+        "BLIP_SUBMITTED:SELF,SIBLINGS,PARENT",
+        "WAVELET_BLIP_CREATED:SELF,SIBLINGS,PARENT");
     String hash = "sha256:";
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");
