@@ -81,6 +81,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
   private volatile int lastRebuildWaveCount = -1;
   private volatile ReindexStats lastReindexStats;
   private final IncrementalIndexStats incrementalStats = new IncrementalIndexStats();
+  private final IncrementalIndexStats queryStats = new IncrementalIndexStats();
 
   @Inject
   public Lucene9WaveIndexerImpl(WaveMap waveMap, WaveletProvider waveletProvider,
@@ -269,6 +270,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
   }
 
   public Set<WaveId> searchWaveIds(Query query, Sort sort, int limit) {
+    long startNs = System.nanoTime();
     Set<WaveId> waveIds = new LinkedHashSet<>();
     IndexSearcher searcher = null;
     try {
@@ -284,6 +286,7 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
       throw new IndexException(e);
     } finally {
       release(searcher);
+      queryStats.record(System.nanoTime() - startNs);
     }
     return waveIds;
   }
@@ -336,6 +339,16 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
   /** Returns the total number of incremental index operations since startup. */
   public long getIncrementalIndexCount() {
     return incrementalStats.getCount();
+  }
+
+  /** Returns the rolling average ms per search query. */
+  public double getQueryAvgMs() {
+    return queryStats.getAvgMs();
+  }
+
+  /** Returns the total number of search queries since startup. */
+  public long getQueryCount() {
+    return queryStats.getCount();
   }
 
   private long upsertWaveTimed(WaveId waveId) throws WaveServerException, WaveletStateException,

@@ -555,6 +555,13 @@ public final class AdminServlet extends HttpServlet {
             String.format("%.1f", lucene9Indexer.getIncrementalAvgMs()));
         w.append(",\"incrementalIndexCount\":").append(String.valueOf(incrCount));
       }
+      // Search query stats
+      long queryCount = lucene9Indexer.getQueryCount();
+      w.append(",\"queryCount\":").append(String.valueOf(queryCount));
+      if (queryCount > 0) {
+        w.append(",\"queryAvgMs\":").append(
+            String.format("%.1f", lucene9Indexer.getQueryAvgMs()));
+      }
     }
     w.append('}');
 
