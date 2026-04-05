@@ -71,8 +71,9 @@ public class MentionAnnotationHandler implements AnnotationMutationHandler {
           styles.put("fontWeight", "600");
           styles.put("cursor", "pointer");
           styles.put(AnnotationPaint.MOUSE_LISTENER_ATTR, MENTION_HANDLER_KEY);
-          // Store the mention address in a CSS custom property for retrieval in the event handler.
-          styles.put("--mention-addr", value.toString());
+          // Store the mention address as a ContentElement attribute for retrieval in the event handler.
+          // Key must be camelCase to satisfy GWT's Style.setProperty assertion.
+          styles.put("mentionAddr", value.toString());
           return styles;
         }
         return Collections.emptyMap();
@@ -112,22 +113,14 @@ public class MentionAnnotationHandler implements AnnotationMutationHandler {
       @Override
       public void onEvent(ContentElement node, Event event) {
         if (event.getTypeInt() == Event.ONCLICK) {
-          Element el = node.getImplNodelet();
-          String address = getMentionAddress(el);
+          String address = node.getAttribute("mentionAddr");
           if (address != null && !address.isEmpty()) {
-            showProfilePopup(el, address, profileManager);
+            showProfilePopup(node.getImplNodelet(), address, profileManager);
           }
         }
       }
     });
   }
-
-  /**
-   * Reads the mention address from a CSS custom property set by the paint function.
-   */
-  private static native String getMentionAddress(Element el) /*-{
-    return el.style.getPropertyValue('--mention-addr') || '';
-  }-*/;
 
   /**
    * Shows a profile popup card anchored below the mention element.

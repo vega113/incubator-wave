@@ -110,7 +110,6 @@ public class AnnotationConstants {
   public static boolean isMentionKey(String key) {
     return key != null && key.startsWith(MENTION_PREFIX + "/");
   }
-
   // Other
 
   /** Prefix for spelling annotations. (e.g. Spelly) */
