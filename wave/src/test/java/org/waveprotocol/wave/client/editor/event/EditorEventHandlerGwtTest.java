@@ -672,6 +672,42 @@ public class EditorEventHandlerGwtTest
     assertEquals(freshCaret, compositionCaret[0]);
   }
 
+  /**
+   * If flushing the typing extractor loses the selection during composition
+   * start, the handler should cancel instead of continuing with a null caret.
+   */
+  public void testCompositionStartCancelsWhenSelectionIsLostAfterFlush() {
+    FakeEditorEvent compositionStart = FakeEditorEvent.compositionSequence(0)[0];
+    FakeEditorEventsSubHandler subHandler = new FakeEditorEventsSubHandler();
+    final FocusedContentRange staleSelection = new FocusedContentRange(
+        Point.inText(new ContentTextNode(Document.get().createTextNode("stale"), null), 1));
+
+    FakeEditorInteractor interactor = new FakeEditorInteractor() {
+      private int flushCount = 0;
+
+      @Override
+      public void forceFlush() {
+        flushCount++;
+      }
+
+      @Override
+      public FocusedContentRange getSelectionPoints() {
+        return flushCount >= 2 ? null : staleSelection;
+      }
+
+      @Override
+      public void compositionStart(Point<ContentNode> caret) {
+        fail("compositionStart should not run after selection is lost");
+      }
+    };
+    interactor.call(FakeEditorInteractor.NOTIFYING_LISTENERS).anyOf().returns(false);
+    interactor.call(FakeEditorInteractor.HAS_CONTENT_SELECTION).anyOf().returns(true);
+    interactor.call(FakeEditorInteractor.IS_EDITING).anyOf().returns(true);
+    EditorEventHandler handler = createEditorEventHandler(interactor, subHandler);
+
+    assertTrue(handler.handleEvent(compositionStart));
+  }
+
   public void testIsAccelerator() {
     // Test alt+input and alt+shift+input keys - These are normal input on mac,
     // and accelerators on

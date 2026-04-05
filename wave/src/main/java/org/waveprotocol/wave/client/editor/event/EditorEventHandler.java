@@ -274,6 +274,17 @@ public final class EditorEventHandler {
       return handleKeyEvent(event);
     } else if (event.isCompositionEvent()) {
       if (useCompositionEvents) {
+        if (BrowserEvents.COMPOSITIONSTART.equals(event.getType())) {
+          state = State.COMPOSITION;
+          // Refresh again on compositionstart so the IME path sees the
+          // post-flush selection and can cancel cleanly if the flush loses it.
+          try {
+            refreshEditorWithCaret(event);
+          } catch (SelectionLostException e) {
+            state = State.NORMAL;
+            throw e;
+          }
+        }
         return handleCompositionEvent(event);
       } else {
         return false;
@@ -403,24 +414,8 @@ public final class EditorEventHandler {
   }
 
   private void compositionStart(EditorEvent event) {
-    if (state == State.COMPOSITION) {
-      logger.error().log("State was already IME during a compositionstart event!");
-    }
-
-    // On mobile browsers (e.g. Android Chrome), keydown with keyCode 229 fires
-    // before compositionstart. That keydown activates the typing extractor.
-    // We must flush it here so that the typing extractor and the IME composition
-    // handler are not both active simultaneously — otherwise the typing
-    // extractor's stale DOM tracking causes characters to be lost.
-    editorInteractor.forceFlush();
-    cachedSelection = editorInteractor.getSelectionPoints();
-
     Point<ContentNode> caret;
-    if (cachedSelection == null) {
-      logger.error().log("No selection during a composition start event? Maybe it's " +
-          "deep inside some doodad's html?");
-      caret = null;
-    } else if (cachedSelection.isCollapsed()) {
+    if (cachedSelection.isCollapsed()) {
       event.setCaret(ContentPoint.fromPoint(cachedSelection.getFocus()));
       caret = cachedSelection.getFocus();
     } else {
