@@ -269,8 +269,7 @@ public class Robot implements Runnable {
     if (currentAccount.getCapabilities() == null) {
       try {
         LOG.info(robotName + ": Initializing capabilities");
-        gateway.updateRobotAccount(this);
-        currentAccount = account;
+        currentAccount = gateway.updateRobotAccount(this);
       } catch (CapabilityFetchException e) {
         ReadableWaveletData snapshot = wavelet.getSnapshotAfterDeltas();
         LOG.info(

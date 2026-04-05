@@ -231,7 +231,8 @@ public class RobotRegistrarImpl implements RobotRegistrar {
     return updateRobotAccount(robotAccount, robotAccount.getUrl(), robotAccount.getOwnerAddress(),
         robotAccount.getTokenExpirySeconds(), robotAccount.getConsumerSecret(),
         robotAccount.getCapabilities(), robotAccount.isVerified(), normalizedDescription,
-        robotAccount.getCreatedAtMillis(), clock.millis(), robotAccount.isPaused());
+        robotAccount.getCreatedAtMillis(), nextUpdatedAtMillis(robotAccount.getUpdatedAtMillis()),
+        robotAccount.isPaused());
   }
 
   @Override
@@ -250,7 +251,8 @@ public class RobotRegistrarImpl implements RobotRegistrar {
     return updateRobotAccount(robotAccount, robotAccount.getUrl(), robotAccount.getOwnerAddress(),
         robotAccount.getTokenExpirySeconds(), robotAccount.getConsumerSecret(),
         robotAccount.getCapabilities(), robotAccount.isVerified(), robotAccount.getDescription(),
-        robotAccount.getCreatedAtMillis(), clock.millis(), paused);
+        robotAccount.getCreatedAtMillis(), nextUpdatedAtMillis(robotAccount.getUpdatedAtMillis()),
+        paused);
   }
 
   @Override
@@ -263,11 +265,11 @@ public class RobotRegistrarImpl implements RobotRegistrar {
     }
     throwExceptionIfNotRobot(account);
     RobotAccountData robotAccount = account.asRobot();
-    long updatedAtMillis = Math.max(robotAccount.getUpdatedAtMillis() + 1L, clock.millis());
     return updateRobotAccount(robotAccount, robotAccount.getUrl(), robotAccount.getOwnerAddress(),
         robotAccount.getTokenExpirySeconds(), robotAccount.getConsumerSecret(),
         null /* capabilities — null forces re-fetch */, robotAccount.isVerified(),
-        robotAccount.getDescription(), robotAccount.getCreatedAtMillis(), updatedAtMillis,
+        robotAccount.getDescription(), robotAccount.getCreatedAtMillis(),
+        nextUpdatedAtMillis(robotAccount.getUpdatedAtMillis()),
         robotAccount.isPaused());
   }
 
@@ -319,7 +321,8 @@ public class RobotRegistrarImpl implements RobotRegistrar {
     return updateRobotAccount(existingAccount, location, ownerAddress, tokenExpirySeconds,
         existingAccount.getConsumerSecret(), existingAccount.getCapabilities(),
         existingAccount.isVerified(), existingAccount.getDescription(),
-        existingAccount.getCreatedAtMillis(), clock.millis(), existingAccount.isPaused());
+        existingAccount.getCreatedAtMillis(),
+        nextUpdatedAtMillis(existingAccount.getUpdatedAtMillis()), existingAccount.isPaused());
   }
 
   private RobotAccountData updateRobotAccount(RobotAccountData existingAccount, String location,
@@ -366,7 +369,7 @@ public class RobotRegistrarImpl implements RobotRegistrar {
             existingAccount.getOwnerAddress(),
             existingAccount.getDescription(),
             existingAccount.getCreatedAtMillis(),
-            clock.millis(),
+            nextUpdatedAtMillis(existingAccount.getUpdatedAtMillis()),
             existingAccount.isPaused());
     accountStore.putAccount(updatedAccount);
     for (Listener listener : listeners) {
@@ -381,6 +384,10 @@ public class RobotRegistrarImpl implements RobotRegistrar {
       resolvedOwnerAddress = ownerAddress;
     }
     return resolvedOwnerAddress;
+  }
+
+  private long nextUpdatedAtMillis(long currentUpdatedAtMillis) {
+    return Math.max(currentUpdatedAtMillis + 1L, clock.millis());
   }
 
   private String normalizeRobotLocation(String location) throws RobotRegistrationException {

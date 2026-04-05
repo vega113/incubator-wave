@@ -103,7 +103,7 @@ public class RobotsGatewayTest extends TestCase {
     RobotAccountData newAccount = mock(RobotAccountData.class);
     when(robotConnector.fetchCapabilities(eq(account), any(String.class))).thenReturn(newAccount);
 
-    gateway.updateRobotAccount(robot);
+    assertSame(newAccount, gateway.updateRobotAccount(robot));
 
     verify(accountStore).putAccount(newAccount);
   }

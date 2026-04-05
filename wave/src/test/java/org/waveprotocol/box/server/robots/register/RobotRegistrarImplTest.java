@@ -248,6 +248,29 @@ public class RobotRegistrarImplTest extends TestCase {
     assertFalse(updated.isPaused());
   }
 
+  public void testUpdateDescriptionUsesStrictlyNewerTimestampWhenClockMatchesSnapshot()
+      throws Exception {
+    RobotAccountData sameMillisecondAccount =
+        new RobotAccountDataImpl(
+            ROBOT_ID,
+            LOCATION,
+            EXISTING_CONSUMER_TOKEN,
+            null,
+            true,
+            0L,
+            OWNER_ID.getAddress(),
+            "existing description",
+            1234L,
+            CLOCK.millis(),
+            false);
+    when(accountStore.getAccount(ROBOT_ID)).thenReturn(sameMillisecondAccount);
+
+    RobotAccountData updated = registrar.updateDescription(ROBOT_ID, "new description");
+
+    assertEquals(CLOCK.millis() + 1L, updated.getUpdatedAtMillis());
+    assertTrue(updated.getUpdatedAtMillis() > sameMillisecondAccount.getUpdatedAtMillis());
+  }
+
   public void testSetPausedPreservesSecretAndDescription() throws Exception {
     when(accountStore.getAccount(ROBOT_ID)).thenReturn(accountData);
 

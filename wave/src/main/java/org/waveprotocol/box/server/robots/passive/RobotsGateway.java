@@ -235,15 +235,17 @@ public class RobotsGateway implements WaveBus.Subscriber {
    * Updates the account for the given {@link Robot}.
    *
    * @param robot the {@link Robot} to update.
+   * @return the refreshed {@link RobotAccountData} snapshot.
    * @throws CapabilityFetchException if the capabilities could not be fetched
    *         or parsed.
    */
-  public void updateRobotAccount(Robot robot) throws CapabilityFetchException,
+  public RobotAccountData updateRobotAccount(Robot robot) throws CapabilityFetchException,
       PersistenceException {
     // TODO: Pass in activeAPIUrl
     String activeApiUrl = "";
     RobotAccountData newAccount = connector.fetchCapabilities(robot.getAccount(), activeApiUrl);
     accountStore.putAccount(newAccount);
     robot.setAccount(newAccount);
+    return newAccount;
   }
 }

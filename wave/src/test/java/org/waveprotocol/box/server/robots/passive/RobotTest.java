@@ -120,7 +120,7 @@ public class RobotTest extends TestCase {
       @Override
       public Object answer(InvocationOnMock invocation) throws Throwable {
         robot.setAccount(INITIALIZED_ACCOUNT);
-        return null;
+        return INITIALIZED_ACCOUNT;
       }
     }).when(gateway).updateRobotAccount(robot);
 
@@ -201,7 +201,7 @@ public class RobotTest extends TestCase {
       @Override
       public Object answer(InvocationOnMock invocation) throws Throwable {
         robot.setAccount(STALE_ACCOUNT);
-        return null;
+        return STALE_ACCOUNT;
       }
     }).when(gateway).updateRobotAccount(robot);
 
