@@ -257,7 +257,9 @@ public final class MentionTriggerHandler
     popup = new MentionPopupWidget(editor.getWidget().getElement());
     popup.setListener(this);
     updateParticipantList();
-    popup.show();
+    if (popup != null) {
+      popup.show();
+    }
   }
 
   /** Exits mention mode and hides the popup. */
