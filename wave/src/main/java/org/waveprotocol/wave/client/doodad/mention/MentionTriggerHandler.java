@@ -167,7 +167,7 @@ public final class MentionTriggerHandler
     // Enter or Tab selects the current participant.
     if (keyCode == KeyCodes.KEY_ENTER || keyCode == KeyCodes.KEY_TAB) {
       updateParticipantList();
-      ParticipantId selected = popup.getSelectedParticipant();
+      ParticipantId selected = getSelectedParticipant(popup);
       if (selected != null) {
         signal.preventDefault();
         onSelect(selected);
@@ -290,6 +290,16 @@ public final class MentionTriggerHandler
     if (filtered.isEmpty()) {
       exitMentionMode();
     }
+  }
+
+  /** Returns true while the autocomplete popup is active. */
+  public boolean isMentionMode() {
+    return mentionMode;
+  }
+
+  /** Returns the currently highlighted participant, or null if the popup is gone. */
+  static ParticipantId getSelectedParticipant(MentionPopupWidget popup) {
+    return popup == null ? null : popup.getSelectedParticipant();
   }
 
   /**

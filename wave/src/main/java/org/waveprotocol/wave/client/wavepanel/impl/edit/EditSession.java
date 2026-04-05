@@ -268,17 +268,19 @@ public final class EditSession
   @Override
   public boolean onKeySignal(Widget sender, SignalEvent signal) {
     KeyCombo key = EventWrapper.getKeyCombo(signal);
-    switch (key) {
-      case SHIFT_ENTER:
-        endSession();
-        return true;
-      case ESC:
-        // TODO: undo.
-        endSession();
-        return true;
-      default:
-        return false;
+    boolean mentionPopupActive = mentionHandler != null && mentionHandler.isMentionMode();
+    if (shouldEndSession(key, mentionPopupActive)) {
+      endSession();
+      return true;
     }
+    return false;
+  }
+
+  static boolean shouldEndSession(KeyCombo key, boolean mentionPopupActive) {
+    if (mentionPopupActive && key == KeyCombo.ESC) {
+      return false;
+    }
+    return key == KeyCombo.SHIFT_ENTER || key == KeyCombo.ESC;
   }
 
   //
