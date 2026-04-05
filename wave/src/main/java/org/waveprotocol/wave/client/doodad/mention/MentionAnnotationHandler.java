@@ -23,6 +23,7 @@ import org.waveprotocol.wave.client.editor.content.AnnotationPainter;
 import org.waveprotocol.wave.client.editor.content.PainterRegistry;
 import org.waveprotocol.wave.client.editor.content.Registries;
 import org.waveprotocol.wave.model.conversation.AnnotationConstants;
+import org.waveprotocol.wave.model.document.AnnotationBehaviour.AnnotationFamily;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.DefaultAnnotationBehaviour;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.BiasDirection;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.CursorDirection;
@@ -74,7 +75,7 @@ public class MentionAnnotationHandler implements AnnotationMutationHandler {
     painterRegistry.registerPaintFunction(MENTION_KEYS, MENTION_PAINT_FUNC);
     registries.getAnnotationHandlerRegistry().registerBehaviour(
         AnnotationConstants.MENTION_PREFIX,
-        new DefaultAnnotationBehaviour() {
+        new DefaultAnnotationBehaviour(AnnotationFamily.CONTENT) {
           @Override
           public BiasDirection getBias(StringMap<Object> left, StringMap<Object> right,
               CursorDirection cursorDirection) {

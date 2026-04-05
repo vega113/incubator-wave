@@ -34,6 +34,7 @@ import org.waveprotocol.wave.model.wave.ParticipantId;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Key signal listener that detects '@' typed in the editor and opens a mention
