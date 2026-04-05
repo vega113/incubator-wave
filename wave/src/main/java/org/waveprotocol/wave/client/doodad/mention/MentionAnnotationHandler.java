@@ -99,9 +99,14 @@ public class MentionAnnotationHandler implements AnnotationMutationHandler {
           @Override
           public BiasDirection getBias(StringMap<Object> left, StringMap<Object> right,
               CursorDirection cursorDirection) {
-            // At right edge of mention OR left edge: don't extend into adjacent text.
-            if (left.get(AnnotationConstants.MENTION_USER) != null
-                || right.get(AnnotationConstants.MENTION_USER) != null) {
+            // Push cursor outside the mention boundary so new text does not inherit
+            // the annotation. RIGHT at the right edge (left has annotation) means
+            // the cursor associates with the next (unannotated) character; LEFT at
+            // the left edge does the same. Mirrors LinkAnnotationHandler exactly.
+            if (left.get(AnnotationConstants.MENTION_USER) != null) {
+              return BiasDirection.RIGHT;
+            }
+            if (right.get(AnnotationConstants.MENTION_USER) != null) {
               return BiasDirection.LEFT;
             }
             return BiasDirection.NEITHER;
