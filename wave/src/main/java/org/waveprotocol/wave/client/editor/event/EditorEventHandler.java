@@ -407,18 +407,28 @@ public final class EditorEventHandler {
       logger.error().log("State was already IME during a compositionstart event!");
     }
 
+    state = State.COMPOSITION;
+    try {
+      // On mobile browsers (e.g. Android Chrome), keydown with keyCode 229 fires
+      // before compositionstart. That keydown activates the typing extractor.
+      // Refresh the editor after switching to IME mode so the selection we use
+      // for composition start reflects any flush-triggered DOM changes.
+      refreshEditorWithCaret(event);
+    } catch (SelectionLostException e) {
+      state = State.NORMAL;
+      if (e.hasLostSelection()) {
+        logger.error().log(e);
+      }
+      return;
+    }
+
     Point<ContentNode> caret;
-    if (cachedSelection == null) {
-      logger.error().log("No selection during a composition start event? Maybe it's " +
-          "deep inside some doodad's html?");
-      caret = null;
-    } else if (cachedSelection.isCollapsed()) {
+    if (cachedSelection.isCollapsed()) {
       caret = cachedSelection.getFocus();
     } else {
       caret = deleteCachedSelectionRangeAndInvalidate(true);
     }
 
-    state = State.COMPOSITION;
     editorInteractor.compositionStart(caret);
   }
 

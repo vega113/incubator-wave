@@ -33,6 +33,7 @@ import org.waveprotocol.wave.client.common.util.SignalEvent.KeyModifier;
 import org.waveprotocol.wave.client.common.util.SignalEvent.KeySignalType;
 import org.waveprotocol.wave.client.common.util.SignalKeyLogic;
 import org.waveprotocol.wave.client.common.util.UserAgent;
+import org.waveprotocol.wave.client.editor.constants.BrowserEvents;
 import org.waveprotocol.wave.client.editor.content.ContentElement;
 import org.waveprotocol.wave.client.editor.content.ContentNode;
 import org.waveprotocol.wave.client.editor.content.ContentPoint;
@@ -628,6 +629,23 @@ public class EditorEventHandlerGwtTest
     // Note: explicitly should only call the key event handling code
     // (resulting in notifying the typing extractor when in a normal
     // state, not during composition).
+    interactor.checkExpectations();
+  }
+
+  public void testCompositionStartBailsOutWhenFlushLosesSelection() {
+    FakeEditorEvent startEvent = FakeEditorEvent.create(BrowserEvents.COMPOSITIONSTART);
+
+    EditorEventsSubHandler subHandler = new FakeEditorEventsSubHandler();
+    FakeEditorInteractor interactor = setupFakeEditorInteractor(null);
+    EditorEventHandler handler = createEditorEventHandler(interactor, subHandler);
+
+    interactor.call(FakeEditorInteractor.FORCE_FLUSH).nOf(1);
+    interactor.call(FakeEditorInteractor.GET_SELECTION_POINTS).nOf(1).returns(null);
+
+    boolean cancel = handler.handleEvent(startEvent);
+
+    assertFalse("Should allow composition start event", cancel);
+    assertEquals(EditorEventHandler.State.NORMAL, handler.getState());
     interactor.checkExpectations();
   }
 
