@@ -1,5 +1,21 @@
 [
   {
+    "releaseId": "2026-04-05-deploy-email-branding-changelog",
+    "version": "PR #611",
+    "date": "2026-04-05",
+    "title": "Brand deploy emails with SupaWave and include changelog",
+    "summary": "Deploy notification emails now show SupaWave in the subject line and include the five most recent changelog entries in the body.",
+    "sections": [
+      {
+        "type": "feature",
+        "items": [
+          "Deploy success and failure email subjects now include the SupaWave app name",
+          "Success emails append the latest five changelog entries as a Recent Changes section"
+        ]
+      }
+    ]
+  },
+  {
     "releaseId": "2026-04-05-robot-form-elements-update-fixes",
     "version": "PR #616",
     "date": "2026-04-05",
