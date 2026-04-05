@@ -58,6 +58,7 @@ public class CenterPopupPositioner implements RelativePopupPositioner {
         }
 
         p.getStyle().setLeft(Math.max((viewportWidth - popupWidth) / 2, HORIZONTAL_MARGIN), Unit.PX);
+        p.getStyle().clearHeight();
         int height = PositionUtil.boundHeightToScreen(p.getOffsetHeight());
         int top = (RootPanel.get().getOffsetHeight() - height) / 2;
         // Prevent negative top position.
