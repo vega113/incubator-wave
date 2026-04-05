@@ -35,6 +35,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.index.Term;
+import org.waveprotocol.box.server.waveserver.MentionQueryNormalizer;
 import org.waveprotocol.box.server.waveserver.QueryHelper.InvalidQueryException;
 import org.waveprotocol.box.server.waveserver.QueryHelper.OrderByValueType;
 import org.waveprotocol.box.server.waveserver.TokenQueryType;
@@ -65,9 +66,8 @@ public class Lucene9QueryCompiler {
           tag.toLowerCase(Locale.ROOT))), Occur.MUST);
     }
     for (String mentionValue : model.values(TokenQueryType.MENTIONS)) {
-      String address = resolveMentionAddress(mentionValue, user);
       builder.add(new TermQuery(new Term(Lucene9FieldNames.MENTIONED,
-          address.toLowerCase(Locale.ROOT))), Occur.MUST);
+          MentionQueryNormalizer.normalize(mentionValue, user))), Occur.MUST);
     }
     addTextQueries(builder, Lucene9FieldNames.TITLE_TEXT, model.values(TokenQueryType.TITLE));
     addTextQueries(builder, Lucene9FieldNames.CONTENT_TEXT, model.values(TokenQueryType.CONTENT));
@@ -180,13 +180,4 @@ public class Lucene9QueryCompiler {
     return participants;
   }
 
-  private String resolveMentionAddress(String raw, ParticipantId user) {
-    if ("me".equalsIgnoreCase(raw)) {
-      return user.getAddress();
-    }
-    if (!raw.contains("@")) {
-      return raw + "@" + user.getDomain();
-    }
-    return raw;
-  }
 }

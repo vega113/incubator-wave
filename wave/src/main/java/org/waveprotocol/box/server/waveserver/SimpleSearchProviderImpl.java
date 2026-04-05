@@ -306,12 +306,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     if (queryParams.containsKey(TokenQueryType.MENTIONS)) {
       mentionValues = new HashSet<String>();
       for (String raw : queryParams.get(TokenQueryType.MENTIONS)) {
-        if ("me".equalsIgnoreCase(raw)) {
-          mentionValues.add(user.getAddress().toLowerCase(Locale.ROOT));
-        } else {
-          String normalized = raw.contains("@") ? raw : raw + "@" + user.getDomain();
-          mentionValues.add(normalized.toLowerCase(Locale.ROOT));
-        }
+        mentionValues.add(MentionQueryNormalizer.normalize(raw, user));
       }
     } else {
       mentionValues = Collections.<String>emptySet();

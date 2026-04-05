@@ -23,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import org.waveprotocol.wave.model.document.DocumentConstants;
+import org.waveprotocol.wave.model.conversation.AnnotationConstants;
 import org.waveprotocol.box.common.Snippets;
 import org.waveprotocol.wave.model.conversation.TitleHelper;
 import org.waveprotocol.wave.model.document.operation.AnnotationBoundaryMap;
@@ -200,7 +201,8 @@ public class WaveMetadataExtractor {
           for (int i = 0; i < map.changeSize(); i++) {
             String key = map.getChangeKey(i);
             String newValue = map.getNewValue(i);
-            if (key.startsWith("mention/") && newValue != null && !newValue.isEmpty()) {
+            if (AnnotationConstants.MENTION_USER.equals(key)
+                && newValue != null && !newValue.isEmpty()) {
               mentions.add(newValue.toLowerCase(Locale.ROOT));
             }
           }
