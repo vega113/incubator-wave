@@ -69,6 +69,11 @@ public abstract class LogLevel {
   private static native String readLogLevelFromUrl() /*-{
     var args = $wnd.location.search;
     var idx = args.indexOf("ll=");
+    // Advance past any match that is a substring of another parameter name
+    // (e.g. "spell=debug" must not trigger the "ll=" match).
+    while (idx > 0 && args.charAt(idx - 1) !== '?' && args.charAt(idx - 1) !== '&') {
+      idx = args.indexOf("ll=", idx + 1);
+    }
     if (idx >= 0) {
       var val = args.substring(idx + 3);
       var end = val.indexOf("&");
