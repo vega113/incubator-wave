@@ -4186,7 +4186,7 @@ public final class HtmlRenderer {
     sb.append("}\n");
     sb.append("</style>\n");
     sb.append("<style>\n").append(renderSharedTopBarCss()).append("</style>\n");
-    sb.append("<script src=\"https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js\"></script>\n");
+    sb.append("<script src=\"https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js\" integrity=\"sha384-09e8JU7bIiywWwLJXwgYV2aSXaNHhhCX+d8kS7uVqKfPWsQCAJQ7rU4GMY5lXgVk\" crossorigin=\"anonymous\"></script>\n");
     sb.append("</head>\n<body>\n");
 
     // Shared app header
