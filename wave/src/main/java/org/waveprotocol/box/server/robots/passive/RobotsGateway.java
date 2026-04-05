@@ -160,6 +160,11 @@ public class RobotsGateway implements WaveBus.Subscriber {
     if (robot == null) {
       robot = createNewRobot(robotName, account);
       allRobots.put(robotName, robot);
+    } else {
+      // Refresh the account so that capability updates (detected by
+      // NotifyOperationService and persisted to the account store) take
+      // effect without a server restart.
+      robot.setAccount(account);
     }
     return robot;
   }

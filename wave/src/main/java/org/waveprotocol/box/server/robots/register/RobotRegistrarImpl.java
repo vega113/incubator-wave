@@ -254,6 +254,23 @@ public class RobotRegistrarImpl implements RobotRegistrar {
   }
 
   @Override
+  public RobotAccountData refreshCapabilities(ParticipantId robotId)
+      throws RobotRegistrationException, PersistenceException {
+    Preconditions.checkNotNull(robotId);
+    AccountData account = accountStore.getAccount(robotId);
+    if (account == null) {
+      return null;
+    }
+    throwExceptionIfNotRobot(account);
+    RobotAccountData robotAccount = account.asRobot();
+    return updateRobotAccount(robotAccount, robotAccount.getUrl(), robotAccount.getOwnerAddress(),
+        robotAccount.getTokenExpirySeconds(), robotAccount.getConsumerSecret(),
+        null /* capabilities — null forces re-fetch */, robotAccount.isVerified(),
+        robotAccount.getDescription(), robotAccount.getCreatedAtMillis(), clock.millis(),
+        robotAccount.isPaused());
+  }
+
+  @Override
   public RobotAccountData rotateSecret(ParticipantId robotId)
       throws RobotRegistrationException, PersistenceException {
     Preconditions.checkNotNull(robotId);
