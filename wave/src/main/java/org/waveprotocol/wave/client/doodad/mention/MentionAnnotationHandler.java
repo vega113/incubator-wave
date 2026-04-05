@@ -34,10 +34,6 @@ import org.waveprotocol.wave.client.widget.profile.ProfilePopupPresenter;
 import org.waveprotocol.wave.client.widget.profile.ProfilePopupWidget;
 import org.waveprotocol.wave.model.conversation.AnnotationConstants;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.AnnotationFamily;
-<<<<<<< HEAD
-=======
-import org.waveprotocol.wave.model.document.AnnotationBehaviour.DefaultAnnotationBehaviour;
->>>>>>> c730d68bb (fix(editor): fix GWT compilation errors in mention handler)
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.BiasDirection;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.CursorDirection;
 import org.waveprotocol.wave.model.document.AnnotationBehaviour.DefaultAnnotationBehaviour;
