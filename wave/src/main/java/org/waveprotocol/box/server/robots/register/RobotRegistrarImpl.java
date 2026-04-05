@@ -263,10 +263,11 @@ public class RobotRegistrarImpl implements RobotRegistrar {
     }
     throwExceptionIfNotRobot(account);
     RobotAccountData robotAccount = account.asRobot();
+    long updatedAtMillis = Math.max(robotAccount.getUpdatedAtMillis() + 1L, clock.millis());
     return updateRobotAccount(robotAccount, robotAccount.getUrl(), robotAccount.getOwnerAddress(),
         robotAccount.getTokenExpirySeconds(), robotAccount.getConsumerSecret(),
         null /* capabilities — null forces re-fetch */, robotAccount.isVerified(),
-        robotAccount.getDescription(), robotAccount.getCreatedAtMillis(), clock.millis(),
+        robotAccount.getDescription(), robotAccount.getCreatedAtMillis(), updatedAtMillis,
         robotAccount.isPaused());
   }
 

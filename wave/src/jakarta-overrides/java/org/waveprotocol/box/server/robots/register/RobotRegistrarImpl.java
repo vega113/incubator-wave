@@ -276,6 +276,7 @@ public final class RobotRegistrarImpl implements RobotRegistrar {
     }
     throwExceptionIfNotRobot(account);
     RobotAccountData robotAccount = account.asRobot();
+    long updatedAtMillis = Math.max(robotAccount.getUpdatedAtMillis() + 1L, clock.millis());
     RobotAccountData updated = new RobotAccountDataImpl(
         robotAccount.getId(),
         robotAccount.getUrl(),
@@ -286,7 +287,7 @@ public final class RobotRegistrarImpl implements RobotRegistrar {
         robotAccount.getOwnerAddress(),
         robotAccount.getDescription(),
         robotAccount.getCreatedAtMillis(),
-        clock.millis(),
+        updatedAtMillis,
         robotAccount.isPaused(),
         robotAccount.getTokenVersion());
     accountStore.putAccount(updated);

@@ -293,6 +293,30 @@ public class RobotRegistrarImplTest extends TestCase {
     assertFalse(refreshed.isPaused());
   }
 
+  public void testRefreshCapabilitiesUsesStrictlyNewerTimestampWhenClockMatchesSnapshot()
+      throws PersistenceException, RobotRegistrationException {
+    RobotCapabilities capabilities = mock(RobotCapabilities.class);
+    RobotAccountData refreshedSourceAccount =
+        new RobotAccountDataImpl(
+            ROBOT_ID,
+            LOCATION,
+            EXISTING_CONSUMER_TOKEN,
+            capabilities,
+            true,
+            0L,
+            OWNER_ID.getAddress(),
+            "existing description",
+            1234L,
+            CLOCK.millis(),
+            false);
+    when(accountStore.getAccount(ROBOT_ID)).thenReturn(refreshedSourceAccount);
+
+    RobotAccountData refreshed = registrar.refreshCapabilities(ROBOT_ID);
+
+    assertEquals(CLOCK.millis() + 1L, refreshed.getUpdatedAtMillis());
+    assertTrue(refreshed.getUpdatedAtMillis() > refreshedSourceAccount.getUpdatedAtMillis());
+  }
+
   public void testRegisterOrUpdateClearsCapabilitiesWhenUrlChanges() throws PersistenceException,
       RobotRegistrationException {
     RobotCapabilities capabilities = mock(RobotCapabilities.class);
