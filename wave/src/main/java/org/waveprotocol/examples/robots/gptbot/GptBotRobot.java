@@ -143,6 +143,19 @@ public final class GptBotRobot {
       String waveId = blip.getWaveId() == null ? "" : blip.getWaveId().toString();
       String waveletId = blip.getWaveletId() == null ? "" : blip.getWaveletId().toString();
       Optional<String> prompt = replyPlanner.extractPrompt(blip.getContent());
+      if (!prompt.isPresent()) {
+        // No @mention — check if this is a direct reply to a bot blip. When a user continues
+        // a conversation in the bot's reply thread, treat the content as the prompt directly.
+        Blip parent = blip.getParentBlip();
+        if (parent != null) {
+          List<String> parentContributors = parent.getContributors();
+          String lastContributor = (parentContributors != null && !parentContributors.isEmpty())
+              ? parentContributors.get(parentContributors.size() - 1) : null;
+          if (config.getParticipantId().equalsIgnoreCase(lastContributor)) {
+            prompt = Optional.of(blip.getContent() == null ? "" : blip.getContent());
+          }
+        }
+      }
       if (prompt.isPresent()) {
         String waveContext = apiClient.fetchWaveContext(waveId, waveletId).orElse("");
         Optional<String> reply = replyPlanner.replyForPrompt(prompt.get(), waveContext);

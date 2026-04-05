@@ -179,6 +179,29 @@ public class GptBotRobotTest extends TestCase {
     }
   }
 
+  /**
+   * Regression: a user replying directly to a bot blip (no @mention) should trigger the bot.
+   * After the bot answers blip A, the user's follow-up reply in the same thread is a prompt.
+   */
+  public void testFollowUpReplyToBotBlipTriggersReplyWithoutAtMention() {
+    RecordingCodexClient codexClient = new RecordingCodexClient();
+    codexClient.response = "3+3 is 6.";
+    RecordingSupaWaveClient apiClient = new RecordingSupaWaveClient();
+    GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
+        new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), codexClient), apiClient);
+
+    // b+botreply was written by the bot; b+followup is the user's follow-up with no @mention.
+    String response = robot.handleEventBundle(exampleBundleJsonWithFollowUp(TEST_CONFIG,
+        "\n@" + TEST_CONFIG.getRobotName() + " what is 2+2?",
+        "2+2 = 4.",
+        "and what is 3+3?",
+        new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+followup")));
+
+    assertTrue("Bot should reply to follow-up in bot thread", response.contains("3+3 is 6."));
+    assertTrue(response.contains("blip.createChild"));
+    assertEquals(1, codexClient.completeCalls);
+  }
+
   public void testCapabilitiesXmlIncludesTheExpectedEventsAndContextAttribute() {
     GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
         new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), new RecordingCodexClient()),
@@ -233,6 +256,37 @@ public class GptBotRobotTest extends TestCase {
     bundle.addBlip("b+root", rootBlip);
     bundle.addBlip("b+child", new BlipData("example.com!w+abc123", "example.com!conv+root",
         "b+child", "\nExisting child reply"));
+    for (Event event : events) {
+      bundle.addEvent(event);
+    }
+    return new GsonFactory().create().toJson(bundle);
+  }
+
+  /**
+   * Bundle with: b+root (user @mention), b+botreply (bot's reply, bot as last contributor),
+   * b+followup (user's follow-up with no @mention, parent=b+botreply).
+   * Events fire for b+followup.
+   */
+  private static String exampleBundleJsonWithFollowUp(GptBotConfig config, String rootContent,
+      String botReplyContent, String followUpContent, Event... events) {
+    EventMessageBundle bundle = new EventMessageBundle(config.getParticipantId(),
+        "http://localhost:8087/_wave/robot/jsonrpc");
+    WaveletData waveletData = new WaveletData("example.com!w+abc123", "example.com!conv+root",
+        "b+root", (BlipThread) null);
+    waveletData.addParticipant("alice@example.com");
+    bundle.setWaveletData(waveletData);
+    bundle.addBlip("b+root", new BlipData("example.com!w+abc123",
+        "example.com!conv+root", "b+root", rootContent));
+    BlipData botReply = new BlipData("example.com!w+abc123",
+        "example.com!conv+root", "b+botreply", botReplyContent);
+    botReply.setParentBlipId("b+root");
+    botReply.setContributors(java.util.Arrays.asList(config.getParticipantId()));
+    bundle.addBlip("b+botreply", botReply);
+    BlipData followUp = new BlipData("example.com!w+abc123",
+        "example.com!conv+root", "b+followup", followUpContent);
+    followUp.setParentBlipId("b+botreply");
+    followUp.setContributors(java.util.Arrays.asList("alice@example.com"));
+    bundle.addBlip("b+followup", followUp);
     for (Event event : events) {
       bundle.addEvent(event);
     }
