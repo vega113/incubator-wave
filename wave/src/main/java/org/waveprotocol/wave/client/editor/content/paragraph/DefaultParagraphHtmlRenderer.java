@@ -180,10 +180,12 @@ public class DefaultParagraphHtmlRenderer implements ParagraphHtmlRenderer {
       style.clearProperty("textAlign");
     }
 
+    // Use HTML dir attribute for bidi; dir="auto" enables browser-native RTL detection.
+    style.clearProperty("direction"); // clear any legacy CSS direction value
     if (direction != null) {
-      style.setProperty("direction", direction.cssValue());
+      implNodelet.setAttribute("dir", direction.cssValue());
     } else {
-      style.clearProperty("direction");
+      implNodelet.setAttribute("dir", "auto");
     }
 
     if (margin == 0) {
