@@ -242,14 +242,14 @@ docker compose --project-name supawave \
 ### 2.3 MongoDB Optimization
 
 ```bash
-# The production compose already includes WiredTiger cache and profiling
-# settings.  Verify they are applied:
+# The production compose already includes WiredTiger cache sizing and a
+# slow-query threshold. Verify the cache cap is applied:
 docker exec supawave-mongo-1 mongosh --quiet --eval '
   db.serverStatus().wiredTiger.cache["maximum bytes configured"] / (1024*1024*1024)
 '
 # Expected: 8 (GiB)
 
-# Check slow query log:
+# Check slow query log when profiler data is available:
 docker exec supawave-mongo-1 mongosh --quiet --eval '
   db.system.profile.find({millis: {$gt: 100}}).sort({ts: -1}).limit(5).pretty()
 '

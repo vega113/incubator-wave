@@ -31,7 +31,6 @@ services:
       # Default is (totalRAM - 1 GiB) / 2 which over-allocates on large hosts.
       - --wiredTigerCacheSizeGB=8
       - --slowms=100
-      - --profile=1
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || exit 1"]
       interval: 5s

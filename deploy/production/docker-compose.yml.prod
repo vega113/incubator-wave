@@ -71,8 +71,6 @@ services:
       - --wiredTigerCacheSizeGB=8
       # Log queries that take longer than 100 ms so we can spot regressions.
       - --slowms=100
-      # Profile level 1: log slow operations only (no overhead from full profiling).
-      - --profile=1
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || exit 1"]
       interval: 5s
@@ -131,6 +129,7 @@ services:
       - -J-Xms6G
       - -J-XX:+UseG1GC
       - -J-XX:MaxGCPauseMillis=200
+      - -J-XX:+ExitOnOutOfMemoryError
       - -J-XX:+HeapDumpOnOutOfMemoryError
       - -J-XX:HeapDumpPath=/opt/wave/logs/heapdump-blue.hprof
       - -J-Xlog:gc*:file=/opt/wave/logs/gc-blue.log:time,uptime,level,tags:filecount=5,filesize=50m
@@ -201,6 +200,7 @@ services:
       - -J-Xms6G
       - -J-XX:+UseG1GC
       - -J-XX:MaxGCPauseMillis=200
+      - -J-XX:+ExitOnOutOfMemoryError
       - -J-XX:+HeapDumpOnOutOfMemoryError
       - -J-XX:HeapDumpPath=/opt/wave/logs/heapdump-green.hprof
       - -J-Xlog:gc*:file=/opt/wave/logs/gc-green.log:time,uptime,level,tags:filecount=5,filesize=50m
