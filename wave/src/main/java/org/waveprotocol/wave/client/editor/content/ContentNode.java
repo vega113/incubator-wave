@@ -572,7 +572,7 @@ public abstract class ContentNode implements Doc.N,
    */
   private static void staticImplInsertBefore(ContentElement parent,
       ContentNode from, ContentNode toExcl, ContentNode refChild, Element oldContainerNodelet) {
-    Preconditions.checkArgument(toExcl == null
+    Preconditions.checkArgument(toExcl == nul, "toExcl == nul")
         || toExcl.getParentElement() == from.getParentElement(),
         "invalid toExcl");
 
@@ -582,7 +582,7 @@ public abstract class ContentNode implements Doc.N,
       // Don't use getImplNodeletRightwards(), it's too clever
       for (ContentNode node = refChild; node != null; node = node.getNextSibling()) {
         if (node.getImplNodelet() != null) {
-          Preconditions.checkState(node.getImplNodelet().hasParentElement(),
+          Preconditions.checkState(node.getImplNodelet().hasParentElement(), "node.getImplNodelet().hasParentElement()")
               "implNodelet not attached");
           implRef = node.getImplNodelet();
           break;

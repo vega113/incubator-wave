@@ -21,7 +21,6 @@ package org.waveprotocol.wave.client.editor.content.paragraph;
 
 import static org.waveprotocol.wave.client.editor.content.paragraph.Line.DIRTY;
 
-import com.google.common.annotations.VisibleForTesting;
 
 import org.waveprotocol.wave.client.editor.content.ContentElement;
 import org.waveprotocol.wave.client.editor.content.ContentNode;

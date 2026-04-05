@@ -20,7 +20,7 @@
 
 package org.waveprotocol.wave.client;
 
-import com.google.common.base.Preconditions;
+import org.waveprotocol.wave.model.util.Preconditions;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.user.client.Command;

@@ -226,7 +226,7 @@ public abstract class GwtRenderingMutationHandler extends RenderingMutationHandl
       return; // Nothing to do
     }
 
-    Preconditions.checkState(existingParent == null || parent == null,
+    Preconditions.checkState(existingParent == null || parent == null, "existingParent == null || parent == null")
         "setLogicalPanel called for an element that already has it");
 
     if (element.isContentAttached()) {

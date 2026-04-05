@@ -220,11 +220,11 @@ public class ContentElement extends ContentNode implements Doc.E, HasHandlers, H
   @Override
   @Deprecated // Use #setImplNodelets(impl, container) instead
   public void setImplNodelet(Node nodelet) {
-    Preconditions.checkNotNull(nodelet,
+    Preconditions.checkNotNull(nodelet, "nodelet")
         "Null nodelet not supported with this deprecated method, use setImplNodelets instead");
-    Preconditions.checkState(containerNodelet == null || containerNodelet == getImplNodelet(),
+    Preconditions.checkState(containerNodelet == null || containerNodelet == getImplNodelet(), "containerNodelet == null || containerNodelet == getImplNodelet()")
         "Cannot set only the impl nodelet if the container nodelet is different");
-    Preconditions.checkArgument(!DomHelper.isTextNode(nodelet),
+    Preconditions.checkArgument(!DomHelper.isTextNode(nodelet), "!DomHelper.isTextNode(nodelet)")
         "element cannot have text implnodelet");
 
     Element element = nodelet.cast();

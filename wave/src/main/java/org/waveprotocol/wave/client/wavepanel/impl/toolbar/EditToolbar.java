@@ -19,7 +19,7 @@
 
 package org.waveprotocol.wave.client.wavepanel.impl.toolbar;
 
-import com.google.common.base.Preconditions;
+import org.waveprotocol.wave.model.util.Preconditions;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style.Unit;
@@ -330,7 +330,7 @@ public class EditToolbar {
 
   private void createInsertAttachmentButton(ToolbarView toolbar, final ParticipantId user) {
     WaveRef waveRef = WaveRef.of(waveId);
-    Preconditions.checkState(waveRef != null);
+    Preconditions.checkState(waveRef != null, "waveRef != null");
     final String waveRefToken = URL.encode(GwtWaverefEncoder.encodeToUriQueryString(waveRef));
 
     new ToolbarButtonViewBuilder().setIcon(css.insertAttachment()).setTooltip("Insert attachment")
@@ -551,7 +551,7 @@ public class EditToolbar {
    */
   public void enable(Editor editor) {
     this.editor.checkEditor(null);
-    Preconditions.checkArgument(editor != null);
+    Preconditions.checkArgument(editor != null, "editor != null");
     this.editor.switchEditor(editor);
     editor.addUpdateListener(updater);
     updater.updateButtonStates();
@@ -569,7 +569,7 @@ public class EditToolbar {
     // The above won't throw if we're not currently enabled, but it makes sure
     // 'editor' is the same as the current editor, if any. So if 'editor' is
     // null, it means we aren't enabled (the wrapped editor is null too).
-    Preconditions.checkState(editor != null);
+    Preconditions.checkState(editor != null, "editor != null");
     editor.removeUpdateListener(updater);
     this.editor.switchEditor(null);
   }

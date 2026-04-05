@@ -19,7 +19,6 @@
 
 package org.waveprotocol.wave.client.editor;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.gwt.core.client.Duration;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JavaScriptException;
@@ -1442,7 +1441,7 @@ public class EditorImpl extends LogicalPanel.Impl implements
 
   @Override
   public void init(Registries registries, KeyBindingRegistry bindings, EditorSettings settings) {
-    Preconditions.checkState(
+    Preconditions.checkState(, "")
         ownsDocument == (registries != null), "Can only set registries on owned documents");
     this.registries = registries;
     this.keyBindings = bindings;
@@ -1535,7 +1534,6 @@ public class EditorImpl extends LogicalPanel.Impl implements
   /**
    * Causes all pending operations to be fired as events.
    */
-  @VisibleForTesting
   void flushSynchronous() {
     if (content != null) {
       typing.flush();
@@ -2571,7 +2569,6 @@ public class EditorImpl extends LogicalPanel.Impl implements
   /**
    * Checks health if in debug build + logs errors
    */
-  @VisibleForTesting
   void debugCheckHealth() {
     if (LogLevel.showErrors()) {
       try {
@@ -2640,7 +2637,7 @@ public class EditorImpl extends LogicalPanel.Impl implements
 
   @Override
   public CaretAnnotations getCaretAnnotations() {
-    Preconditions.checkState(caretStyles != null,
+    Preconditions.checkState(caretStyles != null, "caretStyles != null")
         "Using the caret annotations of an editor not set up.");
     checkContextConsistency();
     return caretStyles;
@@ -2648,7 +2645,7 @@ public class EditorImpl extends LogicalPanel.Impl implements
 
   @Override
   public SelectionHelper getSelectionHelper() {
-    Preconditions.checkState(passiveSelectionHelper != null,
+    Preconditions.checkState(passiveSelectionHelper != null, "passiveSelectionHelper != null")
         "Using the selection helper of an editor not set up.");
     checkContextConsistency();
     return passiveSelectionHelper;

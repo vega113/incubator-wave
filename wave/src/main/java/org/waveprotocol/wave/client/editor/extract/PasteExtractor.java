@@ -19,7 +19,6 @@
 
 package org.waveprotocol.wave.client.editor.extract;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.gwt.core.client.Duration;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Node;

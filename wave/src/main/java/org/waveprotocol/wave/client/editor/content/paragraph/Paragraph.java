@@ -279,7 +279,7 @@ public class Paragraph {
   }
 
   public static LineStyle regularStyle(String type) {
-    Preconditions.checkArgument(!LIST_TYPE.equals(type),
+    Preconditions.checkArgument(!LIST_TYPE.equals(type), "!LIST_TYPE.equals(type)")
       "Don't use regularStyle() for list styles, use listStyle()");
     return new RegularStyler(type);
   }

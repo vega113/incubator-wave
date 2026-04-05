@@ -19,7 +19,7 @@
 
 package org.waveprotocol.wave.client.wavepanel.view.dom.full;
 
-import com.google.common.base.Preconditions;
+import org.waveprotocol.wave.model.util.Preconditions;
 
 import org.waveprotocol.wave.client.common.util.LogicalPanel;
 import org.waveprotocol.wave.client.editor.Editor;
@@ -72,7 +72,7 @@ public class DraftModeController implements EditSession.Listener,
   }
 
   private void attachWidgets() {
-    Preconditions.checkArgument(controlsWidget == null,
+    Preconditions.checkArgument(controlsWidget == null, "controlsWidget == null")
         "Draft mode controls widget is already attached");
     controlsWidget = blipMeta.attachDraftModeControls();
     container.doAdopt(controlsWidget.asWidget());
@@ -81,7 +81,7 @@ public class DraftModeController implements EditSession.Listener,
   }
 
   private void detachWidgets() {
-    Preconditions.checkNotNull(controlsWidget,
+    Preconditions.checkNotNull(controlsWidget, "controlsWidget")
         "Attempt to detach unattached draft mode controls");
     container.doOrphan(controlsWidget.asWidget());
     blipMeta.hideDraftModeControls();

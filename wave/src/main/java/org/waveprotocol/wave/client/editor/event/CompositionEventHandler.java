@@ -19,7 +19,6 @@
 
 package org.waveprotocol.wave.client.editor.event;
 
-import com.google.common.annotations.VisibleForTesting;
 
 import org.waveprotocol.wave.client.editor.constants.BrowserEvents;
 import org.waveprotocol.wave.client.scheduler.Scheduler;

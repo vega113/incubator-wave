@@ -124,14 +124,14 @@ public class LazyPersistenceManager {
   /** Creates an element by instead sourcing already placed local nodes. */
   public ContentElement createElement(String tagName, Map<String, String> attributes,
       ContentElement parent, ContentNode nodeAfter) {
-    Preconditions.checkState(isCreationDelegate(),
+    Preconditions.checkState(isCreationDelegate(), "isCreationDelegate()")
         "Lazy persistence delegated an element creation when not a delegate.");
     return nodeCreationDelegate.checkElement(tagName, attributes);
   }
 
   /** Creates a text node by instead sourcing already placed local nodes. */
   public ContentTextNode createTextNode(String data, ContentElement parent, ContentNode nodeAfter) {
-    Preconditions.checkState(isCreationDelegate(),
+    Preconditions.checkState(isCreationDelegate(), "isCreationDelegate()")
         "Lazy persistence delegated a text node creationgwhen not a delegate.");
     return nodeCreationDelegate.checkTextNode(data);
   }
@@ -178,7 +178,7 @@ public class LazyPersistenceManager {
     nodeCreationDelegate =
       new ReadableTreeWalker<ContentNode, ContentElement, ContentTextNode>(localDoc, localNode);
     sink.consume(op);
-    Preconditions.checkState(nodeCreationDelegate.checkComplete(),
+    Preconditions.checkState(nodeCreationDelegate.checkComplete(), "nodeCreationDelegate.checkComplete()")
         "Walk of tree did not match up...");
     nodeCreationDelegate = null;
   }

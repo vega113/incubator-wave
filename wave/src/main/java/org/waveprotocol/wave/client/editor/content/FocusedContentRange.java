@@ -66,7 +66,7 @@ public class FocusedContentRange extends FocusedPointRange<ContentNode>{
           : new ContentRange(getFocus(), getAnchor());
       this.isOrdered = isOrdered;
     } else {
-      Preconditions.checkState(isOrdered == this.isOrdered,
+      Preconditions.checkState(isOrdered == this.isOrdered, "isOrdered == this.isOrdered")
           "Different isOrdered input from last time");
     }
 

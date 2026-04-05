@@ -20,7 +20,7 @@
 
 package org.waveprotocol.wave.client.state;
 
-import com.google.common.base.Preconditions;
+import org.waveprotocol.wave.model.util.Preconditions;
 
 import org.waveprotocol.wave.client.debug.logger.DomLogger;
 import org.waveprotocol.wave.model.conversation.BlipIterators;
