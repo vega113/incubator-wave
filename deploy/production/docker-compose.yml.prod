@@ -123,7 +123,8 @@ services:
     # -----------------------------------------------------------------------
     # -J flags are passed directly to the JVM by the SBT native-packager
     # launcher. We use them here to keep the heap and GC configuration
-    # explicit and deterministic.
+    # explicit and deterministic now that the packaging defaults no longer
+    # pin heap sizing.
     # -----------------------------------------------------------------------
     command:
       - -J-Xmx20G
