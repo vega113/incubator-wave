@@ -122,8 +122,7 @@ public final class GptBotRobot {
             break;
           case DOCUMENT_CHANGED: {
             Blip changedBlip = DocumentChangedEvent.as(event).getBlip();
-            // Only reply if no child blip exists yet, to avoid replying on every keystroke.
-            if (changedBlip != null && changedBlip.getChildBlipIds().isEmpty()) {
+            if (changedBlip != null) {
               handleBlip(changedBlip, event.getModifiedBy(), handledBlipIds);
             }
             break;
