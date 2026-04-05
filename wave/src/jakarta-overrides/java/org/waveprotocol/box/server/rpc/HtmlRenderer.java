@@ -4783,7 +4783,7 @@ public final class HtmlRenderer {
     sb.append("      document.getElementById('panel-' + tab.dataset.tab).classList.add('active');\n");
     sb.append("      if (tab.dataset.tab === 'contacts' && !contactsLoaded) { fetchContacts(); }\n");
     sb.append("      if (tab.dataset.tab === 'flags' && !flagsLoaded) { fetchFlags(); }\n");
-    sb.append("      if (tab.dataset.tab === 'ops' && !opsLoaded) { loadOpsStatus(); }\n");
+    sb.append("      if (tab.dataset.tab === 'ops') { loadOpsStatus(); }\n");
     sb.append("      if (tab.dataset.tab === 'analytics') { loadAnalyticsHistory(analyticsActiveWindow); loadAnalyticsStatus(); }\n");
     sb.append("    });\n");
     sb.append("  });\n");
@@ -5252,7 +5252,6 @@ public final class HtmlRenderer {
     sb.append("  };\n");
 
     // ---- Operations tab logic ----
-    sb.append("  var opsLoaded = false;\n");
     sb.append("  var reindexPollTimer = null;\n");
 
     // Sub-tab switching
@@ -5345,7 +5344,6 @@ public final class HtmlRenderer {
 
     sb.append("  function loadOpsStatus() {\n");
     sb.append("    fetch('/admin/api/ops/status').then(function(r){return r.json();}).then(function(d){\n");
-    sb.append("      opsLoaded = true;\n");
     sb.append("      var si = d.searchIndex || {};\n");
     // Overview
     sb.append("      var srv = d.serverInfo || {};\n");
@@ -5366,7 +5364,7 @@ public final class HtmlRenderer {
     sb.append("      document.getElementById('opsLucene9Flag').textContent = si.lucene9FlagEnabled ? 'Enabled' : 'Disabled';\n");
     sb.append("      document.getElementById('opsLastRebuild').textContent = si.lastRebuildWaveCount >= 0 ? fmtNum(si.lastRebuildWaveCount) : '\\u2014';\n");
     sb.append("      document.getElementById('opsIncrementalAvg').textContent = si.incrementalAvgMs != null ? si.incrementalAvgMs.toFixed(1) + ' ms' : '\\u2014';\n");
-    sb.append("      document.getElementById('opsIncrementalCount').textContent = si.incrementalIndexCount ? fmtNum(si.incrementalIndexCount) : '\\u2014';\n");
+    sb.append("      document.getElementById('opsIncrementalCount').textContent = si.incrementalIndexCount != null ? fmtNum(si.incrementalIndexCount) : '\\u2014';\n");
     // Query stats
     sb.append("      document.getElementById('opsQueryCount').textContent = si.queryCount ? fmtNum(si.queryCount) : '0';\n");
     sb.append("      document.getElementById('opsQueryAvg').textContent = si.queryAvgMs != null ? si.queryAvgMs.toFixed(1) + ' ms' : '\\u2014';\n");

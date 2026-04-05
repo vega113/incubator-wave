@@ -96,6 +96,7 @@ public final class HtmlRendererFeatureFlagsTest {
     assertTrue(html.contains("data-tab=\"analytics\">Analytics</button>"));
     assertTrue(html.contains("id=\"panel-analytics\""));
     assertTrue(html.contains("if (tab.dataset.tab === 'analytics') { loadAnalyticsHistory(analyticsActiveWindow); loadAnalyticsStatus(); }"));
+    assertTrue(html.contains("if (tab.dataset.tab === 'ops') { loadOpsStatus(); }"));
     assertTrue(html.contains("href=\"/waveref/' + encodeURIComponent(wave.waveId) + '\""));
     assertTrue(html.contains("fetch('/admin/api/analytics/status')"));
     assertTrue(html.contains("document.getElementById('analyticsTotalWaves')"));
@@ -103,6 +104,9 @@ public final class HtmlRendererFeatureFlagsTest {
     assertTrue(
         html.contains(
             "document.getElementById('opsIncrementalAvg').textContent = si.incrementalAvgMs != null ? si.incrementalAvgMs.toFixed(1) + ' ms' : '\\u2014';"));
+    assertTrue(
+        html.contains(
+            "document.getElementById('opsIncrementalCount').textContent = si.incrementalIndexCount != null ? fmtNum(si.incrementalIndexCount) : '\\u2014';"));
     assertTrue(
         html.contains(
             "document.getElementById('opsQueryAvg').textContent = si.queryAvgMs != null ? si.queryAvgMs.toFixed(1) + ' ms' : '\\u2014';"));

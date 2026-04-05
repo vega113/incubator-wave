@@ -120,6 +120,29 @@ public final class AdminServletTest {
   }
 
   @Test
+  public void opsStatusSerializesReindexStatsWithLocaleIndependentDecimalSeparator()
+      throws Exception {
+    Locale originalLocale = Locale.getDefault();
+    try {
+      Locale.setDefault(Locale.GERMANY);
+      MemoryFeatureFlagStore featureFlagStore = new MemoryFeatureFlagStore();
+      ReindexService reindexService = new ReindexService(mock(Lucene9WaveIndexerImpl.class));
+      reindexService.recordStartupReindex(
+          new Lucene9WaveIndexerImpl.ReindexStats(
+              5, 0, 61L, 61_500_000L, 9_000_000L, 15_000_000L));
+
+      JSONObject json =
+          invokeOpsStatus(featureFlagStore, mockProvider(mock(SearchWaveletUpdater.class)), reindexService);
+
+      JSONObject lastReindex = json.getJSONObject("lastReindex");
+      assertEquals(5, lastReindex.getInt("waveCount"));
+      assertEquals(12.3, lastReindex.getDouble("avgMsPerWave"), 0.0001);
+    } finally {
+      Locale.setDefault(originalLocale);
+    }
+  }
+
+  @Test
   public void opsStatusSerializesLuceneQueryStatsWithLocaleIndependentDecimalSeparator()
       throws Exception {
     Locale originalLocale = Locale.getDefault();
@@ -248,6 +271,21 @@ public final class AdminServletTest {
   private static JSONObject invokeOpsStatus(
       FeatureFlagStore featureFlagStore,
       Provider<SearchWaveletUpdater> searchWaveletUpdaterProvider,
+      ReindexService reindexService) throws Exception {
+    return invokeJsonApi(
+        "/api/ops/status",
+        ownerAccount(ADMIN_ID),
+        featureFlagStore,
+        newAnalyticsService(),
+        searchWaveletUpdaterProvider,
+        reindexService,
+        0L,
+        0.0);
+  }
+
+  private static JSONObject invokeOpsStatus(
+      FeatureFlagStore featureFlagStore,
+      Provider<SearchWaveletUpdater> searchWaveletUpdaterProvider,
       long queryCount,
       double queryAvgMs) throws Exception {
     return invokeJsonApi(
@@ -283,10 +321,29 @@ public final class AdminServletTest {
       Provider<SearchWaveletUpdater> searchWaveletUpdaterProvider,
       long queryCount,
       double queryAvgMs) throws Exception {
+    return invokeJsonApi(
+        pathInfo,
+        account,
+        featureFlagStore,
+        analyticsService,
+        searchWaveletUpdaterProvider,
+        new ReindexService(null),
+        queryCount,
+        queryAvgMs);
+  }
+
+  private static JSONObject invokeJsonApi(
+      String pathInfo,
+      HumanAccountData account,
+      FeatureFlagStore featureFlagStore,
+      AdminAnalyticsService analyticsService,
+      Provider<SearchWaveletUpdater> searchWaveletUpdaterProvider,
+      ReindexService reindexService,
+      long queryCount,
+      double queryAvgMs) throws Exception {
     AccountStore accountStore = mock(AccountStore.class);
     SessionManager sessionManager = mock(SessionManager.class);
     ContactMessageStore contactMessageStore = mock(ContactMessageStore.class);
-    ReindexService reindexService = new ReindexService(null);
     WaveletProvider waveletProvider = mock(WaveletProvider.class);
     Lucene9WaveIndexerImpl lucene9Indexer = mock(Lucene9WaveIndexerImpl.class);
     HttpServletRequest request = mock(HttpServletRequest.class);
