@@ -329,6 +329,25 @@ public class WaveletOperationSerializerTest extends TestCase {
     assertEquals(0, result.getHistoryHash().length);
   }
 
+  /**
+   * A ProtocolHashedVersion with no history_hash set (default/unset field) must
+   * deserialize to an empty-hash HashedVersion without throwing. In standard Java
+   * protobuf, getHistoryHash() returns ByteString.EMPTY rather than null; the null
+   * guard in CoreWaveletOperationSerializer.deserialize() exists specifically for
+   * the GWT-JS runtime, which can return null for unset ByteString fields.
+   */
+  public void testDeserializeHashedVersionWithUnsetProtobufHash() {
+    ProtocolHashedVersion proto = ProtocolHashedVersion.newBuilder()
+        .setVersion(42L)
+        .build(); // historyHash not set → ByteString.EMPTY in JVM protobuf
+
+    HashedVersion result = CoreWaveletOperationSerializer.deserialize(proto);
+
+    assertEquals(42L, result.getVersion());
+    assertNotNull(result.getHistoryHash());
+    assertEquals(0, result.getHistoryHash().length);
+  }
+
   private static WaveletBlipOperation makeBlipOp(String blipId, DocOp mutation) {
     return new WaveletBlipOperation(blipId, new BlipContentOperation(OP_CONTEXT, mutation));
   }
