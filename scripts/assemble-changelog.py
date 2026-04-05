@@ -25,8 +25,12 @@ from pathlib import Path
 def assemble(fragments_dir: Path) -> list[dict]:
     entries: list[dict] = []
     for path in sorted(fragments_dir.glob("*.json")):
-        with path.open("r", encoding="utf-8") as f:
-            entry = json.load(f)
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                entry = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            print(f"error: invalid fragment {path}: {exc}", file=sys.stderr)
+            raise SystemExit(1)
         entries.append(entry)
     # Sort by date descending, then releaseId descending for stable ordering
     entries.sort(key=lambda e: (e.get("date", ""), e.get("releaseId", "")), reverse=True)
