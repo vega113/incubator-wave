@@ -95,21 +95,19 @@ public final class HtmlRendererFeatureFlagsTest {
     assertTrue(html.contains("href=\"/wave/admin\""));
     assertTrue(html.contains("data-tab=\"analytics\">Analytics</button>"));
     assertTrue(html.contains("id=\"panel-analytics\""));
-    assertTrue(html.contains("if (tab.dataset.tab === 'analytics') { loadAnalyticsHistory(analyticsActiveWindow); loadAnalyticsStatus(); }"));
-    assertTrue(html.contains("if (tab.dataset.tab === 'ops') { loadOpsStatus(); }"));
-    assertTrue(html.contains("href=\"/waveref/' + encodeURIComponent(wave.waveId) + '\""));
-    assertTrue(html.contains("fetch('/admin/api/analytics/status')"));
-    assertTrue(html.contains("document.getElementById('analyticsTotalWaves')"));
-    assertTrue(html.contains("document.getElementById('analyticsActive7d').textContent = s.writers7d || 0;"));
     assertTrue(
         html.contains(
-            "document.querySelectorAll('.ops-subtab').forEach(function(btn) {\n"
-                + "    btn.addEventListener('click', function() {\n"
-                + "      document.querySelectorAll('.ops-subtab').forEach(function(b) { b.classList.remove('active'); });\n"
-                + "      document.querySelectorAll('.ops-subpanel').forEach(function(p) { p.classList.remove('active'); });\n"
-                + "      btn.classList.add('active');\n"
-                + "      document.getElementById('ops-' + btn.dataset.ops).classList.add('active');\n"
-                + "      loadOpsStatus();"));
+            "if (tab.dataset.tab === 'analytics') { loadAnalyticsHistory(analyticsActiveWindow); loadAnalyticsStatus(); }"));
+    assertTrue(html.contains("if (tab.dataset.tab === 'ops') { loadOpsStatus(); }"));
+    assertTrue(html.contains("var analyticsActiveWindow = '24h';"));
+    assertTrue(html.contains("fetch('/admin/api/analytics/history?window=' + encodeURIComponent(win))"));
+    assertTrue(html.contains("chartWaves = createWaveChart('chartWaves', 'Waves Created', '#0077b6');"));
+    assertTrue(html.contains("var href = (_ctx || '') + '/waveref/' + encodeURIComponent(id);"));
+    assertTrue(html.contains("fetch('/admin/api/analytics/status')"));
+    assertTrue(
+        html.contains(
+            "el = document.getElementById('histActiveUsers'); if (el) el.textContent = (t.activeUsers || 0).toLocaleString();"));
+    assertTrue(html.contains("document.querySelectorAll('.ops-subtab').forEach(function(btn) {"));
     assertTrue(
         html.contains(
             "document.getElementById('opsIncrementalAvg').textContent = si.incrementalAvgMs != null ? si.incrementalAvgMs.toFixed(1) + ' ms' : '\\u2014';"));
