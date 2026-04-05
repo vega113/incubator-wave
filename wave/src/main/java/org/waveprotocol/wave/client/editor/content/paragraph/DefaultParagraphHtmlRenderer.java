@@ -191,14 +191,13 @@ public class DefaultParagraphHtmlRenderer implements ParagraphHtmlRenderer {
     if (margin == 0) {
       style.clearMarginLeft();
       style.clearMarginRight();
+      style.clearProperty("marginInlineStart");
     } else {
-      if (direction == Direction.RTL) {
-        style.setMarginRight(margin, Unit.PX);
-        style.clearMarginLeft();
-      } else {
-        style.setMarginLeft(margin, Unit.PX);
-        style.clearMarginRight();
-      }
+      // Use logical marginInlineStart so indentation stays on the correct side
+      // for both explicit RTL (dir="rtl") and auto-detected RTL (dir="auto").
+      style.clearMarginLeft();
+      style.clearMarginRight();
+      style.setProperty("marginInlineStart", margin + "px");
     }
   }
 

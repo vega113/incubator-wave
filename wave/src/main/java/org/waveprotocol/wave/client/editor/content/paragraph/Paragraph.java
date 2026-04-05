@@ -147,7 +147,7 @@ public class Paragraph {
       }
     }
 
-    static Direction fromValue(String v) {
+    public static Direction fromValue(String v) {
       return v != null ? map.get(v) : null;
     }
 
