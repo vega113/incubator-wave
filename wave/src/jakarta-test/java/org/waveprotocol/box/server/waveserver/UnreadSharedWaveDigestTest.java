@@ -111,6 +111,85 @@ public final class UnreadSharedWaveDigestTest extends TestCase {
     assertEquals(0, digest.getUnreadCount());
   }
 
+  public void testCountUnreadIgnoresNonBlipDocuments() {
+    // Regression: non-blip documents (tags, data docs) were counted as unread
+    // by countUnreadFromReadState, causing waves with only read blips but
+    // modified tags to appear in "unread:true" search results.
+    ObservableWaveletData conversationWavelet =
+        createWritableWaveletData(CONVERSATION_WAVELET_ID, OTHER_USER);
+    ObservableWaveletData viewerUserDataWavelet =
+        createWritableWaveletData(IdUtil.buildUserDataWaveletId(VIEWER), OTHER_USER);
+    ConversationUtil conversationUtil =
+        new ConversationUtil(new IdGeneratorImpl("local.net", () -> "nonblip-unread"));
+    OpBasedWavelet conversationModel = createWritableWavelet(conversationWavelet, OTHER_USER);
+    OpBasedWavelet userDataModel = createWritableWavelet(viewerUserDataWavelet, OTHER_USER);
+
+    org.waveprotocol.wave.model.conversation.WaveletBasedConversation.makeWaveletConversational(
+        conversationModel);
+    org.waveprotocol.wave.model.conversation.ObservableConversationView conversations =
+        conversationUtil.buildConversation(conversationModel);
+    org.waveprotocol.wave.model.conversation.ObservableConversation conversation =
+        conversations.getRoot();
+    conversation.addParticipant(VIEWER);
+    org.waveprotocol.wave.model.conversation.ConversationBlip blip =
+        conversation.getRootThread().appendBlip();
+
+    // Mark the blip as read via the supplement.
+    PrimitiveSupplement primitive =
+        org.waveprotocol.wave.model.supplement.WaveletBasedSupplement.create(userDataModel);
+    SupplementedWave supplement =
+        SupplementedWaveImpl.create(
+            primitive, conversations, VIEWER, SupplementedWaveImpl.DefaultFollow.ALWAYS);
+    supplement.markAsRead(blip);
+
+    // Add a non-blip "tags" document to the wavelet. This document should NOT
+    // be counted for unread state because it is not a conversation blip.
+    // Trigger document creation by applying a doc-op through the wavelet.
+    org.waveprotocol.wave.model.document.Document tagsDoc =
+        conversationModel.getDocument("tags");
+    tagsDoc.emptyElement(tagsDoc.getDocumentElement());
+
+    WaveViewData wave =
+        WaveViewDataImpl.create(
+            WAVE_ID,
+            java.util.Arrays.asList(
+                WaveletDataUtil.copyWavelet(conversationWavelet),
+                WaveletDataUtil.copyWavelet(viewerUserDataWavelet)));
+
+    WaveDigester digester = new WaveDigester(conversationUtil);
+    java.util.Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters =
+        new java.util.IdentityHashMap<>();
+
+    // Build context the same way SimpleSearchProviderImpl does.
+    java.util.List<ObservableWaveletData> convWavelets = new java.util.ArrayList<>();
+    ObservableWaveletData udw = null;
+    ObservableWaveletData convWavelet = null;
+    for (ObservableWaveletData w : wave.getWavelets()) {
+      if (IdUtil.isConversationRootWaveletId(w.getWaveletId())) {
+        convWavelet = w;
+        convWavelets.add(w);
+      } else if (IdUtil.isConversationalId(w.getWaveletId())) {
+        convWavelets.add(w);
+      } else if (IdUtil.isUserDataWavelet(VIEWER.getAddress(), w.getWaveletId())) {
+        udw = w;
+      }
+    }
+    assertNotNull("conversation wavelet must exist", convWavelet);
+
+    OpBasedWavelet opWavelet = OpBasedWavelet.createReadOnly(convWavelet);
+    waveletAdapters.put(convWavelet, opWavelet);
+    org.waveprotocol.wave.model.conversation.ObservableConversationView convs =
+        conversationUtil.buildConversation(opWavelet);
+    SupplementedWave supp = digester.buildSupplement(VIEWER, convs, udw, convWavelets);
+
+    SimpleSearchProviderImpl.WaveSupplementContext ctx =
+        new SimpleSearchProviderImpl.WaveSupplementContext(
+            convWavelet, udw, convWavelets, supp, convs);
+
+    int unreadCount = digester.countUnread(VIEWER, ctx, waveletAdapters);
+    assertEquals("Non-blip docs (tags) must not inflate unread count", 0, unreadCount);
+  }
+
   public void testWaveDigesterBuildCountsUnreadBlipsFromSecondaryConversationWavelets() {
     ObservableWaveletData rootConversationWavelet =
         createWritableWaveletData(CONVERSATION_WAVELET_ID, OTHER_USER);
