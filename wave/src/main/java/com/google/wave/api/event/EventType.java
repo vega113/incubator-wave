@@ -38,6 +38,8 @@ public enum EventType {
 
   BLIP_CONTRIBUTORS_CHANGED(BlipContributorsChangedEvent.class),
   BLIP_EDITING_DONE(BlipEditingDoneEvent.class),
+  @Deprecated(forRemoval = false)
+  BLIP_SUBMITTED(DocumentChangedEvent.class),
   DOCUMENT_CHANGED(DocumentChangedEvent.class),
   FORM_BUTTON_CLICKED(FormButtonClickedEvent.class),
   FORM_VALUE_CHANGED(FormValueChangedEvent.class),

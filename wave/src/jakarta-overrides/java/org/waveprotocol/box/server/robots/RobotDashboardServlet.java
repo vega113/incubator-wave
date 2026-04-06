@@ -1184,7 +1184,7 @@ public final class RobotDashboardServlet extends HttpServlet {
     sb.append("+'</w:robot>\\n\\n'");
     sb.append("+'Supported events: WAVELET_SELF_ADDED, WAVELET_SELF_REMOVED,\\n'");
     sb.append("+'WAVELET_PARTICIPANTS_CHANGED, WAVELET_TITLE_CHANGED, DOCUMENT_CHANGED,\\n'");
-    sb.append("+'BLIP_EDITING_DONE, BLIP_DELETED\\n'");
+    sb.append("+'BLIP_EDITING_DONE, WAVELET_BLIP_REMOVED\\n'");
     sb.append("+'\\n'");
     sb.append("+'BLIP_EDITING_DONE — Detecting when a user finished editing a blip:\\n'");
     sb.append("+'  Subscribe to BLIP_EDITING_DONE to receive a single event when all editing\\n'");

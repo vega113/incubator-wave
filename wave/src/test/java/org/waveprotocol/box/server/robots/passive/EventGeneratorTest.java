@@ -26,7 +26,6 @@ import com.google.common.collect.Sets;
 import com.google.wave.api.data.converter.EventDataConverter;
 import com.google.wave.api.data.converter.v22.EventDataConverterV22;
 import com.google.wave.api.event.AnnotatedTextChangedEvent;
-import com.google.wave.api.event.BlipEditingDoneEvent;
 import com.google.wave.api.event.DocumentChangedEvent;
 import com.google.wave.api.event.Event;
 import com.google.wave.api.event.EventType;

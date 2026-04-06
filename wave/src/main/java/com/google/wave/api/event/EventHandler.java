@@ -75,7 +75,7 @@ public interface EventHandler {
    *
    * @param event the blip editing done event.
    */
-  void onBlipEditingDone(BlipEditingDoneEvent event);
+  default void onBlipEditingDone(BlipEditingDoneEvent event) {}
 
   /**
    * Handler for {@link DocumentChangedEvent}.
