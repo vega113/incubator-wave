@@ -217,7 +217,8 @@ loki.source.file \"supawave_logs\" {
 }
 EOF"
 
-sudo chmod 600 "$CONFIG_PATH"
+sudo chown root:alloy "$CONFIG_PATH"
+sudo chmod 0640 "$CONFIG_PATH"
 
 sudo systemctl restart alloy.service
 sudo systemctl status --no-pager alloy.service
