@@ -144,7 +144,7 @@ public final class GptBotRobot {
       String waveId = blip.getWaveId() == null ? "" : blip.getWaveId().toString();
       String waveletId = blip.getWaveletId() == null ? "" : blip.getWaveletId().toString();
       Optional<String> prompt = replyPlanner.extractPrompt(blip.getContent());
-      if (!prompt.isPresent() && isBotThreadReply(blip)) {
+      if (!prompt.isPresent() && isBotThreadReply(blip)) { // No @mention but this is a reply in a bot thread
         // No @mention but this is a reply in a bot thread — use the full content as the prompt.
         String content = blip.getContent() == null ? "" : blip.getContent().strip();
         if (!content.isEmpty()) {
@@ -173,19 +173,19 @@ public final class GptBotRobot {
    * so that a non-@mention follow-up message should be treated as a prompt.
    */
   private boolean isBotThreadReply(Blip blip) {
-    // Check if the immediate parent blip was created by the bot (direct reply or inline thread).
+    // Check if the immediate parent blip has the bot as a contributor (direct reply or inline thread).
     Blip parent = blip.getParentBlip();
-    if (parent != null && isCreatedByBot(parent)) {
+    if (parent != null && hasBotContributor(parent)) {
       return true;
     }
-    // Check if any sibling blip in the same thread was created by the bot (inline reply threads
+    // Check if any sibling blip in the same thread has the bot as a contributor (inline reply threads
     // where the bot's reply and the user's follow-up share the same containing thread).
     BlipThread thread = blip.getThread();
     if (thread != null) {
       for (String siblingId : thread.getBlipIds()) {
         if (siblingId != null && !siblingId.equals(blip.getBlipId())) {
           Blip sibling = blip.getWavelet() != null ? blip.getWavelet().getBlip(siblingId) : null;
-          if (sibling != null && isCreatedByBot(sibling)) {
+          if (sibling != null && hasBotContributor(sibling)) {
             return true;
           }
         }
@@ -194,7 +194,12 @@ public final class GptBotRobot {
     return false;
   }
 
-  private boolean isCreatedByBot(Blip blip) {
+  /**
+   * Returns true if the bot is listed as a contributor to the blip.
+   * This covers cases where the bot authored the blip or contributed to edits,
+   * ensuring that follow-up replies in bot-threaded conversations are treated as prompts.
+   */
+  private boolean hasBotContributor(Blip blip) {
     List<String> contributors = blip.getContributors();
     return contributors != null && contributors.stream()
         .anyMatch(c -> c != null && c.equalsIgnoreCase(config.getParticipantId()));
