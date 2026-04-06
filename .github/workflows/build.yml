@@ -16,7 +16,7 @@ jobs:
   sbt-build:
     name: Server Build (JDK 17)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,7 +68,32 @@ jobs:
           docker compose -f deploy/caddy/compose.yml config >/tmp/caddy-compose.out
 
       - name: Compile PST and Wave
-        run: sbt --batch pst/compile wave/compile
+        run: |
+          for attempt in 1 2 3; do
+            echo "Compile attempt $attempt/3"
+            log_file="$(mktemp)"
+            status=0
+            sbt --batch pst/compile wave/compile >"$log_file" 2>&1 || status=$?
+            cat "$log_file"
+            if [ "$status" -eq 0 ]; then
+              rm -f "$log_file"
+              break
+            fi
+            if grep -Eqi '(unresolved dependency|error downloading|download failed|read timed out|connection reset|connection timed out|502 bad gateway|503 service unavailable|temporary failure|coursier.*resolution|failed to download|sslhandshakeexception|sockettimeoutexception)' "$log_file"; then
+              rm -f "$log_file"
+              if [ $attempt -lt 3 ]; then
+                echo "Transient dependency/plugin resolution failure on attempt $attempt, retrying in 30s..."
+                sleep 30
+              else
+                echo "All 3 compile attempts failed due to transient dependency/plugin resolution errors"
+                exit "$status"
+              fi
+            else
+              rm -f "$log_file"
+              echo "Compile failed with a non-transient error; failing fast without retry"
+              exit "$status"
+            fi
+          done
 
       - name: GWT compilation check
         run: sbt --batch compileGwt
