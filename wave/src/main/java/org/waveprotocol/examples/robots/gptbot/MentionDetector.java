@@ -49,20 +49,36 @@ public final class MentionDetector {
       LOG.info("MentionDetector.extractPrompt: text is null — no match possible");
       return prompt;
     }
-    String preview = text.substring(0, Math.min(150, text.length()));
-    LOG.info("MentionDetector.extractPrompt: pattern=" + mentionPattern.pattern()
-        + " textLength=" + text.length() + " textPreview=" + preview);
+    if (LOG.isFineLoggable()) {
+      LOG.fine("MentionDetector.extractPrompt: pattern=" + mentionPattern.pattern()
+          + " textLength=" + text.length()
+          + " textPreview=" + escapeForLog(text, 150));
+    }
     Matcher matcher = mentionPattern.matcher(text);
     if (matcher.find()) {
       String remainder = text.substring(matcher.end());
       remainder = trimPromptPrefix(remainder);
       LOG.info("MentionDetector.extractPrompt: match at [" + matcher.start() + "," + matcher.end()
-          + "] matched='" + matcher.group() + "' prompt='" + remainder.substring(0, Math.min(100, remainder.length())) + "'");
+          + "] matched='" + matcher.group() + "' promptLength=" + remainder.length());
+      if (LOG.isFineLoggable()) {
+        LOG.fine("MentionDetector.extractPrompt: prompt=" + escapeForLog(remainder, 100));
+      }
       prompt = Optional.of(remainder);
     } else {
-      LOG.info("MentionDetector.extractPrompt: NO mention match found — bot name not detected in blip");
+      LOG.info("MentionDetector.extractPrompt: NO match — bot name not detected in blip");
     }
     return prompt;
+  }
+
+  /**
+   * Escapes newlines and carriage returns for safe log output and truncates to limit characters.
+   */
+  private static String escapeForLog(String text, int limit) {
+    String s = text == null ? "" : text;
+    if (s.length() > limit) {
+      s = s.substring(0, limit) + "…";
+    }
+    return s.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n");
   }
 
   private static String buildMentionRegex(String robotName) {

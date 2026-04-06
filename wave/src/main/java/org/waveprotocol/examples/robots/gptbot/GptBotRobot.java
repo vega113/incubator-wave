@@ -162,6 +162,9 @@ public final class GptBotRobot {
     String content = blip.getContent();
     LOG.info("handleBlip: blipId=" + blipId + " modifiedBy=" + modifiedBy
         + " contentLen=" + (content == null ? 0 : content.length()));
+    if (LOG.isFineLoggable()) {
+      LOG.fine("handleBlip: content=" + escapeForLog(content == null ? "" : content, 200));
+    }
 
     if (shouldIgnore(modifiedBy)) {
       LOG.info("handleBlip: ignoring — modifiedBy=" + modifiedBy
@@ -190,7 +193,11 @@ public final class GptBotRobot {
       LOG.info("handleBlip: no bot mention and no parent-blip fallback — no reply generated");
       return;
     }
-    LOG.info("handleBlip: prompt extracted, promptLen=" + prompt.get().length());
+    LOG.info("handleBlip: mention detected blipId=" + blipId
+        + " promptLen=" + prompt.get().length());
+    if (LOG.isFineLoggable()) {
+      LOG.fine("handleBlip: prompt=" + escapeForLog(prompt.get(), 200));
+    }
 
     try {
       String waveContext = apiClient.fetchWaveContext(waveId, waveletId).orElse("");
@@ -202,10 +209,13 @@ public final class GptBotRobot {
         return;
       }
       String replyText = reply.get();
-      LOG.info("handleBlip: reply generated, replyLen=" + replyText.length());
+      LOG.info("handleBlip: reply generated, replyLen=" + replyText.length() + " for blipId=" + blipId);
+      if (LOG.isFineLoggable()) {
+        LOG.fine("handleBlip: reply preview=" + escapeForLog(replyText, 100));
+      }
 
       if (config.getReplyMode() == GptBotConfig.ReplyMode.ACTIVE) {
-        LOG.info("handleBlip: ACTIVE mode — calling appendReply");
+        LOG.info("handleBlip: ACTIVE mode — calling appendReply for blipId=" + blipId);
         if (!apiClient.appendReply(waveId, waveletId, blipId, replyText)) {
           LOG.warning("handleBlip: ACTIVE appendReply failed for blipId=" + blipId
               + " waveId=" + waveId + " waveletId=" + waveletId);
@@ -256,6 +266,17 @@ public final class GptBotRobot {
     List<String> contributors = blip.getContributors();
     return contributors != null && contributors.stream()
         .anyMatch(c -> c != null && c.equalsIgnoreCase(config.getParticipantId()));
+  }
+
+  /**
+   * Escapes newlines and carriage returns for safe log output and truncates to limit characters.
+   */
+  private static String escapeForLog(String text, int limit) {
+    String s = text == null ? "" : text;
+    if (s.length() > limit) {
+      s = s.substring(0, limit) + "…";
+    }
+    return s.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n");
   }
 
   private boolean shouldHandle(Blip blip, Set<String> handledBlipIds) {
