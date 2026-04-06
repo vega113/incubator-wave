@@ -186,6 +186,9 @@ public final class GptBotRobot {
       LOG.info("handleBlip: already handled blipId=" + blipId + " — skipping duplicate");
       return;
     }
+    if (isBlipBeingEdited(blip)) {
+      return;
+    }
 
     String waveId = blip.getWaveId() == null ? "" : blip.getWaveId().toString();
     String waveletId = blip.getWaveletId() == null ? "" : blip.getWaveletId().toString();
@@ -303,6 +306,24 @@ public final class GptBotRobot {
 
   private boolean shouldIgnore(String modifiedBy) {
     return modifiedBy != null && modifiedBy.equalsIgnoreCase(config.getParticipantId());
+  }
+
+  /**
+   * Returns true if any participant is actively editing this blip.
+   * Wave sets a "user/d/{sessionId}" annotation on the blip while a user is editing.
+   * When editing ends (Shift+Enter or focus lost), that annotation is removed.
+   * We skip responding until editing is complete to avoid replying to every keystroke.
+   */
+  private boolean isBlipBeingEdited(Blip blip) {
+    for (com.google.wave.api.Annotation annotation : blip.getAnnotations()) {
+      String name = annotation.getName();
+      if (name != null && name.startsWith("user/d/")) {
+        LOG.info("handleBlip: blipId=" + blip.getBlipId()
+            + " still being edited (annotation=" + name + ") — skipping");
+        return true;
+      }
+    }
+    return false;
   }
 
   // To force the server to pick up new capabilities without restart:
