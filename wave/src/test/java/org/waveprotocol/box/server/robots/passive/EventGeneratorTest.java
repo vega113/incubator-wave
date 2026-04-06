@@ -389,15 +389,18 @@ public class EventGeneratorTest extends RobotsTestBase {
     ConversationBlip rootBlip =
         conversationUtil.buildConversation(wavelet).getRoot().getRootThread().getFirstBlip();
 
-    // First session: editing complete
+    // Seed two active sessions.
     rootBlip.getContent().setAnnotation(0, 1, "user/d/session-1111",
-        "alice@example.com,1111,2222");
-    // Clear ops from the first annotation — we only want to capture the second
-    output.clear();
-
-    // Second session: still editing (empty end timestamp)
+        "alice@example.com,1111,");
     rootBlip.getContent().setAnnotation(0, 1, "user/d/session-3333",
         "bob@example.com,3333,");
+
+    // Only capture the "close one session" transition in this delta.
+    output.clear();
+
+    // Close first session; second remains active — exercises allEditingSessionsClosed branch.
+    rootBlip.getContent().setAnnotation(0, 1, "user/d/session-1111",
+        "alice@example.com,1111,2222");
 
     List<WaveletOperation> ops = output.getOps();
     HashedVersion endVersion = HashedVersion.unsigned(waveletData.getVersion());
