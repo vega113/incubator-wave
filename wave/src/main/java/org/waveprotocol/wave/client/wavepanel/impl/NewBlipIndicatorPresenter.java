@@ -47,6 +47,8 @@ public final class NewBlipIndicatorPresenter {
   private int newBlipCount;
   /** The previous scroll listener on threadContainer, restored on detach(). */
   private EventListener prevScrollListener;
+  /** Pre-insert snapshot of whether the user was near the bottom. */
+  private boolean wasNearBottom;
 
   public NewBlipIndicatorPresenter(ParticipantId signedInUser) {
     this.signedInUser = signedInUser;
@@ -68,7 +70,8 @@ public final class NewBlipIndicatorPresenter {
     pillElement = Document.get().createDivElement();
     pillElement.setClassName(css.pill());
     pillElement.setAttribute("role", "button");
-    pillElement.setAttribute("tabindex", "0");
+    pillElement.setAttribute("tabindex", "-1");
+    pillElement.setAttribute("aria-hidden", "true");
     pillElement.setAttribute("aria-label", "Scroll to new messages");
     threadContainer.getParentElement().appendChild(pillElement);
 
@@ -127,9 +130,18 @@ public final class NewBlipIndicatorPresenter {
   }
 
   /**
-   * Called by {@code LiveConversationViewRenderer} when a new blip is added to
-   * the conversation. Increments the pill counter if the user is scrolled up
-   * and the blip was authored by someone else.
+   * Snapshot the near-bottom state before the blip DOM is inserted.
+   * Must be called before {@code threadView.insertBlipAfter()} so the
+   * scroll metrics reflect the pre-insert state.
+   */
+  public void snapshotNearBottom() {
+    wasNearBottom = (scrollContainer == null) || isNearBottom();
+  }
+
+  /**
+   * Called by {@code LiveConversationViewRenderer} after a new blip is rendered.
+   * Uses the pre-insert snapshot to avoid false positives when the insertion
+   * itself pushes the user past the near-bottom threshold.
    */
   public void onNewBlip(ObservableConversationBlip blip) {
     if (scrollContainer == null) {
@@ -139,8 +151,8 @@ public final class NewBlipIndicatorPresenter {
     if (blip.getAuthorId() != null && blip.getAuthorId().equals(signedInUser)) {
       return;
     }
-    // If user is near bottom, they'll see it naturally.
-    if (isNearBottom()) {
+    // Use the pre-insert snapshot: if user was near bottom, they'll see it naturally.
+    if (wasNearBottom) {
       return;
     }
     newBlipCount++;
@@ -161,6 +173,8 @@ public final class NewBlipIndicatorPresenter {
     }
     if (newBlipCount <= 0) {
       pillElement.removeClassName(css.pillVisible());
+      pillElement.setAttribute("tabindex", "-1");
+      pillElement.setAttribute("aria-hidden", "true");
       return;
     }
     String text = newBlipCount == 1
@@ -168,6 +182,8 @@ public final class NewBlipIndicatorPresenter {
         : newBlipCount + " new messages \u2193";
     pillElement.setInnerText(text);
     pillElement.setAttribute("aria-label", text);
+    pillElement.setAttribute("tabindex", "0");
+    pillElement.setAttribute("aria-hidden", "false");
     pillElement.addClassName(css.pillVisible());
   }
 

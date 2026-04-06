@@ -134,12 +134,19 @@ public class LiveConversationViewRenderer
         ConversationBlip ref = findBefore(blip, parentThread.getBlips());
         BlipView refView = viewOf(ref);
 
+        // Snapshot scroll state BEFORE insertion so the pill doesn't false-trigger
+        // when the new blip pushes the user past the near-bottom threshold.
+        boolean shouldNotify = newBlipIndicatorPresenter != null
+            && parentThread == conversation.getRootThread()
+            && conversation.getAnchor() == null;
+        if (shouldNotify) {
+          newBlipIndicatorPresenter.snapshotNearBottom();
+        }
+
         // Render the new blip.
         threadView.insertBlipAfter(refView, blip);
         bubbleBlipCountUpdate(blip);
-        // Only notify the pill for blips appended to the root thread (not inline replies).
-        if (newBlipIndicatorPresenter != null
-            && parentThread == conversation.getRootThread()) {
+        if (shouldNotify) {
           newBlipIndicatorPresenter.onNewBlip(blip);
         }
       } else {
