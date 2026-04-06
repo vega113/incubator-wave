@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -83,7 +84,11 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
   private final boolean rebuildOnStartup;
   private final IndexWriter indexWriter;
   private final SearcherManager searcherManager;
+  // Bounded queue to prevent unbounded growth; uses coalescing with pendingWaves set to avoid
+  // redundant re-indexing of the same wave multiple times within the queue.
+  private static final int MAX_QUEUE_SIZE = 10000;
   private final BlockingQueue<WaveId> indexQueue;
+  private final ConcurrentHashMap<WaveId, Boolean> pendingWaves;
   private final ExecutorService indexWriterExecutor;
   private volatile int lastRebuildWaveCount = -1;
   private volatile ReindexStats lastReindexStats;
@@ -111,7 +116,8 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
       }
       throw new IndexException(e);
     }
-    this.indexQueue = new LinkedBlockingQueue<>();
+    this.indexQueue = new LinkedBlockingQueue<>(MAX_QUEUE_SIZE);
+    this.pendingWaves = new ConcurrentHashMap<>();
     this.indexWriterExecutor = Executors.newSingleThreadExecutor(
         r -> { Thread t = new Thread(r, "lucene9-index-writer"); t.setDaemon(true); return t; });
     indexWriterExecutor.submit(this::runIndexWriter);
@@ -122,13 +128,21 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
     // Interrupt the writer thread and wait for it to drain remaining queue items before
     // closing the underlying Lucene resources it depends on.
     indexWriterExecutor.shutdownNow();
+    boolean terminated = false;
     try {
-      indexWriterExecutor.awaitTermination(10, TimeUnit.SECONDS);
+      terminated = indexWriterExecutor.awaitTermination(10, TimeUnit.SECONDS);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }
-    searcherManager.close();
-    indexWriter.close();
+    if (!terminated) {
+      LOG.warning("Lucene9 index writer thread did not terminate within 10 seconds; " +
+          "closing resources anyway but pending updates may be lost");
+    }
+    try {
+      searcherManager.close();
+    } finally {
+      indexWriter.close();
+    }
   }
 
   @Override
@@ -275,7 +289,23 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
     // Enqueue asynchronously to decouple from the StorageContinuationExecutor thread, which may
     // already hold Lucene's write lock — calling indexWriter.updateDocument() on that thread
     // causes IllegalStateException: should not hold write lock.
-    indexQueue.add(waveletName.waveId);
+    WaveId waveId = waveletName.waveId;
+    // Only enqueue if not already pending to coalesce duplicate updates for the same wave.
+    if (pendingWaves.putIfAbsent(waveId, Boolean.TRUE) == null) {
+      // Use offer with a brief timeout rather than add to avoid blocking if queue is full.
+      // If queue is full, the update will be retried on the next commit.
+      try {
+        if (!indexQueue.offer(waveId, 100, TimeUnit.MILLISECONDS)) {
+          // Remove from pending if offer failed; it will be re-added on next commit.
+          pendingWaves.remove(waveId);
+          LOG.log(Level.WARNING, "Index queue full, deferring update for " + waveId.serialise());
+        }
+      } catch (InterruptedException e) {
+        // Restore interrupt flag and remove from pending; will retry on next commit.
+        Thread.currentThread().interrupt();
+        pendingWaves.remove(waveId);
+      }
+    }
   }
 
   /** Background writer loop: processes queued wave IDs on a dedicated single thread. */
@@ -298,7 +328,15 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
     // Drain any remaining queue items before exiting so shutdown doesn't lose pending updates.
     WaveId waveId;
     while ((waveId = indexQueue.poll()) != null) {
-      processIndexUpdate(waveId);
+      try {
+        processIndexUpdate(waveId);
+      } catch (RuntimeException e) {
+        // Guard drain loop against exceptions as well; log but continue draining remaining items.
+        LOG.log(Level.WARNING, "Error processing queued update during shutdown drain", e);
+      } finally {
+        // Always clean up the pending entry after processing (whether successful or not).
+        pendingWaves.remove(waveId);
+      }
     }
   }
 
@@ -324,6 +362,9 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
       LOG.log(Level.WARNING, "Failed to refresh lucene9 search index for wave " + waveId, e);
     } catch (WaveServerException e) {
       LOG.log(Level.WARNING, "Failed to update lucene9 search index for wave " + waveId, e);
+    } finally {
+      // Always remove from pending set after processing (success or failure).
+      pendingWaves.remove(waveId);
     }
   }
 
