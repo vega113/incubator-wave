@@ -885,9 +885,10 @@ public class WebClient implements EntryPoint {
       // If an uncaught exception occurs within 10s of a WebSocket reconnect,
       // the client state is likely corrupt from a failed re-sync.  A clean
       // page reload is more reliable than attempting in-place recovery.
-      if (isLikelySyncError(e) && currentWebSocket != null
+      if (!hasFired && isLikelySyncError(e) && currentWebSocket != null
           && currentWebSocket.wasRecentlyReconnected()) {
-        LOG.warning("Re-sync error after reconnect, triggering clean reload: " + e.getMessage());
+        hasFired = true;
+        LOG.severe("Re-sync error after reconnect, triggering clean reload", e);
         scheduleReload(3000);
         return;
       }
@@ -920,7 +921,7 @@ public class WebClient implements EntryPoint {
 
     /** True for RuntimeExceptions that could be caused by corrupt re-sync state. */
     private static boolean isLikelySyncError(Throwable e) {
-      return (e instanceof RuntimeException) && e.getMessage() != null;
+      return e instanceof RuntimeException;
     }
 
     /** Schedules a clean page reload after {@code delayMs} milliseconds. */
