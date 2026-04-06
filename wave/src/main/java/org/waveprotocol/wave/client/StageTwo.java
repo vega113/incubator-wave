@@ -132,6 +132,7 @@ import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ConversationThread;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
 import org.waveprotocol.wave.model.conversation.WaveBasedConversationView;
+import org.waveprotocol.wave.model.conversation.ObservableConversation;
 import org.waveprotocol.wave.model.conversation.ObservableConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationThread;
 import org.waveprotocol.wave.model.document.indexed.IndexedDocumentImpl;
@@ -1208,8 +1209,11 @@ public interface StageTwo {
             // Attach new-blip indicator pill to the conversation scroll container.
             // DOM is guaranteed to exist after ensureRendered().
             if (newBlipPresenter != null) {
-                String convDomId = getViewIdMapper().conversationOf(
-                    getConversations().getRoot());
+                ObservableConversation root = getConversations().getRoot();
+                if (root == null) {
+                    return;
+                }
+                String convDomId = getViewIdMapper().conversationOf(root);
                 Element threadContainer = Document.get().getElementById(
                     org.waveprotocol.wave.client.wavepanel.view.dom.full
                         .TopConversationViewBuilder.Components.THREAD_CONTAINER
