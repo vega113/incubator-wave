@@ -97,13 +97,27 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             echo "Build attempt $attempt/3"
-            sbt --batch "pst/compile; wave/compile; compileGwt; Universal/stage" && break
-            if [ $attempt -lt 3 ]; then
-              echo "Attempt $attempt failed, retrying in 30s..."
-              sleep 30
+            log_file="$(mktemp)"
+            sbt --batch "pst/compile; wave/compile; compileGwt; Universal/stage" >"$log_file" 2>&1
+            status=$?
+            cat "$log_file"
+            if [ "$status" -eq 0 ]; then
+              rm -f "$log_file"
+              break
+            fi
+            if grep -Eqi '(unresolved dependency|error downloading|download failed|read timed out|connection reset|connection timed out|502 bad gateway|503 service unavailable|temporary failure|coursier.*resolution|failed to download|sslhandshakeexception|sockettimeoutexception)' "$log_file"; then
+              rm -f "$log_file"
+              if [ $attempt -lt 3 ]; then
+                echo "Transient dependency/plugin resolution failure on attempt $attempt, retrying in 30s..."
+                sleep 30
+              else
+                echo "All 3 build attempts failed due to transient dependency/plugin resolution errors"
+                exit "$status"
+              fi
             else
-              echo "All 3 build attempts failed"
-              exit 1
+              rm -f "$log_file"
+              echo "Build failed with a non-transient error; failing fast without retry"
+              exit "$status"
             fi
           done
 
