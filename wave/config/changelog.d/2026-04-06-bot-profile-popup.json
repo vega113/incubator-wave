@@ -1,0 +1,6 @@
+{
+  "date": "2026-04-06",
+  "type": "feature",
+  "summary": "Show bot profile popup when clicking a bot avatar in a wave",
+  "details": "Clicking a bot's avatar or participant icon now opens a profile popup showing the bot's name, address, description, owner, and registration date. Bots display a robot icon avatar and have no Edit Profile or Send Message buttons."
+}

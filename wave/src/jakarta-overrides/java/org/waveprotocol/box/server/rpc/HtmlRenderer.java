@@ -2832,6 +2832,10 @@ public final class HtmlRenderer {
     sb.append("  font-size: 12px; color: ").append(WAVE_TEXT_MUTED).append(";\n");
     sb.append("  margin: 0 0 16px;\n");
     sb.append("}\n");
+    sb.append("#pc-owner {\n");
+    sb.append("  font-size: 12px; color: ").append(WAVE_TEXT_MUTED).append(";\n");
+    sb.append("  margin: 0 0 16px;\n");
+    sb.append("}\n");
     sb.append("#pc-actions { display: flex; gap: 8px; justify-content: center; }\n");
     sb.append("#pc-actions button {\n");
     sb.append("  padding: 8px 20px; border-radius: 8px; font-size: 13px;\n");
@@ -2862,6 +2866,7 @@ public final class HtmlRenderer {
     sb.append("      <div id=\"pc-address\"></div>\n");
     sb.append("      <div id=\"pc-bio\"></div>\n");
     sb.append("      <div id=\"pc-lastseen\"></div>\n");
+    sb.append("      <div id=\"pc-owner\"></div>\n");
     sb.append("      <div id=\"pc-actions\">\n");
     sb.append("        <button class=\"pc-btn-primary\" id=\"pc-message\">Send Message</button>\n");
     sb.append("        <button class=\"pc-btn-secondary\" id=\"pc-edit\" style=\"display:none;\">Edit Profile</button>\n");
@@ -2879,6 +2884,7 @@ public final class HtmlRenderer {
     sb.append("  var pcAvatar = document.getElementById('pc-avatar');\n");
     sb.append("  var pcBio = document.getElementById('pc-bio');\n");
     sb.append("  var pcLastSeen = document.getElementById('pc-lastseen');\n");
+    sb.append("  var pcOwner = document.getElementById('pc-owner');\n");
     sb.append("  var pcMessage = document.getElementById('pc-message');\n");
     sb.append("  var pcEdit = document.getElementById('pc-edit');\n");
     sb.append("  var pcClose = document.getElementById('pc-close');\n");
@@ -2903,38 +2909,77 @@ public final class HtmlRenderer {
     sb.append("    return 'Member since ' + months[d.getMonth()] + ' ' + d.getFullYear();\n");
     sb.append("  }\n\n");
 
-    // Show profile card
+    // Bot avatar: inline SVG robot icon as a data URL
+    sb.append("  var BOT_AVATAR_URL = \"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72'%3E\"\n");
+    sb.append("    + \"%3Ccircle cx='36' cy='36' r='36' fill='%23e2e8f0'/%3E\"\n");
+    sb.append("    + \"%3Crect x='18' y='22' width='36' height='28' rx='5' fill='%234a5568'/%3E\"\n");
+    sb.append("    + \"%3Ccircle cx='27' cy='33' r='5' fill='%2300b4d8'/%3E\"\n");
+    sb.append("    + \"%3Ccircle cx='45' cy='33' r='5' fill='%2300b4d8'/%3E\"\n");
+    sb.append("    + \"%3Crect x='23' y='42' width='26' height='4' rx='2' fill='%2300b4d8'/%3E\"\n");
+    sb.append("    + \"%3Crect x='32' y='14' width='8' height='10' rx='4' fill='%234a5568'/%3E\"\n");
+    sb.append("    + \"%3C/svg%3E\";\n\n");
+
+    // Show bot profile card
+    sb.append("  function showBotCard(data, address) {\n");
+    sb.append("    pcName.textContent = data.name || address.split('@')[0];\n");
+    sb.append("    pcAddress.textContent = address;\n");
+    sb.append("    pcAvatar.src = BOT_AVATAR_URL;\n");
+    sb.append("    pcBio.textContent = data.description || '';\n");
+    sb.append("    pcBio.style.display = data.description ? 'block' : 'none';\n");
+    sb.append("    var ms = formatMemberSince(data.registrationTime);\n");
+    sb.append("    pcLastSeen.innerHTML = ms ? '<div>' + ms + '</div>' : '';\n");
+    sb.append("    pcLastSeen.style.display = ms ? 'block' : 'none';\n");
+    sb.append("    if (data.ownerAddress) {\n");
+    sb.append("      pcOwner.textContent = 'Owner: ' + data.ownerAddress;\n");
+    sb.append("      pcOwner.style.display = 'block';\n");
+    sb.append("    } else {\n");
+    sb.append("      pcOwner.style.display = 'none';\n");
+    sb.append("    }\n");
+    sb.append("    pcEdit.style.display = 'none';\n");
+    sb.append("    pcMessage.style.display = 'none';\n");
+    sb.append("    overlay.style.display = 'block';\n");
+    sb.append("  }\n\n");
+
+    // Show user profile card
+    sb.append("  function showUserCard(data, address) {\n");
+    sb.append("    var displayName = '';\n");
+    sb.append("    if (data.firstName || data.lastName) {\n");
+    sb.append("      displayName = ((data.firstName || '') + ' ' + (data.lastName || '')).trim();\n");
+    sb.append("    } else {\n");
+    sb.append("      displayName = address.split('@')[0];\n");
+    sb.append("    }\n");
+    sb.append("    pcName.textContent = displayName;\n");
+    sb.append("    pcAddress.textContent = address;\n");
+    sb.append("    pcAvatar.src = data.imageUrl || '/static/images/unknown.jpg';\n");
+    sb.append("    pcBio.textContent = data.bio || '';\n");
+    sb.append("    pcBio.style.display = data.bio ? 'block' : 'none';\n");
+    sb.append("    var ls = formatLastSeen(data.lastSeenTime);\n");
+    sb.append("    var ms = formatMemberSince(data.registrationTime);\n");
+    sb.append("    var parts = [];\n");
+    sb.append("    if (ls) parts.push('<div>' + ls + '</div>');\n");
+    sb.append("    if (ms) parts.push('<div>' + ms + '</div>');\n");
+    sb.append("    pcLastSeen.innerHTML = parts.join('');\n");
+    sb.append("    pcLastSeen.style.display = parts.length ? 'block' : 'none';\n");
+    sb.append("    pcOwner.style.display = 'none';\n");
+    sb.append("    var loggedInUser = document.querySelector('.user-info');\n");
+    sb.append("    var isOwnProfile = loggedInUser && loggedInUser.textContent.trim() === address;\n");
+    sb.append("    pcEdit.style.display = isOwnProfile ? '' : 'none';\n");
+    sb.append("    pcMessage.style.display = isOwnProfile ? 'none' : '';\n");
+    sb.append("    overlay.style.display = 'block';\n");
+    sb.append("  }\n\n");
+
+    // Show profile card dispatcher
     sb.append("  window.showProfileCard = function(address) {\n");
     sb.append("    currentAddress = address;\n");
-    sb.append("    // Fetch profile card data\n");
     sb.append("    fetch('/userprofile/card/' + encodeURIComponent(address))\n");
     sb.append("      .then(function(r) { return r.json(); })\n");
     sb.append("      .then(function(data) {\n");
     sb.append("        if (data.error) return;\n");
-    sb.append("        var displayName = '';\n");
-    sb.append("        if (data.firstName || data.lastName) {\n");
-    sb.append("          displayName = ((data.firstName || '') + ' ' + (data.lastName || '')).trim();\n");
+    sb.append("        if (data.isBot) {\n");
+    sb.append("          showBotCard(data, address);\n");
     sb.append("        } else {\n");
-    sb.append("          displayName = address.split('@')[0];\n");
+    sb.append("          showUserCard(data, address);\n");
     sb.append("        }\n");
-    sb.append("        pcName.textContent = displayName;\n");
-    sb.append("        pcAddress.textContent = address;\n");
-    sb.append("        pcAvatar.src = data.imageUrl || '/static/images/unknown.jpg';\n");
-    sb.append("        pcBio.textContent = data.bio || '';\n");
-    sb.append("        pcBio.style.display = data.bio ? 'block' : 'none';\n");
-    sb.append("        var ls = formatLastSeen(data.lastSeenTime);\n");
-    sb.append("        var ms = formatMemberSince(data.registrationTime);\n");
-    sb.append("        var parts = [];\n");
-    sb.append("        if (ls) parts.push('<div>' + ls + '</div>');\n");
-    sb.append("        if (ms) parts.push('<div>' + ms + '</div>');\n");
-    sb.append("        pcLastSeen.innerHTML = parts.join('');\n");
-    sb.append("        pcLastSeen.style.display = parts.length ? 'block' : 'none';\n");
-    sb.append("        // Show edit button only for own profile\n");
-    sb.append("        var loggedInUser = document.querySelector('.user-info');\n");
-    sb.append("        var isOwnProfile = loggedInUser && loggedInUser.textContent.trim() === address;\n");
-    sb.append("        pcEdit.style.display = isOwnProfile ? '' : 'none';\n");
-    sb.append("        pcMessage.style.display = isOwnProfile ? 'none' : '';\n");
-    sb.append("        overlay.style.display = 'block';\n");
     sb.append("      })\n");
     sb.append("      .catch(function(e) { console.error('Failed to load profile', e); });\n");
     sb.append("  };\n\n");
