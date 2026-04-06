@@ -45,6 +45,7 @@ public final class MentionUnreadTracker {
   }
 
   private static final int PAGE_SIZE = 100;
+  private static final int MAX_PAGES = 10; // cap navigation set at 1000 waves
   private static final int POLL_INTERVAL_MS = 15000;
 
   private final SearchService searchService;
@@ -97,7 +98,9 @@ public final class MentionUnreadTracker {
 
   /**
    * Returns the server-reported total number of unread mention waves.
-   * This may exceed the navigation set, which is limited to the first page.
+   * The navigation set is populated by paginating up to MAX_PAGES pages, so
+   * for accounts with more than MAX_PAGES * PAGE_SIZE unread mentions the
+   * badge may still exceed the navigable set.
    */
   public int getUnreadMentionCount() {
     return totalUnreadCount;
@@ -132,12 +135,23 @@ public final class MentionUnreadTracker {
 
   private void poll() {
     cancelPending();
-    pendingRequest = searchService.search("mentions:me unread:true", 0, PAGE_SIZE,
+    fetchPage(0, new ArrayList<SearchService.DigestSnapshot>());
+  }
+
+  private void fetchPage(final int offset, final List<SearchService.DigestSnapshot> accumulated) {
+    pendingRequest = searchService.search("mentions:me unread:true", offset, PAGE_SIZE,
         new SearchService.Callback() {
           @Override
           public void onSuccess(int total, List<SearchService.DigestSnapshot> snapshots) {
             pendingRequest = null;
-            handleResults(total, snapshots);
+            accumulated.addAll(snapshots);
+            boolean hasMore = accumulated.size() < total && snapshots.size() == PAGE_SIZE;
+            boolean withinCap = accumulated.size() < MAX_PAGES * PAGE_SIZE;
+            if (hasMore && withinCap) {
+              fetchPage(offset + PAGE_SIZE, accumulated);
+            } else {
+              handleResults(total, accumulated);
+            }
           }
 
           @Override
