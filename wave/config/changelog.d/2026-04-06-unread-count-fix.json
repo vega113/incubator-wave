@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-06-unread-count-fix",
-  "version": "PR #680",
+  "version": "PR #681",
   "date": "2026-04-06",
   "title": "Fix Premature Unread Badge Clear on Wave Open",
   "summary": "Unread counts in the search panel no longer disappear when opening a wave that has unread blips from bots or other participants.",
