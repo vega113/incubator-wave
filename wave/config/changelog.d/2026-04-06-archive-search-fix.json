@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-06-archive-search-fix",
+  "version": "PR",
+  "date": "2026-04-06",
+  "title": "Fix mention-subscription test for non-participants",
+  "summary": "Fixes a failing unit test that verified mention subscriptions are triggered for non-participant users at waveletCommitted.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Fixed Mockito stub overload mismatch in SearchWaveletUpdaterTest: DocOpCursor extends DocInitializationCursor, so any() resolved to the wrong apply() overload, preventing the test from verifying mention subscription dispatch to non-participants"
+      ]
+    }
+  ]
+}

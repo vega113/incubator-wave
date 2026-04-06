@@ -571,7 +571,7 @@ public final class SearchWaveletUpdaterTest extends TestCase {
         @Override public String getNewValue(int i) { return bob.getAddress(); }
       });
       return null;
-    }).when(docInit).apply(any());
+    }).when(docInit).apply(any(DocInitializationCursor.class));
     DocumentOperationSink content = mock(DocumentOperationSink.class);
     when(content.asOperation()).thenReturn(docInit);
     ReadableBlipData blip = mock(ReadableBlipData.class);
