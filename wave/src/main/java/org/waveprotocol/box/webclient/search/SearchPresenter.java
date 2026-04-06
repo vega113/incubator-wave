@@ -478,6 +478,11 @@ public final class SearchPresenter
     if (mentionTracker != null) {
       mentionTracker.destroy();
     }
+    if (nextMentionButton != null) {
+      com.google.gwt.user.client.Event.setEventListener(nextMentionButton, null);
+      nextMentionButton.removeFromParent();
+      nextMentionButton = null;
+    }
   }
 
   /** The current user's saved searches. */
@@ -642,11 +647,14 @@ public final class SearchPresenter
     }
     mentionTracker.start();
 
-    // Create floating "@N" button anchored to the panel root
+    // Create floating "@N" button anchored to the panel root.
+    // Using a native <button> element makes it keyboard-focusable and operable
+    // via Enter/Space without extra ARIA attributes.
     Element panelRoot = searchUi.getPanelRoot();
     if (panelRoot != null) {
-      nextMentionButton = DOM.createDiv();
+      nextMentionButton = DOM.createButton();
       nextMentionButton.setClassName(SearchPanelWidget.css.nextMentionButton());
+      nextMentionButton.setAttribute("aria-label", "Navigate to next unread mention");
       nextMentionButton.getStyle().setDisplay(
           com.google.gwt.dom.client.Style.Display.NONE);
       panelRoot.appendChild(nextMentionButton);

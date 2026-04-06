@@ -54,6 +54,7 @@ public final class MentionUnreadTracker {
   private Listener listener;
   private Request pendingRequest;
   private List<WaveId> unreadMentionWaves = Collections.emptyList();
+  private int totalUnreadCount = 0;
   private int cursor = -1;
   private WaveId currentWaveId;
 
@@ -94,9 +95,12 @@ public final class MentionUnreadTracker {
     this.listener = listener;
   }
 
-  /** Returns the number of waves with unread mentions. */
+  /**
+   * Returns the server-reported total number of unread mention waves.
+   * This may exceed the navigation set, which is limited to the first page.
+   */
   public int getUnreadMentionCount() {
-    return unreadMentionWaves.size();
+    return totalUnreadCount;
   }
 
   /**
@@ -133,7 +137,7 @@ public final class MentionUnreadTracker {
           @Override
           public void onSuccess(int total, List<SearchService.DigestSnapshot> snapshots) {
             pendingRequest = null;
-            handleResults(snapshots);
+            handleResults(total, snapshots);
           }
 
           @Override
@@ -144,7 +148,7 @@ public final class MentionUnreadTracker {
         });
   }
 
-  private void handleResults(List<SearchService.DigestSnapshot> snapshots) {
+  private void handleResults(int total, List<SearchService.DigestSnapshot> snapshots) {
     List<WaveId> newUnread = new ArrayList<>();
     for (SearchService.DigestSnapshot snapshot : snapshots) {
       if (snapshot.getUnreadCount() > 0) {
@@ -152,7 +156,7 @@ public final class MentionUnreadTracker {
       }
     }
 
-    int oldCount = unreadMentionWaves.size();
+    int oldCount = totalUnreadCount;
     // Adjust cursor: if current wave is still in the new list, keep position
     if (cursor >= 0 && cursor < unreadMentionWaves.size()) {
       WaveId currentCursorWave = unreadMentionWaves.get(cursor);
@@ -163,9 +167,12 @@ public final class MentionUnreadTracker {
     }
 
     unreadMentionWaves = Collections.unmodifiableList(newUnread);
+    // Use the server-reported total so the badge is accurate even when there
+    // are more matching waves than the PAGE_SIZE fetch window.
+    totalUnreadCount = total;
 
-    if (oldCount != newUnread.size() && listener != null) {
-      listener.onUnreadMentionCountChanged(newUnread.size());
+    if (oldCount != total && listener != null) {
+      listener.onUnreadMentionCountChanged(total);
     }
   }
 
