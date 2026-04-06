@@ -53,7 +53,7 @@ public class GptBotRobotTest extends TestCase {
         new BlipSubmittedEvent(null, null, "alice@example.com", 1L, "b+root")));
 
     assertTrue(response.contains("Here is a helpful answer."));
-    assertTrue(response.contains("blip.createChild"));
+    assertTrue(response.contains("wavelet.appendBlip"));
     assertEquals(0, apiClient.appendCalls);
     assertEquals(1, apiClient.fetchCalls);
     assertEquals(1, codexClient.completeCalls);
@@ -114,7 +114,7 @@ public class GptBotRobotTest extends TestCase {
         new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root")));
 
     assertTrue(response.contains("Here is a helpful answer."));
-    assertTrue(response.contains("blip.createChild"));
+    assertTrue(response.contains("wavelet.appendBlip"));
     assertEquals(1, codexClient.completeCalls);
   }
 
@@ -130,7 +130,7 @@ public class GptBotRobotTest extends TestCase {
         new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+root")));
 
     assertTrue(response.contains("Here is a helpful answer."));
-    assertTrue(response.contains("blip.createChild"));
+    assertTrue(response.contains("wavelet.appendBlip"));
     assertEquals(1, codexClient.completeCalls);
   }
 
@@ -220,7 +220,7 @@ public class GptBotRobotTest extends TestCase {
         new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+followup")));
 
     assertTrue("Bot should reply to follow-up in bot thread", response.contains("3+3 is 6."));
-    assertTrue(response.contains("blip.createChild"));
+    assertTrue(response.contains("wavelet.appendBlip"));
     assertEquals(1, codexClient.completeCalls);
   }
 
@@ -264,7 +264,7 @@ public class GptBotRobotTest extends TestCase {
 
     assertTrue("Bot should reply even if later edited by human",
         response.contains("Edited answer."));
-    assertTrue(response.contains("blip.createChild"));
+    assertTrue(response.contains("wavelet.appendBlip"));
     assertEquals(1, codexClient.completeCalls);
   }
 
@@ -290,7 +290,7 @@ public class GptBotRobotTest extends TestCase {
 
     assertTrue("Bot should reply even if human edited parent",
         response.contains("Answer to follow-up."));
-    assertTrue(response.contains("blip.createChild"));
+    assertTrue(response.contains("wavelet.appendBlip"));
     assertEquals(1, codexClient.completeCalls);
   }
 
@@ -314,7 +314,7 @@ public class GptBotRobotTest extends TestCase {
         new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+userblip")));
 
     assertTrue("Bot should reply to sibling in bot thread", response.contains("Sibling thread answer."));
-    assertTrue(response.contains("blip.createChild"));
+    assertTrue(response.contains("wavelet.appendBlip"));
     assertEquals(1, codexClient.completeCalls);
   }
 

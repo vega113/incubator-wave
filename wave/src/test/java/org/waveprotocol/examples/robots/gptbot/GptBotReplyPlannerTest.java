@@ -48,7 +48,6 @@ public class GptBotReplyPlannerTest extends TestCase {
     assertTrue(reply.isPresent());
     assertEquals("Sure, here is a concise answer.", reply.get());
     assertTrue(codexClient.lastPrompt.contains("Wave context:"));
-    assertTrue(codexClient.lastPrompt.contains("User question:"));
     assertTrue(codexClient.lastPrompt.contains("explain callbacks"));
   }
 

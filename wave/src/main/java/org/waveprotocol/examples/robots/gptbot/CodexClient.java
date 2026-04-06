@@ -25,4 +25,21 @@ package org.waveprotocol.examples.robots.gptbot;
 public interface CodexClient {
 
   String complete(String prompt);
+
+  /**
+   * Completes a chat exchange given a pre-built messages list.
+   * Each map must have "role" and "content" keys.
+   * The default implementation flattens the messages into a single prompt string.
+   */
+  default String completeMessages(java.util.List<java.util.Map<String, String>> messages) {
+    StringBuilder sb = new StringBuilder();
+    for (java.util.Map<String, String> msg : messages) {
+      String role = msg.getOrDefault("role", "user");
+      String content = msg.getOrDefault("content", "");
+      if (!content.isEmpty()) {
+        sb.append(role).append(": ").append(content).append("\n");
+      }
+    }
+    return complete(sb.toString().trim());
+  }
 }
