@@ -54,10 +54,18 @@ public final class GptBotServer {
         LOG.info("Using echo engine (no external LLM required)");
         codexClient = new EchoCodexClient();
         break;
-      case "openai":
-        LOG.info("Using OpenAI Chat Completions API engine");
-        codexClient = new OpenAiCodexClient();
+      case "openai": {
+        String openAiKey = System.getenv("OPENAI_API_KEY");
+        if (openAiKey == null || openAiKey.isBlank()) {
+          LOG.warning("OPENAI_API_KEY is not set — falling back to echo engine. "
+              + "Set OPENAI_API_KEY or use GPTBOT_CODEX_ENGINE=echo to suppress this warning.");
+          codexClient = new EchoCodexClient();
+        } else {
+          LOG.info("Using OpenAI Chat Completions API engine");
+          codexClient = new OpenAiCodexClient();
+        }
         break;
+      }
       default:
         LOG.info("Using Codex CLI engine");
         codexClient = new ProcessCodexClient(config.getCodexBinary(), config.getCodexModel(),
