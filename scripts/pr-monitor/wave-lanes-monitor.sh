@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # wave-lanes-monitor.sh — Monitors open PRs in wave-lanes tmux panes.
 #
 # Runs in a continuous loop (every 5 minutes):
@@ -13,6 +13,8 @@
 #   claude --model claude-haiku-4-5-20251001 --dangerously-skip-permissions \
 #     < scripts/pr-monitor/wave-lanes-monitor-prompt.md
 
+# set -e intentionally omitted: this is a long-running daemon where transient errors
+# (network blips, missing panes) must not abort the monitoring loop.
 set -uo pipefail
 
 REPO="vega113/incubator-wave"
@@ -100,6 +102,13 @@ send_instructions() {
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] wave-lanes-monitor started (cycle=${CYCLE_INTERVAL}s)"
 
 while true; do
+  # Preflight: ensure the tmux session and window exist before doing any work
+  if ! tmux has-session -t "$WAVE_SESSION" 2>/dev/null; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: tmux session/window '$WAVE_SESSION' not found — waiting for next cycle"
+    sleep "$CYCLE_INTERVAL"
+    continue
+  fi
+
   # ── PART 1: Close merged/closed PR panes ──
   pane_list=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}: #{pane_title}" 2>/dev/null || echo "")
 
@@ -138,7 +147,7 @@ while true; do
       if [ -n "$pane_info" ]; then
         pane_idx=$(echo "$pane_info" | grep -E "PR#${pr}\b" | head -1 | cut -d: -f1 | tr -d ' ')
         if [ -z "$pane_idx" ]; then
-          pane_idx=$(echo "$pane_info" | grep "$branch" | head -1 | cut -d: -f1 | tr -d ' ')
+          pane_idx=$(echo "$pane_info" | grep -F -- "$branch" | head -1 | cut -d: -f1 | tr -d ' ')
         fi
       fi
 
@@ -147,16 +156,22 @@ while true; do
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating lane for PR#$pr ($title)"
         worktree_path="$WORKTREE_BASE/pr-$pr-lane"
         git -C "$REPO_PATH" worktree add "$worktree_path" --track -b "pr-$pr" "origin/$branch" 2>/dev/null || true
-        tmux split-window -t "$WAVE_SESSION" -h -c "$worktree_path" 2>/dev/null || true
 
-        new_pane=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}" | tail -1)
+        if [ ! -d "$worktree_path" ]; then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: worktree for PR#$pr could not be created at $worktree_path — skipping lane creation"
+          continue
+        fi
+
+        new_pane=$(tmux split-window -P -F "#{pane_index}" -t "$WAVE_SESSION" -h -c "$worktree_path" 2>/dev/null || echo "")
         title_short=$(echo "$title" | cut -c1-35)
-        tmux select-pane -t "$WAVE_SESSION.$new_pane" -T "PR#$pr $title_short" 2>/dev/null || true
-        tmux select-layout -t "$WAVE_SESSION" tiled 2>/dev/null || true
-        tmux send-keys -t "$WAVE_SESSION.$new_pane" \
-          "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions" Enter
-        sleep 5
-        pane_idx="$new_pane"
+        if [ -n "$new_pane" ]; then
+          tmux select-pane -t "$WAVE_SESSION.$new_pane" -T "PR#$pr $title_short" 2>/dev/null || true
+          tmux select-layout -t "$WAVE_SESSION" tiled 2>/dev/null || true
+          tmux send-keys -t "$WAVE_SESSION.$new_pane" \
+            "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions" Enter
+          sleep 5
+          pane_idx="$new_pane"
+        fi
       else
         # Update title if needed
         title_short=$(echo "$title" | cut -c1-35)

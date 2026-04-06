@@ -66,13 +66,13 @@ gh pr checks NNN --repo vega113/incubator-wave 2>/dev/null | head -10
 
 Create a new lane:
 1. `git -C /Users/vega/devroot/incubator-wave worktree add /Users/vega/devroot/worktrees/pr-NNN-lane --track -b pr-NNN origin/<BRANCH> 2>/dev/null || true`
-2. `tmux split-window -t vibe-code:wave-lanes -h -c "/Users/vega/devroot/worktrees/pr-NNN-lane"`
-3. `tmux select-pane -t vibe-code:wave-lanes -T "PR#NNN <TITLE[:35]>"`
-4. `tmux select-layout -t vibe-code:wave-lanes tiled`
-5. Find pane index, launch agent:
+2. If `/Users/vega/devroot/worktrees/pr-NNN-lane` does not exist after step 1, log an error and skip this PR.
+3. `PANE_ID=$(tmux split-window -P -F "#{pane_id}" -t vibe-code:wave-lanes -h -c "/Users/vega/devroot/worktrees/pr-NNN-lane")`
+4. `tmux select-pane -t "$PANE_ID" -T "PR#NNN <TITLE[:35]>"`
+5. `tmux select-layout -t vibe-code:wave-lanes tiled`
+6. Launch agent in the new pane:
 ```bash
-PANE=$(tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}: #{pane_title}" | grep "PR#NNN" | cut -d: -f1)
-tmux send-keys -t "vibe-code:wave-lanes.$PANE" "cd /Users/vega/devroot/worktrees/pr-NNN-lane && claude --model claude-sonnet-4-6 --dangerously-skip-permissions" Enter
+tmux send-keys -t "$PANE_ID" "cd /Users/vega/devroot/worktrees/pr-NNN-lane && claude --model claude-sonnet-4-6 --dangerously-skip-permissions" Enter
 ```
 Then wait 5 seconds and send the instructions (see below).
 
