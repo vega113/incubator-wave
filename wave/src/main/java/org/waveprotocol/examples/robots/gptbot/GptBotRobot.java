@@ -308,24 +308,6 @@ public final class GptBotRobot {
     return modifiedBy != null && modifiedBy.equalsIgnoreCase(config.getParticipantId());
   }
 
-  /**
-   * Returns true if any participant is actively editing this blip.
-   * Wave sets a "user/d/{sessionId}" annotation on the blip while a user is editing.
-   * When editing ends (Shift+Enter or focus lost), that annotation is removed.
-   * We skip responding until editing is complete to avoid replying to every keystroke.
-   */
-  private boolean isBlipBeingEdited(Blip blip) {
-    for (com.google.wave.api.Annotation annotation : blip.getAnnotations()) {
-      String name = annotation.getName();
-      if (name != null && name.startsWith("user/d/")) {
-        LOG.info("handleBlip: blipId=" + blip.getBlipId()
-            + " still being edited (annotation=" + name + ") — skipping");
-        return true;
-      }
-    }
-    return false;
-  }
-
   // To force the server to pick up new capabilities without restart:
   // use the Admin panel → Robots → Test button, or POST /api/robots/gpt-bot@supawave.ai/verify
   // The verify endpoint fetches /_wave/capabilities.xml and updates MongoDB.
