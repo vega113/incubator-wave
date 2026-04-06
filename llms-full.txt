@@ -87,11 +87,11 @@ Common event types from: `com.google.wave.api.event.EventType`
 | `WAVELET_BLIP_CREATED` | New blip created |
 | `WAVELET_BLIP_REMOVED` | Blip removed |
 | `WAVELET_PARTICIPANTS_CHANGED` | Participant list changed |
-| `WAVELET_TITLE_CHANGED` | Wave title changed |
+| `WAVELET_TITLE_CHANGED` | Wave title changed *(not emitted by passive event generator — robots never receive this)* |
 | `WAVELET_CREATED` | Wave created |
 | `WAVELET_FETCHED` | Wave fetched via Data API |
-| `WAVELET_TAGS_CHANGED` | Tags changed |
-| `BLIP_CONTRIBUTORS_CHANGED` | Blip contributor list changed |
+| `WAVELET_TAGS_CHANGED` | Tags changed *(not emitted by passive event generator — robots never receive this)* |
+| `BLIP_CONTRIBUTORS_CHANGED` | Blip contributor list changed *(not emitted by passive event generator — robots never receive this)* |
 | **`BLIP_EDITING_DONE`** | **All users finished editing a blip — use this** |
 | `DOCUMENT_CHANGED` | Blip content changed (fires during typing) |
 | `ANNOTATED_TEXT_CHANGED` | Annotation changed |
@@ -130,7 +130,7 @@ public void onBlipEditingDone(BlipEditingDoneEvent event) {
 }
 ```
 
-One subscription, zero annotation parsing, zero deduplication needed.
+One subscription, zero annotation parsing. Track last-processed content per blip to guard against duplicate replies on repeated open/close editing cycles.
 
 ### Why NOT BLIP_SUBMITTED
 
