@@ -29,6 +29,7 @@ import jakarta.servlet.http.Part;
 import org.waveprotocol.box.server.CoreSettingsNames;
 import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.HumanAccountData;
+import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
@@ -373,7 +374,18 @@ public final class ProfileServlet extends HttpServlet {
     try {
       ParticipantId pid = ParticipantId.ofUnsafe(address);
       AccountData acct = accountStore.getAccount(pid);
-      if (acct == null || !acct.isHuman()) {
+      if (acct == null) {
+        sendJsonError(resp, HttpServletResponse.SC_NOT_FOUND, "User not found");
+        return;
+      }
+      if (acct.isRobot()) {
+        setJsonUtf8(resp);
+        PrintWriter w = resp.getWriter();
+        writeBotProfileJson(w, acct.asRobot());
+        w.flush();
+        return;
+      }
+      if (!acct.isHuman()) {
         sendJsonError(resp, HttpServletResponse.SC_NOT_FOUND, "User not found");
         return;
       }
@@ -453,6 +465,21 @@ public final class ProfileServlet extends HttpServlet {
     }
     // Registration time is always public
     w.append(",\"registrationTime\":").append(String.valueOf(h.getRegistrationTime()));
+    w.append('}');
+  }
+
+  private static void writeBotProfileJson(PrintWriter w, RobotAccountData robot) {
+    String address = robot.getId().getAddress();
+    int at = address.indexOf('@');
+    String name = at > 0 ? address.substring(0, at) : address;
+    String desc = robot.getDescription();
+    String owner = robot.getOwnerAddress();
+    w.append("{\"isBot\":true");
+    w.append(",\"address\":").append(jsonStr(address));
+    w.append(",\"name\":").append(jsonStr(name));
+    w.append(",\"description\":").append(jsonStr(desc));
+    w.append(",\"ownerAddress\":").append(jsonStr(owner));
+    w.append(",\"registrationTime\":").append(String.valueOf(robot.getCreatedAtMillis()));
     w.append('}');
   }
 
