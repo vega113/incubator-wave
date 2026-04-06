@@ -233,7 +233,7 @@ Current flags:
 |------|-------------|---------|
 | `lucene9` | Lucene 9.x full-text search | false |
 | `ot-search` | Real-time search wavelets (replaces 15s polling) | false |
-| `grafana-log-export` | Allow forwarding remote logs to Grafana/Loki pipeline | false |
+| `grafana-log-export` | Allow forwarding remote logs to Grafana/Loki pipeline *(registered for UI visibility; Java-side `isEnabled()` wiring is future work — toggling this flag has no runtime effect today)* | false |
 
 Flags not in `KnownFeatureFlags` can still be created via the API; `mergeWithStored()` merges
 runtime-defined defaults with stored overrides. Check against `KnownFeatureFlags` before assuming a flag exists.
