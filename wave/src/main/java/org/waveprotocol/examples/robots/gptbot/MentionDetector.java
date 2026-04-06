@@ -59,7 +59,7 @@ public final class MentionDetector {
       String remainder = text.substring(matcher.end());
       remainder = trimPromptPrefix(remainder);
       LOG.info("MentionDetector.extractPrompt: match at [" + matcher.start() + "," + matcher.end()
-          + "] matched='" + matcher.group() + "' promptLength=" + remainder.length());
+          + "] matched='" + escapeForLog(matcher.group(), 50) + "' promptLength=" + remainder.length());
       if (LOG.isFineLoggable()) {
         LOG.fine("MentionDetector.extractPrompt: prompt=" + escapeForLog(remainder, 100));
       }
