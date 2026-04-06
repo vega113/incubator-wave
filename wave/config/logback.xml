@@ -33,6 +33,10 @@
     </rollingPolicy>
     <encoder class="net.logstash.logback.encoder.LogstashEncoder">
       <includeCallerData>false</includeCallerData>
+      <fieldNames>
+        <timestamp>timestamp</timestamp>
+        <version>[ignore]</version>
+      </fieldNames>
     </encoder>
   </appender>
 
