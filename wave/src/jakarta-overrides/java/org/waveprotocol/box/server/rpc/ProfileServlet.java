@@ -477,8 +477,8 @@ public final class ProfileServlet extends HttpServlet {
     w.append("{\"isBot\":true");
     w.append(",\"address\":").append(jsonStr(address));
     w.append(",\"name\":").append(jsonStr(name));
-    w.append(",\"description\":").append(jsonStr(desc != null ? desc : ""));
-    w.append(",\"ownerAddress\":").append(jsonStr(owner != null ? owner : ""));
+    w.append(",\"description\":").append(jsonStr(desc));
+    w.append(",\"ownerAddress\":").append(jsonStr(owner));
     w.append(",\"registrationTime\":").append(String.valueOf(robot.getCreatedAtMillis()));
     w.append('}');
   }

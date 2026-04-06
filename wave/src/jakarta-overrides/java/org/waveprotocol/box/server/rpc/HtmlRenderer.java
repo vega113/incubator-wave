@@ -2909,14 +2909,14 @@ public final class HtmlRenderer {
     sb.append("    return 'Member since ' + months[d.getMonth()] + ' ' + d.getFullYear();\n");
     sb.append("  }\n\n");
 
-    // Bot avatar: inline SVG robot icon as a data URL
-    sb.append("  var BOT_AVATAR_URL = \"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72'%3E\"\n");
-    sb.append("    + \"%3Ccircle cx='36' cy='36' r='36' fill='%23e2e8f0'/%3E\"\n");
-    sb.append("    + \"%3Crect x='18' y='22' width='36' height='28' rx='5' fill='%234a5568'/%3E\"\n");
-    sb.append("    + \"%3Ccircle cx='27' cy='33' r='5' fill='%2300b4d8'/%3E\"\n");
-    sb.append("    + \"%3Ccircle cx='45' cy='33' r='5' fill='%2300b4d8'/%3E\"\n");
-    sb.append("    + \"%3Crect x='23' y='42' width='26' height='4' rx='2' fill='%2300b4d8'/%3E\"\n");
-    sb.append("    + \"%3Crect x='32' y='14' width='8' height='10' rx='4' fill='%234a5568'/%3E\"\n");
+    // Bot avatar: inline SVG robot icon as a fully percent-encoded data URL
+    sb.append("  var BOT_AVATAR_URL = \"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2072%2072'%3E\"\n");
+    sb.append("    + \"%3Ccircle%20cx='36'%20cy='36'%20r='36'%20fill='%23e2e8f0'/%3E\"\n");
+    sb.append("    + \"%3Crect%20x='18'%20y='22'%20width='36'%20height='28'%20rx='5'%20fill='%234a5568'/%3E\"\n");
+    sb.append("    + \"%3Ccircle%20cx='27'%20cy='33'%20r='5'%20fill='%2300b4d8'/%3E\"\n");
+    sb.append("    + \"%3Ccircle%20cx='45'%20cy='33'%20r='5'%20fill='%2300b4d8'/%3E\"\n");
+    sb.append("    + \"%3Crect%20x='23'%20y='42'%20width='26'%20height='4'%20rx='2'%20fill='%2300b4d8'/%3E\"\n");
+    sb.append("    + \"%3Crect%20x='32'%20y='14'%20width='8'%20height='10'%20rx='4'%20fill='%234a5568'/%3E\"\n");
     sb.append("    + \"%3C/svg%3E\";\n\n");
 
     // Show bot profile card
@@ -2974,7 +2974,7 @@ public final class HtmlRenderer {
     sb.append("    fetch('/userprofile/card/' + encodeURIComponent(address))\n");
     sb.append("      .then(function(r) { return r.json(); })\n");
     sb.append("      .then(function(data) {\n");
-    sb.append("        if (data.error) return;\n");
+    sb.append("        if (currentAddress !== address || data.error) return;\n");
     sb.append("        if (data.isBot) {\n");
     sb.append("          showBotCard(data, address);\n");
     sb.append("        } else {\n");
