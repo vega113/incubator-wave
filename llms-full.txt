@@ -74,7 +74,7 @@ The robot must serve `GET /_wave/capabilities.xml`:
 </w:robot>
 ```
 
-`context` values: `ROOT` (root wavelet only), `PARENT` (parent blip/wavelet context), `SIBLINGS` (sibling blips), `CHILDREN` (child blips), `SELF` (the matching blip or waves the robot is in), and `ALL` (all wavelets). Multiple values may be combined as a comma-separated list, for example `SELF,SIBLINGS,PARENT`.
+`context` values: `ROOT` (first blip in the root thread), `PARENT` (parent blip/wavelet context), `SIBLINGS` (sibling blips), `CHILDREN` (child blips), `SELF` (the matching blip or waves the robot is in), and `ALL` (all blips). Multiple values may be combined as a comma-separated list, for example `SELF,SIBLINGS,PARENT`.
 
 ### Event Types
 
@@ -233,9 +233,10 @@ Current flags:
 |------|-------------|---------|
 | `lucene9` | Lucene 9.x full-text search | false |
 | `ot-search` | Real-time search wavelets (replaces 15s polling) | false |
+| `grafana-log-export` | Allow forwarding remote logs to Grafana/Loki pipeline | false |
 
 Flags not in `KnownFeatureFlags` can still be created via the API; `mergeWithStored()` merges
-runtime-defined defaults with stored overrides. Check against the enum before assuming a flag exists.
+runtime-defined defaults with stored overrides. Check against `KnownFeatureFlags` before assuming a flag exists.
 
 ---
 
