@@ -4496,7 +4496,7 @@ public final class HtmlRenderer {
 
     // No historical data banner (hidden by default, shown when all totals are 0)
     sb.append("    <div id=\"analyticsNoDataBanner\" style=\"display:none;margin:0 24px 16px;padding:12px 16px;border-radius:10px;background:#f8fafc;border:1px dashed #cbd5e0;color:#718096;font-size:13px;text-align:center;\">\n");
-    sb.append("      No historical data available for this period. Analytics collection started recently.\n");
+    sb.append("      No analytics data was recorded for this period.\n");
     sb.append("    </div>\n");
 
     // Summary stat cards
@@ -4591,6 +4591,7 @@ public final class HtmlRenderer {
     sb.append("  var callerRole = ").append(escapeJsonString(callerRole)).append(";\n");
     sb.append("  var currentUser = ").append(escapeJsonString(currentUser)).append(";\n");
     sb.append("  var flagUserDomain = ").append(escapeJsonString(domain)).append(";\n");
+    sb.append("  var _ctx = ").append(escapeJsonString(contextPath == null ? "" : contextPath)).append(";\n");
     sb.append("  var state = { search: '', sortBy: 'username', sortDir: 'asc', page: 0, pageSize: 50, users: [], total: 0, loading: false };\n");
     sb.append("  var tbody = document.getElementById('userTableBody');\n");
     sb.append("  var statsBar = document.getElementById('statsBar');\n");

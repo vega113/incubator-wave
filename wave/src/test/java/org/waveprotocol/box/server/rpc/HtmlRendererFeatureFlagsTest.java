@@ -101,7 +101,7 @@ public final class HtmlRendererFeatureFlagsTest {
     assertTrue(html.contains("if (tab.dataset.tab === 'ops') { loadOpsStatus(); }"));
     assertTrue(html.contains("var analyticsActiveWindow = '24h';"));
     assertTrue(html.contains("fetch('/admin/api/analytics/history?window=' + encodeURIComponent(win))"));
-    assertTrue(html.contains("chartWaves = createWaveChart('chartWaves', 'Waves Created', '#0077b6');"));
+    assertTrue(html.contains("chartWaves = createWaveChart('chartWaves', 'Waves Created', '#0077b6', 'bar');"));
     assertTrue(html.contains("var href = (_ctx || '') + '/waveref/' + encodeURIComponent(id);"));
     assertTrue(html.contains("fetch('/admin/api/analytics/status')"));
     assertTrue(
