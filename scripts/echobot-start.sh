@@ -154,7 +154,7 @@ fi
 
 # ── start tunnel ──────────────────────────────────────────────────────
 echo "Starting Cloudflare tunnel..."
-TUNNEL_LOG=$(mktemp /tmp/cf-tunnel-XXXXXXXX.log)
+TUNNEL_LOG=$(mktemp /tmp/cf-tunnel-XXXXXXXXXXXX.log)
 if [[ -n "${CLOUDFLARE_TUNNEL_NAME:-}" ]]; then
   # Named tunnel: requires prior cloudflared tunnel login && cloudflared tunnel create $NAME
   "$CLOUDFLARED" tunnel run --url "http://127.0.0.1:$GPTBOT_LISTEN_PORT" "$CLOUDFLARE_TUNNEL_NAME" \
