@@ -606,9 +606,10 @@ public class RobotDashboardServletTest extends TestCase {
 
     servlet.doGet(req, resp);
 
-    // Error toasts must include a copy-to-clipboard button that uses the shared copyText() helper
+    // Error toasts must create and wire a copy-to-clipboard button using the shared copyText() helper
     String output = outputWriter.toString();
-    assertTrue(output.contains("toast-copy"));
+    assertTrue(output.contains("createElement('button')"));
+    assertTrue(output.contains("className='toast-copy'"));
     assertTrue(output.contains("copyText(msg,"));
   }
 
