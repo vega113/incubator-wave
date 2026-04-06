@@ -30,6 +30,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.waveprotocol.box.server.CoreSettingsNames;
 import org.waveprotocol.box.server.account.AccountData;
+import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.account.RobotAccountDataImpl;
 import org.waveprotocol.box.server.authentication.SessionManager;
@@ -510,14 +511,14 @@ public final class RobotDashboardServlet extends HttpServlet {
     String baseUrl = derivePublicBaseUrl(req);
     String contextPath = Strings.nullToEmpty(req.getContextPath());
     // Look up the user's role so the Admin link appears in the top bar for owners/admins.
-    String userRole = org.waveprotocol.box.server.account.HumanAccountData.ROLE_USER;
+    String userRole = HumanAccountData.ROLE_USER;
     try {
-      org.waveprotocol.box.server.account.AccountData acct = accountStore.getAccount(user);
+      AccountData acct = accountStore.getAccount(user);
       if (acct != null && acct.isHuman()) {
         userRole = acct.asHuman().getRole();
       }
-    } catch (org.waveprotocol.box.server.persistence.PersistenceException e) {
-      // fall back to ROLE_USER — Admin link won't appear but page still renders
+    } catch (PersistenceException e) {
+      LOG.warning("Failed to look up role for top bar in RobotDashboard: " + user.getAddress(), e);
     }
     resp.getWriter().write(renderDashboardPage(user.getAddress(), robotsToRender, message,
         getOrGenerateXsrfToken(user), baseUrl, revealedSecret, contextPath, userRole));
