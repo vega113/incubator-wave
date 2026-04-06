@@ -209,12 +209,13 @@ public class GptBotRobotTest extends TestCase {
     GptBotRobot robot = new GptBotRobot(TEST_CONFIG,
         new GptBotReplyPlanner(TEST_CONFIG.getRobotName(), codexClient), apiClient);
 
-    // b+followup has blank content — simulates WAVELET_BLIP_CREATED before user types anything.
+    // b+followup has blank content — WAVELET_BLIP_CREATED fires for an empty new reply blip
+    // before the user has typed anything.
     String response = robot.handleEventBundle(exampleBundleJsonWithFollowUp(TEST_CONFIG,
         "\n@" + TEST_CONFIG.getRobotName() + " what is 2+2?",
         "2+2 = 4.",
         "\n",
-        new DocumentChangedEvent(null, null, "alice@example.com", 1L, "b+followup")));
+        new WaveletBlipCreatedEvent(null, null, "alice@example.com", 1L, "b+root", "b+followup")));
 
     assertFalse(response.contains("blip.createChild"));
     assertEquals(0, codexClient.completeCalls);
