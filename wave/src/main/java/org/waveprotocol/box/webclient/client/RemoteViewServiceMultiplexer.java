@@ -122,11 +122,12 @@ public final class RemoteViewServiceMultiplexer implements WaveWebSocketCallback
         // updates).
       }
     } catch (Exception e) {
-      // During server deploys, the server may send malformed or null-field messages
-      // that cause deserialization errors. Trigger a graceful reconnect rather than
-      // letting the exception bubble up to the uncaught exception handler (which
-      // would show the error banner).
-      LOG.severe("Error processing wavelet update (likely server restart)", e);
+      // During server deploys the server may send malformed or null-field
+      // messages that cause deserialization errors, or trigger state mismatches
+      // in stream processing. Trigger a graceful reconnect rather than letting
+      // the exception reach the uncaught-exception handler (which would show
+      // the error banner).
+      LOG.severe("Wavelet update processing failed (likely server restart)", e);
       socket.disconnect();
     }
   }
