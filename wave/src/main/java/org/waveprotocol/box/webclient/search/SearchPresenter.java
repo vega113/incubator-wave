@@ -61,6 +61,7 @@ import org.waveprotocol.wave.model.document.operation.DocInitializationCursor;
 import org.waveprotocol.wave.model.document.operation.DocOp;
 import org.waveprotocol.wave.model.document.operation.impl.AttributesImpl;
 import org.waveprotocol.wave.model.document.operation.impl.DocOpUtil;
+import org.waveprotocol.wave.model.conversation.InboxState;
 import org.waveprotocol.wave.model.document.WaveContext;
 import org.waveprotocol.wave.model.id.IdFilter;
 import org.waveprotocol.wave.model.id.WaveId;
@@ -1054,8 +1055,40 @@ public final class SearchPresenter
 
   @Override
   public void onOpened(WaveContext wave) {
-    // No action needed when a wave is opened. The search continues polling
-    // in the background and will pick up any changes.
+    // Optimistically clear the unread badge for the opened wave so the search
+    // panel does not flash "1 unread" while the OT read-mark is in flight.
+    // The correct unread count will be applied once the BlipReadStateMonitor
+    // fires (via WaveBasedDigest → onDigestReady) or the next poll cycle.
+    final WaveId openedWaveId = wave.getWave().getWaveId();
+    DigestView targetView = searchUi.getFirst();
+    while (targetView != null) {
+      final Digest digest = digestUis.get(targetView);
+      if (digest != null && openedWaveId.equals(digest.getWaveId())) {
+        // Wrap the digest to report zero unread, then re-render in-place.
+        final Digest zeroUnread = new Digest() {
+          @Override public WaveId getWaveId() { return digest.getWaveId(); }
+          @Override public ParticipantId getAuthor() { return digest.getAuthor(); }
+          @Override public List<ParticipantId> getParticipantsSnippet() {
+            return digest.getParticipantsSnippet();
+          }
+          @Override public String getTitle() { return digest.getTitle(); }
+          @Override public String getSnippet() { return digest.getSnippet(); }
+          @Override public int getBlipCount() { return digest.getBlipCount(); }
+          @Override public int getUnreadCount() { return 0; }
+          @Override public double getLastModifiedTime() {
+            return digest.getLastModifiedTime();
+          }
+          @Override public InboxState getInboxState() {
+            return digest.getInboxState();
+          }
+          @Override public boolean isPinned() { return digest.isPinned(); }
+        };
+        searchUi.renderDigest(targetView, zeroUnread);
+        renderWaveCount();
+        break;
+      }
+      targetView = searchUi.getNext(targetView);
+    }
   }
 
   @Override
