@@ -304,6 +304,9 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
           // Remove from pending if offer failed; it will be re-added on next commit.
           pendingWaves.remove(waveId);
           LOG.log(Level.WARNING, "Index queue full, deferring update for " + waveId.serialise());
+        } else if (LOG.isLoggable(Level.FINE)) {
+          LOG.fine("waveletCommitted: queued waveId=" + waveId.serialise()
+              + " queueSize=" + indexQueue.size());
         }
       } catch (InterruptedException e) {
         // Restore interrupt flag and remove from pending; will retry on next commit.
@@ -315,6 +318,8 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
 
   /** Background writer loop: processes queued wave IDs on a dedicated single thread. */
   private void runIndexWriter() {
+    LOG.info("Lucene9 index consumer thread started");
+    long processedCount = 0;
     while (!Thread.currentThread().isInterrupted()) {
       try {
         WaveId waveId = indexQueue.poll(1, TimeUnit.SECONDS);
@@ -322,6 +327,11 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
           continue;
         }
         processIndexUpdate(waveId);
+        processedCount++;
+        if (processedCount % 100 == 0) {
+          LOG.info("Lucene9 index consumer: alive, processed " + processedCount
+              + " updates (queue=" + indexQueue.size() + ")");
+        }
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         break;
