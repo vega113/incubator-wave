@@ -48,6 +48,7 @@ import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 import org.waveprotocol.box.server.persistence.blocks.VersionRange;
+import org.slf4j.MDC;
 
 import java.util.Collections;
 import java.util.ArrayList;
@@ -132,6 +133,10 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
         IdFilter.of(Collections.<WaveletId>emptySet(), request.getWaveletIdPrefixList());
 
     ParticipantId loggedInUser = asBoxController(controller).getLoggedInUser();
+    MDC.put("waveId", waveId.serialise());
+    if (loggedInUser != null) {
+      MDC.put("participantId", loggedInUser.getAddress());
+    }
     frontend.openRequest(loggedInUser, waveId, waveletIdFilter, request.getKnownWaveletList(),
         new ClientFrontend.OpenListener() {
           @Override
@@ -381,6 +386,11 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
       channelId = null;
     }
     ParticipantId loggedInUser = asBoxController(controller).getLoggedInUser();
+    MDC.put("waveId", waveletName.waveId.serialise());
+    MDC.put("waveletId", waveletName.waveletId.serialise());
+    if (loggedInUser != null) {
+      MDC.put("participantId", loggedInUser.getAddress());
+    }
 
     // Enforce read-only mode for banned users
     if (loggedInUser != null) {
