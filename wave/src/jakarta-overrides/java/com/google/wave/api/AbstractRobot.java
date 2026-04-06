@@ -324,7 +324,7 @@ public abstract class AbstractRobot implements EventHandler, Serializable {
    *
    * @param events the incoming event bundle.
    */
-  @SuppressWarnings("deprecation")
+  @SuppressWarnings({"deprecation", "removal"})
   public void processEvents(EventMessageBundle events) {
     for (Event event : events.getEvents()) {
       switch (event.getType()) {
