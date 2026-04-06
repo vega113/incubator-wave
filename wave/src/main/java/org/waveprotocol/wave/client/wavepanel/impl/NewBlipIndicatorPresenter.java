@@ -45,8 +45,8 @@ public final class NewBlipIndicatorPresenter {
   private Element pillElement;
   private Element scrollContainer;
   private int newBlipCount;
-  /** Scroll position (scrollTop) at which the first unseen blip was appended. */
-  private int firstNewBlipScrollTarget = -1;
+  /** The previous scroll listener on threadContainer, restored on detach(). */
+  private EventListener prevScrollListener;
 
   public NewBlipIndicatorPresenter(ParticipantId signedInUser) {
     this.signedInUser = signedInUser;
@@ -56,35 +56,50 @@ public final class NewBlipIndicatorPresenter {
   /**
    * Attach to a conversation's scroll container element (the {@code fixedThread} div).
    * The pill is appended to the container's parent ({@code fixedSelf}) so it floats
-   * above the scrollable content.
+   * above the scrollable content. Safe to call more than once; any existing attachment
+   * is detached first.
    */
   public void attach(Element threadContainer) {
+    detach();
+
     this.scrollContainer = threadContainer;
 
     // Create pill element inside fixedSelf (the positioned parent).
     pillElement = Document.get().createDivElement();
     pillElement.setClassName(css.pill());
+    pillElement.setAttribute("role", "button");
+    pillElement.setAttribute("tabindex", "0");
+    pillElement.setAttribute("aria-label", "Scroll to new messages");
     threadContainer.getParentElement().appendChild(pillElement);
 
-    // Click handler: scroll to new content and dismiss.
-    Event.sinkEvents(pillElement, Event.ONCLICK);
+    // Click and keyboard handler: scroll to new content and dismiss.
+    Event.sinkEvents(pillElement, Event.ONCLICK | Event.ONKEYDOWN);
     Event.setEventListener(pillElement, new EventListener() {
       @Override
       public void onBrowserEvent(Event event) {
-        if (Event.ONCLICK == event.getTypeInt()) {
+        int type = event.getTypeInt();
+        if (type == Event.ONCLICK) {
           scrollToNewBlips();
+        } else if (type == Event.ONKEYDOWN) {
+          int key = event.getKeyCode();
+          if (key == 13 /* Enter */ || key == 32 /* Space */) {
+            event.preventDefault();
+            scrollToNewBlips();
+          }
         }
       }
     });
 
     // Scroll listener on the thread container: dismiss when near bottom.
+    // Preserve the existing listener so it keeps working after we wrap it.
+    prevScrollListener = Event.getEventListener(threadContainer);
     Event.sinkEvents(threadContainer, Event.ONSCROLL | Event.getEventsSunk(threadContainer));
-    final EventListener existing = Event.getEventListener(threadContainer);
+    final EventListener captured = prevScrollListener;
     Event.setEventListener(threadContainer, new EventListener() {
       @Override
       public void onBrowserEvent(Event event) {
-        if (existing != null) {
-          existing.onBrowserEvent(event);
+        if (captured != null) {
+          captured.onBrowserEvent(event);
         }
         if (Event.ONSCROLL == event.getTypeInt()) {
           onScroll();
@@ -94,7 +109,7 @@ public final class NewBlipIndicatorPresenter {
   }
 
   /**
-   * Detach the pill and remove event listeners. Safe to call if never attached.
+   * Detach the pill and restore previous event listeners. Safe to call if never attached.
    */
   public void detach() {
     if (pillElement != null) {
@@ -102,9 +117,13 @@ public final class NewBlipIndicatorPresenter {
       pillElement.removeFromParent();
       pillElement = null;
     }
-    scrollContainer = null;
+    if (scrollContainer != null) {
+      // Restore the listener that was on the container before attach().
+      Event.setEventListener(scrollContainer, prevScrollListener);
+      scrollContainer = null;
+    }
+    prevScrollListener = null;
     newBlipCount = 0;
-    firstNewBlipScrollTarget = -1;
   }
 
   /**
@@ -125,14 +144,6 @@ public final class NewBlipIndicatorPresenter {
       return;
     }
     newBlipCount++;
-    if (firstNewBlipScrollTarget < 0) {
-      // Record the scroll target: the current scrollHeight minus one viewport,
-      // so clicking the pill scrolls to reveal the new content at the top of
-      // the viewport. This uses raw DOM properties for performance.
-      int scrollHeight = scrollContainer.getScrollHeight();
-      int clientHeight = scrollContainer.getClientHeight();
-      firstNewBlipScrollTarget = Math.max(0, scrollHeight - clientHeight);
-    }
     updatePill();
   }
 
@@ -156,12 +167,16 @@ public final class NewBlipIndicatorPresenter {
         ? "1 new message \u2193"
         : newBlipCount + " new messages \u2193";
     pillElement.setInnerText(text);
+    pillElement.setAttribute("aria-label", text);
     pillElement.addClassName(css.pillVisible());
   }
 
   private void scrollToNewBlips() {
-    if (scrollContainer != null && firstNewBlipScrollTarget >= 0) {
-      scrollContainer.setScrollTop(firstNewBlipScrollTarget);
+    if (scrollContainer != null) {
+      // Compute the target at click time so it always reaches the latest new content.
+      int scrollHeight = scrollContainer.getScrollHeight();
+      int clientHeight = scrollContainer.getClientHeight();
+      scrollContainer.setScrollTop(Math.max(0, scrollHeight - clientHeight));
     }
     dismiss();
   }
@@ -174,7 +189,6 @@ public final class NewBlipIndicatorPresenter {
 
   private void dismiss() {
     newBlipCount = 0;
-    firstNewBlipScrollTarget = -1;
     updatePill();
   }
 }

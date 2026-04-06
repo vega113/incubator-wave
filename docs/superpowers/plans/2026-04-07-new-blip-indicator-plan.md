@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-07
 **Branch:** `feat/new-blip-indicator`
-**Feature Flag:** `new-blip-indicator` (server-side: `KnownFeatureFlags`, client-side: `ClientFlagsBase` flag `252`)
+**Feature Flag:** `new-blip-indicator` (server-side: `KnownFeatureFlags`; gated in client via `Session.get().hasFeature("new-blip-indicator")`)
 
 ## Summary
 
