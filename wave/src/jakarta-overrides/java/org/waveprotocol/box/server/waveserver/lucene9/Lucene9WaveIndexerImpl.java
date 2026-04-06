@@ -135,8 +135,8 @@ public class Lucene9WaveIndexerImpl implements WaveIndexer, WaveBus.Subscriber, 
       Thread.currentThread().interrupt();
     }
     if (!terminated) {
-      throw new IOException("Lucene9 index writer thread did not terminate within 10 seconds; " +
-          "cannot close resources safely to prevent race condition with concurrent writes");
+      LOG.warning("Lucene9 index writer thread did not terminate within 10 seconds; " +
+          "proceeding to close resources under lock to prevent race condition");
     }
     // Synchronize on `this` to ensure no writer thread is mid-operation in processIndexUpdate()
     // before closing the shared Lucene resources it uses, matching the lock held during
