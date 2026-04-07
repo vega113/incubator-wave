@@ -173,6 +173,10 @@ public final class DigestDomImpl implements DigestView {
       title.addClassName(css.unread());
       time.addClassName(css.unread());
     }
+    // setInnerHTML clears all child nodes, so re-attach the mention badge if present.
+    if (mentionCountEl != null) {
+      msgs.appendChild(mentionCountEl);
+    }
   }
 
   private SafeHtml renderUnreadMessages(int unread, int total) {

@@ -372,11 +372,8 @@ public final class ViewToolbar {
     if (mentionFocusOrder == null) {
       return;
     }
-    BlipView start = focusFrame.getFocusedBlip();
-    if (start == null) {
-      return;
-    }
-    // Try from the very beginning by walking from root
+    // Always walk from root so the first mention is found even when no blip is
+    // focused yet (e.g. when opening a wave from mention search).
     BlipView first = mentionFocusOrder.getFirstFrom(blipSelector.getOrFindRootBlip());
     if (first != null) {
       focusFrame.focus(first);
