@@ -110,7 +110,13 @@ public class StaleAnnotationSweeper {
       return t;
     });
     executor.scheduleWithFixedDelay(
-        this::sweep,
+        () -> {
+          try {
+            sweep();
+          } catch (Exception e) {
+            LOG.severe("StaleAnnotationSweeper: unexpected exception in sweep", e);
+          }
+        },
         SWEEP_INTERVAL_MINUTES,
         SWEEP_INTERVAL_MINUTES,
         TimeUnit.MINUTES);
@@ -219,7 +225,7 @@ public class StaleAnnotationSweeper {
         if (parts.length >= 3 && parts[2].isEmpty()
             && parts.length >= 2 && !parts[1].isEmpty()) {
           try {
-            long startTimeMs = Long.parseLong(parts[1]);
+            long startTimeMs = (long) Double.parseDouble(parts[1]);
             if (now - startTimeMs > STALE_EDITING_THRESHOLD_MS) {
               String userId = parts[0];
               // Validate userId is a known wavelet participant. Annotation values come from
