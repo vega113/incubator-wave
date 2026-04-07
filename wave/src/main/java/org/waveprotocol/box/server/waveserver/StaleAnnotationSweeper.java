@@ -279,16 +279,30 @@ public class StaleAnnotationSweeper {
         String dValue = doc.getAnnotation(dPos, dKey);
         if (dValue == null) { dSearchFrom = dPos + 1; continue; }
         String[] dParts = dValue.split(",", 3);
-        if (dParts.length >= 3 && dParts[2].isEmpty() && !dParts[1].isEmpty()) {
-          try {
-            double parsed = Double.parseDouble(dParts[1]);
-            if (!Double.isFinite(parsed)) throw new NumberFormatException("Non-finite timestamp");
-            long startTimeMs = (long) parsed;
-            if (now - startTimeMs <= STALE_EDITING_THRESHOLD_MS) {
-              hasActiveSession = true;
-              break;
+        if (dParts.length >= 3 && !dParts[1].isEmpty()) {
+          // Session is closed only if third field is a valid finite numeric end timestamp.
+          // An empty third field means active (no end time).
+          // A non-numeric third field means IME composition is in progress (also active).
+          boolean isClosedByEndTimestamp = false;
+          if (!dParts[2].isEmpty()) {
+            try {
+              double endTs = Double.parseDouble(dParts[2]);
+              isClosedByEndTimestamp = Double.isFinite(endTs) && endTs > 0;
+            } catch (NumberFormatException ignored) {
+              // Non-numeric third field = IME composition state, session still open
             }
-          } catch (NumberFormatException ignored) {}
+          }
+          if (!isClosedByEndTimestamp) {
+            try {
+              double parsed = Double.parseDouble(dParts[1]);
+              if (!Double.isFinite(parsed)) throw new NumberFormatException("Non-finite timestamp");
+              long startTimeMs = (long) parsed;
+              if (now - startTimeMs <= STALE_EDITING_THRESHOLD_MS) {
+                hasActiveSession = true;
+                break;
+              }
+            } catch (NumberFormatException ignored) {}
+          }
         }
         int dEnd = doc.firstAnnotationChange(dPos, docSize, dKey, dValue);
         dSearchFrom = (dEnd < 0) ? docSize : dEnd;
