@@ -10,6 +10,7 @@ const {
 const BASE_TIME = Date.parse("2026-03-28T13:00:00Z");
 const AFTER_WINDOW = Date.parse("2026-03-28T13:11:00Z");
 const WITHIN_WINDOW = Date.parse("2026-03-28T13:07:00Z");
+const EXACT_BOUNDARY = BASE_TIME + 10 * 60 * 1000;
 
 function buildPullRequest(overrides = {}) {
   return {
@@ -101,6 +102,16 @@ test("reports remaining minutes when inside window", () => {
   });
   assert.equal(result.ok, false);
   assert.match(result.message, /\d+ minute/);
+});
+
+test("passes at exactly the 10-minute boundary", () => {
+  const result = evaluateCodexReviewGate({
+    defaultBranchName: "main",
+    nowMs: EXACT_BOUNDARY,
+    pullRequest: buildPullRequest(),
+  });
+  assert.equal(result.ok, true);
+  assert.match(result.message, /10-minute window elapsed/);
 });
 
 test("passes after the 10-minute window with no unresolved threads", () => {
