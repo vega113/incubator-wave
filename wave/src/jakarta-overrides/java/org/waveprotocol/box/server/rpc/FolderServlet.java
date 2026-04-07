@@ -235,6 +235,11 @@ public final class FolderServlet extends HttpServlet {
     if (waveIdStr == null) {
       return null;
     }
+    // Only strip from modern slash-form IDs (e.g. "domain/id:N").
+    // Legacy IDs use '!' as separator; do not modify them.
+    if (!waveIdStr.contains("/")) {
+      return waveIdStr;
+    }
     return VERSION_SUFFIX.matcher(waveIdStr).replaceFirst("");
   }
 

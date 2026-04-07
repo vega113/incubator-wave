@@ -107,12 +107,17 @@ public class FolderServletTest extends TestCase {
   }
 
   public void testStripVersionSuffix_multipleColons() {
-    // Only the trailing :N should be stripped
-    assertEquals("a:b:c", FolderServlet.stripVersionSuffix("a:b:c:42"));
+    // For modern slash-form IDs, only the trailing :N should be stripped
+    assertEquals("example.com/w+a:b:c", FolderServlet.stripVersionSuffix("example.com/w+a:b:c:42"));
   }
 
   public void testStripVersionSuffix_colonInMiddle() {
     // Colon not at the end followed by digits - should not be stripped
-    assertEquals("a:1:b", FolderServlet.stripVersionSuffix("a:1:b"));
+    assertEquals("example.com/w+abc:1:b", FolderServlet.stripVersionSuffix("example.com/w+abc:1:b"));
+  }
+
+  public void testStripVersionSuffix_legacyIdUnchanged() {
+    // Legacy IDs use '!' as separator - do not strip even if they end in :N
+    assertEquals("example.com!w+abc:1", FolderServlet.stripVersionSuffix("example.com!w+abc:1"));
   }
 }
