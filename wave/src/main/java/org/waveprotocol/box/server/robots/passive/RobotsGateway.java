@@ -256,7 +256,7 @@ public class RobotsGateway implements WaveBus.Subscriber {
   /**
    * Updates the lastActiveAtMillis timestamp for the robot in the account
    * store. Called after the robot successfully processes a wave event. Logs and
-   * swallows PersistenceException so that event processing is not blocked.
+   * swallows all exceptions so that event processing is not blocked.
    */
   public void touchLastActive(Robot robot) {
     ParticipantId robotId = robot.getAccount().getId();
@@ -268,6 +268,9 @@ public class RobotsGateway implements WaveBus.Subscriber {
       }
     } catch (PersistenceException e) {
       LOG.warning("Failed to update lastActiveAtMillis for robot "
+          + robot.getRobotName() + ": " + e.getMessage(), e);
+    } catch (RuntimeException e) {
+      LOG.warning("Unexpected error refreshing account for robot "
           + robot.getRobotName() + ": " + e.getMessage(), e);
     }
   }
