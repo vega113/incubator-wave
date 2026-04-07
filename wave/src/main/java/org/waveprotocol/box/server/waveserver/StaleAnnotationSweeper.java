@@ -222,16 +222,16 @@ public class StaleAnnotationSweeper {
       staleAnnotations.add(new StaleAnnotation(key, userId, value, annotStart, annotEnd, docSize));
     });
 
-    // Submit one cleanup delta per stale annotation (each delta advances the wavelet version,
-    // so we process at most one per document per sweep pass — the rest will be picked up next time).
+    // Submit cleanup deltas for all stale annotations found. All deltas reference the same
+    // snapshot hash; if more than one succeeds, the second will fail with a version conflict
+    // (benign — the next sweep retries with the updated version). Submitting all ensures that
+    // a permanently un-submittable annotation (e.g. author no longer a participant) does not
+    // block later stale annotations in the same document.
     int closed = 0;
     for (StaleAnnotation stale : staleAnnotations) {
       boolean submitted = submitCleanupDelta(waveletName, docId, stale, snapshot, now);
       if (submitted) {
         closed++;
-        // Stop after the first successful delta: the wavelet version has changed and remaining
-        // deltas would reference a stale hash. The next sweep will clean up the rest.
-        break;
       }
     }
     return closed;
