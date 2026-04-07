@@ -14,7 +14,7 @@ Every cycle:
 ## Part 1: Close lanes for merged/closed PRs
 
 ```bash
-tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null
+tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}"$'\t'"#{pane_title}"$'\t'"#{pane_current_path}" 2>/dev/null
 ```
 
 For EACH pane, extract the PR number using THREE methods:
