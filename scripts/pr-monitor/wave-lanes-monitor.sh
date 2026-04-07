@@ -60,12 +60,18 @@ close_pane() {
   tmux select-layout -t "$WAVE_SESSION" tiled 2>/dev/null || true
 }
 
-build_pr_prompt() {
-  local pr=$1
-  local title=$2
-  local branch=$3
-  local issue_desc=$4
-  echo "You are fixing PR #$pr ($title). Branch: $branch. Repo: $REPO. $issue_desc Steps: 1) Read review comments: gh api repos/$REPO/pulls/$pr/comments. 2) For each unresolved thread: fix the code or reply, then RESOLVE via: gh api graphql -f 'query=mutation { resolveReviewThread(input:{threadId:\"THREAD_ID\"}) { thread { isResolved } } }'. 3) Rebase if conflicts: git fetch origin main && git rebase origin/main — examine BOTH sides carefully. 4) Build: cd wave && sbt compile. 5) Test: cd wave && sbt test. 6) Push when clean. Never force push unless rebase requires --force-with-lease."
+launch_interactive_agent() {
+  # Launch claude in INTERACTIVE mode so it stays running and user can see/steer it.
+  # Send the initial prompt as a message after claude starts up.
+  local pane_idx=$1
+  local worktree_path=$2
+  local initial_prompt=$3
+
+  tmux send-keys -t "$WAVE_SESSION.$pane_idx" \
+    "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions" Enter
+  # Wait for claude to fully initialize before sending the first message
+  sleep 10
+  tmux send-keys -t "$WAVE_SESSION.$pane_idx" "$initial_prompt" Enter
 }
 
 send_instructions() {
@@ -74,11 +80,6 @@ send_instructions() {
   local branch=$3
   local mergeable=$4
   local title=$5
-
-  # Skip if agent is busy (claude is running)
-  if ! is_pane_idle "$pane_idx"; then
-    return
-  fi
 
   # Check unresolved threads
   local threads
@@ -91,27 +92,32 @@ send_instructions() {
   fi
 
   # Determine what's wrong
-  local issue_desc=""
+  local msg=""
   if [[ "$threads" -gt 0 ]]; then
-    issue_desc="PR has $threads unresolved review threads that must be resolved."
+    msg="PR #$pr has $threads unresolved review threads. Read comments: gh api repos/$REPO/pulls/$pr/comments. Fix each issue, then resolve threads via GraphQL resolveReviewThread. All threads must be resolved for CI."
   elif [[ "$mergeable" != "MERGEABLE" ]]; then
-    issue_desc="PR has merge conflicts that must be resolved via rebase."
+    msg="PR #$pr has merge conflicts. Rebase: git fetch origin main && git rebase origin/main. Examine BOTH sides of each conflict carefully. Push with --force-with-lease."
   elif [[ "$ci_failing" == "true" ]]; then
-    issue_desc="PR has failing CI checks that must be fixed."
+    msg="PR #$pr has failing CI. Build: cd wave && sbt compile. Test: cd wave && sbt test. Fix root causes. Push when green."
   else
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr is clean — ready to merge"
     return
   fi
 
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr needs work ($issue_desc) — launching agent"
-
-  # Launch a NEW claude agent with the prompt (not raw text into zsh)
-  local prompt quoted_prompt
-  prompt=$(build_pr_prompt "$pr" "$title" "$branch" "$issue_desc")
-  printf -v quoted_prompt '%q' "$prompt"
-  local worktree_path="$WORKTREE_BASE/pr-$pr-lane"
-  tmux send-keys -t "$WAVE_SESSION.$pane_idx" \
-    "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions -p $quoted_prompt" Enter
+  # Check if pane has a running claude agent or is idle zsh
+  if is_pane_idle "$pane_idx"; then
+    # No agent running — launch interactive claude first, then send prompt
+    local worktree_path="$WORKTREE_BASE/pr-$pr-lane"
+    if [ -d "$worktree_path" ]; then
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr — launching interactive agent with instructions"
+      launch_interactive_agent "$pane_idx" "$worktree_path" \
+        "You are fixing PR #$pr ($title). Branch: $branch. Repo: $REPO. $msg Steps: 1) Fix issues. 2) Resolve all review threads via GraphQL. 3) Rebase if needed. 4) Build and test. 5) Push when clean."
+    fi
+  else
+    # Agent is already running — send the message directly (it goes into claude's input)
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr — sending message to running agent"
+    tmux send-keys -t "$WAVE_SESSION.$pane_idx" "$msg" Enter
+  fi
 }
 
 # ── main loop ────────────────────────────────────────────────────
@@ -191,11 +197,8 @@ while true; do
         if [ -n "$new_pane" ]; then
           tmux select-pane -t "$WAVE_SESSION.$new_pane" -T "PR#$pr $title_short" 2>/dev/null || true
           tmux select-layout -t "$WAVE_SESSION" tiled 2>/dev/null || true
-          prompt=$(build_pr_prompt "$pr" "$title_short" "$branch" "New lane — address all PR issues.")
-          printf -v quoted_prompt '%q' "$prompt"
-          tmux send-keys -t "$WAVE_SESSION.$new_pane" \
-            "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions -p $quoted_prompt" Enter
-          sleep 5
+          launch_interactive_agent "$new_pane" "$worktree_path" \
+            "You are fixing PR #$pr ($title_short). Branch: $branch. Repo: $REPO. Address all PR issues: unresolved review threads, conflicts, CI failures. Steps: 1) Read review comments. 2) Fix issues and resolve threads via GraphQL. 3) Rebase if conflicts. 4) Build: cd wave && sbt compile. 5) Test: cd wave && sbt test. 6) Push when clean."
           pane_idx="$new_pane"
         fi
       else
