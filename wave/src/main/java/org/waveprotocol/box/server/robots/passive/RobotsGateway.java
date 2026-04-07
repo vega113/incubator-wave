@@ -262,7 +262,7 @@ public class RobotsGateway implements WaveBus.Subscriber {
       }
     } catch (PersistenceException e) {
       LOG.warning("Failed to update lastActiveAtMillis for robot "
-          + robot.getRobotName() + ": " + e.getMessage());
+          + robot.getRobotName() + ": " + e.getMessage(), e);
     }
   }
 }
