@@ -14,10 +14,10 @@ Every cycle:
 ## Part 1: Close lanes for merged/closed PRs
 
 ```bash
-tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null
+tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}"$'\t'"#{pane_title}"$'\t'"#{pane_current_path}" 2>/dev/null
 ```
 
-For EACH pane, extract the PR number using TWO methods:
+For EACH pane, extract the PR number using THREE methods:
 1. **From title:** If title contains `PR#NNN`, extract the number
 2. **From path:** If path contains `pr-NNN-lane` (e.g. `/Users/vega/devroot/worktrees/pr-700-lane`), extract NNN
 3. **From branch:** `git -C <PATH> branch --show-current` then `gh pr list --repo vega113/incubator-wave --state all --head <BRANCH> --json number,state -q '.[0]'`

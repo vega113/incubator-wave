@@ -139,11 +139,12 @@ while true; do
 
   # ── PART 1: Close merged/closed PR panes ──
   # Uses BOTH pane title (PR#NNN) and pane path (pr-NNN-lane) to detect PR association
-  pane_list=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}|#{pane_title}|#{pane_current_path}" 2>/dev/null || echo "")
+  # Use tab as delimiter — safe since pane titles and paths cannot contain tabs
+  pane_list=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}"$'\t'"#{pane_title}"$'\t'"#{pane_current_path}" 2>/dev/null || echo "")
 
   if [ -n "$pane_list" ]; then
     declare -a panes_to_close=()
-    while IFS='|' read -r pane_idx title pane_path; do
+    while IFS=$'\t' read -r pane_idx title pane_path; do
       pane_idx=$(echo "$pane_idx" | tr -d ' ')
       # Try to get PR number from title first, then from path
       pr=$(extract_pr_number "$title")
