@@ -28,6 +28,7 @@ import junit.framework.TestCase;
 
 import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.account.HumanAccountDataImpl;
+import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryStore;
 import org.waveprotocol.box.server.robots.operations.FetchProfilesService.ProfilesFetcher;
@@ -41,13 +42,15 @@ import java.lang.reflect.Method;
 public class ProfileServletTest extends TestCase {
   private AccountStore store;
   private ProfilesFetcher profilesFetcher;
+  private SessionManager sessionManager;
   private ProfileServlet servlet;
 
   @Override
   protected void setUp() throws Exception {
     store = new MemoryStore();
     profilesFetcher = mock(ProfilesFetcher.class);
-    servlet = new ProfileServlet(store, null, "example.com", profilesFetcher);
+    sessionManager = mock(SessionManager.class);
+    servlet = new ProfileServlet(store, sessionManager, "example.com", profilesFetcher);
   }
 
   public void testResolveImageUrlWithCustomImage() throws Exception {
@@ -60,15 +63,28 @@ public class ProfileServletTest extends TestCase {
     assertEquals("/userprofile/image/" + pid.getAddress(), url);
   }
 
+  public void testResolveImageUrlWithNoCustomImage() throws Exception {
+    ParticipantId pid = ParticipantId.ofUnsafe("user@example.com");
+    HumanAccountData account = new HumanAccountDataImpl(pid, null);
+    store.putAccount(account);
+
+    ParticipantProfile profile = new ParticipantProfile(pid.getAddress(), "User",
+        "http://gravatar.com/avatar", "");
+    when(profilesFetcher.fetchProfile(pid.getAddress())).thenReturn(profile);
+
+    String url = invokeResolveImageUrl(account);
+    assertEquals("http://gravatar.com/avatar", url);
+  }
+
   public void testResolveImageUrlWithEmptyCustomImage() throws Exception {
     ParticipantId pid = ParticipantId.ofUnsafe("user@example.com");
     HumanAccountData account = new HumanAccountDataImpl(pid, null);
     account.setProfileImageAttachmentId("");
     store.putAccount(account);
 
-    ParticipantProfile mockProfile = mock(ParticipantProfile.class);
-    when(mockProfile.getImageUrl()).thenReturn("http://gravatar.com/avatar");
-    when(profilesFetcher.fetchProfile(pid.getAddress())).thenReturn(mockProfile);
+    ParticipantProfile profile = new ParticipantProfile(pid.getAddress(), "User",
+        "http://gravatar.com/avatar", "");
+    when(profilesFetcher.fetchProfile(pid.getAddress())).thenReturn(profile);
 
     String url = invokeResolveImageUrl(account);
     assertEquals("http://gravatar.com/avatar", url);
@@ -80,9 +96,9 @@ public class ProfileServletTest extends TestCase {
     account.setProfileImageAttachmentId("   ");
     store.putAccount(account);
 
-    ParticipantProfile mockProfile = mock(ParticipantProfile.class);
-    when(mockProfile.getImageUrl()).thenReturn("http://gravatar.com/avatar");
-    when(profilesFetcher.fetchProfile(pid.getAddress())).thenReturn(mockProfile);
+    ParticipantProfile profile = new ParticipantProfile(pid.getAddress(), "User",
+        "http://gravatar.com/avatar", "");
+    when(profilesFetcher.fetchProfile(pid.getAddress())).thenReturn(profile);
 
     String url = invokeResolveImageUrl(account);
     assertEquals("http://gravatar.com/avatar", url);
