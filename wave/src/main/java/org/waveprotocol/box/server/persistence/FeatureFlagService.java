@@ -83,9 +83,11 @@ public final class FeatureFlagService {
   public boolean isEnabled(String flagName, String participantId) {
     FeatureFlag flag = cache.get(flagName);
     if (flag == null) return false;
-    if (flag.isEnabled()) return true;
-    return participantId != null
-        && Boolean.TRUE.equals(flag.getAllowedUsers().get(participantId));
+    // User-specific override takes precedence over global state.
+    if (participantId != null && flag.getAllowedUsers().containsKey(participantId)) {
+      return Boolean.TRUE.equals(flag.getAllowedUsers().get(participantId));
+    }
+    return flag.isEnabled();
   }
 
   /**
@@ -94,9 +96,7 @@ public final class FeatureFlagService {
   public List<String> getEnabledFlagNames(String participantId) {
     List<String> result = new ArrayList<>();
     for (FeatureFlag flag : cache.values()) {
-      if (flag.isEnabled()
-          || (participantId != null
-              && Boolean.TRUE.equals(flag.getAllowedUsers().get(participantId)))) {
+      if (isEnabled(flag.getName(), participantId)) {
         result.add(flag.getName());
       }
     }
