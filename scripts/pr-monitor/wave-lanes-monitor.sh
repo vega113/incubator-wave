@@ -66,9 +66,23 @@ close_pane() {
   tmux select-layout -t "$WAVE_SESSION" tiled 2>/dev/null || true
 }
 
+send_prompt_via_file() {
+  # Write prompt to a temp file and use tmux load-buffer + paste-buffer
+  # to avoid tmux send-keys truncation on long prompts.
+  local pane_idx=$1
+  local prompt_text=$2
+  local prompt_file
+  prompt_file=$(mktemp /tmp/wave-lane-prompt-XXXXXX.txt)
+  printf '%s' "$prompt_text" > "$prompt_file"
+  tmux load-buffer "$prompt_file" 2>/dev/null || true
+  tmux paste-buffer -t "$WAVE_SESSION.$pane_idx" 2>/dev/null || true
+  tmux send-keys -t "$WAVE_SESSION.$pane_idx" Enter 2>/dev/null || true
+  rm -f "$prompt_file"
+}
+
 launch_interactive_agent() {
   # Launch claude in INTERACTIVE mode so it stays running and user can see/steer it.
-  # Send the initial prompt as a message after claude starts up.
+  # Prompt is delivered via tmux paste-buffer to avoid send-keys truncation.
   local pane_idx=$1
   local worktree_path=$2
   local initial_prompt=$3
@@ -77,7 +91,7 @@ launch_interactive_agent() {
     "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions" Enter
   # Wait for claude to fully initialize before sending the first message
   sleep 10
-  tmux send-keys -t "$WAVE_SESSION.$pane_idx" "$initial_prompt" Enter
+  send_prompt_via_file "$pane_idx" "$initial_prompt"
 }
 
 send_instructions() {
@@ -120,9 +134,9 @@ send_instructions() {
         "You are fixing PR #$pr ($title). Branch: $branch. Repo: $REPO. $msg Steps: 1) Fix issues. 2) Resolve all review threads via GraphQL. 3) Rebase if needed. 4) Build and test. 5) Push when clean."
     fi
   else
-    # Agent is already running — send the message directly (it goes into claude's input)
+    # Agent is already running — send via paste-buffer to avoid truncation
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr — sending message to running agent"
-    tmux send-keys -t "$WAVE_SESSION.$pane_idx" "$msg" Enter
+    send_prompt_via_file "$pane_idx" "$msg"
   fi
 }
 

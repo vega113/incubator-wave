@@ -92,10 +92,16 @@ Update the pane title if needed: `tmux select-pane -t vibe-code:wave-lanes.<INDE
 
 ### Step D: Send instructions to ALL PR lanes every cycle
 
-For every open PR that has a pane (whether just created or already existing), compose and send instructions based on the PR's current status:
+For every open PR that has a pane (whether just created or already existing), compose and send instructions based on the PR's current status.
 
+IMPORTANT: Do NOT use `tmux send-keys` for long prompts — it truncates text. Instead, write the prompt to a temp file and use tmux's paste-buffer:
 ```bash
-tmux send-keys -t "vibe-code:wave-lanes.<PANE_INDEX>" "<INSTRUCTIONS>" Enter
+PROMPT_FILE=$(mktemp /tmp/wave-lane-prompt-XXXXXX.txt)
+printf '%s' "<INSTRUCTIONS>" > "$PROMPT_FILE"
+tmux load-buffer "$PROMPT_FILE"
+tmux paste-buffer -t "vibe-code:wave-lanes.<PANE_INDEX>"
+tmux send-keys -t "vibe-code:wave-lanes.<PANE_INDEX>" Enter
+rm -f "$PROMPT_FILE"
 ```
 
 The instructions should be specific based on what you found in Step B:
