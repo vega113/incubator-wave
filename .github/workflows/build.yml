@@ -98,6 +98,9 @@ jobs:
       - name: GWT compilation check
         run: sbt --batch compileGwt
 
+      - name: Run Unit Tests
+        run: sbt --batch test
+
       - name: Stage distribution
         run: sbt --batch Universal/stage
 
