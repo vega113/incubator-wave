@@ -20,15 +20,14 @@
 package org.waveprotocol.box.server.robots.dataapi;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.Maps;
 import com.google.wave.api.OperationRequest;
 import com.google.wave.api.OperationType;
 import com.google.wave.api.ProtocolVersion;
@@ -41,6 +40,7 @@ import org.waveprotocol.box.server.authentication.jwt.JwtAudience;
 import org.waveprotocol.box.server.authentication.jwt.JwtKeyRing;
 import org.waveprotocol.box.server.authentication.jwt.JwtRequestAuthenticator;
 import org.waveprotocol.box.server.authentication.jwt.JwtTokenType;
+import org.waveprotocol.box.server.authentication.jwt.JwtValidationException;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.robots.OperationContext;
 import org.waveprotocol.box.server.robots.OperationServiceRegistry;
@@ -56,7 +56,6 @@ import java.io.StringWriter;
 import java.lang.reflect.Type;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -137,10 +136,24 @@ public class DataApiServletTest extends TestCase {
         stringWriter.toString());
   }
 
-
   public void testDoPostUnauthorizedWhenMissingToken() throws Exception {
+    when(req.getHeader("Authorization")).thenReturn(null);
+    doThrow(new JwtValidationException("Missing token"))
+        .when(jwtAuthenticator).authenticateAndExtractScopes(
+            isNull(), eq(JwtTokenType.DATA_API_ACCESS), eq(JwtAudience.DATA_API));
+
     servlet.doPost(req, resp);
 
-    verify(resp).sendError(eq(HttpServletResponse.SC_UNAUTHORIZED), anyString());
+    verify(resp).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+  }
+
+  public void testDoPostUnauthorizedWhenValidationFails() throws Exception {
+    doThrow(new JwtValidationException("Invalid token"))
+        .when(jwtAuthenticator).authenticateAndExtractScopes(
+            anyString(), eq(JwtTokenType.DATA_API_ACCESS), eq(JwtAudience.DATA_API));
+
+    servlet.doPost(req, resp);
+
+    verify(resp).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
   }
 }

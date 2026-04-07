@@ -59,11 +59,14 @@ public interface AccountStore {
   void putAccount(AccountData account) throws PersistenceException;
 
   /**
-   * Updates the robot last-active timestamp. The default implementation is a
-   * non-atomic read-modify-write: it reads the current account, rebuilds it
-   * with the new timestamp, and calls {@link #putAccount}. Concurrent updates
-   * to other robot fields may be lost. Implementations may override this method
-   * to provide an atomic store-level update.
+   * Updates the robot last-active timestamp for the given account.
+   *
+   * <p>The intent is to update only {@code lastActiveAtMillis} without touching
+   * other account fields. The default implementation performs a non-atomic
+   * read-modify-write via {@link #getAccount} and {@link #putAccount}, which
+   * may overwrite concurrent updates to other fields. Implementations backed
+   * by a database (e.g. MongoDB) should override this with an atomic field-level
+   * update to avoid that race.
    *
    * @param id robot participant id.
    * @param lastActiveAtMillis milliseconds since epoch.

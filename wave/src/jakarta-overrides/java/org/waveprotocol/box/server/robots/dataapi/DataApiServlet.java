@@ -105,8 +105,7 @@ public final class DataApiServlet extends BaseApiServlet {
       var auth = jwtAuthenticator.authenticateAndExtractScopes(
           req.getHeader("Authorization"), JwtTokenType.DATA_API_ACCESS, JwtAudience.DATA_API);
 
-      processOpsRequest(req, resp, auth.participant(), auth.scopes());
-      if (resp.getStatus() == HttpServletResponse.SC_OK) {
+      if (processOpsRequest(req, resp, auth.participant(), auth.scopes())) {
         touchLastActive(auth.participant());
       }
     } catch (JwtInsufficientScopeException e) {
