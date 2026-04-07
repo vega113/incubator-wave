@@ -65,7 +65,7 @@ build_pr_prompt() {
   local title=$2
   local branch=$3
   local issue_desc=$4
-  echo "You are fixing PR #$pr ($title). Branch: $branch. Repo: $REPO. $issue_desc Steps: 1) Read review comments: gh api repos/$REPO/pulls/$pr/comments. 2) For each unresolved thread: fix the code or reply, then RESOLVE via: gh api graphql -f query=mutation{resolveReviewThread(input:{threadId:ID}){thread{isResolved}}}. 3) Rebase if conflicts: git fetch origin main && git rebase origin/main — examine BOTH sides carefully. 4) Build: cd wave && sbt compile. 5) Test: cd wave && sbt test. 6) Push when clean. Never force push unless rebase requires --force-with-lease."
+  echo "You are fixing PR #$pr ($title). Branch: $branch. Repo: $REPO. $issue_desc Steps: 1) Read review comments: gh api repos/$REPO/pulls/$pr/comments. 2) For each unresolved thread: fix the code or reply, then RESOLVE via: gh api graphql -f 'query=mutation { resolveReviewThread(input:{threadId:\"THREAD_ID\"}) { thread { isResolved } } }'. 3) Rebase if conflicts: git fetch origin main && git rebase origin/main — examine BOTH sides carefully. 4) Build: cd wave && sbt compile. 5) Test: cd wave && sbt test. 6) Push when clean. Never force push unless rebase requires --force-with-lease."
 }
 
 send_instructions() {
@@ -106,11 +106,12 @@ send_instructions() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr needs work ($issue_desc) — launching agent"
 
   # Launch a NEW claude agent with the prompt (not raw text into zsh)
-  local prompt
+  local prompt quoted_prompt
   prompt=$(build_pr_prompt "$pr" "$title" "$branch" "$issue_desc")
+  printf -v quoted_prompt '%q' "$prompt"
   local worktree_path="$WORKTREE_BASE/pr-$pr-lane"
   tmux send-keys -t "$WAVE_SESSION.$pane_idx" \
-    "claude --model claude-sonnet-4-6 --dangerously-skip-permissions -p '${prompt//\'/\\'\\'}'" Enter
+    "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions -p $quoted_prompt" Enter
 }
 
 # ── main loop ────────────────────────────────────────────────────
@@ -190,10 +191,10 @@ while true; do
         if [ -n "$new_pane" ]; then
           tmux select-pane -t "$WAVE_SESSION.$new_pane" -T "PR#$pr $title_short" 2>/dev/null || true
           tmux select-layout -t "$WAVE_SESSION" tiled 2>/dev/null || true
-          local prompt
           prompt=$(build_pr_prompt "$pr" "$title_short" "$branch" "New lane — address all PR issues.")
+          printf -v quoted_prompt '%q' "$prompt"
           tmux send-keys -t "$WAVE_SESSION.$new_pane" \
-            "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions -p '${prompt//\'/\\'\\'}'" Enter
+            "cd '$worktree_path' && claude --model claude-sonnet-4-6 --dangerously-skip-permissions -p $quoted_prompt" Enter
           sleep 5
           pane_idx="$new_pane"
         fi
