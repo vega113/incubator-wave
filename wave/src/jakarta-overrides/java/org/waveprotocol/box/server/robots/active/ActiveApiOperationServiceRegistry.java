@@ -9,13 +9,14 @@ import org.waveprotocol.box.server.authentication.email.PublicBaseUrlResolver;
 import org.waveprotocol.box.server.robots.AbstractOperationServiceRegistry;
 import org.waveprotocol.box.server.robots.operations.*;
 import org.waveprotocol.box.server.robots.operations.NotifyOperationService;
+import org.waveprotocol.box.server.robots.passive.RobotsGateway;
 
 public final class ActiveApiOperationServiceRegistry extends AbstractOperationServiceRegistry {
   @SuppressWarnings("deprecation")
   @Inject
   public ActiveApiOperationServiceRegistry(Injector injector) {
     Config config = injector.getInstance(Config.class);
-    String rpcServerUrl = PublicBaseUrlResolver.resolve(config) + "/robot/dataapi/rpc";
+    String rpcServerUrl = PublicBaseUrlResolver.resolve(config) + RobotsGateway.DATA_API_RPC_PATH;
     NotifyOperationService notifyOpService = injector.getInstance(NotifyOperationService.class);
     register(OperationType.ROBOT_NOTIFY, notifyOpService);
     register(OperationType.ROBOT_NOTIFY_CAPABILITIES_HASH, notifyOpService);

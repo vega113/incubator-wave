@@ -27,6 +27,7 @@ import org.waveprotocol.box.server.authentication.email.PublicBaseUrlResolver;
 
 import org.waveprotocol.box.server.robots.AbstractOperationServiceRegistry;
 import org.waveprotocol.box.server.robots.operations.*;
+import org.waveprotocol.box.server.robots.passive.RobotsGateway;
 
 /**
  * A registry of {@link OperationService}s for the active robot API.
@@ -42,7 +43,7 @@ public final class ActiveApiOperationServiceRegistry extends AbstractOperationSe
   public ActiveApiOperationServiceRegistry(Injector injector) {
     super();
     Config config = injector.getInstance(Config.class);
-    String rpcServerUrl = PublicBaseUrlResolver.resolve(config) + "/robot/dataapi/rpc";
+    String rpcServerUrl = PublicBaseUrlResolver.resolve(config) + RobotsGateway.DATA_API_RPC_PATH;
     NotifyOperationService notifyOpService = injector.getInstance(NotifyOperationService.class);
     // Register all the OperationProviders
     register(OperationType.ROBOT_NOTIFY, notifyOpService);

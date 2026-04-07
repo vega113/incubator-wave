@@ -65,7 +65,7 @@ public class RobotsGateway implements WaveBus.Subscriber {
 
   private static final Log LOG = Log.get(RobotsGateway.class);
 
-  private static final String DATA_API_RPC_PATH = "/robot/dataapi/rpc";
+  public static final String DATA_API_RPC_PATH = "/robot/dataapi/rpc";
 
   private final WaveletProvider waveletProvider;
   private final AccountStore accountStore;

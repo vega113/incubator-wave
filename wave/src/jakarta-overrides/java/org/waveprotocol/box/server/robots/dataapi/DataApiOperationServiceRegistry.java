@@ -8,13 +8,14 @@ import com.typesafe.config.Config;
 import org.waveprotocol.box.server.authentication.email.PublicBaseUrlResolver;
 import org.waveprotocol.box.server.robots.AbstractOperationServiceRegistry;
 import org.waveprotocol.box.server.robots.operations.*;
+import org.waveprotocol.box.server.robots.passive.RobotsGateway;
 
 public final class DataApiOperationServiceRegistry extends AbstractOperationServiceRegistry {
   @SuppressWarnings("deprecation")
   @Inject
   public DataApiOperationServiceRegistry(Injector injector) {
     Config config = injector.getInstance(Config.class);
-    String rpcServerUrl = PublicBaseUrlResolver.resolve(config) + "/robot/dataapi/rpc";
+    String rpcServerUrl = PublicBaseUrlResolver.resolve(config) + RobotsGateway.DATA_API_RPC_PATH;
     register(OperationType.ROBOT_NOTIFY, DoNothingService.create());
     register(OperationType.ROBOT_NOTIFY_CAPABILITIES_HASH, DoNothingService.create());
     register(OperationType.WAVELET_ADD_PARTICIPANT_NEWSYNTAX, ParticipantServices.create());
