@@ -170,7 +170,7 @@ while true; do
   pr_json=$(gh pr list --repo "$REPO" --state open --json number,title,headRefName,mergeable --limit 50 2>/dev/null || echo "[]")
 
   if [ "$pr_json" != "[]" ]; then
-    echo "$pr_json" | jq -r '.[] | "\(.number)|\(.title)|\(.headRefName)|\(.mergeable)"' | while IFS='|' read -r pr title branch mergeable; do
+    echo "$pr_json" | jq -r '.[] | [.number, .title, .headRefName, .mergeable] | @tsv' | while IFS=$'\t' read -r pr title branch mergeable; do
       # Re-read pane list EACH iteration to see panes created in previous iterations
       pane_info=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null || echo "")
 
