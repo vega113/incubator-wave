@@ -108,19 +108,10 @@ send_instructions() {
   if is_pane_idle "$pane_idx"; then
     # No agent running — launch interactive claude first, then send prompt
     local worktree_path="$WORKTREE_BASE/pr-$pr-lane"
-    if [ ! -d "$worktree_path" ]; then
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr — worktree missing, recreating at $worktree_path"
-      git -C "$REPO_PATH" worktree prune 2>/dev/null || true
-      git -C "$REPO_PATH" worktree add "$worktree_path" --track -b "pr-$pr" "origin/$branch" 2>/dev/null \
-        || git -C "$REPO_PATH" worktree add "$worktree_path" "pr-$pr" 2>/dev/null \
-        || true
-    fi
     if [ -d "$worktree_path" ]; then
       echo "[$(date '+%Y-%m-%d %H:%M:%S')] PR#$pr — launching interactive agent with instructions"
       launch_interactive_agent "$pane_idx" "$worktree_path" \
         "You are fixing PR #$pr ($title). Branch: $branch. Repo: $REPO. $msg Steps: 1) Fix issues. 2) Resolve all review threads via GraphQL. 3) Rebase if needed. 4) Build and test. 5) Push when clean."
-    else
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: PR#$pr — could not recreate worktree at $worktree_path — skipping agent launch"
     fi
   else
     # Agent is already running — send the message directly (it goes into claude's input)
@@ -173,6 +164,9 @@ while true; do
     pane_info=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null || echo "")
 
     echo "$pr_json" | jq -r '.[] | "\(.number)|\(.title)|\(.headRefName)|\(.mergeable)"' | while IFS='|' read -r pr title branch mergeable; do
+      # Re-read pane list EACH iteration to see panes created by previous iterations
+      pane_info=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null || echo "")
+
       # Check if any pane covers this PR (by title, path with branch, or worktree name pr-NNN-lane)
       pane_idx=""
       if [ -n "$pane_info" ]; then
