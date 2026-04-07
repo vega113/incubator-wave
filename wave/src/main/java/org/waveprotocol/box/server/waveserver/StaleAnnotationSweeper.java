@@ -235,6 +235,46 @@ public class StaleAnnotationSweeper {
       }
     });
 
+    // Independently scan for orphaned user/e/sessionId annotations: those whose companion
+    // user/d/sessionId is absent or explicitly closed. This covers:
+    //   - sessions whose user/d/ was swept in a previous pass (robust retry path), and
+    //   - sessions whose user/d/ close succeeded in this same sweep but whose companion
+    //     null-out failed with a version conflict (caught on the next sweep via this path).
+    List<StaleAnnotation> orphanedUserE = new ArrayList<>();
+    doc.knownKeys().each(key -> {
+      if (!key.startsWith("user/e/")) return;
+      String sessionId = key.substring("user/e/".length());
+      String dKey = "user/d/" + sessionId;
+
+      // Check whether the corresponding user/d/ session is absent or closed.
+      boolean dAbsentOrClosed = true;
+      int dPos = doc.firstAnnotationChange(0, docSize, dKey, null);
+      if (dPos >= 0) {
+        String dValue = doc.getAnnotation(dPos, dKey);
+        if (dValue != null) {
+          String[] dParts = dValue.split(",", 3);
+          // Session is still open if endTimeMs is empty — leave user/e/ alone.
+          if (dParts.length >= 3 && dParts[2].isEmpty()) {
+            dAbsentOrClosed = false;
+          }
+        }
+      }
+      if (!dAbsentOrClosed) return;
+
+      // Collect all non-null ranges of this orphaned user/e/ key.
+      int searchFrom = 0;
+      while (searchFrom < docSize) {
+        int pos = doc.firstAnnotationChange(searchFrom, docSize, key, null);
+        if (pos < 0) break;
+        String value = doc.getAnnotation(pos, key);
+        if (value == null) { searchFrom = pos + 1; continue; }
+        int annotEnd = doc.firstAnnotationChange(pos, docSize, key, value);
+        if (annotEnd < 0) annotEnd = docSize;
+        orphanedUserE.add(new StaleAnnotation(key, null, value, pos, annotEnd, docSize));
+        searchFrom = annotEnd;
+      }
+    });
+
     // Submit cleanup deltas for all stale annotations found. All deltas reference the same
     // snapshot hash; if more than one succeeds, the second will fail with a version conflict
     // (benign — the next sweep retries with the updated version). Submitting all ensures that
@@ -246,6 +286,11 @@ public class StaleAnnotationSweeper {
       if (submitted) {
         closed++;
       }
+    }
+    // Null out all orphaned user/e/ annotations. Version conflicts are benign — the next sweep
+    // retries via the same independent scan path.
+    for (StaleAnnotation orphan : orphanedUserE) {
+      submitNullOutDelta(waveletName, docId, orphan, snapshot);
     }
     return closed;
   }
@@ -330,6 +375,84 @@ public class StaleAnnotationSweeper {
       LOG.warning("StaleAnnotationSweeper: error building cleanup delta for "
           + waveletName + "/" + docId + " key=" + stale.key, e);
       return false;
+    }
+  }
+
+  /**
+   * Builds and submits a delta that sets the given annotation to {@code null} (removes it).
+   * Used to clear orphaned {@code user/e/*} cursor-position annotations whose corresponding
+   * {@code user/d/*} editing session is absent or has already been closed.
+   */
+  private void submitNullOutDelta(WaveletName waveletName, String docId,
+      StaleAnnotation orphan, ReadableWaveletData snapshot) {
+    try {
+      // setOldValue but no setNewValue → sets annotation to null (removes it).
+      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder openBoundary =
+          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
+              .addChange(ProtocolDocumentOperation.Component.KeyValueUpdate.newBuilder()
+                  .setKey(orphan.key)
+                  .setOldValue(orphan.oldValue));
+
+      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder closeBoundary =
+          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
+              .addEnd(orphan.key);
+
+      ProtocolDocumentOperation.Builder docOp = ProtocolDocumentOperation.newBuilder();
+      if (orphan.start > 0) {
+        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+            .setRetainItemCount(orphan.start));
+      }
+      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+          .setAnnotationBoundary(openBoundary));
+      if (orphan.end > orphan.start) {
+        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+            .setRetainItemCount(orphan.end - orphan.start));
+      }
+      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+          .setAnnotationBoundary(closeBoundary));
+      if (orphan.end < orphan.docSize) {
+        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+            .setRetainItemCount(orphan.docSize - orphan.end));
+      }
+
+      // Use the first current participant as delta author (same as submitCleanupDelta).
+      // The wavelet creator may have left; using annotation content as author is unsafe.
+      Set<ParticipantId> participants = snapshot.getParticipants();
+      if (participants.isEmpty()) {
+        LOG.warning("StaleAnnotationSweeper: no participants on " + waveletName
+            + "; skipping null-out delta for " + orphan.key);
+        return;
+      }
+      String authorAddress = participants.iterator().next().getAddress();
+
+      ProtocolWaveletDelta delta = ProtocolWaveletDelta.newBuilder()
+          .setAuthor(authorAddress)
+          .setHashedVersion(CoreWaveletOperationSerializer.serialize(snapshot.getHashedVersion()))
+          .addOperation(ProtocolWaveletOperation.newBuilder()
+              .setMutateDocument(ProtocolWaveletOperation.MutateDocument.newBuilder()
+                  .setDocumentId(docId)
+                  .setDocumentOperation(docOp)))
+          .build();
+
+      waveletProvider.submitRequest(waveletName, delta, new WaveletProvider.SubmitRequestListener() {
+        @Override
+        public void onSuccess(int operationsApplied,
+            org.waveprotocol.wave.model.version.HashedVersion version,
+            long applicationTimestamp) {
+          LOG.info("StaleAnnotationSweeper: nulled orphaned annotation " + orphan.key
+              + " in " + waveletName + "/" + docId);
+        }
+
+        @Override
+        public void onFailure(String errorMessage) {
+          // Version conflicts are benign — the next sweep retries via the independent scan.
+          LOG.warning("StaleAnnotationSweeper: failed to null orphaned annotation "
+              + orphan.key + " in " + waveletName + "/" + docId + ": " + errorMessage);
+        }
+      });
+    } catch (Exception e) {
+      LOG.warning("StaleAnnotationSweeper: error building null-out delta for "
+          + waveletName + "/" + docId + " key=" + orphan.key, e);
     }
   }
 }
