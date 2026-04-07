@@ -258,6 +258,36 @@ public class StaleAnnotationSweeper {
       }
     });
 
+    // Also collect companion user/e/sessionId annotations for each stale user/d/ session.
+    // user/e/ stores the cursor end-position marker (value = user address string, no timestamp),
+    // so it cannot be detected as stale independently — instead we null it out when the
+    // corresponding user/d/ session is swept.
+    Set<String> staleSessionIds = new java.util.HashSet<>();
+    for (StaleAnnotation sa : staleAnnotations) {
+      staleSessionIds.add(sa.key.substring("user/d/".length()));
+    }
+    List<StaleAnnotation> companionAnnotations = new ArrayList<>();
+    if (!staleSessionIds.isEmpty()) {
+      doc.knownKeys().each(key -> {
+        if (!key.startsWith("user/e/")) return;
+        String sessionId = key.substring("user/e/".length());
+        if (!staleSessionIds.contains(sessionId)) return;
+        int searchFrom = 0;
+        while (searchFrom < docSize) {
+          int pos = doc.firstAnnotationChange(searchFrom, docSize, key, null);
+          if (pos < 0) break;
+          String value = doc.getAnnotation(pos, key);
+          if (value == null) { searchFrom = pos + 1; continue; }
+          int annotEnd = doc.firstAnnotationChange(pos, docSize, key, value);
+          if (annotEnd < 0) annotEnd = docSize;
+          // userId is not meaningful for user/e/ (no security check needed — we only reach here
+          // because the companion user/d/ sessionId was already validated above).
+          companionAnnotations.add(new StaleAnnotation(key, null, value, pos, annotEnd, docSize));
+          searchFrom = annotEnd;
+        }
+      });
+    }
+
     // Submit cleanup deltas for all stale annotations found. All deltas reference the same
     // snapshot hash; if more than one succeeds, the second will fail with a version conflict
     // (benign — the next sweep retries with the updated version). Submitting all ensures that
@@ -269,6 +299,10 @@ public class StaleAnnotationSweeper {
       if (submitted) {
         closed++;
       }
+    }
+    // Null out companion user/e/ annotations for swept sessions.
+    for (StaleAnnotation companion : companionAnnotations) {
+      submitNullOutDelta(waveletName, docId, companion, snapshot);
     }
     return closed;
   }
@@ -350,6 +384,80 @@ public class StaleAnnotationSweeper {
       LOG.warning("StaleAnnotationSweeper: error building cleanup delta for "
           + waveletName + "/" + docId + " key=" + stale.key, e);
       return false;
+    }
+  }
+
+  /**
+   * Builds and submits a delta that sets the given annotation to {@code null} (removes it).
+   * Used to clear companion {@code user/e/*} cursor-position annotations when their corresponding
+   * {@code user/d/*} editing session is swept.
+   */
+  private void submitNullOutDelta(WaveletName waveletName, String docId,
+      StaleAnnotation companion, ReadableWaveletData snapshot) {
+    try {
+      // setOldValue but no setNewValue → sets annotation to null (removes it).
+      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder openBoundary =
+          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
+              .addChange(ProtocolDocumentOperation.Component.KeyValueUpdate.newBuilder()
+                  .setKey(companion.key)
+                  .setOldValue(companion.oldValue));
+
+      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder closeBoundary =
+          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
+              .addEnd(companion.key);
+
+      ProtocolDocumentOperation.Builder docOp = ProtocolDocumentOperation.newBuilder();
+      if (companion.start > 0) {
+        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+            .setRetainItemCount(companion.start));
+      }
+      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+          .setAnnotationBoundary(openBoundary));
+      if (companion.end > companion.start) {
+        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+            .setRetainItemCount(companion.end - companion.start));
+      }
+      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+          .setAnnotationBoundary(closeBoundary));
+      if (companion.end < companion.docSize) {
+        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+            .setRetainItemCount(companion.docSize - companion.end));
+      }
+
+      ParticipantId creatorId = snapshot.getCreator();
+      if (!snapshot.getParticipants().contains(creatorId)) {
+        LOG.warning("StaleAnnotationSweeper: skipping null-out for " + companion.key
+            + " — wavelet creator is not a participant");
+        return;
+      }
+
+      ProtocolWaveletDelta delta = ProtocolWaveletDelta.newBuilder()
+          .setAuthor(creatorId.getAddress())
+          .setHashedVersion(CoreWaveletOperationSerializer.serialize(snapshot.getHashedVersion()))
+          .addOperation(ProtocolWaveletOperation.newBuilder()
+              .setMutateDocument(ProtocolWaveletOperation.MutateDocument.newBuilder()
+                  .setDocumentId(docId)
+                  .setDocumentOperation(docOp)))
+          .build();
+
+      waveletProvider.submitRequest(waveletName, delta, new WaveletProvider.SubmitRequestListener() {
+        @Override
+        public void onSuccess(int operationsApplied,
+            org.waveprotocol.wave.model.version.HashedVersion version,
+            long applicationTimestamp) {
+          LOG.info("StaleAnnotationSweeper: nulled companion annotation " + companion.key
+              + " in " + waveletName + "/" + docId);
+        }
+
+        @Override
+        public void onFailure(String errorMessage) {
+          LOG.warning("StaleAnnotationSweeper: failed to null companion annotation "
+              + companion.key + " in " + waveletName + "/" + docId + ": " + errorMessage);
+        }
+      });
+    } catch (Exception e) {
+      LOG.warning("StaleAnnotationSweeper: error building null-out delta for "
+          + waveletName + "/" + docId + " key=" + companion.key, e);
     }
   }
 }
