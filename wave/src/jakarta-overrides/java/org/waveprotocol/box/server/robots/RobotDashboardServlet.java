@@ -521,7 +521,7 @@ public final class RobotDashboardServlet extends HttpServlet {
       LOG.warning("Failed to look up role for top bar in RobotDashboard: " + user.getAddress(), e);
     }
     resp.getWriter().write(renderDashboardPage(user.getAddress(), robotsToRender, message,
-        getOrGenerateXsrfToken(user), baseUrl, revealedSecret, contextPath, userRole));
+        getOrGenerateXsrfToken(user), baseUrl, revealedSecret, contextPath, userRole, statusCode));
   }
 
   private List<RobotAccountData> loadOwnedRobots(String ownerAddress) {
@@ -558,12 +558,12 @@ public final class RobotDashboardServlet extends HttpServlet {
   private String renderDashboardPage(String userAddress, List<RobotAccountData> robots,
       String message, String xsrfToken, String baseUrl, String revealedSecret, String contextPath) {
     return renderDashboardPage(userAddress, robots, message, xsrfToken, baseUrl, revealedSecret,
-        contextPath, null);
+        contextPath, null, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
   }
 
   private String renderDashboardPage(String userAddress, List<RobotAccountData> robots,
       String message, String xsrfToken, String baseUrl, String revealedSecret, String contextPath,
-      String userRole) {
+      String userRole, int statusCode) {
     String safeUser = HtmlRenderer.escapeHtml(userAddress);
     String safeDomain = HtmlRenderer.escapeHtml(domain);
     String safeCtx = HtmlRenderer.escapeHtml(contextPath);
@@ -1301,7 +1301,8 @@ public final class RobotDashboardServlet extends HttpServlet {
     // Init
     sb.append("loadRobots();");
     if (!com.google.common.base.Strings.isNullOrEmpty(message)) {
-      sb.append("toast('").append(escapeJsString(message)).append("','err');");
+      String toastType = (statusCode >= 200 && statusCode < 300) ? "ok" : "err";
+      sb.append("toast('").append(escapeJsString(message)).append("','").append(toastType).append("');");
     }
     sb.append("</script>");
     sb.append(HtmlRenderer.renderSharedTopBarJs(contextPath));
