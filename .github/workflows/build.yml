@@ -95,9 +95,6 @@ jobs:
             fi
           done
 
-      - name: GWT compilation check
-        run: sbt --batch compileGwt
-
       - name: Run Unit Tests
         run: |
           set -euo pipefail
@@ -114,6 +111,9 @@ jobs:
             sleep 30
           done
           sbt --batch test
+
+      - name: GWT compilation check
+        run: sbt --batch compileGwt
 
       - name: Stage distribution
         run: sbt --batch Universal/stage
