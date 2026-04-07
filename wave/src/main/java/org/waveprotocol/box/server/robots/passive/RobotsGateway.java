@@ -260,7 +260,7 @@ public class RobotsGateway implements WaveBus.Subscriber {
       if (updatedAccount != null && updatedAccount.isRobot()) {
         robot.setAccount(updatedAccount.asRobot());
       }
-    } catch (PersistenceException e) {
+    } catch (Exception e) {
       LOG.warning("Failed to update lastActiveAtMillis for robot "
           + robot.getRobotName() + ": " + e.getMessage(), e);
     }
