@@ -93,6 +93,24 @@ public class StaleAnnotationSweeper {
     }
   }
 
+  /** A single annotation mutation event to be applied at a given document position. */
+  private static final class AnnotationOp {
+    enum Kind { CHANGE, END }
+    final int position;
+    final Kind kind;
+    final String key;
+    final String oldValue; // only for CHANGE
+    final String newValue; // only for CHANGE; null means remove the annotation
+
+    AnnotationOp(int position, Kind kind, String key, String oldValue, String newValue) {
+      this.position = position;
+      this.kind = kind;
+      this.key = key;
+      this.oldValue = oldValue;
+      this.newValue = newValue;
+    }
+  }
+
   public StaleAnnotationSweeper(WaveletProvider waveletProvider) {
     this.waveletProvider = waveletProvider;
   }
@@ -291,158 +309,105 @@ public class StaleAnnotationSweeper {
       }
     });
 
-    // Submit cleanup deltas for all stale annotations found. All deltas reference the same
-    // snapshot hash; if more than one succeeds, the second will fail with a version conflict
-    // (benign — the next sweep retries with the updated version). Submitting all ensures that
-    // a permanently un-submittable annotation (e.g. author no longer a participant) does not
-    // block later stale annotations in the same document.
-    int closed = 0;
-    for (StaleAnnotation stale : staleAnnotations) {
-      boolean submitted = submitCleanupDelta(waveletName, docId, stale, snapshot, now);
-      if (submitted) {
-        closed++;
-      }
+    // Batch all mutations (user/d close + user/e null-out) into one delta per document so that
+    // all annotation changes share a single hashed version and succeed together.
+    if (staleAnnotations.isEmpty() && companionAnnotations.isEmpty()) {
+      return 0;
     }
-    // Null out companion user/e/ annotations for swept sessions.
-    for (StaleAnnotation companion : companionAnnotations) {
-      submitNullOutDelta(waveletName, docId, companion, snapshot);
-    }
-    return closed;
+    boolean submitted = submitBatchedDelta(waveletName, docId, staleAnnotations,
+        companionAnnotations, snapshot, now);
+    return submitted ? staleAnnotations.size() : 0;
   }
 
   /**
-   * Builds and submits a delta that sets the {@code endTimeMs} of the stale annotation to
-   * {@code now}, marking the editing session as closed.
+   * Builds and submits a single delta that closes all stale {@code user/d/*} annotations (sets
+   * {@code endTimeMs = now}) and nulls out all orphaned {@code user/e/*} companion annotations in
+   * one document operation. Batching into one delta avoids version-conflict cascades that occur
+   * when multiple per-interval deltas all share the same {@code snapshot.getHashedVersion()}.
+   *
+   * <p>Events (annotation-boundary changes) are sorted by document position so the resulting
+   * DocOp covers the full document in a single linear pass.
    *
    * @return true if the delta was submitted (may still fail asynchronously)
    */
-  private boolean submitCleanupDelta(WaveletName waveletName, String docId,
-      StaleAnnotation stale, ReadableWaveletData snapshot, long now) {
+  private boolean submitBatchedDelta(WaveletName waveletName, String docId,
+      List<StaleAnnotation> staleAnnotations, List<StaleAnnotation> companionAnnotations,
+      ReadableWaveletData snapshot, long now) {
     try {
-      String closedValue = stale.oldValue + now; // "userId,startMs," + nowMs = "userId,startMs,nowMs"
-      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder openBoundary =
-          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
-              .addChange(ProtocolDocumentOperation.Component.KeyValueUpdate.newBuilder()
-                  .setKey(stale.key)
-                  .setOldValue(stale.oldValue)
-                  .setNewValue(closedValue));
+      int docSize = staleAnnotations.isEmpty()
+          ? companionAnnotations.get(0).docSize
+          : staleAnnotations.get(0).docSize;
 
-      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder closeBoundary =
-          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
-              .addEnd(stale.key);
+      // Build sorted list of annotation events: CHANGE (start of a mutation) and END (end of it).
+      List<AnnotationOp> ops = new ArrayList<>();
+      for (StaleAnnotation stale : staleAnnotations) {
+        String closedValue = stale.oldValue + now; // "userId,startMs," + nowMs → "userId,startMs,nowMs"
+        ops.add(new AnnotationOp(stale.start, AnnotationOp.Kind.CHANGE,
+            stale.key, stale.oldValue, closedValue));
+        ops.add(new AnnotationOp(stale.end, AnnotationOp.Kind.END, stale.key, null, null));
+      }
+      for (StaleAnnotation companion : companionAnnotations) {
+        // No newValue → sets annotation to null (removes it).
+        ops.add(new AnnotationOp(companion.start, AnnotationOp.Kind.CHANGE,
+            companion.key, companion.oldValue, null));
+        ops.add(new AnnotationOp(companion.end, AnnotationOp.Kind.END, companion.key, null, null));
+      }
+      // Sort by position; at equal positions emit END before CHANGE (Wave spec requirement).
+      ops.sort((a, b) -> {
+        int cmp = Integer.compare(a.position, b.position);
+        if (cmp != 0) return cmp;
+        return (a.kind == AnnotationOp.Kind.END ? 0 : 1) - (b.kind == AnnotationOp.Kind.END ? 0 : 1);
+      });
 
+      // Walk sorted events and build one DocOp covering the entire document.
       ProtocolDocumentOperation.Builder docOp = ProtocolDocumentOperation.newBuilder();
-      if (stale.start > 0) {
+      int currentPos = 0;
+      int i = 0;
+      while (i < ops.size()) {
+        int pos = ops.get(i).position;
+        if (pos > currentPos) {
+          docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
+              .setRetainItemCount(pos - currentPos));
+          currentPos = pos;
+        }
+        // Collect all events at this position into one annotationBoundary.
+        ProtocolDocumentOperation.Component.AnnotationBoundary.Builder boundary =
+            ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder();
+        while (i < ops.size() && ops.get(i).position == pos) {
+          AnnotationOp op = ops.get(i++);
+          if (op.kind == AnnotationOp.Kind.END) {
+            boundary.addEnd(op.key);
+          } else {
+            ProtocolDocumentOperation.Component.KeyValueUpdate.Builder kv =
+                ProtocolDocumentOperation.Component.KeyValueUpdate.newBuilder()
+                    .setKey(op.key)
+                    .setOldValue(op.oldValue);
+            if (op.newValue != null) {
+              kv.setNewValue(op.newValue);
+            }
+            boundary.addChange(kv);
+          }
+        }
         docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-            .setRetainItemCount(stale.start));
+            .setAnnotationBoundary(boundary));
       }
-      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-          .setAnnotationBoundary(openBoundary));
-      if (stale.end > stale.start) {
+      if (currentPos < docSize) {
         docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-            .setRetainItemCount(stale.end - stale.start));
-      }
-      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-          .setAnnotationBoundary(closeBoundary));
-      if (stale.end < stale.docSize) {
-        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-            .setRetainItemCount(stale.docSize - stale.end));
+            .setRetainItemCount(docSize - currentPos));
       }
 
-      // Use the wavelet creator as the delta author if they are still a participant; otherwise
-      // use the first current participant. Never use stale.userId (parsed from annotation content)
-      // as the author, since a malicious participant could forge an annotation value containing
-      // another participant's address and cause the sweeper to attribute cleanup deltas to them.
+      // Use the wavelet creator as author if still a participant; otherwise first participant.
+      // Never use annotation-embedded userId as author (could be forged by a participant).
       ParticipantId creatorId = snapshot.getCreator();
       Set<ParticipantId> participants = snapshot.getParticipants();
       if (participants.isEmpty()) {
-        LOG.warning("StaleAnnotationSweeper: skipping stale annotation " + stale.key
-            + " in " + waveletName + "/" + docId + " — wavelet has no participants");
+        LOG.warning("StaleAnnotationSweeper: no participants on " + waveletName
+            + "; skipping batch cleanup for " + docId);
         return false;
       }
       String deltaAuthor = participants.contains(creatorId)
           ? creatorId.getAddress()
           : participants.iterator().next().getAddress();
-      ProtocolWaveletDelta delta = ProtocolWaveletDelta.newBuilder()
-          .setAuthor(deltaAuthor)
-          .setHashedVersion(CoreWaveletOperationSerializer.serialize(snapshot.getHashedVersion()))
-          .addOperation(ProtocolWaveletOperation.newBuilder()
-              .setMutateDocument(ProtocolWaveletOperation.MutateDocument.newBuilder()
-                  .setDocumentId(docId)
-                  .setDocumentOperation(docOp)))
-          .build();
-
-      waveletProvider.submitRequest(waveletName, delta, new WaveletProvider.SubmitRequestListener() {
-        @Override
-        public void onSuccess(int operationsApplied, org.waveprotocol.wave.model.version.HashedVersion version,
-            long applicationTimestamp) {
-          LOG.info("StaleAnnotationSweeper: closed stale annotation " + stale.key
-              + " in " + waveletName + "/" + docId + " (author=" + stale.userId + ")");
-        }
-
-        @Override
-        public void onFailure(String errorMessage) {
-          // Common causes: version conflict (another delta was applied concurrently), or the
-          // author is no longer a participant. Both are benign — the next sweep will retry.
-          LOG.warning("StaleAnnotationSweeper: failed to close stale annotation " + stale.key
-              + " in " + waveletName + "/" + docId + ": " + errorMessage);
-        }
-      });
-      return true;
-    } catch (Exception e) {
-      LOG.warning("StaleAnnotationSweeper: error building cleanup delta for "
-          + waveletName + "/" + docId + " key=" + stale.key, e);
-      return false;
-    }
-  }
-
-  /**
-   * Builds and submits a delta that sets the given annotation to {@code null} (removes it).
-   * Used to clear companion {@code user/e/*} cursor-position annotations when their corresponding
-   * {@code user/d/*} editing session is swept.
-   */
-  private void submitNullOutDelta(WaveletName waveletName, String docId,
-      StaleAnnotation companion, ReadableWaveletData snapshot) {
-    try {
-      // setOldValue but no setNewValue → sets annotation to null (removes it).
-      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder openBoundary =
-          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
-              .addChange(ProtocolDocumentOperation.Component.KeyValueUpdate.newBuilder()
-                  .setKey(companion.key)
-                  .setOldValue(companion.oldValue));
-
-      ProtocolDocumentOperation.Component.AnnotationBoundary.Builder closeBoundary =
-          ProtocolDocumentOperation.Component.AnnotationBoundary.newBuilder()
-              .addEnd(companion.key);
-
-      ProtocolDocumentOperation.Builder docOp = ProtocolDocumentOperation.newBuilder();
-      if (companion.start > 0) {
-        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-            .setRetainItemCount(companion.start));
-      }
-      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-          .setAnnotationBoundary(openBoundary));
-      if (companion.end > companion.start) {
-        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-            .setRetainItemCount(companion.end - companion.start));
-      }
-      docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-          .setAnnotationBoundary(closeBoundary));
-      if (companion.end < companion.docSize) {
-        docOp.addComponent(ProtocolDocumentOperation.Component.newBuilder()
-            .setRetainItemCount(companion.docSize - companion.end));
-      }
-
-      ParticipantId creatorId = snapshot.getCreator();
-      Set<ParticipantId> participants = snapshot.getParticipants();
-      if (participants.isEmpty()) {
-        LOG.warning("StaleAnnotationSweeper: skipping null-out for " + companion.key
-            + " — wavelet has no participants");
-        return;
-      }
-      String deltaAuthor = participants.contains(creatorId)
-          ? creatorId.getAddress()
-          : participants.iterator().next().getAddress();
 
       ProtocolWaveletDelta delta = ProtocolWaveletDelta.newBuilder()
           .setAuthor(deltaAuthor)
@@ -453,24 +418,31 @@ public class StaleAnnotationSweeper {
                   .setDocumentOperation(docOp)))
           .build();
 
+      int staleCount = staleAnnotations.size();
+      int companionCount = companionAnnotations.size();
       waveletProvider.submitRequest(waveletName, delta, new WaveletProvider.SubmitRequestListener() {
         @Override
         public void onSuccess(int operationsApplied,
             org.waveprotocol.wave.model.version.HashedVersion version,
             long applicationTimestamp) {
-          LOG.info("StaleAnnotationSweeper: nulled companion annotation " + companion.key
+          LOG.info("StaleAnnotationSweeper: swept " + staleCount + " stale annotation(s)"
+              + (companionCount > 0 ? " + " + companionCount + " companion(s)" : "")
               + " in " + waveletName + "/" + docId);
         }
 
         @Override
         public void onFailure(String errorMessage) {
-          LOG.warning("StaleAnnotationSweeper: failed to null companion annotation "
-              + companion.key + " in " + waveletName + "/" + docId + ": " + errorMessage);
+          // Common causes: version conflict (concurrent delta) or author no longer a participant.
+          // Both are benign — the next sweep will retry with a fresh snapshot version.
+          LOG.warning("StaleAnnotationSweeper: batch cleanup failed for "
+              + waveletName + "/" + docId + ": " + errorMessage);
         }
       });
+      return true;
     } catch (Exception e) {
-      LOG.warning("StaleAnnotationSweeper: error building null-out delta for "
-          + waveletName + "/" + docId + " key=" + companion.key, e);
+      LOG.warning("StaleAnnotationSweeper: error building batch cleanup delta for "
+          + waveletName + "/" + docId, e);
+      return false;
     }
   }
 }
