@@ -1,0 +1,51 @@
+name: Changelog Fragment Check
+run-name: >-
+  ${{ format('Changelog check PR #{0}', github.event.pull_request.number) }}
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main]
+
+jobs:
+  check-changelog:
+    name: Require changelog fragment
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.labels.*.name, 'skip-changelog')"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changelog fragment
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'wave/config/changelog.d/')
+          if [ -z "$CHANGED" ]; then
+            echo "::error::This PR is missing a changelog fragment. Please add one at wave/config/changelog.d/YYYY-MM-DD-short-description.json"
+            echo ""
+            echo "Expected format (wave/config/changelog.d/YYYY-MM-DD-short-description.json):"
+            echo ""
+            cat <<'EXAMPLE'
+          {
+            "releaseId": "YYYY-MM-DD-short-description",
+            "version": "PR #NNN",
+            "date": "YYYY-MM-DD",
+            "title": "Short description of the change",
+            "summary": "One-sentence summary of what changed and why.",
+            "sections": [
+              {
+                "type": "feature|fix",
+                "items": [
+                  "Bullet point describing a specific change"
+                ]
+              }
+            ]
+          }
+          EXAMPLE
+            echo ""
+            echo "To skip this check, add the 'skip-changelog' label to the PR."
+            exit 1
+          fi
+          echo "Found changelog fragment(s):"
+          echo "$CHANGED"

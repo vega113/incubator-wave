@@ -3211,6 +3211,9 @@ public final class HtmlRenderer {
     sb.append("    } else if (status === 'partial') {\n");
     sb.append("      firstRelease = releaseNotes.length > 0 ? releaseNotes[0] : null;\n");
     sb.append("      summary.textContent = firstRelease ? firstRelease.title + ' and other updates.' : 'Multiple updates have been applied.';\n");
+    sb.append("    } else if (status === 'current_only' && releaseNotes.length > 0) {\n");
+    sb.append("      firstRelease = releaseNotes[0];\n");
+    sb.append("      summary.textContent = firstRelease.title ? firstRelease.title + ': ' + firstRelease.summary : firstRelease.summary;\n");
     sb.append("    } else {\n");
     sb.append("      summary.textContent = 'A new version of SupaWave is available.';\n");
     sb.append("    }\n");
@@ -3230,7 +3233,7 @@ public final class HtmlRenderer {
     sb.append("    actions.style.cssText = 'display:flex;gap:14px;align-items:center;flex-wrap:wrap;';\n");
     sb.append("    actions.appendChild(reload);\n");
     sb.append("    var whatsNew = document.createElement('a');\n");
-    sb.append("    if (status === 'exact' && releaseNotes.length > 0 && releaseNotes[0].releaseId) {\n");
+    sb.append("    if ((status === 'exact' || status === 'current_only') && releaseNotes.length > 0 && releaseNotes[0].releaseId) {\n");
     sb.append("      whatsNew.href = '/changelog#release-' + encodeURIComponent(releaseNotes[0].releaseId);\n");
     sb.append("    } else {\n");
     sb.append("      whatsNew.href = '/changelog';\n");
