@@ -68,6 +68,10 @@ gh pr checks NNN --repo vega113/incubator-wave 2>/dev/null | head -10
 
 ### Step C: For each open PR — create lane if missing, send instructions if issues exist
 
+IMPORTANT: At the start of EACH PR iteration, re-run:
+`tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}"$'\t'"#{pane_title}"$'\t'"#{pane_current_path}" 2>/dev/null`
+and compute coverage from this fresh snapshot before deciding to create a lane.
+
 **If NO pane covers this PR** (no pane title contains "#NNN" and no pane path ends with the branch name):
 
 Create a new lane:
