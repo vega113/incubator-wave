@@ -72,7 +72,7 @@ IMPORTANT: At the start of EACH PR iteration, re-run:
 `tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}"$'\t'"#{pane_title}"$'\t'"#{pane_current_path}" 2>/dev/null`
 and compute coverage from this fresh snapshot before deciding to create a lane.
 
-**If NO pane covers this PR** (no pane title contains "#NNN" and no pane path ends with the branch name):
+**If NO pane covers this PR** (no pane title contains `PR#NNN`, no pane path contains `pr-NNN-lane`, and branch lookup from `pane_current_path` does not map to PR `#NNN`):
 
 Create a new lane:
 1. `git -C /Users/vega/devroot/incubator-wave worktree add /Users/vega/devroot/worktrees/pr-NNN-lane --track -b pr-NNN origin/<BRANCH> 2>/dev/null || true`
