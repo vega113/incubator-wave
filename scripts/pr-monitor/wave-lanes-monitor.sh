@@ -24,8 +24,14 @@ REPO_PATH="/Users/vega/devroot/incubator-wave"
 CYCLE_INTERVAL=300
 
 extract_pr_number() {
-  local title="$1"
-  [[ $title =~ PR#([0-9]+) ]] && echo "${BASH_REMATCH[1]}" || echo ""
+  local text="$1"
+  [[ $text =~ PR#([0-9]+) ]] && echo "${BASH_REMATCH[1]}" || echo ""
+}
+
+# Extract PR number from worktree path like /Users/.../pr-700-lane
+extract_pr_from_path() {
+  local path="$1"
+  [[ $path =~ pr-([0-9]+)-lane ]] && echo "${BASH_REMATCH[1]}" || echo ""
 }
 
 is_pane_idle() {
@@ -132,14 +138,18 @@ while true; do
   fi
 
   # ── PART 1: Close merged/closed PR panes ──
-  pane_list=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}: #{pane_title}" 2>/dev/null || echo "")
+  # Uses BOTH pane title (PR#NNN) and pane path (pr-NNN-lane) to detect PR association
+  pane_list=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}|#{pane_title}|#{pane_current_path}" 2>/dev/null || echo "")
 
   if [ -n "$pane_list" ]; then
-    # Collect panes to close first, then close (avoids index shifting mid-loop)
     declare -a panes_to_close=()
-    while IFS=':' read -r pane_idx rest; do
-      title=$(echo "$rest" | sed 's/^ *//')
+    while IFS='|' read -r pane_idx title pane_path; do
+      pane_idx=$(echo "$pane_idx" | tr -d ' ')
+      # Try to get PR number from title first, then from path
       pr=$(extract_pr_number "$title")
+      if [ -z "$pr" ]; then
+        pr=$(extract_pr_from_path "$pane_path")
+      fi
       if [ -n "$pr" ]; then
         state=$(check_pr_state "$pr")
         if [[ "$state" == "MERGED" || "$state" == "CLOSED" ]]; then
@@ -160,10 +170,10 @@ while true; do
   pr_json=$(gh pr list --repo "$REPO" --state open --json number,title,headRefName,mergeable --limit 50 2>/dev/null || echo "[]")
 
   if [ "$pr_json" != "[]" ]; then
-    # Re-read pane list after closures
-    pane_info=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null || echo "")
-
     echo "$pr_json" | jq -r '.[] | "\(.number)|\(.title)|\(.headRefName)|\(.mergeable)"' | while IFS='|' read -r pr title branch mergeable; do
+      # Re-read pane list EACH iteration to see panes created in previous iterations
+      pane_info=$(tmux list-panes -t "$WAVE_SESSION" -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null || echo "")
+
       # Check if any pane covers this PR (by title, path with branch, or worktree name pr-NNN-lane)
       pane_idx=""
       if [ -n "$pane_info" ]; then

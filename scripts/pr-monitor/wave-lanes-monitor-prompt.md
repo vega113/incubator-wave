@@ -17,10 +17,16 @@ Every cycle:
 tmux list-panes -t vibe-code:wave-lanes -F "#{pane_index}: #{pane_title} | #{pane_current_path}" 2>/dev/null
 ```
 
-For EACH pane:
-1. If title contains PR#NNN, check: `gh pr view NNN --repo vega113/incubator-wave --json state -q .state`
-2. ALSO check by branch: `git -C <PATH> branch --show-current` then `gh pr list --repo vega113/incubator-wave --state all --head <BRANCH> --json number,state -q '.[0].state'`
-3. If state is MERGED or CLOSED → kill the pane completely:
+For EACH pane, extract the PR number using TWO methods:
+1. **From title:** If title contains `PR#NNN`, extract the number
+2. **From path:** If path contains `pr-NNN-lane` (e.g. `/Users/vega/devroot/worktrees/pr-700-lane`), extract NNN
+3. **From branch:** `git -C <PATH> branch --show-current` then `gh pr list --repo vega113/incubator-wave --state all --head <BRANCH> --json number,state -q '.[0]'`
+
+IMPORTANT: Many panes have generic titles like "Claude Code" — you MUST check the path, not just the title.
+
+Once you have the PR number, check: `gh pr view NNN --repo vega113/incubator-wave --json state -q .state`
+
+If state is MERGED or CLOSED → kill the pane completely:
    ```bash
    # First send Ctrl-C to stop any running claude agent inside the pane
    tmux send-keys -t "vibe-code:wave-lanes.<INDEX>" C-c 2>/dev/null
