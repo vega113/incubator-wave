@@ -67,12 +67,10 @@ import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.version.HashedVersionFactory;
 import org.waveprotocol.wave.model.version.HashedVersionZeroFactoryImpl;
 import org.waveprotocol.wave.model.supplement.PrimitiveSupplement;
-import org.waveprotocol.wave.model.supplement.SupplementedWave;
 import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl;
 import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
 import org.waveprotocol.box.server.robots.RobotWaveletData;
 import org.waveprotocol.box.server.robots.util.RobotsUtil;
-import org.waveprotocol.box.server.util.WaveletDataUtil;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
@@ -379,12 +377,12 @@ public class SimpleSearchProviderImplTest extends TestCase {
     java.util.List<WaveletDelta> deltas = robotWavelet.getDeltas();
     assertFalse("Pin should produce deltas", deltas.isEmpty());
 
+    LocalWaveletContainer pinUdwContainer = waveMap.getOrCreateLocalWavelet(udwName);
     for (WaveletDelta delta : deltas) {
       ProtocolWaveletDelta protoDelta = CoreWaveletOperationSerializer.serialize(delta);
       ProtocolSignedDelta signedDelta =
           ProtocolSignedDelta.newBuilder().setDelta(protoDelta.toByteString()).build();
-      LocalWaveletContainer wavelet = waveMap.getOrCreateLocalWavelet(udwName);
-      wavelet.submitRequest(udwName, signedDelta);
+      pinUdwContainer.submitRequest(udwName, signedDelta);
     }
 
     addWaveletToUserView(udwName, USER1);
@@ -407,17 +405,17 @@ public class SimpleSearchProviderImplTest extends TestCase {
     OpBasedWavelet udw = robotWavelet.getOpBasedWavelet(USER1);
 
     PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
-    udwState.archiveAtVersion(WAVELET_ID, (int) convVersion);
+    udwState.archiveAtVersion(WAVELET_ID, Math.toIntExact(convVersion));
 
     java.util.List<WaveletDelta> deltas = robotWavelet.getDeltas();
     assertFalse("Archive should produce deltas", deltas.isEmpty());
 
+    LocalWaveletContainer archiveUdwContainer = waveMap.getOrCreateLocalWavelet(udwName);
     for (WaveletDelta delta : deltas) {
       ProtocolWaveletDelta protoDelta = CoreWaveletOperationSerializer.serialize(delta);
       ProtocolSignedDelta signedDelta =
           ProtocolSignedDelta.newBuilder().setDelta(protoDelta.toByteString()).build();
-      LocalWaveletContainer wavelet = waveMap.getOrCreateLocalWavelet(udwName);
-      wavelet.submitRequest(udwName, signedDelta);
+      archiveUdwContainer.submitRequest(udwName, signedDelta);
     }
 
     addWaveletToUserView(udwName, USER1);
