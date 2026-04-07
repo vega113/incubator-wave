@@ -223,4 +223,37 @@ public class StaleAnnotationSweeperTest extends TestCase {
         any(ProtocolWaveletDelta.class),
         any(WaveletProvider.SubmitRequestListener.class));
   }
+
+  /**
+   * Tests that a companion user/e/ annotation is NOT nulled out when the corresponding
+   * user/d/ session has an active IME composition (non-numeric, non-empty parts[2]).
+   * The session is recent and still open — the sweep must not touch either annotation.
+   */
+  public void testSweepPreservesCompanionAnnotationDuringImeComposition() throws Exception {
+    CapturingOperationSink<WaveletOperation> output = new CapturingOperationSink<>();
+    OpBasedWavelet wavelet = buildWavelet(output);
+
+    WaveletBasedConversation.makeWaveletConversational(wavelet);
+    ConversationBlip blip = conversationUtil.buildConversation(wavelet)
+        .getRoot().getRootThread().appendBlip();
+
+    // Active session with IME composition: parts[2] = "composingText" (non-numeric, session open).
+    long recentStartMs = System.currentTimeMillis() - 1000L;
+    blip.getContent().setAnnotation(0, 1, "user/d/session-ime",
+        ALICE.getAddress() + "," + recentStartMs + ",composingText");
+
+    // Companion user/e/ annotation — must NOT be nulled out while session is active.
+    blip.getContent().setAnnotation(0, 1, "user/e/session-ime", ALICE.getAddress());
+
+    waveletData.setVersion(waveletData.getVersion() + 1);
+    setupProvider(waveletData);
+
+    sweeper.sweep();
+
+    // No delta should be submitted: the user/d/ session is open (IME active) and recent.
+    verify(mockProvider, never()).submitRequest(
+        any(WaveletName.class),
+        any(ProtocolWaveletDelta.class),
+        any(WaveletProvider.SubmitRequestListener.class));
+  }
 }

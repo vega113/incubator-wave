@@ -279,30 +279,30 @@ public class StaleAnnotationSweeper {
         String dValue = doc.getAnnotation(dPos, dKey);
         if (dValue == null) { dSearchFrom = dPos + 1; continue; }
         String[] dParts = dValue.split(",", 3);
-        if (dParts.length >= 3 && !dParts[1].isEmpty()) {
-          // Session is closed only if third field is a valid finite numeric end timestamp.
-          // An empty third field means active (no end time).
-          // A non-numeric third field means IME composition is in progress (also active).
-          boolean isClosedByEndTimestamp = false;
-          if (!dParts[2].isEmpty()) {
-            try {
-              double endTs = Double.parseDouble(dParts[2]);
-              isClosedByEndTimestamp = Double.isFinite(endTs) && endTs > 0;
-            } catch (NumberFormatException ignored) {
-              // Non-numeric third field = IME composition state, session still open
+        // parts[2] is the IME composition state when written by the client, which can be:
+        //   ""          → no active IME composition, session is open
+        //   non-numeric → IME text is being composed, session is still open
+        //   numeric     → close timestamp written by the sweeper, session is closed
+        // Treat the session as closed only when parts[2] is a finite numeric value.
+        boolean dSessionClosed = false;
+        if (dParts.length >= 3 && !dParts[2].isEmpty()) {
+          try {
+            double closeTs = Double.parseDouble(dParts[2]);
+            dSessionClosed = Double.isFinite(closeTs);
+          } catch (NumberFormatException ignored) {
+            // non-numeric → IME composition text → session still open
+          }
+        }
+        if (!dSessionClosed && dParts.length >= 2 && !dParts[1].isEmpty()) {
+          try {
+            double parsed = Double.parseDouble(dParts[1]);
+            if (!Double.isFinite(parsed)) throw new NumberFormatException("Non-finite timestamp");
+            long startTimeMs = (long) parsed;
+            if (now - startTimeMs <= STALE_EDITING_THRESHOLD_MS) {
+              hasActiveSession = true;
+              break;
             }
-          }
-          if (!isClosedByEndTimestamp) {
-            try {
-              double parsed = Double.parseDouble(dParts[1]);
-              if (!Double.isFinite(parsed)) throw new NumberFormatException("Non-finite timestamp");
-              long startTimeMs = (long) parsed;
-              if (now - startTimeMs <= STALE_EDITING_THRESHOLD_MS) {
-                hasActiveSession = true;
-                break;
-              }
-            } catch (NumberFormatException ignored) {}
-          }
+          } catch (NumberFormatException ignored) {}
         }
         int dEnd = doc.firstAnnotationChange(dPos, docSize, dKey, dValue);
         dSearchFrom = (dEnd < 0) ? docSize : dEnd;
