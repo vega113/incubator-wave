@@ -88,8 +88,8 @@ public class RobotConnector implements RobotCapabilityFetcher {
       LOG.info("Failed to deserialize passive API response", e);
     }
 
-    // Return an empty list and let the caller ignore the failure
-    return Collections.emptyList();
+    // Return null to signal delivery failure; callers should not update last-active
+    return null;
   }
 
   /**

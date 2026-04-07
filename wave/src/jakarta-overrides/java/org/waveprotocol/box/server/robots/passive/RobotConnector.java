@@ -48,7 +48,7 @@ public class RobotConnector implements RobotCapabilityFetcher {
     } catch (InvalidRequestException e) {
       LOG.info("Failed to deserialize passive API response", e);
     }
-    return Collections.emptyList();
+    return null;
   }
 
   @Override
