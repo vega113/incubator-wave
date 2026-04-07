@@ -66,7 +66,11 @@ import org.waveprotocol.wave.model.operation.wave.WaveletOperationContext;
 import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.version.HashedVersionFactory;
 import org.waveprotocol.wave.model.version.HashedVersionZeroFactoryImpl;
+import org.waveprotocol.wave.model.supplement.PrimitiveSupplement;
+import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl;
 import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
+import org.waveprotocol.box.server.robots.RobotWaveletData;
+import org.waveprotocol.box.server.robots.util.RobotsUtil;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
@@ -320,6 +324,107 @@ public class SimpleSearchProviderImplTest extends TestCase {
     assertEquals(1, archiveResults.getNumResults());
     assertEquals(
         WAVELET_NAME.waveId.serialise(), archiveResults.getDigests().get(0).getWaveId());
+  }
+
+  /**
+   * Verifies that the robot framework path (RobotWaveletData + WaveletBasedSupplement)
+   * used by FolderServlet actually produces deltas for pin operations.
+   */
+  public void testRobotFrameworkPinProducesDeltas() throws Exception {
+    WaveletName udwName = userDataWaveletName(WAVE_ID, USER1);
+    RobotWaveletData robotWavelet =
+        RobotsUtil.createEmptyRobotWavelet(USER1, udwName);
+    OpBasedWavelet udw = robotWavelet.getOpBasedWavelet(USER1);
+
+    PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
+    udwState.addFolder(SupplementedWaveImpl.PINNED_FOLDER);
+
+    java.util.List<WaveletDelta> deltas = robotWavelet.getDeltas();
+    assertFalse("Expected non-empty deltas from pin operation, but got none", deltas.isEmpty());
+  }
+
+  /**
+   * Verifies that the robot framework path produces deltas for archive operations.
+   */
+  public void testRobotFrameworkArchiveProducesDeltas() throws Exception {
+    WaveletName udwName = userDataWaveletName(WAVE_ID, USER1);
+    RobotWaveletData robotWavelet =
+        RobotsUtil.createEmptyRobotWavelet(USER1, udwName);
+    OpBasedWavelet udw = robotWavelet.getOpBasedWavelet(USER1);
+
+    PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
+    udwState.archiveAtVersion(WAVELET_ID, 5);
+
+    java.util.List<WaveletDelta> deltas = robotWavelet.getDeltas();
+    assertFalse("Expected non-empty deltas from archive operation, but got none", deltas.isEmpty());
+  }
+
+  /**
+   * End-to-end test: pin via robot framework (like FolderServlet), then search for in:pinned.
+   * This exercises the full path: create deltas via WaveletBasedSupplement → serialize →
+   * submit to WaveMap → search reads the UDW.
+   */
+  public void testPinViaRobotFrameworkThenSearchFindsIt() throws Exception {
+    submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
+
+    WaveletName udwName = userDataWaveletName(WAVE_ID, USER1);
+    RobotWaveletData robotWavelet = RobotsUtil.createEmptyRobotWavelet(USER1, udwName);
+    OpBasedWavelet udw = robotWavelet.getOpBasedWavelet(USER1);
+
+    PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
+    udwState.addFolder(SupplementedWaveImpl.PINNED_FOLDER);
+
+    java.util.List<WaveletDelta> deltas = robotWavelet.getDeltas();
+    assertFalse("Pin should produce deltas", deltas.isEmpty());
+
+    LocalWaveletContainer pinUdwContainer = waveMap.getOrCreateLocalWavelet(udwName);
+    for (WaveletDelta delta : deltas) {
+      ProtocolWaveletDelta protoDelta = CoreWaveletOperationSerializer.serialize(delta);
+      ProtocolSignedDelta signedDelta =
+          ProtocolSignedDelta.newBuilder().setDelta(protoDelta.toByteString()).build();
+      pinUdwContainer.submitRequest(udwName, signedDelta);
+    }
+
+    addWaveletToUserView(udwName, USER1);
+
+    SearchResult pinnedResults = searchProvider.search(USER1, "in:pinned", 0, 20);
+    assertEquals("Expected 1 pinned wave", 1, pinnedResults.getNumResults());
+    assertEquals(WAVE_ID.serialise(), pinnedResults.getDigests().get(0).getWaveId());
+  }
+
+  /**
+   * End-to-end test: archive via robot framework (like FolderServlet), then search.
+   */
+  public void testArchiveViaRobotFrameworkThenSearchFindsIt() throws Exception {
+    submitDeltaToNewWavelet(WAVELET_NAME, USER1, addParticipantToWavelet(USER1, WAVELET_NAME));
+
+    WaveletName udwName = userDataWaveletName(WAVE_ID, USER1);
+    long convVersion = waveMap.getOrCreateLocalWavelet(WAVELET_NAME).copyWaveletData().getVersion();
+
+    RobotWaveletData robotWavelet = RobotsUtil.createEmptyRobotWavelet(USER1, udwName);
+    OpBasedWavelet udw = robotWavelet.getOpBasedWavelet(USER1);
+
+    PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
+    udwState.archiveAtVersion(WAVELET_ID, Math.toIntExact(convVersion));
+
+    java.util.List<WaveletDelta> deltas = robotWavelet.getDeltas();
+    assertFalse("Archive should produce deltas", deltas.isEmpty());
+
+    LocalWaveletContainer archiveUdwContainer = waveMap.getOrCreateLocalWavelet(udwName);
+    for (WaveletDelta delta : deltas) {
+      ProtocolWaveletDelta protoDelta = CoreWaveletOperationSerializer.serialize(delta);
+      ProtocolSignedDelta signedDelta =
+          ProtocolSignedDelta.newBuilder().setDelta(protoDelta.toByteString()).build();
+      archiveUdwContainer.submitRequest(udwName, signedDelta);
+    }
+
+    addWaveletToUserView(udwName, USER1);
+
+    SearchResult inboxResults = searchProvider.search(USER1, "in:inbox", 0, 20);
+    SearchResult archiveResults = searchProvider.search(USER1, "in:archive", 0, 20);
+    assertEquals("Wave should not be in inbox", 0, inboxResults.getNumResults());
+    assertEquals("Wave should be in archive", 1, archiveResults.getNumResults());
+    assertEquals(WAVE_ID.serialise(), archiveResults.getDigests().get(0).getWaveId());
   }
 
   public void testSearchInboxDoesNotReturnWaveWithoutUser() throws Exception {
@@ -777,6 +882,50 @@ public class SimpleSearchProviderImplTest extends TestCase {
     assertEquals(0, results.getNumResults());
   }
 
+  public void testSearchOrderByDateAscRespectsSortOrderEvenWithPinnedWave() throws Exception {
+    WaveletName oldest = WaveletName.of(WaveId.of(DOMAIN, "oldest"), WAVELET_ID);
+    WaveletName middle = WaveletName.of(WaveId.of(DOMAIN, "middle"), WAVELET_ID);
+    WaveletName newest = WaveletName.of(WaveId.of(DOMAIN, "newest"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(oldest, USER1, addParticipantToWavelet(USER1, oldest));
+    waitForDistinctTimestamp();
+    submitDeltaToNewWavelet(middle, USER1, addParticipantToWavelet(USER1, middle));
+    waitForDistinctTimestamp();
+    submitDeltaToNewWavelet(newest, USER1, addParticipantToWavelet(USER1, newest));
+
+    // Pin the newest wave — without the fix it would be promoted to front, breaking dateasc order.
+    pinWaveForUser(newest, USER1);
+
+    SearchResult ascResults = searchProvider.search(USER1, "in:inbox orderby:dateasc", 0, 10);
+    assertEquals(3, ascResults.getNumResults());
+    // The pinned wave must NOT be promoted when orderby: is explicit.
+    assertEquals("oldest", WaveId.deserialise(ascResults.getDigests().get(0).getWaveId()).getId());
+    assertEquals("newest", WaveId.deserialise(ascResults.getDigests().get(2).getWaveId()).getId());
+  }
+
+  public void testSearchOrderByDateDescRespectsSortOrderEvenWithPinnedWave() throws Exception {
+    WaveletName oldest = WaveletName.of(WaveId.of(DOMAIN, "oldest2"), WAVELET_ID);
+    WaveletName middle = WaveletName.of(WaveId.of(DOMAIN, "middle2"), WAVELET_ID);
+    WaveletName newest = WaveletName.of(WaveId.of(DOMAIN, "newest2"), WAVELET_ID);
+
+    // Pin oldest2 immediately after creation so its UDW timestamp is older than middle2/newest2,
+    // avoiding timestamp contamination in unknownDigest (which includes all wavelet LMTs).
+    submitDeltaToNewWavelet(oldest, USER1, addParticipantToWavelet(USER1, oldest));
+    pinWaveForUser(oldest, USER1);
+    waitForDistinctTimestamp();
+    submitDeltaToNewWavelet(middle, USER1, addParticipantToWavelet(USER1, middle));
+    waitForDistinctTimestamp();
+    submitDeltaToNewWavelet(newest, USER1, addParticipantToWavelet(USER1, newest));
+
+    SearchResult descResults = searchProvider.search(USER1, "in:inbox orderby:datedesc", 0, 10);
+    assertEquals(3, descResults.getNumResults());
+    // The pinned wave must NOT be promoted when orderby: is explicit.
+    assertEquals("newest2",
+        WaveId.deserialise(descResults.getDigests().get(0).getWaveId()).getId());
+    assertEquals("oldest2",
+        WaveId.deserialise(descResults.getDigests().get(2).getWaveId()).getId());
+  }
+
   // *** Helpers
 
   private void addMentionAnnotationToBlip(WaveletName name, ParticipantId author,
@@ -953,6 +1102,23 @@ public class SimpleSearchProviderImplTest extends TestCase {
                     .elementEnd()
                     .build()));
     submitDeltaToExistingWavelet(userDataWaveletName, user, clearOperation);
+  }
+
+  private void pinWaveForUser(WaveletName name, ParticipantId user) throws Exception {
+    WaveletOperation pinOperation =
+        new WaveletBlipOperation(
+            WaveletBasedSupplement.FOLDERS_DOCUMENT,
+            new BlipContentOperation(
+                new WaveletOperationContext(user, 0, 1),
+                new DocOpBuilder()
+                    .elementStart(
+                        WaveletBasedSupplement.FOLDER_TAG,
+                        new AttributesImpl(
+                            WaveletBasedSupplement.ID_ATTR,
+                            String.valueOf(SupplementedWaveImpl.PINNED_FOLDER)))
+                    .elementEnd()
+                    .build()));
+    submitDeltaToNewWaveletWithoutView(userDataWaveletName(name.waveId, user), user, pinOperation);
   }
 
   private WaveletName userDataWaveletName(WaveId waveId, ParticipantId user) {
