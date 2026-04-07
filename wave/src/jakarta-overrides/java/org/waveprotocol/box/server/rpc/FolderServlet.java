@@ -181,24 +181,33 @@ public final class FolderServlet extends HttpServlet {
    */
   public void setPinState(WaveId waveId, boolean pin, ParticipantId participant)
       throws InvalidRequestException, OperationException, InterruptedException, ExecutionException {
+    LOG.info("setPinState: wave=" + waveId.serialise() + " pin=" + pin
+        + " user=" + participant.getAddress());
     verifyWaveVisibleToParticipant(waveId, participant);
+    LOG.info("setPinState: access verified");
 
     OperationContextImpl context = new OperationContextImpl(waveletProvider,
         converterManager.getEventDataConverter(ProtocolVersion.DEFAULT), conversationUtil);
 
     OpBasedWavelet udw = openParticipantUserDataWavelet(context, waveId, participant);
+    LOG.info("setPinState: UDW opened");
 
     PrimitiveSupplement udwState = WaveletBasedSupplement.create(udw);
+    LOG.info("setPinState: supplement created, pinned="
+        + udwState.isInFolder(SupplementedWaveImpl.PINNED_FOLDER));
     if (pin) {
       if (!udwState.isInFolder(SupplementedWaveImpl.PINNED_FOLDER)) {
         udwState.addFolder(SupplementedWaveImpl.PINNED_FOLDER);
+        LOG.info("setPinState: folder added");
       }
     } else {
       if (udwState.isInFolder(SupplementedWaveImpl.PINNED_FOLDER)) {
         udwState.removeFolder(SupplementedWaveImpl.PINNED_FOLDER);
+        LOG.info("setPinState: folder removed");
       }
     }
     OperationUtil.submitDeltas(context, waveletProvider, LOGGING_REQUEST_LISTENER);
+    LOG.info("setPinState: deltas submitted successfully");
   }
 
   private OpBasedWavelet openParticipantUserDataWavelet(
