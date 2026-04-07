@@ -1181,21 +1181,4 @@ public class SimpleSearchProviderImplTest extends TestCase {
     assertEquals(newerUnpinned.waveId.serialise(), results.getDigests().get(0).getWaveId());
   }
 
-  private void pinWaveForUser(WaveletName name, ParticipantId user) throws Exception {
-    WaveletOperation pinOperation =
-        new WaveletBlipOperation(
-            WaveletBasedSupplement.FOLDERS_DOCUMENT,
-            new BlipContentOperation(
-                new WaveletOperationContext(user, 0, 1),
-                new DocOpBuilder()
-                    .elementStart(
-                        WaveletBasedSupplement.FOLDER_TAG,
-                        new AttributesImpl(
-                            WaveletBasedSupplement.ID_ATTR,
-                            String.valueOf(SupplementedWaveImpl.PINNED_FOLDER)))
-                    .elementEnd()
-                    .build()));
-    submitDeltaToNewWaveletWithoutView(
-        userDataWaveletName(name.waveId, user), user, pinOperation);
-  }
 }
