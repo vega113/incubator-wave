@@ -142,7 +142,7 @@ public class GravatarProfilesFetcher implements ProfilesFetcher {
 
         // Custom profile image takes priority over Gravatar
         String profileImageId = human.getProfileImageAttachmentId();
-        if (profileImageId != null && !profileImageId.isEmpty()) {
+        if (profileImageId != null && !profileImageId.trim().isEmpty()) {
           imageUrl = "/userprofile/image/" + address;
         }
 
