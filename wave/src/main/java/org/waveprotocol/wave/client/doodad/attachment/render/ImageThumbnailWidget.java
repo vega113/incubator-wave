@@ -67,6 +67,7 @@ import org.waveprotocol.wave.client.widget.button.ToggleButton.ToggleButtonListe
 import org.waveprotocol.wave.client.widget.button.ToggleButtonWidget;
 import org.waveprotocol.wave.client.widget.button.icon.IconButtonTemplate.IconButtonStyle;
 import org.waveprotocol.wave.client.widget.progress.ProgressWidget;
+import org.waveprotocol.wave.media.model.AttachmentDisplayLayout;
 
 /**
  * Widget that implements a thumbnail structure.
@@ -486,8 +487,10 @@ class ImageThumbnailWidget extends Composite implements ImageThumbnailView {
   public void setThumbnailSize(int width, int height) {
     this.thumbnailWidth = width;
     this.thumbnailHeight = height;
-
-    if (!isFullSize) {
+    // Only re-layout when thumbnail is the active source; skip when attachment
+    // source is in use to avoid redundant loads and visible flicker.
+    if (AttachmentDisplayLayout.decide(displaySize, isFullSize, isContentImage())
+        .getSourceKind() != AttachmentDisplayLayout.SourceKind.ATTACHMENT) {
       setImageSize();
     }
   }
@@ -496,8 +499,11 @@ class ImageThumbnailWidget extends Composite implements ImageThumbnailView {
   public void setAttachmentSize(int width, int height) {
     this.attachmentWidth = width;
     this.attachmentHeight = height;
-
-    if (isFullSize) {
+    // Only re-layout when attachment is the active source. This prevents
+    // loading the attachment URL before the malware guard in onThumbnailUpdated()
+    // runs for display modes that use thumbnail source.
+    if (AttachmentDisplayLayout.decide(displaySize, isFullSize, isContentImage())
+        .getSourceKind() == AttachmentDisplayLayout.SourceKind.ATTACHMENT) {
       setImageSize();
     }
   }
@@ -506,11 +512,6 @@ class ImageThumbnailWidget extends Composite implements ImageThumbnailView {
   public void setFullSizeMode(boolean isOn) {
     isFullSize = isOn;
     button.setOn(isOn);
-    if (isOn) {
-      chromeContainer.getElement().getStyle().setDisplay(Display.NONE);
-    } else {
-      chromeContainer.getElement().getStyle().clearDisplay();
-    }
     setImageSize();
   }
 
@@ -544,8 +545,32 @@ class ImageThumbnailWidget extends Composite implements ImageThumbnailView {
   }
 
   private void setImageSize() {
-    int width = isFullSize?attachmentWidth:thumbnailWidth;
-    int height = isFullSize?attachmentHeight:thumbnailHeight;
+    AttachmentDisplayLayout.Decision decision =
+        AttachmentDisplayLayout.decide(displaySize, isFullSize, isContentImage());
+
+    int sourceWidth =
+        decision.getSourceKind() == AttachmentDisplayLayout.SourceKind.ATTACHMENT
+            ? attachmentWidth : thumbnailWidth;
+    int sourceHeight =
+        decision.getSourceKind() == AttachmentDisplayLayout.SourceKind.ATTACHMENT
+            ? attachmentHeight : thumbnailHeight;
+    AttachmentDisplayLayout.Size scaled =
+        AttachmentDisplayLayout.scaleToFit(
+            sourceWidth,
+            sourceHeight,
+            displaySize,
+            isFullSize && decision.getSourceKind() == AttachmentDisplayLayout.SourceKind.ATTACHMENT);
+    int width = scaled.getWidth();
+    int height = scaled.getHeight();
+
+    if (decision.hideChrome()) {
+      chromeContainer.getElement().getStyle().setDisplay(Display.NONE);
+      addStyleName("inline-image");
+    } else {
+      chromeContainer.getElement().getStyle().clearDisplay();
+      removeStyleName("inline-image");
+    }
+
     image.setPixelSize(width, height);
     //TODO(user,danilatos): Whinge about how declarative UI doesn't let us avoid this hack:
     Style pstyle = image.getElement().getParentElement().getParentElement().getStyle();
@@ -562,7 +587,9 @@ class ImageThumbnailWidget extends Composite implements ImageThumbnailView {
       pstyle.setHeight(height, Unit.PX);
     }
 
-    String url = isFullSize?attachmentUrl:thumbnailUrl;
+    String url =
+        decision.getSourceKind() == AttachmentDisplayLayout.SourceKind.ATTACHMENT
+            ? attachmentUrl : thumbnailUrl;
     if (url != null) {
       if (doubleBufferLoader == null) {
         doubleBufferLoader = new DoubleBufferImage(spin, errorLabel, image);
@@ -592,9 +619,7 @@ class ImageThumbnailWidget extends Composite implements ImageThumbnailView {
 
     // Apply new class
     getElement().addClassName("display-size-" + size);
-
-    // Adjust dimensions based on display size
-    applyDisplaySizeDimensions();
+    setImageSize();
   }
 
   @Override
@@ -711,31 +736,6 @@ class ImageThumbnailWidget extends Composite implements ImageThumbnailView {
         + "</svg>"
         + "<span class='file-type-label'>" + label + "</span>"
         + "</div>";
-  }
-
-  /**
-   * Applies dimensions based on the current display size setting.
-   */
-  private void applyDisplaySizeDimensions() {
-    int targetWidth;
-    int targetHeight;
-    switch (displaySize) {
-      case ImageThumbnail.DISPLAY_SIZE_MEDIUM:
-        targetWidth = 300;
-        targetHeight = 200;
-        break;
-      case ImageThumbnail.DISPLAY_SIZE_LARGE:
-        targetWidth = 600;
-        targetHeight = 400;
-        break;
-      default: // small
-        targetWidth = 120;
-        targetHeight = 80;
-        break;
-    }
-    if (!isFullSize) {
-      setThumbnailSize(targetWidth, targetHeight);
-    }
   }
 
   private boolean isContentImage() {
