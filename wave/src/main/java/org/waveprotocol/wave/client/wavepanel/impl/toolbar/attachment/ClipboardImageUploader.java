@@ -25,6 +25,8 @@ import com.google.gwt.user.client.Timer;
 import com.google.gwt.http.client.URL;
 
 import org.waveprotocol.wave.client.doodad.attachment.ImageThumbnail;
+import org.waveprotocol.wave.client.doodad.attachment.render.ImageThumbnailWrapper;
+import org.waveprotocol.wave.client.editor.content.ContentElement;
 import org.waveprotocol.wave.client.editor.EditorContextAdapter;
 import org.waveprotocol.wave.client.editor.ImagePasteHandler;
 import org.waveprotocol.wave.client.editor.content.CMutableDocument;
@@ -156,7 +158,11 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
 
     XmlStringBuilder xml = ImageThumbnail.constructXmlWithSize(
         attachmentId, ImageThumbnail.DISPLAY_SIZE_MEDIUM, "pasted-image.png");
-    doc.insertXml(safeInsertPoint, xml);
+    ContentElement thumbnailElement = doc.insertXml(safeInsertPoint, xml);
+    ImageThumbnailWrapper wrapper = ImageThumbnailWrapper.of(thumbnailElement);
+    if (wrapper != null) {
+      wrapper.setAttachmentId(attachmentId);
+    }
   }
 
   private void onUploadFailure() {
