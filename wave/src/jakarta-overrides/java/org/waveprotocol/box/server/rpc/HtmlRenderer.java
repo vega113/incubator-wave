@@ -4980,19 +4980,23 @@ public final class HtmlRenderer {
     sb.append("      if (tab.dataset.tab === 'analytics') { loadAnalyticsHistory(analyticsActiveWindow); loadAnalyticsStatus(); }\n");
     sb.append("    });\n");
     sb.append("  });\n");
-    // Hash-based tab navigation: /admin#contacts auto-activates contacts tab
-    // Deferred via setTimeout so all tab state (contactState, flagsLoaded, etc.) is initialized first.
-    // Uses dataset comparison instead of querySelector interpolation to avoid CSS selector injection.
-    sb.append("  var initialHash = window.location.hash ? window.location.hash.slice(1) : '';\n");
-    sb.append("  if (initialHash) {\n");
-    sb.append("    setTimeout(function() {\n");
-    sb.append("      var targetTab = null;\n");
-    sb.append("      tabs.forEach(function(tab) {\n");
-    sb.append("        if (!targetTab && tab.dataset.tab === initialHash) { targetTab = tab; }\n");
-    sb.append("      });\n");
-    sb.append("      if (targetTab) { targetTab.click(); }\n");
-    sb.append("    }, 0);\n");
+    // Hash-based tab navigation: /admin#contacts auto-activates contacts tab.
+    // activateHashTab is called both on load (deferred via setTimeout so all tab state is ready)
+    // and on hashchange so clicking the envelope icon while already on /admin works without a reload.
+    // Uses tabs.forEach + dataset comparison to avoid CSS selector injection from hostile hashes.
+    sb.append("  function activateHashTab(hash) {\n");
+    sb.append("    var targetTab = null;\n");
+    sb.append("    tabs.forEach(function(tab) {\n");
+    sb.append("      if (!targetTab && tab.dataset.tab === hash) { targetTab = tab; }\n");
+    sb.append("    });\n");
+    sb.append("    if (targetTab) { targetTab.click(); }\n");
     sb.append("  }\n");
+    sb.append("  var initialHash = window.location.hash ? window.location.hash.slice(1) : '';\n");
+    sb.append("  if (initialHash) { setTimeout(function() { activateHashTab(initialHash); }, 0); }\n");
+    sb.append("  window.addEventListener('hashchange', function() {\n");
+    sb.append("    var h = window.location.hash ? window.location.hash.slice(1) : '';\n");
+    sb.append("    if (h) { activateHashTab(h); }\n");
+    sb.append("  });\n");
     sb.append("  document.querySelectorAll('.window-pill').forEach(function(pill) {\n");
     sb.append("    pill.addEventListener('click', function() {\n");
     sb.append("      document.querySelectorAll('.window-pill').forEach(function(p){p.classList.remove('active');});\n");
