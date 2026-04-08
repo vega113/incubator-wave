@@ -529,9 +529,10 @@ public final class ProfileServlet extends HttpServlet {
       // e.g. \n in the JSON body becomes a real newline, not a literal backslash-n.
       StringBuilder value = new StringBuilder();
       int i = pos + 1;
+      boolean closed = false;
       while (i < json.length()) {
         char c = json.charAt(i);
-        if (c == '"') break;
+        if (c == '"') { closed = true; break; }
         if (c == '\\' && i + 1 < json.length()) {
           i++;
           char esc = json.charAt(i);
@@ -564,6 +565,7 @@ public final class ProfileServlet extends HttpServlet {
         }
         i++;
       }
+      if (!closed) return null;
       return value.toString();
     } else if (next == 't' || next == 'f') {
       // Boolean value
