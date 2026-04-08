@@ -76,21 +76,28 @@ public final class ViewToolbar {
   /** Reference to the history button for visibility control. */
   private ToolbarClickButton historyButton;
 
-  /** Reference to the pin button for label toggling. */
+  /** Reference to the pin button for state toggling. */
   private ToolbarClickButton pinButton;
 
   /** Whether the currently open wave is pinned. */
   private boolean pinned = false;
 
+  /** Whether the currently open wave is archived. */
+  private boolean archived = false;
+
+  /** Reference to the archive button for state toggling. */
+  private ToolbarClickButton archiveButton;
+
   private ViewToolbar(ToplevelToolbarWidget toolbarUi, FocusFramePresenter focusFrame,
       ModelAsViewProvider views, ConversationView wave, Reader reader, WaveId waveId,
-      boolean initiallyPinned, ParticipantId signedInUser) {
+      boolean initiallyPinned, boolean initiallyArchived, ParticipantId signedInUser) {
     this.toolbarUi = toolbarUi;
     this.focusFrame = focusFrame;
     this.reader = reader;
     this.waveId = waveId;
     this.folderService = new FolderOperationServiceImpl();
     this.pinned = initiallyPinned;
+    this.archived = initiallyArchived;
     this.mentionFocusOrder = signedInUser != null
         ? new MentionFocusOrder(new ViewTraverser(), views, signedInUser) : null;
     blipSelector = FocusBlipSelector.create(wave, views, reader, new ViewTraverser());
@@ -113,23 +120,29 @@ public final class ViewToolbar {
   }
 
   public static ViewToolbar create(FocusFramePresenter focus, ModelAsViewProvider views,
-      ConversationView wave, Reader reader, WaveId waveId, boolean isPinned,
+      ConversationView wave, Reader reader, WaveId waveId, boolean isPinned, boolean isArchived,
       ParticipantId signedInUser) {
     return new ViewToolbar(new ToplevelToolbarWidget(), focus, views, wave, reader, waveId,
-        isPinned, signedInUser);
+        isPinned, isArchived, signedInUser);
+  }
+
+  public static ViewToolbar create(FocusFramePresenter focus, ModelAsViewProvider views,
+      ConversationView wave, Reader reader, WaveId waveId, boolean isPinned,
+      ParticipantId signedInUser) {
+    return create(focus, views, wave, reader, waveId, isPinned, false, signedInUser);
   }
 
   public static ViewToolbar create(FocusFramePresenter focus, ModelAsViewProvider views,
       ConversationView wave, Reader reader, WaveId waveId, boolean isPinned) {
-    return create(focus, views, wave, reader, waveId, isPinned, null);
+    return create(focus, views, wave, reader, waveId, isPinned, false, null);
   }
 
   /**
-   * Overload for backward compatibility (assumes not pinned).
+   * Overload for backward compatibility (assumes not pinned, not archived).
    */
   public static ViewToolbar create(FocusFramePresenter focus, ModelAsViewProvider views,
       ConversationView wave, Reader reader, WaveId waveId) {
-    return create(focus, views, wave, reader, waveId, false, null);
+    return create(focus, views, wave, reader, waveId, false, false, null);
   }
 
   public void init() {
@@ -321,11 +334,20 @@ public final class ViewToolbar {
 
   /**
    * Sets the pin state of the currently displayed wave. Called from
-   * StagesProvider after the wave is loaded so the button label is correct.
+   * StagesProvider after the wave is loaded so the button visual is correct.
    */
   public void setPinned(boolean pinned) {
     this.pinned = pinned;
     updatePinButtonLabel();
+  }
+
+  /**
+   * Sets the archive state of the currently displayed wave. Called from
+   * StagesProvider after the wave is loaded so the button visual is correct.
+   */
+  public void setArchived(boolean archived) {
+    this.archived = archived;
+    updateArchiveButtonState();
   }
 
   /**
