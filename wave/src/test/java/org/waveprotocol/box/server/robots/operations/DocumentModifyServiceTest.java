@@ -20,6 +20,7 @@
 package org.waveprotocol.box.server.robots.operations;
 
 import com.google.wave.api.Element;
+import com.google.wave.api.Gadget;
 import com.google.wave.api.Image;
 import com.google.wave.api.InvalidRequestException;
 import com.google.wave.api.JsonRpcConstant.ParamsProperty;
@@ -76,6 +77,16 @@ public class DocumentModifyServiceTest extends RobotsTestBase {
     assertTrue(xml.contains("<image "));
     assertTrue(xml.contains("attachment=\"" + ATTACHMENT_ID + "\""));
     assertFalse(xml.contains("display-size="));
+  }
+
+  public void testInsertUnsupportedNonFormElementThrowsInvalidRequestException() throws Exception {
+    Gadget gadget = new Gadget("https://example.com/gadget.xml");
+    try {
+      executeInsert(gadget);
+      fail("Expected InvalidRequestException for unsupported element type");
+    } catch (InvalidRequestException expected) {
+      // expected
+    }
   }
 
   public void testInsertExternalImage() throws Exception {
