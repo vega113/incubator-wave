@@ -73,6 +73,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
 
   private static final Log LOG = Log.get(SimpleSearchProviderImpl.class);
   private static final int MAX_SEARCHABLE_BLIP_TEXT_CHARS = 32768;
+  private static final String TASKS_ALL = "all";
 
   private final PerUserWaveViewProvider waveViewProvider;
 
@@ -328,6 +329,9 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     } else {
       taskValues = Collections.<String>emptySet();
     }
+    final boolean matchAnyTask = taskValues.contains(TASKS_ALL);
+    final Set<String> specificTaskValues = new HashSet<String>(taskValues);
+    specificTaskValues.remove(TASKS_ALL);
 
     // Filter by title when the query specifies title: filters.
     if (!titleValues.isEmpty()) {
@@ -356,7 +360,7 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     // Filter by tasks when the query specifies tasks: filters.
     if (!taskValues.isEmpty()) {
       LOG.fine("Tasks filter: required=" + taskValues + ", candidates=" + results.size());
-      filterByTasks(results, taskValues);
+      filterByTasks(results, specificTaskValues, matchAnyTask);
       tasksAfter = results.size();
       LOG.fine("Tasks filter result: " + tasksAfter + " remain");
     }
@@ -1011,13 +1015,15 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
    * Filters wave results by task assignee annotations. Only waves whose blip content
    * contains task/assignee annotations matching all of the requested addresses are kept.
    */
-  private void filterByTasks(List<WaveViewData> results, Set<String> requiredAssignees) {
+  private void filterByTasks(List<WaveViewData> results, Set<String> requiredAssignees,
+      boolean matchAnyTask) {
     Iterator<WaveViewData> it = results.iterator();
     while (it.hasNext()) {
       WaveViewData wave = it.next();
       try {
         Set<String> foundAssignees = TaskDocumentExtractor.extractTaskAssignees(wave);
-        if (!foundAssignees.containsAll(requiredAssignees)) {
+        if ((matchAnyTask && foundAssignees.isEmpty())
+            || !foundAssignees.containsAll(requiredAssignees)) {
           it.remove();
         }
       } catch (Exception e) {

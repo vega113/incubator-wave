@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-09-task-query-help",
+  "version": "PR #755",
+  "date": "2026-04-09",
+  "title": "Clarify task search semantics and help examples",
+  "summary": "Search now supports `tasks:all` for any visible task wave, and the search help panel explains the supported task-query forms more clearly.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Added `tasks:all` to find waves you can access that contain any task, alongside the existing `tasks:me` and user-targeted task queries",
+        "Updated search help with clickable task-query examples for `tasks:all`, `tasks:me`, `tasks:user@domain`, local-domain shorthand such as `tasks:alice`, and `tasks:all unread:true`"
+      ]
+    }
+  ]
+}

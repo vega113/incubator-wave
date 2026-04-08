@@ -66,7 +66,9 @@ public class Lucene9SearchProviderImpl implements SearchProvider {
 
     SearchResult legacyResult = legacySearchProvider.search(user, model.toLegacyQuery(), 0,
         MAX_CANDIDATES);
-    if (!model.hasTextQuery() && !model.hasTaskQuery()) {
+    // Task-only queries stay on the legacy path because task semantics are defined against
+    // authoritative wave annotations, not Lucene task-assignee terms.
+    if (!model.hasTextQuery()) {
       return paginate(query, legacyResult.getDigests(), startAt, numResults);
     }
 
