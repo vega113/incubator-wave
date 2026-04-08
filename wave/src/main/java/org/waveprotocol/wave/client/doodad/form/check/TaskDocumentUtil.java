@@ -26,6 +26,8 @@ import org.waveprotocol.wave.model.conversation.AnnotationConstants;
 import org.waveprotocol.wave.model.document.util.Point;
 import org.waveprotocol.wave.model.document.util.XmlStringBuilder;
 
+import java.util.Locale;
+
 /**
  * Utility for inserting task checkboxes into wave documents.
  *
@@ -46,9 +48,9 @@ public final class TaskDocumentUtil {
    * The resulting ID is short and URL-safe (base-36 encoded).
    */
   public static String generateTaskId() {
-    // Use current time millis in base36 + 6-digit random suffix for collision resistance
+    // Use current time millis in base36 + 6-digit ASCII random suffix for collision resistance
     return "t" + Long.toString(System.currentTimeMillis(), 36)
-        + String.format("%06d", (int) (Math.random() * 999999));
+        + String.format(Locale.ROOT, "%06d", (int) (Math.random() * 999999));
   }
 
   /**
@@ -83,8 +85,11 @@ public final class TaskDocumentUtil {
     int end = start + 1;  // check element is a single node
 
     doc.setAnnotation(start, end, AnnotationConstants.TASK_ID, taskId);
-    if (assignee != null && !assignee.isEmpty()) {
-      doc.setAnnotation(start, end, AnnotationConstants.TASK_ASSIGNEE, assignee);
+    if (assignee != null) {
+      String normalizedAssignee = assignee.trim();
+      if (!normalizedAssignee.isEmpty()) {
+        doc.setAnnotation(start, end, AnnotationConstants.TASK_ASSIGNEE, normalizedAssignee);
+      }
     }
 
     return inserted;
