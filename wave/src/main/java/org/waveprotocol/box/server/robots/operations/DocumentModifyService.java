@@ -267,7 +267,7 @@ public class DocumentModifyService implements OperationService {
       // Delete using the view.
       view.delete(start, end);
       // Shift the iterator to match the updated document.
-      hitIterator.shift(start, end - start);
+      hitIterator.shift(start, start - end);
 
       range = hitIterator.next();
     }
@@ -413,6 +413,9 @@ public class DocumentModifyService implements OperationService {
           XmlStringBuilder xml = ElementSerializer.apiElementToXml(element);
           LineContainers.appendLine(doc, xml);
         } else if (element.getType() == ElementType.IMAGE) {
+          if (insertAt == 0) {
+            insertAt = 1;
+          }
           view.insert(insertAt, element);
         } else {
           throw new InvalidRequestException(

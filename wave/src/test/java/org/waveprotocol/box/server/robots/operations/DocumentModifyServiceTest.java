@@ -105,6 +105,14 @@ public class DocumentModifyServiceTest extends RobotsTestBase {
     assertTrue(xml.contains("alt=\"" + CAPTION + "\""));
   }
 
+  public void testInsertAtZeroKeepsInitialLineBeforeImage() throws Exception {
+    Image image = new Image(ATTACHMENT_ID, CAPTION);
+    executeInsertAt(0, image);
+
+    String xml = getRootBlip().getContent().toXmlString();
+    assertTrue(xml.indexOf("<line") < xml.indexOf("<image "));
+  }
+
   public void testInsertAfterWithAttachmentQueryDoesNotReprocessSameOriginal() throws Exception {
     LineContainers.appendToLastLine(
         getRootBlip().getContent(),
@@ -134,12 +142,47 @@ public class DocumentModifyServiceTest extends RobotsTestBase {
     assertEquals(2, countOccurrences(getRootBlip().getContent().toXmlString(), "<image "));
   }
 
-  private void executeInsert(Element element) throws Exception {
+  public void testDeleteWithAttachmentQueryRemovesAllMatches() throws Exception {
+    LineContainers.appendToLastLine(
+        getRootBlip().getContent(),
+        ElementSerializer.apiElementToXml(new Image("att+one", CAPTION)));
+    LineContainers.appendToLastLine(
+        getRootBlip().getContent(),
+        ElementSerializer.apiElementToXml(new Image("att+two", CAPTION)));
+
     OperationRequest operation =
         operationRequest(
             OperationType.DOCUMENT_MODIFY,
             getRootBlipId(),
-            Parameter.of(ParamsProperty.INDEX, 1),
+            Parameter.of(
+                ParamsProperty.MODIFY_QUERY,
+                new DocumentModifyQuery(
+                    ElementType.ATTACHMENT, Collections.<String, String>emptyMap(), -1)),
+            Parameter.of(
+                ParamsProperty.MODIFY_ACTION,
+                new DocumentModifyAction(
+                    ModifyHow.DELETE,
+                    Collections.<String>emptyList(),
+                    null,
+                    Collections.<Element>emptyList(),
+                    null,
+                    false)));
+
+    service.execute(operation, helper.getContext(), ALEX);
+
+    assertEquals(0, countOccurrences(getRootBlip().getContent().toXmlString(), "<image "));
+  }
+
+  private void executeInsert(Element element) throws Exception {
+    executeInsertAt(1, element);
+  }
+
+  private void executeInsertAt(int index, Element element) throws Exception {
+    OperationRequest operation =
+        operationRequest(
+            OperationType.DOCUMENT_MODIFY,
+            getRootBlipId(),
+            Parameter.of(ParamsProperty.INDEX, index),
             Parameter.of(
                 ParamsProperty.MODIFY_ACTION,
                 new DocumentModifyAction(
