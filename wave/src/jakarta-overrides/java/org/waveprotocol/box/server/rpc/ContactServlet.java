@@ -54,6 +54,15 @@ import java.io.PrintWriter;
 public final class ContactServlet extends HttpServlet {
   private static final Log LOG = Log.get(ContactServlet.class);
 
+  /** Max submissions per IP per window. */
+  private static final int RATE_LIMIT_MAX = 3;
+  /** Rate-limit window in milliseconds (1 hour). */
+  private static final long RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000L;
+
+  // IP → timestamps of recent submissions
+  private static final java.util.concurrent.ConcurrentHashMap<String, java.util.ArrayDeque<Long>>
+      IP_SUBMIT_TIMES = new java.util.concurrent.ConcurrentHashMap<>();
+
   private final SessionManager sessionManager;
   private final AccountStore accountStore;
   private final ContactMessageStore contactMessageStore;
@@ -107,14 +116,24 @@ public final class ContactServlet extends HttpServlet {
 
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    WebSession session = WebSessions.from(req, false);
-    ParticipantId user = sessionManager.getLoggedInUser(session);
-    if (user == null) {
-      sendJsonError(resp, HttpServletResponse.SC_UNAUTHORIZED, "Not authenticated");
+    // Rate-limit by IP before doing any work
+    String clientIp = getClientIp(req);
+    if (isRateLimited(clientIp)) {
+      sendJsonError(resp, 429, "Too many requests. Please try again later.");
       return;
     }
 
     String body = readBody(req);
+
+    // Honeypot check — bots fill hidden fields, humans leave them blank
+    String honeypot = extractJsonField(body, "hp");
+    if (honeypot != null && !honeypot.isEmpty()) {
+      // Silently accept but discard (don't tell bots they were caught)
+      setJsonUtf8(resp);
+      resp.getWriter().write("{\"ok\":true,\"id\":\"0\"}");
+      return;
+    }
+
     String name = extractJsonField(body, "name");
     String subject = extractJsonField(body, "subject");
     String message = extractJsonField(body, "message");
@@ -131,48 +150,75 @@ public final class ContactServlet extends HttpServlet {
       subject = "General Inquiry";
     }
 
-    // Get user's email
+    // Determine user identity — logged-in or anonymous
+    WebSession session = WebSessions.from(req, false);
+    ParticipantId user = sessionManager.getLoggedInUser(session);
+
     String email = "";
-    try {
-      AccountData acct = accountStore.getAccount(user);
-      if (acct != null && acct.isHuman()) {
-        HumanAccountData human = acct.asHuman();
-        if (human.getEmail() != null) {
-          email = human.getEmail();
+    String userId = "anonymous";
+    if (user != null) {
+      // Authenticated: pull email from account store
+      userId = user.getAddress();
+      try {
+        AccountData acct = accountStore.getAccount(user);
+        if (acct != null && acct.isHuman()) {
+          HumanAccountData human = acct.asHuman();
+          if (human.getEmail() != null) {
+            email = human.getEmail();
+          }
         }
+      } catch (PersistenceException e) {
+        LOG.warning("Failed to load account for contact form submit", e);
       }
-    } catch (PersistenceException e) {
-      LOG.warning("Failed to load account for contact form submit", e);
+    } else {
+      // Anonymous: email comes from the submitted form field
+      String submittedEmail = extractJsonField(body, "email");
+      if (submittedEmail != null && !submittedEmail.trim().isEmpty()) {
+        submittedEmail = submittedEmail.trim();
+        // Basic email format validation
+        if (!submittedEmail.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+          sendJsonError(resp, HttpServletResponse.SC_BAD_REQUEST, "Invalid email address");
+          return;
+        }
+        email = submittedEmail;
+      }
     }
+
+    // Sanitize inputs (strip control characters, limit lengths)
+    name = sanitize(name.trim(), 200);
+    subject = sanitize(subject.trim(), 200);
+    message = sanitize(message.trim(), 8000);
+    email = sanitize(email, 254);
 
     // Store the message
     ContactMessage msg = new ContactMessage();
-    msg.setUserId(user.getAddress());
-    msg.setName(name.trim());
+    msg.setUserId(userId);
+    msg.setName(name);
     msg.setEmail(email);
-    msg.setSubject(subject.trim());
-    msg.setMessage(message.trim());
+    msg.setSubject(subject);
+    msg.setMessage(message);
     msg.setStatus(ContactMessageStore.STATUS_NEW);
     msg.setCreatedAt(System.currentTimeMillis());
-    msg.setIp(getClientIp(req));
+    msg.setIp(clientIp);
 
     try {
       String id = contactMessageStore.storeMessage(msg);
-      LOG.info("Contact message stored: id=" + id + " from=" + user.getAddress()
-          + " subject=" + subject);
+      LOG.info("Contact message stored: id=" + id + " from=" + userId
+          + " ip=" + clientIp + " subject=" + subject);
 
-      // Send notification email to admin (best-effort, don't fail the request)
+      // Send notification email to admin (best-effort)
       try {
         String adminSubject = "[SupaWave Contact] " + subject + " from " + name;
+        String replyAddr = email.isEmpty() ? "admin@" + domain : email;
         String htmlBody = "<h3>New Contact Form Submission</h3>"
             + "<p><strong>From:</strong> " + HtmlRenderer.escapeHtml(name)
-            + " (" + HtmlRenderer.escapeHtml(email.isEmpty() ? user.getAddress() : email) + ")</p>"
+            + " (" + HtmlRenderer.escapeHtml(email.isEmpty() ? userId : email) + ")</p>"
             + "<p><strong>Subject:</strong> " + HtmlRenderer.escapeHtml(subject) + "</p>"
             + "<p><strong>Message:</strong></p>"
             + "<div style=\"padding:12px;background:#f5f5f5;border-radius:8px;\">"
             + HtmlRenderer.escapeHtml(message).replace("\n", "<br>") + "</div>"
-            + "<p style=\"color:#888;font-size:12px;\">IP: " + HtmlRenderer.escapeHtml(msg.getIp()) + "</p>";
-        mailProvider.sendEmail(email.isEmpty() ? "admin@" + domain : email, adminSubject, htmlBody);
+            + "<p style=\"color:#888;font-size:12px;\">IP: " + HtmlRenderer.escapeHtml(clientIp) + "</p>";
+        mailProvider.sendEmail(replyAddr, adminSubject, htmlBody);
       } catch (MailException e) {
         LOG.warning("Failed to send contact notification email: " + e.getMessage());
       }
@@ -183,6 +229,35 @@ public final class ContactServlet extends HttpServlet {
       LOG.severe("Failed to store contact message", e);
       sendJsonError(resp, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to store message");
     }
+  }
+
+  /**
+   * Returns true if the given IP has exceeded the rate limit.
+   * Cleans up expired entries as a side effect.
+   */
+  private static boolean isRateLimited(String ip) {
+    long now = System.currentTimeMillis();
+    long cutoff = now - RATE_LIMIT_WINDOW_MS;
+    IP_SUBMIT_TIMES.compute(ip, (k, deque) -> {
+      if (deque == null) deque = new java.util.ArrayDeque<>();
+      // Remove timestamps outside the window
+      while (!deque.isEmpty() && deque.peekFirst() < cutoff) {
+        deque.pollFirst();
+      }
+      deque.addLast(now);
+      return deque;
+    });
+    java.util.ArrayDeque<Long> times = IP_SUBMIT_TIMES.get(ip);
+    return times != null && times.size() > RATE_LIMIT_MAX;
+  }
+
+  /** Strips control characters and truncates to maxLen. */
+  private static String sanitize(String s, int maxLen) {
+    if (s == null) return "";
+    // Remove ASCII control chars (keep newline/tab for message body readability)
+    s = s.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
+    if (s.length() > maxLen) s = s.substring(0, maxLen);
+    return s;
   }
 
   private static String getClientIp(HttpServletRequest req) {
