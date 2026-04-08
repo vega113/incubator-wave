@@ -51,8 +51,6 @@ import org.waveprotocol.wave.util.escapers.GwtWaverefEncoder;
  */
 public final class ClipboardImageUploader implements ImagePasteHandler {
 
-  private static final String UPLOAD_URL = "/attachment/";
-
   private final AttachmentIdGenerator idGenerator;
   private final WaveId waveId;
   private final EditorContextAdapter editor;
@@ -79,10 +77,10 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     }
 
     CMutableDocument doc = editor.getDocument();
-    SelectionHelper sel = editor.getSelectionHelper();
-    if (doc == null || sel == null) {
+    if (doc == null) {
       return false;
     }
+    SelectionHelper sel = editor.getSelectionHelper();
 
     // Capture insert position synchronously — the cursor may move during async upload.
     int insertOffset = captureInsertOffset(doc, sel);
@@ -243,6 +241,10 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '/attachment/' + attachmentId, true);
+    xhr.timeout = 60000;
+    xhr.ontimeout = function() {
+      failureCb.@java.lang.Runnable::run()();
+    };
     xhr.onload = function() {
       if (xhr.status === 200 || xhr.status === 201) {
         successCb.@java.lang.Runnable::run()();
