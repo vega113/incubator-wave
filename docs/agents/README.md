@@ -20,9 +20,9 @@ docs to trust first.
 - [`../github-issues.md`](../github-issues.md)
   - Live GitHub Issues workflow, labels, and execution-log expectations.
 - [`../../AGENTS.md`](../../AGENTS.md)
-  - Repo workflow rules, worktree expectations, and closeout requirements.
+  - Map-first repo rules and non-negotiable guardrails.
 - [`tool-usage.md`](tool-usage.md)
-  - Codex-specific tool routing, model tiers, and MCP usage guidance.
+  - Codex execution mechanics: tool routing, model tiers, MCP usage, and lane behavior.
 - [`../superpowers/plans/2026-03-18-agent-orchestration-plan.md`](../superpowers/plans/2026-03-18-agent-orchestration-plan.md)
   - Canonical orchestration model for architect, planner, worker, and reviewer flows.
 - [`../epics/README.md`](../epics/README.md)

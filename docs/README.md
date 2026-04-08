@@ -33,6 +33,10 @@ layer so readers can route by purpose instead of guessing from file names.
 - [`agents/tool-usage.md`](agents/tool-usage.md)
 - [`../AGENTS.md`](../AGENTS.md)
 
+Split of responsibility:
+- `AGENTS.md` = map-first repo rules and guardrails.
+- `docs/agents/tool-usage.md` = Codex-specific execution mechanics.
+
 ## Runbooks
 
 - [`runbooks/README.md`](runbooks/README.md)
