@@ -98,7 +98,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     final int fileIndex;
     final String fileName;
     final String mimeType;
-    final long fileSize;
+    final double fileSize;
 
     /** Assigned at upload time via listener.requestNewAttachmentId(). */
     AttachmentId attachmentId;
@@ -118,7 +118,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     /** The icon container (hidden once preview loads for images). */
     final Element iconEl;
 
-    FileEntry(int fileIndex, String fileName, String mimeType, long fileSize,
+    FileEntry(int fileIndex, String fileName, String mimeType, double fileSize,
         HTMLPanel card, HTMLPanel progressFill, TextBox captionInput,
         Element imgEl, Element iconEl) {
       this.fileIndex = fileIndex;
@@ -367,7 +367,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     for (int i = 0; i < count; i++) {
       String name = getFileName(fileUpload.getElement(), i);
       String type = getMimeType(fileUpload.getElement(), i);
-      long size = getFileSize(fileUpload.getElement(), i);
+      double size = getFileSize(fileUpload.getElement(), i);
       FileEntry entry = buildPreviewCard(i, name, type, size);
       pendingFiles.add(entry);
       previewGrid.add(entry.card);
@@ -378,7 +378,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     updateUploadButton();
   }
 
-  private FileEntry buildPreviewCard(final int fileIndex, String name, String type, long size) {
+  private FileEntry buildPreviewCard(final int fileIndex, String name, String type, double size) {
     HTMLPanel card = new HTMLPanel("div", "");
     card.addStyleName("upload-card");
 
@@ -588,11 +588,12 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     return name.substring(0, max - 1) + "\u2026";
   }
 
-  private static String formatSize(long bytes) {
-    if (bytes < 1024) return bytes + " B";
-    long kb = bytes / 1024;
-    if (kb < 1024) return kb + " KB";
-    return (kb / 1024) + "." + ((kb % 1024) * 10 / 1024) + " MB";
+  private static String formatSize(double bytes) {
+    if (bytes < 1024) return (int) bytes + " B";
+    double kb = bytes / 1024;
+    if (kb < 1024) return (int) kb + " KB";
+    double mb = kb / 1024;
+    return (int) mb + "." + ((int)(mb * 10) % 10) + " MB";
   }
 
   private static String buildFileIcon(String mimeType, String fileName) {
@@ -651,7 +652,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     return fileInput.files[index].type || '';
   }-*/;
 
-  private static native long getFileSize(Element fileInput, int index) /*-{
+  private static native double getFileSize(Element fileInput, int index) /*-{
     return fileInput.files[index].size || 0;
   }-*/;
 
