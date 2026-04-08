@@ -1025,7 +1025,11 @@ public final class SearchPresenter
         // returned different results or empty set). Skip rebuild when the
         // count matches to avoid tearing down and re-creating DOM elements
         // on every polling refresh, which causes visible flicker.
-        if (digestUis.countEntries() != search.getMinimumTotal()) {
+        // Use Math.min(querySize, getMinimumTotal()) to match the number of
+        // results intended for display (same as resultEnd in renderTitle),
+        // avoiding spurious mismatches caused by null placeholders that
+        // SimpleSearch inserts when results.size() equals the full server total.
+        if (digestUis.countEntries() != Math.min(querySize, search.getMinimumTotal())) {
           renderDigests();
         }
         renderWaveCount();
