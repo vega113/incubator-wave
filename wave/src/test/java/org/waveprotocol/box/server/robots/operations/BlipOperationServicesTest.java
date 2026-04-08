@@ -201,16 +201,6 @@ public class BlipOperationServicesTest extends RobotsTestBase {
         helloIdx >= 0 && lineIdx > helloIdx);
   }
 
-  public void testBuildMultilineContent_crlfNormalization() {
-    XmlStringBuilder result = BlipOperationServices.buildMultilineContent("Hello\r\nWorld");
-    String xml = result.getXmlString();
-    int helloIdx = xml.indexOf("Hello");
-    int lineIdx = xml.indexOf("<line", helloIdx);
-    int worldIdx = xml.indexOf("World", lineIdx);
-    assertTrue("Expected <line/> element for CRLF newline",
-        helloIdx >= 0 && lineIdx > helloIdx && worldIdx > lineIdx);
-  }
-
   public void testBuildMultilineContent_consecutiveNewlines() {
     XmlStringBuilder result = BlipOperationServices.buildMultilineContent("A\n\nB");
     String xml = result.getXmlString();
@@ -232,6 +222,36 @@ public class BlipOperationServicesTest extends RobotsTestBase {
     assertTrue("Expected Foo in output", xml.contains("Foo"));
     assertTrue("Expected <line/> elements for CRLF and CR breaks", xml.contains("<line"));
     assertFalse("Expected no stray \\r characters after normalization", xml.contains("\r"));
+  }
+
+  public void testAppendBlipWithCrlfPrefix() throws Exception {
+    // Robot clients on Windows may send \r\n as the leading auto-prefix.
+    // The prefix should be stripped, not converted to an extra <line/>.
+    BlipData crlfBlipData = new BlipData(s(WAVE_ID), s(WAVELET_ID), TEMP_BLIP_ID,
+        "\r\nHello");
+    crlfBlipData.setBlipId(TEMP_BLIP_ID);
+
+    OperationRequest operation = operationRequest(OperationType.WAVELET_APPEND_BLIP,
+        Parameter.of(ParamsProperty.BLIP_DATA, crlfBlipData));
+
+    OperationContextImpl context = helper.getContext();
+    service.execute(operation, context, ALEX);
+
+    assertFalse(context.getResponse(OPERATION_ID).isError());
+
+    ObservableConversation conversation =
+        context.openConversation(WAVE_ID, WAVELET_ID, ALEX).getRoot();
+    ConversationBlip newBlip = context.getBlip(conversation, TEMP_BLIP_ID);
+    String xml = newBlip.getContent().toXmlString();
+    assertTrue("Expected Hello in blip content", xml.contains("Hello"));
+    // The leading \r\n prefix must be stripped, not produce a blank first line.
+    // A correct blip has exactly one <line/> before "Hello" (the document's
+    // own opening element). If the prefix was not stripped, there would be two.
+    String beforeHello = xml.substring(0, xml.indexOf("Hello"));
+    int firstLine = beforeHello.indexOf("<line");
+    assertTrue("Blip should have an opening <line/> before content", firstLine >= 0);
+    assertEquals("CRLF prefix must not add an extra blank <line/> before content",
+        -1, beforeHello.indexOf("<line", firstLine + 1));
   }
 
   public void testAppendBadMarkup() throws Exception {

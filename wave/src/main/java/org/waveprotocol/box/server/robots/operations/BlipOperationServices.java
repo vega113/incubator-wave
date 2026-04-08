@@ -389,10 +389,12 @@ public class BlipOperationServices implements OperationService {
    * @param content the content to add.
    */
   private void putContentForNewBlip(ConversationBlip newBlip, String content) {
-    if (content.length() > 0 && content.charAt(0) == '\n') {
+    if (content.startsWith("\r\n")) {
       // While the client libraries force a newline to be sent as the first
       // character we'll remove it here since the new blip we created already
-      // contains a newline.
+      // contains a newline. Handle both CRLF and LF prefixes.
+      content = content.substring(2);
+    } else if (content.length() > 0 && content.charAt(0) == '\n') {
       content = content.substring(1);
     }
     XmlStringBuilder builder = buildMultilineContent(content);
