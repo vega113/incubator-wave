@@ -264,7 +264,7 @@ public final class ContactServlet extends HttpServlet {
   private static String sanitize(String s, int maxLen) {
     if (s == null) return "";
     // Remove ASCII control chars (keep newline/tab for message body readability)
-    s = s.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
+    s = s.replaceAll("[\\x00-\\x08\\x0B-\\x0D\\x0E-\\x1F\\x7F]", "");
     if (s.length() > maxLen) s = s.substring(0, maxLen);
     return s;
   }
