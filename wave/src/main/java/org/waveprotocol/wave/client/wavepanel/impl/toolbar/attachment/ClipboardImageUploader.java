@@ -137,10 +137,17 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
 
     // Delete selected content now that upload succeeded.  Using live Points
     // means positions remain valid despite edits made during the XHR.
+    // Guard getLocation the same way as for insertPoint: the selection end
+    // node may also have been removed while the upload was in flight.
     if (selectionEndPoint != null) {
-      int end = mapper.getLocation(selectionEndPoint);
-      if (end > start) {
-        doc.deleteRange(start, end);
+      try {
+        int end = mapper.getLocation(selectionEndPoint);
+        if (end > start) {
+          doc.deleteRange(start, end);
+        }
+      } catch (RuntimeException e) {
+        showErrorToast("Image uploaded but could not be inserted.");
+        return;
       }
     }
 

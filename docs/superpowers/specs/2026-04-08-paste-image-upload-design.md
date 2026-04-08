@@ -17,7 +17,7 @@ Add a pluggable `ImagePasteHandler` hook to `EditorImpl`. The handler is impleme
 ### New files
 
 **`ImagePasteHandler.java`** (`org.waveprotocol.wave.client.editor`)
-```
+```java
 interface ImagePasteHandler {
   boolean handleImagePaste(NativeEvent nativeEvent);
 }
@@ -86,7 +86,7 @@ editor.setImagePasteHandler(pasteUploader);
 
 ## Data Flow
 
-```
+```text
 User Ctrl+V with image on clipboard
   → EditorEventHandler.handleClipboard()
   → EditorImpl.handlePaste(EditorEvent event)
@@ -123,6 +123,8 @@ A lightweight DOM div appended to `document.body` during upload:
 - Text: "Uploading pasted image..."
 - Simple CSS spinner (border animation, no images)
 - Removed on success or failure
+- Timeout: 60 seconds; if the XHR does not complete within this window the
+  progress element is removed and "Image upload failed." is shown
 
 Not using `DevToast` (dev-only). A small inline JSNI helper creates/removes the element.
 

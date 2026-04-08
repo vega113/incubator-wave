@@ -66,6 +66,13 @@ public class EditorContextAdapter implements EditorContext {
 
   /** Silently switches the wrapped editor with a new instance. */
   public void switchEditor(EditorContext newEditor) {
+    // Clear the handler on the outgoing EditorImpl so it stops intercepting
+    // paste events after focus leaves.  Without this, the old editor keeps
+    // a handler that closes over this adapter and would route pastes to
+    // whatever blip is currently focused — not the one that was pasted into.
+    if (editor instanceof EditorImpl && editor != newEditor) {
+      ((EditorImpl) editor).setImagePasteHandler(null);
+    }
     this.editor = newEditor;
     forwardImagePasteHandler(newEditor);
   }
