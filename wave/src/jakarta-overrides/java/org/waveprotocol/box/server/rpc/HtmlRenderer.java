@@ -2827,6 +2827,7 @@ public final class HtmlRenderer {
     sb.append("#pc-bio {\n");
     sb.append("  font-size: 14px; color: ").append(WAVE_TEXT).append(";\n");
     sb.append("  margin: 0 0 12px; line-height: 1.4;\n");
+    sb.append("  white-space: pre-wrap;\n");
     sb.append("}\n");
     sb.append("#pc-lastseen {\n");
     sb.append("  font-size: 12px; color: ").append(WAVE_TEXT_MUTED).append(";\n");
@@ -8420,10 +8421,11 @@ public final class HtmlRenderer {
     // Bio
     sb.append("    <div class=\"form-group\">\n");
     sb.append("      <label for=\"bio\">Bio</label>\n");
+    String bio = account.getBio();
     sb.append("      <textarea id=\"bio\" class=\"form-input\" maxlength=\"200\" placeholder=\"Tell others about yourself...\">")
-        .append(escapeHtml(account.getBio())).append("</textarea>\n");
+        .append(escapeHtml(bio)).append("</textarea>\n");
     sb.append("      <div class=\"hint\"><span id=\"bioCount\">")
-        .append(account.getBio() == null ? "0" : String.valueOf(account.getBio().length()))
+        .append(bio == null ? "0" : String.valueOf(bio.length()))
         .append("</span>/200</div>\n");
     sb.append("    </div>\n");
 

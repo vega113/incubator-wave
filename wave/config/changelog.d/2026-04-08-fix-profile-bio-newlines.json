@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-08-fix-profile-bio-newlines",
+  "version": "PR #723",
+  "date": "2026-04-08",
+  "title": "Fix Profile Bio Newlines",
+  "summary": "Multi-line bios now display correctly in profile cards and the profile edit form.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Fixed newlines entered in bio being stored as literal \\n sequences due to a broken JSON escape parser",
+        "Legacy bios with literal \\n sequences are migrated to real newlines on read when safe to do so"
+      ]
+    }
+  ]
+}

@@ -521,14 +521,53 @@ public final class ProfileServlet extends HttpServlet {
     if (colon < 0) return null;
     // Skip whitespace after colon
     int pos = colon + 1;
-    while (pos < json.length() && json.charAt(pos) == ' ') pos++;
+    while (pos < json.length() && (json.charAt(pos) == ' ' || json.charAt(pos) == '\t'
+        || json.charAt(pos) == '\n' || json.charAt(pos) == '\r')) pos++;
     if (pos >= json.length()) return null;
     char next = json.charAt(pos);
     if (next == '"') {
-      // String value
-      int qEnd = json.indexOf('"', pos + 1);
-      if (qEnd < 0) return null;
-      return json.substring(pos + 1, qEnd);
+      // Parse JSON string with proper escape sequence handling so that
+      // e.g. \n in the JSON body becomes a real newline, not a literal backslash-n.
+      StringBuilder value = new StringBuilder();
+      int i = pos + 1;
+      boolean closed = false;
+      while (i < json.length()) {
+        char c = json.charAt(i);
+        if (c == '"') { closed = true; break; }
+        if (c == '\\' && i + 1 < json.length()) {
+          i++;
+          char esc = json.charAt(i);
+          switch (esc) {
+            case '"':  value.append('"');  break;
+            case '\\': value.append('\\'); break;
+            case '/':  value.append('/');  break;
+            case 'n':  value.append('\n'); break;
+            case 'r':  value.append('\r'); break;
+            case 't':  value.append('\t'); break;
+            case 'b':  value.append('\b'); break;
+            case 'f':  value.append('\f'); break;
+            case 'u':
+              if (i + 4 < json.length()) {
+                String hex = json.substring(i + 1, i + 5);
+                try {
+                  value.append((char) Integer.parseInt(hex, 16));
+                  i += 4;
+                } catch (NumberFormatException ignored) {
+                  value.append(esc);
+                }
+              } else {
+                value.append(esc);
+              }
+              break;
+            default: value.append(esc);
+          }
+        } else {
+          value.append(c);
+        }
+        i++;
+      }
+      if (!closed) return null;
+      return value.toString();
     } else if (next == 't' || next == 'f') {
       // Boolean value
       if (json.startsWith("true", pos)) return "true";
@@ -563,7 +602,14 @@ public final class ProfileServlet extends HttpServlet {
         case '\n': sb.append("\\n");  break;
         case '\r': sb.append("\\r");  break;
         case '\t': sb.append("\\t");  break;
-        default:   sb.append(c);
+        case '\b': sb.append("\\b");  break;
+        case '\f': sb.append("\\f");  break;
+        default:
+          if (c < 0x20) {
+            sb.append(String.format("\\u%04x", (int) c));
+          } else {
+            sb.append(c);
+          }
       }
     }
     sb.append('"');
