@@ -56,7 +56,7 @@ port_listener_output() {
     return
   fi
 
-  true
+  fail "Cannot check port $PORT: none of lsof, ss, or fuser found"
 }
 
 port_in_use() {
