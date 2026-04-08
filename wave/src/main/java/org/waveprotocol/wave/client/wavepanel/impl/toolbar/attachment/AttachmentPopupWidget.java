@@ -329,6 +329,10 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
         uploadBtn.setEnabled(false);
         cancelBtn.setEnabled(false);
         addMoreBtn.setEnabled(false);
+        // Disable per-card remove buttons and caption inputs during upload
+        for (FileEntry fe : pendingFiles) {
+          setCardControlsEnabled(fe, false);
+        }
         uploadNext(0);
       }
     });
@@ -393,6 +397,8 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
 
     Button removeBtn = new Button("×");
     removeBtn.addStyleName("upload-card-remove");
+    removeBtn.getElement().setAttribute("title", "Remove file");
+    removeBtn.getElement().setAttribute("aria-label", "Remove file");
     removeBtn.addClickHandler(new ClickHandler() {
       @Override
       public void onClick(ClickEvent event) {
@@ -411,9 +417,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     imgEl.getStyle().setProperty("display", "none");
     thumbArea.getElement().appendChild(imgEl);
 
-    String iconHtml = buildFileIcon(type, name);
-    Element iconEl = com.google.gwt.dom.client.Document.get().createDivElement();
-    iconEl.setInnerHTML(iconHtml);
+    Element iconEl = buildFileIconElement(type, name);
     thumbArea.getElement().appendChild(iconEl);
     card.add(thumbArea);
 
@@ -450,6 +454,19 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       }
     }
     updateUploadButton();
+  }
+
+  /**
+   * Enables or disables the per-card interactive controls (remove button and caption input)
+   * for a given FileEntry. Called when an upload starts/ends to prevent concurrent mutations.
+   */
+  private static void setCardControlsEnabled(FileEntry entry, boolean enabled) {
+    // The remove button is the first widget in the card (index 0)
+    com.google.gwt.user.client.ui.Widget first = entry.card.getWidget(0);
+    if (first instanceof Button) {
+      ((Button) first).setEnabled(enabled);
+    }
+    entry.captionInput.setEnabled(enabled);
   }
 
   private void updateUploadButton() {
@@ -532,7 +549,19 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
         break;
       }
     }
-    if (entry == null) return;
+    if (entry == null) {
+      // Entry was removed while its upload was in progress.
+      // Re-enable controls and start from the beginning of the (now-shorter) queue.
+      showStatus("A file was removed; remaining files will be uploaded.", false);
+      uploadBtn.setEnabled(false);
+      cancelBtn.setEnabled(true);
+      addMoreBtn.setEnabled(true);
+      for (FileEntry fe : pendingFiles) {
+        setCardControlsEnabled(fe, true);
+      }
+      uploadNext(0);
+      return;
+    }
 
     if (success) {
       entry.setProgressWidth(100);
@@ -605,7 +634,11 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     return (int) mb + "." + ((int)(mb * 10) % 10) + " MB";
   }
 
-  private static String buildFileIcon(String mimeType, String fileName) {
+  /**
+   * Builds the file-type icon element for a preview card using DOM APIs to avoid XSS.
+   * The filename extension is set via setInnerText (not innerHTML) so it cannot inject HTML.
+   */
+  private static Element buildFileIconElement(String mimeType, String fileName) {
     String ext = "";
     if (fileName != null) {
       int dot = fileName.lastIndexOf('.');
@@ -628,13 +661,30 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       else if (mt.startsWith("image/"))                                { color = "#0288D1"; }
     }
     if (label.length() > 4) label = label.substring(0, 4);
-    return "<div class='upload-card-file-icon' style='background:" + color + "'>"
-        + "<svg viewBox='0 0 24 24' width='32' height='32' fill='white'>"
+
+    com.google.gwt.dom.client.Document doc = com.google.gwt.dom.client.Document.get();
+
+    // Outer wrapper div
+    Element wrapper = doc.createDivElement();
+    wrapper.addClassName("upload-card-file-icon");
+    wrapper.getStyle().setProperty("background", color);
+
+    // SVG via innerHTML is safe here: no user data is included
+    Element svgWrap = doc.createDivElement();
+    svgWrap.setInnerHTML(
+        "<svg viewBox='0 0 24 24' width='32' height='32' fill='white'>"
         + "<path d='M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z'/>"
         + "<polyline points='14 2 14 8 20 8' fill='none' stroke='white' stroke-width='1.5'/>"
-        + "</svg>"
-        + "<span class='upload-card-file-label'>" + label + "</span>"
-        + "</div>";
+        + "</svg>");
+    wrapper.appendChild(svgWrap.getFirstChildElement());
+
+    // Label span: use setInnerText to prevent XSS from extension strings
+    Element span = doc.createSpanElement();
+    span.addClassName("upload-card-file-label");
+    span.setInnerText(label);  // safe: no HTML injection possible
+    wrapper.appendChild(span);
+
+    return wrapper;
   }
 
   // ─────────────────────────────────────────────
@@ -715,6 +765,10 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       var reader = new $wnd.FileReader();
       reader.onload = function(e) {
         var img = new $wnd.Image();
+        img.onerror = function() {
+          // Image failed to decode — upload original uncompressed file
+          doUpload(file);
+        };
         img.onload = function() {
           var w = img.width, h = img.height;
           if (w <= maxDim && h <= maxDim) {
@@ -726,11 +780,19 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
           var canvas = $doc.createElement('canvas');
           canvas.width = nw; canvas.height = nh;
           canvas.getContext('2d').drawImage(img, 0, 0, nw, nh);
+          // Preserve the original MIME type so the server derives the correct Content-Type.
+          // If the browser cannot encode to the original type, fall back to the original file.
+          var outputMime = file.type;
+          var outputQuality = (outputMime === 'image/jpeg' || outputMime === 'image/webp') ? quality : undefined;
           canvas.toBlob(function(blob) {
             doUpload(blob || file);
-          }, 'image/jpeg', quality);
+          }, outputMime, outputQuality);
         };
         img.src = e.target.result;
+      };
+      reader.onerror = function() {
+        // FileReader failed — upload original uncompressed file
+        doUpload(file);
       };
       reader.readAsDataURL(file);
     } else {
@@ -753,19 +815,26 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       dropZoneEl.classList.remove('dragover');
       var files = e.dataTransfer.files;
       if (files && files.length > 0) {
+        // Feature-detect whether DataTransfer is constructible before attempting it.
+        var canConstruct = false;
         try {
+          var testDt = new $wnd.DataTransfer();
+          canConstruct = (testDt && testDt.items != null);
+        } catch (ex) {
+          canConstruct = false;
+        }
+        if (canConstruct) {
           var dt = new $wnd.DataTransfer();
           for (var i = 0; i < files.length; i++) dt.items.add(files[i]);
           fileInputEl.files = dt.files;
-        } catch (ex) {
-          // DataTransfer not supported in all browsers; fall back to single file
-          var dt2 = new $wnd.DataTransfer();
-          dt2.items.add(files[0]);
-          fileInputEl.files = dt2.files;
+          var evt = $doc.createEvent('HTMLEvents');
+          evt.initEvent('change', true, false);
+          fileInputEl.dispatchEvent(evt);
+        } else {
+          // DataTransfer is not constructible in this browser; instruct the user to use
+          // the click-to-browse button instead.
+          self.@org.waveprotocol.wave.client.wavepanel.impl.toolbar.attachment.AttachmentPopupWidget::showStatus(Ljava/lang/String;Z)("Drag-and-drop is not supported in this browser. Please use the \"Select Files\" button.", true);
         }
-        var evt = $doc.createEvent('HTMLEvents');
-        evt.initEvent('change', true, false);
-        fileInputEl.dispatchEvent(evt);
       }
     }, false);
   }-*/;

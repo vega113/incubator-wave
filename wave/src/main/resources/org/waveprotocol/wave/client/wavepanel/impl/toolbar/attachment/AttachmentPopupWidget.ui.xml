@@ -27,6 +27,7 @@
   <g:HTMLPanel styleName="attachment-popup-modern">
 
     <!-- Drop zone: click to browse, or drag files -->
+    <!-- TODO(i18n): Hard-coded strings below should be moved to an AttachmentMessages i18n interface -->
     <g:HTMLPanel ui:field="dropZone" styleName="upload-dropzone">
       <div class="upload-dropzone-icon">
         <svg width="36" height="36" viewBox="0 0 24 24" fill="none"
@@ -37,7 +38,7 @@
         </svg>
       </div>
       <div class="upload-dropzone-text">Drop files here or tap to browse</div>
-      <g:Button ui:field="addMoreBtn" styleName="upload-add-more-btn">+ Add More Files</g:Button>
+      <g:Button ui:field="addMoreBtn" styleName="upload-add-more-btn">Select Files</g:Button>
     </g:HTMLPanel>
 
     <!-- Wave separator (SVG injected programmatically in Java to avoid xmlns issues) -->
