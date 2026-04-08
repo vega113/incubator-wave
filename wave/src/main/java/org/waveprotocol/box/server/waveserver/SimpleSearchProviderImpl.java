@@ -384,6 +384,16 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
       sortedResults = promotePinnedWaves(sortedResults, user, supplementCache, waveletAdapters);
     }
 
+    // When searching by mentions, promote waves with unread content to the top so that
+    // unread mentions appear before read ones. Skip if an explicit orderby: is present.
+    if (!mentionValues.isEmpty() && !hasExplicitOrderBy) {
+      if (supplementCache == null) {
+        supplementCache = new HashMap<WaveId, WaveSupplementContext>();
+        waveletAdapters = new IdentityHashMap<ObservableWaveletData, OpBasedWavelet>();
+      }
+      sortedResults = promoteUnreadMentionWaves(sortedResults, user, supplementCache, waveletAdapters);
+    }
+
     // Capture the total count BEFORE pagination so the client knows the full result set size.
     int totalBeforePagination = sortedResults.size();
 
@@ -617,6 +627,44 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     List<WaveViewData> promoted = new ArrayList<WaveViewData>(pinned.size() + unpinned.size());
     promoted.addAll(pinned);
     promoted.addAll(unpinned);
+    return promoted;
+  }
+
+  /**
+   * Promotes waves with unread content to the top of a mentions search result list while
+   * preserving relative order within each group (unread-first, then read).
+   *
+   * @param results the sorted list of wave views.
+   * @param user the participant whose unread state to check.
+   * @param supplementCache shared cache of supplement contexts across filter stages.
+   * @param waveletAdapters shared cache of OpBasedWavelet adapters.
+   * @return a new list with unread waves first, followed by read waves.
+   */
+  private List<WaveViewData> promoteUnreadMentionWaves(List<WaveViewData> results,
+      ParticipantId user, Map<WaveId, WaveSupplementContext> supplementCache,
+      Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
+    List<WaveViewData> unread = new ArrayList<WaveViewData>();
+    List<WaveViewData> read = new ArrayList<WaveViewData>();
+    for (WaveViewData wave : results) {
+      try {
+        WaveSupplementContext ctx = getOrBuildContext(wave, user, supplementCache, waveletAdapters);
+        if (digester.countUnread(user, ctx, waveletAdapters) > 0) {
+          unread.add(wave);
+        } else {
+          read.add(wave);
+        }
+      } catch (Exception e) {
+        LOG.fine("Failed to check unread state during mention promotion for wave "
+            + wave.getWaveId() + ": " + e.getMessage());
+        read.add(wave);
+      }
+    }
+    if (unread.isEmpty()) {
+      return results;
+    }
+    List<WaveViewData> promoted = new ArrayList<WaveViewData>(unread.size() + read.size());
+    promoted.addAll(unread);
+    promoted.addAll(read);
     return promoted;
   }
 
