@@ -46,8 +46,9 @@ public final class TaskDocumentUtil {
    * The resulting ID is short and URL-safe (base-36 encoded).
    */
   public static String generateTaskId() {
+    // Use current time millis in base36 + 6-digit random suffix for collision resistance
     return "t" + Long.toString(System.currentTimeMillis(), 36)
-        + Integer.toString((int) (Math.random() * 1000), 36);
+        + String.format("%06d", (int) (Math.random() * 999999));
   }
 
   /**

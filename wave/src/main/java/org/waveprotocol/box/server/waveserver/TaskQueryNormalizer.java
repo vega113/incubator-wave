@@ -36,9 +36,10 @@ public final class TaskQueryNormalizer {
    * @return canonical lower-case participant address
    */
   public static String normalize(String raw, ParticipantId user) {
-    if (raw == null || raw.isEmpty()) {
+    if (raw == null || raw.trim().isEmpty()) {
       throw new IllegalArgumentException("raw task value cannot be null or empty");
     }
+    String trimmed = raw.trim();
     if (user == null) {
       throw new IllegalArgumentException("user cannot be null");
     }
@@ -48,12 +49,12 @@ public final class TaskQueryNormalizer {
       throw new IllegalArgumentException("user address and domain cannot be null");
     }
     String normalized;
-    if ("me".equalsIgnoreCase(raw)) {
+    if ("me".equalsIgnoreCase(trimmed)) {
       normalized = address;
-    } else if (raw.contains("@")) {
-      normalized = raw;
+    } else if (trimmed.contains("@")) {
+      normalized = trimmed;
     } else {
-      normalized = raw + "@" + domain;
+      normalized = trimmed + "@" + domain;
     }
     return normalized.toLowerCase(Locale.ROOT);
   }

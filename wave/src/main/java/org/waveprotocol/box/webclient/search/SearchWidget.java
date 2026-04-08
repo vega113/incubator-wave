@@ -235,6 +235,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     wireExample(exPinnedCreator);
     wireExample(exCreatorArchive);
     wireExample(exMentionsUnread);
+    wireExample(exTasks);
   }
 
   /** Stacks help columns vertically on narrow viewports (≤600 px). */
