@@ -40,8 +40,8 @@ For detailed role behavior and sequencing, follow:
 - Do not implement from `/Users/vega/devroot/incubator-wave`.
 - Use `/Users/vega/devroot/worktrees/<branch-name>` for worktree paths.
 - Never create worktrees under `.claude/worktrees/`.
-- Launch tmux lanes from the worktree directory, not from the main repo tree.
 - Do not run `git checkout` or `git switch` inside the main repo during lane execution; it flips shared HEAD for open sessions.
+- For lane execution details (tmux launch sequence, model flags, etc.), see [docs/agents/tool-usage.md](docs/agents/tool-usage.md).
 - Do not mix lane edits in the main working tree.
 
 ## Task Lifecycle
@@ -57,12 +57,12 @@ For detailed role behavior and sequencing, follow:
 - Keep issue, commits, and PR traceability aligned.
 
 ## GitHub Issue Updates
-- Record worktree path and branch.
-- Record plan path used for implementation.
-- Record commit SHAs with one-line summaries.
-- Record verification commands and outcomes.
-- Record review findings plus follow-up resolution notes.
-- Record PR number/URL.
+- Capture the worktree path and branch.
+- Include the plan path used for implementation.
+- Log commit SHAs with one-line summaries.
+- Document verification commands and outcomes.
+- Summarize review findings and resolution notes.
+- Provide the PR number/URL.
 
 Use `docs/github-issues.md` as the canonical evidence format and workflow reference.
 
