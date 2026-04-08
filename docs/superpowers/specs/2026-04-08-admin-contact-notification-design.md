@@ -20,7 +20,7 @@ Show an unread-count badge on the top bar for admin/owner users that pulsates wi
 
 ### Why this approach
 
-- The top bar is already server-rendered in `HtmlRenderer.java`. Adding the icon as server-rendered HTML (conditionally for admin) is the natural extension of the existing pattern.
+- The top bar is already server-rendered in `HtmlRenderer.java`. Adding the icon as server-rendered HTML (conditionally for admin/owner) is the natural extension of the existing pattern.
 - The existing `GET /admin/api/contacts?status=new&limit=0` endpoint already returns `{"total": N, "messages": []}` — no new endpoint needed.
 - No GWT changes required. Avoids GWT compilation step.
 - Consistent with how the existing `contactBadge` on the admin tab already works.
@@ -74,7 +74,7 @@ On page load: read `window.location.hash`. If it is `#contacts`, programmaticall
 
 ## Data Flow
 
-```
+```text
 [Admin user loads wave client or any page]
   → Server renders top bar HTML with admin envelope icon
   → JS starts 30s polling interval
