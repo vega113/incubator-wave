@@ -85,8 +85,11 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     }
     SelectionHelper sel = editor.getSelectionHelper();
 
-    // Capture insert position synchronously — the cursor may move during async upload.
+    // Capture insert position and selection end synchronously — the cursor may move
+    // during async upload. selectionEndOffset > insertOffset means a non-collapsed
+    // selection whose text must be deleted before the image is inserted.
     int insertOffset = captureInsertOffset(doc, sel);
+    int selectionEndOffset = captureSelectionEndOffset(doc, sel, insertOffset);
 
     AttachmentId attachmentId = idGenerator.newAttachmentId();
     String waveRefToken = URL.encode(
@@ -99,7 +102,7 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     final CMutableDocument capturedDoc = doc;
     final String attachmentIdStr = attachmentId.getId();
     startXhrUpload(nativeEvent, attachmentIdStr, waveRefToken,
-        () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertOffset),
+        () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertOffset, selectionEndOffset),
         () -> onUploadFailure());
 
     return true; // consumed — suppress text paste
@@ -109,8 +112,14 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   // Upload callbacks (called from JSNI on the GWT event thread)
   // ---------------------------------------------------------------------------
 
-  private void onUploadSuccess(CMutableDocument doc, String attachmentId, int insertOffset) {
+  private void onUploadSuccess(CMutableDocument doc, String attachmentId,
+      int insertOffset, int selectionEndOffset) {
     hideProgressIndicator();
+
+    // Delete selected text before inserting the image, mirroring normal paste semantics.
+    if (selectionEndOffset > insertOffset) {
+      doc.deleteRange(insertOffset, selectionEndOffset);
+    }
 
     @SuppressWarnings("unchecked")
     Point<ContentNode> insertPoint =
@@ -280,5 +289,21 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
       }
     }
     return doc.size() - 1;
+  }
+
+  /**
+   * Returns the integer document offset of the end of the current selection,
+   * or {@code insertOffset} if the selection is collapsed (no text to delete).
+   */
+  @SuppressWarnings("unchecked")
+  private static int captureSelectionEndOffset(CMutableDocument doc,
+      SelectionHelper sel, int insertOffset) {
+    if (sel != null) {
+      ContentRange range = sel.getOrderedSelectionPoints();
+      if (range != null && !range.isCollapsed() && range.getSecond() != null) {
+        return ((LocationMapper<ContentNode>) doc).getLocation(range.getSecond());
+      }
+    }
+    return insertOffset;
   }
 }
