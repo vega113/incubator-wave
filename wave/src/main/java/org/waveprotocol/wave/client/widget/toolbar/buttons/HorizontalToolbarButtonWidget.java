@@ -103,6 +103,9 @@ public final class HorizontalToolbarButtonWidget extends Composite implements To
     // If this is needed by more than just the overflow and edit-mode buttons
     // then perhaps a view method is warranted.
     self.getElement().addClassName(res.css().compact());
+    // Non-obfuscated class for injected CSS hover scoping (GWT CssResource
+    // names are obfuscated so they cannot be targeted by injected stylesheets).
+    self.getElement().addClassName("toolbar-btn-enabled");
   }
 
   @UiHandler("self")
@@ -125,12 +128,14 @@ public final class HorizontalToolbarButtonWidget extends Composite implements To
       case ENABLED:
         self.getElement().removeClassName(res.css().hidden());
         self.getElement().addClassName(res.css().enabled());
+        self.getElement().addClassName("toolbar-btn-enabled");
         removeDebugClass("disabled");
         break;
 
       case DISABLED:
         self.getElement().removeClassName(res.css().hidden());
         self.getElement().removeClassName(res.css().enabled());
+        self.getElement().removeClassName("toolbar-btn-enabled");
         addDebugClass("disabled");
         break;
 
