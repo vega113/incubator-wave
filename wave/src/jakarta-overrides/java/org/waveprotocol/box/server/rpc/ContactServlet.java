@@ -294,11 +294,10 @@ public final class ContactServlet extends HttpServlet {
   }
 
   private static String getClientIp(HttpServletRequest req) {
-    // NOTE: Trusts X-Forwarded-For from reverse proxy. Direct exposure bypasses rate limiting.
-    String forwarded = req.getHeader("X-Forwarded-For");
-    if (forwarded != null && !forwarded.isEmpty()) {
-      return forwarded.split(",")[0].trim();
-    }
+    // Use the request remote address, which Jetty's ForwardedRequestCustomizer has already
+    // rewritten to the true client IP when network.enable_forwarded_headers=true.
+    // Reading X-Forwarded-For directly would allow header spoofing when forwarded headers
+    // are not enabled, bypassing the rate limit.
     return req.getRemoteAddr();
   }
 
