@@ -22,7 +22,9 @@
 
 .self {
   height: value('buttonDown.getHeight', 'px');
-  display: inline;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
   float: left;
   font-size: 8pt;
   /* For the divider. */
@@ -37,7 +39,7 @@
 }
 
 .self.compact {
-  padding: 0 4px;
+  padding: 0 10px;
 }
 
 .self.enabled {
@@ -79,13 +81,16 @@
 }
 
 .visualElement {
-  float: left;
-  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visualElement svg {
+  display: block;
 }
 
 .textElement {
-  float: left;
-  margin-top: 6px;
 }
 
 .textElementWithVisualElement {
@@ -94,8 +99,6 @@
 
 @sprite .dropdownArrow {
   gwt-image: 'dropdownArrow';
-  float: left;
-  margin-top: 10px;
   margin-left: 5px;
 }
 

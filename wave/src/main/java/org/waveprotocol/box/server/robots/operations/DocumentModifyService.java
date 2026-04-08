@@ -21,6 +21,7 @@ package org.waveprotocol.box.server.robots.operations;
 
 import com.google.common.base.Preconditions;
 import com.google.wave.api.Element;
+import com.google.wave.api.ElementType;
 import com.google.wave.api.FormElement;
 import com.google.wave.api.InvalidRequestException;
 import com.google.wave.api.JsonRpcConstant.ParamsProperty;
@@ -266,7 +267,7 @@ public class DocumentModifyService implements OperationService {
       // Delete using the view.
       view.delete(start, end);
       // Shift the iterator to match the updated document.
-      hitIterator.shift(start, end - start);
+      hitIterator.shift(start, start - end);
 
       range = hitIterator.next();
     }
@@ -344,11 +345,23 @@ public class DocumentModifyService implements OperationService {
     while (range != null) {
       int replaceAt = range.getStart();
 
+      // For IMAGE elements, insertInto shifts position 0 to 1 to preserve the
+      // initial document newline. Track the effective insert start so the
+      // delete range begins after the inserted element, not on top of it.
+      int effectiveInsertAt = replaceAt;
+      if (!modifyAction.hasTextAt(valueIndex)) {
+        Element insertedElement = modifyAction.getElement(valueIndex);
+        if (insertedElement != null && insertedElement.getType() == ElementType.IMAGE
+            && replaceAt == 0) {
+          effectiveInsertAt = 1;
+        }
+      }
+
       int numInserted = insertInto(operation, doc, view, replaceAt, modifyAction, valueIndex);
 
       // Remove the text after what was inserted (so it looks like it has been
       // replaced).
-      view.delete(replaceAt + numInserted, range.getEnd() + numInserted);
+      view.delete(effectiveInsertAt + numInserted, range.getEnd() + numInserted);
 
       // Shift the iterator from the start of the replacement with the amount of
       // characters that have been added.
@@ -411,10 +424,15 @@ public class DocumentModifyService implements OperationService {
         if (element.isFormElement()) {
           XmlStringBuilder xml = ElementSerializer.apiElementToXml(element);
           LineContainers.appendLine(doc, xml);
+        } else if (element.getType() == ElementType.IMAGE) {
+          if (insertAt == 0) {
+            insertAt = 1;
+          }
+          view.insert(insertAt, element);
         } else {
-          // TODO(ljvderijk): Inserting other elements.
-          throw new UnsupportedOperationException(
-              "Can't insert elements of type " + element.getType() + " at the moment");
+          throw new InvalidRequestException(
+              "Can't insert elements of type " + element.getType() + " via document.modify",
+              operation);
         }
       }
       // should return 1 since elements have a length of 1 in the ApiView;
