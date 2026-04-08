@@ -152,6 +152,52 @@ public class CheckBox {
     }
 
     @Override
+    public void onRemovedFromParent(ContentElement element, ContentElement newParent) {
+      // newParent == null means deletion, which is handled by onDeactivated.
+      // newParent != null means a move (line merge/split): clean up the old paragraph.
+      if (newParent == null) {
+        return;
+      }
+      String name = element.getAttribute(ContentElement.NAME);
+      if (name == null || !name.startsWith(TaskDocumentUtil.TASK_NAME_PREFIX)) {
+        return;
+      }
+      if (!getChecked(element)) {
+        return;
+      }
+      Element implNodelet = element.getImplNodelet();
+      if (implNodelet == null) {
+        return;
+      }
+      // The nodelet is detached from the DOM here; use the cached paragraph reference.
+      Element oldParagraph = (Element) implNodelet.getPropertyObject(PARAGRAPH_PROPERTY);
+      if (oldParagraph != null && !hasAnyOtherCheckedTaskSpan(oldParagraph, implNodelet)) {
+        oldParagraph.removeClassName(TASK_COMPLETED_CLASS);
+      }
+    }
+
+    @Override
+    public void onAddedToParent(ContentElement element, ContentElement oldParent) {
+      // When a checked task checkbox is moved into a new paragraph, style that paragraph.
+      String name = element.getAttribute(ContentElement.NAME);
+      if (name == null || !name.startsWith(TaskDocumentUtil.TASK_NAME_PREFIX)) {
+        return;
+      }
+      if (!getChecked(element)) {
+        return;
+      }
+      Element implNodelet = element.getImplNodelet();
+      if (implNodelet == null) {
+        return;
+      }
+      Element newParagraph = implNodelet.getParentElement();
+      if (newParagraph != null) {
+        implNodelet.setPropertyObject(PARAGRAPH_PROPERTY, newParagraph);
+        newParagraph.addClassName(TASK_COMPLETED_CLASS);
+      }
+    }
+
+    @Override
     public void onDeactivated(ContentElement element) {
       // When a checked task checkbox is removed from the document, clean up the
       // task-completed class on its enclosing paragraph.
