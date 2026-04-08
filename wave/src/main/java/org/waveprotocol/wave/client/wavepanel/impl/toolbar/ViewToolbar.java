@@ -368,9 +368,11 @@ public final class ViewToolbar {
         LOG.trace().log("Successfully moved wave to: ", targetFolder);
         if (folderActionListener != null) {
           folderActionListener.onFolderActionCompleted(targetFolder);
+        } else {
+          archived = !archived;
+          archiveButton.setState(ToolbarButtonView.State.ENABLED);
+          updateArchiveButtonState();
         }
-        // Note: folderActionListener navigates away (History.newItem), so no
-        // need to re-enable or update local state on success.
       }
 
       @Override
