@@ -2827,6 +2827,7 @@ public final class HtmlRenderer {
     sb.append("#pc-bio {\n");
     sb.append("  font-size: 14px; color: ").append(WAVE_TEXT).append(";\n");
     sb.append("  margin: 0 0 12px; line-height: 1.4;\n");
+    sb.append("  white-space: pre-wrap;\n");
     sb.append("}\n");
     sb.append("#pc-lastseen {\n");
     sb.append("  font-size: 12px; color: ").append(WAVE_TEXT_MUTED).append(";\n");
@@ -7868,6 +7869,15 @@ public final class HtmlRenderer {
   // =========================================================================
 
   /**
+   * Normalizes a bio that may have been stored with literal \n sequences
+   * (artifact of the old broken JSON parser) to real newline characters.
+   */
+  private static String normalizeStoredBio(String bio) {
+    if (bio == null) return null;
+    return bio.replace("\\n", "\n");
+  }
+
+  /**
    * Escapes a string for safe inclusion in HTML content or attribute values.
    * Handles the five XML special characters: {@code & < > " '}.
    *
@@ -8420,10 +8430,11 @@ public final class HtmlRenderer {
     // Bio
     sb.append("    <div class=\"form-group\">\n");
     sb.append("      <label for=\"bio\">Bio</label>\n");
+    String normalizedBio = normalizeStoredBio(account.getBio());
     sb.append("      <textarea id=\"bio\" class=\"form-input\" maxlength=\"200\" placeholder=\"Tell others about yourself...\">")
-        .append(escapeHtml(account.getBio())).append("</textarea>\n");
+        .append(escapeHtml(normalizedBio)).append("</textarea>\n");
     sb.append("      <div class=\"hint\"><span id=\"bioCount\">")
-        .append(account.getBio() == null ? "0" : String.valueOf(account.getBio().length()))
+        .append(normalizedBio == null ? "0" : String.valueOf(normalizedBio.length()))
         .append("</span>/200</div>\n");
     sb.append("    </div>\n");
 

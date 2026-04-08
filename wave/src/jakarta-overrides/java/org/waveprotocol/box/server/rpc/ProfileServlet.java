@@ -448,7 +448,7 @@ public final class ProfileServlet extends HttpServlet {
     w.append("{\"address\":").append(jsonStr(h.getId().getAddress()));
     w.append(",\"firstName\":").append(jsonStr(h.getFirstName()));
     w.append(",\"lastName\":").append(jsonStr(h.getLastName()));
-    w.append(",\"bio\":").append(jsonStr(h.getBio()));
+    w.append(",\"bio\":").append(jsonStr(normalizeBio(h.getBio())));
     w.append(",\"imageUrl\":").append(jsonStr(resolveImageUrl(h)));
     if (includeSensitive) {
       w.append(",\"email\":").append(jsonStr(h.getEmail()));
@@ -525,10 +525,46 @@ public final class ProfileServlet extends HttpServlet {
     if (pos >= json.length()) return null;
     char next = json.charAt(pos);
     if (next == '"') {
-      // String value
-      int qEnd = json.indexOf('"', pos + 1);
-      if (qEnd < 0) return null;
-      return json.substring(pos + 1, qEnd);
+      // Parse JSON string with proper escape sequence handling so that
+      // e.g. \n in the JSON body becomes a real newline, not a literal backslash-n.
+      StringBuilder value = new StringBuilder();
+      int i = pos + 1;
+      while (i < json.length()) {
+        char c = json.charAt(i);
+        if (c == '"') break;
+        if (c == '\\' && i + 1 < json.length()) {
+          i++;
+          char esc = json.charAt(i);
+          switch (esc) {
+            case '"':  value.append('"');  break;
+            case '\\': value.append('\\'); break;
+            case '/':  value.append('/');  break;
+            case 'n':  value.append('\n'); break;
+            case 'r':  value.append('\r'); break;
+            case 't':  value.append('\t'); break;
+            case 'b':  value.append('\b'); break;
+            case 'f':  value.append('\f'); break;
+            case 'u':
+              if (i + 4 < json.length()) {
+                String hex = json.substring(i + 1, i + 5);
+                try {
+                  value.append((char) Integer.parseInt(hex, 16));
+                  i += 4;
+                } catch (NumberFormatException ignored) {
+                  value.append(esc);
+                }
+              } else {
+                value.append(esc);
+              }
+              break;
+            default: value.append(esc);
+          }
+        } else {
+          value.append(c);
+        }
+        i++;
+      }
+      return value.toString();
     } else if (next == 't' || next == 'f') {
       // Boolean value
       if (json.startsWith("true", pos)) return "true";
@@ -537,6 +573,15 @@ public final class ProfileServlet extends HttpServlet {
       return null; // null value
     }
     return null;
+  }
+
+  /**
+   * Normalizes a bio that may have been stored with literal \n sequences
+   * (artifact of the old broken JSON parser) to real newline characters.
+   */
+  private static String normalizeBio(String bio) {
+    if (bio == null) return null;
+    return bio.replace("\\n", "\n");
   }
 
   private static void setJsonUtf8(HttpServletResponse resp) {
