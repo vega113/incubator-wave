@@ -34,7 +34,6 @@ import org.waveprotocol.wave.client.editor.selection.content.SelectionHelper;
 import org.waveprotocol.wave.media.model.AttachmentId;
 import org.waveprotocol.wave.media.model.AttachmentIdGenerator;
 import org.waveprotocol.wave.model.document.indexed.LocationMapper;
-import org.waveprotocol.wave.model.document.util.DocHelper;
 import org.waveprotocol.wave.model.document.util.Point;
 import org.waveprotocol.wave.model.document.util.XmlStringBuilder;
 import org.waveprotocol.wave.model.id.WaveId;
@@ -86,19 +85,14 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     }
     SelectionHelper sel = editor.getSelectionHelper();
 
-    // Capture insert position and selection end synchronously — the cursor may move
-    // during async upload.
-    int insertOffset = captureInsertOffset(doc, sel);
-    int selectionEndOffset = captureSelectionEndOffset(doc, sel, insertOffset);
-
-    // Capture the selected text BEFORE deleting it so it can be restored if
-    // the upload fails (data-loss guard).  Delete synchronously to avoid
-    // stale-offset problems if the user edits while the XHR is in-flight.
-    String deletedText = null;
-    if (selectionEndOffset > insertOffset) {
-      deletedText = DocHelper.getText(doc, insertOffset, selectionEndOffset);
-      doc.deleteRange(insertOffset, selectionEndOffset);
-    }
+    // Capture insert position and selection end as live Points.  Live Points
+    // hold ContentNode references that remain valid as the document is edited,
+    // so the positions stay correct even if the user types during the async
+    // XHR.  Crucially, the selection is NOT deleted here: deferring deletion
+    // to onUploadSuccess means no content — plain text or rich — is lost if
+    // the upload fails.
+    final Point<ContentNode> insertPoint = captureInsertPoint(sel, doc);
+    final Point<ContentNode> selectionEndPoint = captureSelectionEndPoint(sel);
 
     AttachmentId attachmentId = idGenerator.newAttachmentId();
     String waveRefToken = URL.encode(
@@ -110,10 +104,9 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     // different blip before the async upload completes.
     final CMutableDocument capturedDoc = doc;
     final String attachmentIdStr = attachmentId.getId();
-    final String capturedDeletedText = deletedText;
     startXhrUpload(nativeEvent, attachmentIdStr, waveRefToken,
-        () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertOffset),
-        () -> onUploadFailure(capturedDoc, insertOffset, capturedDeletedText));
+        () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertPoint, selectionEndPoint),
+        () -> onUploadFailure());
 
     return true; // consumed — suppress text paste
   }
@@ -123,24 +116,37 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   // ---------------------------------------------------------------------------
 
   private void onUploadSuccess(CMutableDocument doc, String attachmentId,
-      int insertOffset) {
+      Point<ContentNode> insertPoint, Point<ContentNode> selectionEndPoint) {
     hideProgressIndicator();
 
     @SuppressWarnings("unchecked")
-    Point<ContentNode> insertPoint =
-        ((LocationMapper<ContentNode>) doc).locate(insertOffset);
+    LocationMapper<ContentNode> mapper = (LocationMapper<ContentNode>) doc;
+
+    // Compute current offsets from the live Points (they may have shifted due
+    // to edits made during the async XHR).
+    int start = mapper.getLocation(insertPoint);
+
+    // Delete selected content now that upload succeeded.  Using live Points
+    // means positions remain valid despite edits made during the XHR.
+    if (selectionEndPoint != null) {
+      int end = mapper.getLocation(selectionEndPoint);
+      if (end > start) {
+        doc.deleteRange(start, end);
+      }
+    }
+
+    // Re-locate after potential deletion so the insertion point is fresh.
+    Point<ContentNode> safeInsertPoint = mapper.locate(start);
 
     XmlStringBuilder xml = ImageThumbnail.constructXmlWithSize(
         attachmentId, ImageThumbnail.DISPLAY_SIZE_MEDIUM, "pasted-image.png");
-    doc.insertXml(insertPoint, xml);
+    doc.insertXml(safeInsertPoint, xml);
   }
 
-  private void onUploadFailure(CMutableDocument doc, int insertOffset, String deletedText) {
+  private void onUploadFailure() {
     hideProgressIndicator();
-    // Restore the text that was synchronously deleted before the upload started.
-    if (deletedText != null && !deletedText.isEmpty()) {
-      doc.insertText(insertOffset, deletedText);
-    }
+    // The selection was never deleted (deletion is deferred to onUploadSuccess),
+    // so no content restoration is needed here.
     showErrorToast("Image upload failed.");
   }
 
@@ -286,33 +292,33 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   // ---------------------------------------------------------------------------
 
   /**
-   * Returns the integer document offset of the start of the current selection,
-   * or the last valid offset in the document if there is no selection.
+   * Returns a live {@link Point} at the start of the current selection, or the
+   * last valid position in the document if there is no selection.  Live Points
+   * hold ContentNode references that remain valid after subsequent document edits.
    */
   @SuppressWarnings("unchecked")
-  private static int captureInsertOffset(CMutableDocument doc, SelectionHelper sel) {
+  private static Point<ContentNode> captureInsertPoint(
+      SelectionHelper sel, CMutableDocument doc) {
     if (sel != null) {
       ContentRange range = sel.getOrderedSelectionPoints();
       if (range != null && range.getFirst() != null) {
-        return ((LocationMapper<ContentNode>) doc).getLocation(range.getFirst());
+        return range.getFirst();
       }
     }
-    return doc.size() - 1;
+    return ((LocationMapper<ContentNode>) doc).locate(doc.size() - 1);
   }
 
   /**
-   * Returns the integer document offset of the end of the current selection,
-   * or {@code insertOffset} if the selection is collapsed (no text to delete).
+   * Returns a live {@link Point} at the end of the current selection, or
+   * {@code null} if the selection is collapsed or absent.
    */
-  @SuppressWarnings("unchecked")
-  private static int captureSelectionEndOffset(CMutableDocument doc,
-      SelectionHelper sel, int insertOffset) {
+  private static Point<ContentNode> captureSelectionEndPoint(SelectionHelper sel) {
     if (sel != null) {
       ContentRange range = sel.getOrderedSelectionPoints();
       if (range != null && !range.isCollapsed() && range.getSecond() != null) {
-        return ((LocationMapper<ContentNode>) doc).getLocation(range.getSecond());
+        return range.getSecond();
       }
     }
-    return insertOffset;
+    return null;
   }
 }
