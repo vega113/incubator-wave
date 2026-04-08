@@ -4981,10 +4981,17 @@ public final class HtmlRenderer {
     sb.append("    });\n");
     sb.append("  });\n");
     // Hash-based tab navigation: /admin#contacts auto-activates contacts tab
+    // Deferred via setTimeout so all tab state (contactState, flagsLoaded, etc.) is initialized first.
+    // Uses dataset comparison instead of querySelector interpolation to avoid CSS selector injection.
     sb.append("  var initialHash = window.location.hash ? window.location.hash.slice(1) : '';\n");
     sb.append("  if (initialHash) {\n");
-    sb.append("    var targetTab = document.querySelector('.admin-tab[data-tab=\"' + initialHash + '\"]');\n");
-    sb.append("    if (targetTab) { targetTab.click(); }\n");
+    sb.append("    setTimeout(function() {\n");
+    sb.append("      var targetTab = null;\n");
+    sb.append("      tabs.forEach(function(tab) {\n");
+    sb.append("        if (!targetTab && tab.dataset.tab === initialHash) { targetTab = tab; }\n");
+    sb.append("      });\n");
+    sb.append("      if (targetTab) { targetTab.click(); }\n");
+    sb.append("    }, 0);\n");
     sb.append("  }\n");
     sb.append("  document.querySelectorAll('.window-pill').forEach(function(pill) {\n");
     sb.append("    pill.addEventListener('click', function() {\n");
