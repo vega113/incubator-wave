@@ -169,7 +169,7 @@ public class BlipOperationServicesTest extends RobotsTestBase {
     String xml = newBlip.getContent().toXmlString();
     assertTrue("Expected Hello in blip content", xml.contains("Hello"));
     assertTrue("Expected World in blip content", xml.contains("World"));
-    assertTrue("Expected <line element for newline break", xml.contains("<line"));
+    assertTrue("Expected <line/> element for newline break", xml.contains("<line"));
     int helloIdx = xml.indexOf("Hello");
     int lineIdx = xml.indexOf("<line", helloIdx);
     int worldIdx = xml.indexOf("World");
@@ -222,6 +222,16 @@ public class BlipOperationServicesTest extends RobotsTestBase {
   public void testBuildMultilineContent_emptyString() {
     XmlStringBuilder result = BlipOperationServices.buildMultilineContent("");
     assertEquals("", result.getXmlString());
+  }
+
+  public void testBuildMultilineContent_crlfNormalization() {
+    XmlStringBuilder result = BlipOperationServices.buildMultilineContent("Hello\r\nWorld\rFoo");
+    String xml = result.getXmlString();
+    assertTrue("Expected Hello in output", xml.contains("Hello"));
+    assertTrue("Expected World in output", xml.contains("World"));
+    assertTrue("Expected Foo in output", xml.contains("Foo"));
+    assertTrue("Expected <line/> elements for CRLF and CR breaks", xml.contains("<line"));
+    assertFalse("Expected no stray \\r characters after normalization", xml.contains("\r"));
   }
 
   public void testAppendBadMarkup() throws Exception {
