@@ -46,7 +46,7 @@
 
 Run:
 ```bash
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim status --short --branch
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim status --short --branch
 ```
 
 Expected: clean branch `issue-584-agents-slim`.
@@ -69,8 +69,8 @@ Update this file by checking off Task 1 once inventory is complete.
 
 Run:
 ```bash
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add docs/superpowers/plans/2026-04-08-harness-phase-0c-agents-slim-plan.md
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(plan): add issue #584 file-by-file implementation plan"
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add docs/superpowers/plans/2026-04-08-harness-phase-0c-agents-slim-plan.md
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(plan): add issue #584 file-by-file implementation plan"
 ```
 
 Expected: plan tracked for review context.
@@ -130,8 +130,8 @@ Target: `70-110` lines after slim-down.
 
 Run:
 ```bash
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add AGENTS.md
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(agents): slim AGENTS to navigation plus high-signal rules"
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add AGENTS.md
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(agents): slim AGENTS to navigation plus high-signal rules"
 ```
 
 ---
@@ -168,8 +168,8 @@ rg -n "Codex|Model|MCP|Tool|Routing|Review" \
 
 Run:
 ```bash
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add docs/agents/tool-usage.md
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(agents): centralize codex tool and model routing guidance"
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add docs/agents/tool-usage.md
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(agents): centralize codex tool and model routing guidance"
 ```
 
 ---
@@ -208,8 +208,8 @@ rg -n "AGENTS\.md|tool-usage\.md|orchestration-plan|github-issues\.md" \
 
 Run:
 ```bash
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add docs/agents/README.md docs/README.md
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(map): align docs maps with AGENTS and codex tool-usage split"
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim add docs/agents/README.md docs/README.md
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim commit -m "docs(map): align docs maps with AGENTS and codex tool-usage split"
 ```
 
 ---
@@ -223,8 +223,8 @@ Run:
 
 Run:
 ```bash
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim diff --check
-/opt/homebrew/bin/git -C /Users/vega/devroot/worktrees/issue-584-agents-slim status --short --branch
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim diff --check
+git -C /Users/vega/devroot/worktrees/issue-584-agents-slim status --short --branch
 ```
 
 Expected: no whitespace errors; clean staged/committed state before PR.

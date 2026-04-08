@@ -67,6 +67,6 @@ For detailed role behavior and sequencing, follow:
 Use `docs/github-issues.md` as the canonical evidence format and workflow reference.
 
 ## Changelog And Code Rules
-- Any PR changing user-facing behavior must update `wave/config/changelog.json`.
-- Validate changelog with `scripts/validate-changelog.py` before merge/deploy.
+- Any PR changing user-facing behavior must add a new changelog fragment under `wave/config/changelog.d/`; do not hand-edit generated `wave/config/changelog.json`.
+- Run the changelog assemble/validate workflow so `wave/config/changelog.json` is regenerated, and validate with `scripts/validate-changelog.py` before merge/deploy.
 - Follow `CODE_GUIDELINES.md` for repo-wide style and contribution rules.
