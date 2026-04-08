@@ -7869,22 +7869,6 @@ public final class HtmlRenderer {
   // =========================================================================
 
   /**
-   * Normalizes a bio that may have been stored with literal \n sequences
-   * (artifact of the old broken JSON parser) to real newline characters.
-   *
-   * <p>Only normalizes when the value looks like legacy broken data: it contains
-   * literal "\n" sequences, has no real newline characters already, and does not
-   * contain double-backslash sequences that would be partially mangled.
-   */
-  private static String normalizeStoredBio(String bio) {
-    if (bio == null) return null;
-    if (bio.indexOf('\n') != -1 || bio.indexOf('\r') != -1) return bio;  // already has real line breaks
-    if (bio.indexOf("\\n") == -1 && bio.indexOf("\\r") == -1) return bio;  // no escaped line breaks
-    if (bio.indexOf("\\\\n") != -1 || bio.indexOf("\\\\r") != -1) return bio;  // ambiguous: skip
-    return bio.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\r", "\n");
-  }
-
-  /**
    * Escapes a string for safe inclusion in HTML content or attribute values.
    * Handles the five XML special characters: {@code & < > " '}.
    *
@@ -8437,11 +8421,11 @@ public final class HtmlRenderer {
     // Bio
     sb.append("    <div class=\"form-group\">\n");
     sb.append("      <label for=\"bio\">Bio</label>\n");
-    String normalizedBio = normalizeStoredBio(account.getBio());
+    String bio = account.getBio();
     sb.append("      <textarea id=\"bio\" class=\"form-input\" maxlength=\"200\" placeholder=\"Tell others about yourself...\">")
-        .append(escapeHtml(normalizedBio)).append("</textarea>\n");
+        .append(escapeHtml(bio)).append("</textarea>\n");
     sb.append("      <div class=\"hint\"><span id=\"bioCount\">")
-        .append(normalizedBio == null ? "0" : String.valueOf(normalizedBio.length()))
+        .append(bio == null ? "0" : String.valueOf(bio.length()))
         .append("</span>/200</div>\n");
     sb.append("    </div>\n");
 
