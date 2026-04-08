@@ -86,10 +86,16 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     SelectionHelper sel = editor.getSelectionHelper();
 
     // Capture insert position and selection end synchronously — the cursor may move
-    // during async upload. selectionEndOffset > insertOffset means a non-collapsed
-    // selection whose text must be deleted before the image is inserted.
+    // during async upload.
     int insertOffset = captureInsertOffset(doc, sel);
     int selectionEndOffset = captureSelectionEndOffset(doc, sel, insertOffset);
+
+    // Delete the selected text synchronously before starting the async upload.
+    // Deleting after upload completion would apply stale offsets if the user
+    // edits the document while the XHR is in-flight, risking data-loss.
+    if (selectionEndOffset > insertOffset) {
+      doc.deleteRange(insertOffset, selectionEndOffset);
+    }
 
     AttachmentId attachmentId = idGenerator.newAttachmentId();
     String waveRefToken = URL.encode(
@@ -102,7 +108,7 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     final CMutableDocument capturedDoc = doc;
     final String attachmentIdStr = attachmentId.getId();
     startXhrUpload(nativeEvent, attachmentIdStr, waveRefToken,
-        () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertOffset, selectionEndOffset),
+        () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertOffset),
         () -> onUploadFailure());
 
     return true; // consumed — suppress text paste
@@ -113,13 +119,8 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   // ---------------------------------------------------------------------------
 
   private void onUploadSuccess(CMutableDocument doc, String attachmentId,
-      int insertOffset, int selectionEndOffset) {
+      int insertOffset) {
     hideProgressIndicator();
-
-    // Delete selected text before inserting the image, mirroring normal paste semantics.
-    if (selectionEndOffset > insertOffset) {
-      doc.deleteRange(insertOffset, selectionEndOffset);
-    }
 
     @SuppressWarnings("unchecked")
     Point<ContentNode> insertPoint =
