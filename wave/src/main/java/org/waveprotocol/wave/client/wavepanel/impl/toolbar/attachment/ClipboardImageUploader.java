@@ -123,8 +123,17 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     LocationMapper<ContentNode> mapper = (LocationMapper<ContentNode>) doc;
 
     // Compute current offsets from the live Points (they may have shifted due
-    // to edits made during the async XHR).
-    int start = mapper.getLocation(insertPoint);
+    // to edits made during the async XHR).  If the paste anchor was removed
+    // from the document while the upload was in flight (e.g., the user deleted
+    // the blip), getLocation will throw.  In that case, the image was uploaded
+    // server-side but cannot be inserted client-side.
+    int start;
+    try {
+      start = mapper.getLocation(insertPoint);
+    } catch (RuntimeException e) {
+      showErrorToast("Image uploaded but could not be inserted.");
+      return;
+    }
 
     // Delete selected content now that upload succeeded.  Using live Points
     // means positions remain valid despite edits made during the XHR.
