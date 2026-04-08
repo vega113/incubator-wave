@@ -172,6 +172,9 @@ public interface DocumentHitIterator {
 
     @Override
     public void shift(int where, int delta) {
+      if (index != -1 && where <= index) {
+        index += delta;
+      }
     }
   }
 }
