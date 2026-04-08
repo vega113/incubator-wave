@@ -1025,7 +1025,7 @@ public final class SearchPresenter
         // returned different results or empty set). Skip rebuild when the
         // count matches to avoid tearing down and re-creating DOM elements
         // on every polling refresh, which causes visible flicker.
-        if (digestUis.size() != search.getMinimumTotal()) {
+        if (digestUis.countEntries() != search.getMinimumTotal()) {
           renderDigests();
         }
         renderWaveCount();
