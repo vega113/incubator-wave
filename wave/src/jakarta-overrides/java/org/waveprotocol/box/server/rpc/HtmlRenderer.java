@@ -3514,6 +3514,17 @@ public final class HtmlRenderer {
    * @param contextPath servlet context path, typically "" for root deployments
    */
   public static String renderSharedTopBarJs(String contextPath) {
+    return renderSharedTopBarJs(contextPath, null);
+  }
+
+  /**
+   * Returns a script block for the shared topbar. If userRole is "admin" or "owner",
+   * also includes the admin contact notification polling script.
+   *
+   * @param contextPath servlet context path, typically "" for root deployments
+   * @param userRole    the user's role; null or "user" omits admin polling
+   */
+  public static String renderSharedTopBarJs(String contextPath, String userRole) {
     StringBuilder sb = new StringBuilder(1024);
     sb.append("<script>\n(function(){\n");
     sb.append("var _ctx=").append(escapeJsonString(contextPath == null ? "" : contextPath)).append(";\n");
@@ -3547,6 +3558,38 @@ public final class HtmlRenderer {
     sb.append("fetch(_ctx+'/locale',{method:'POST',body:fd}).catch(function(){});\n");
     sb.append("if(lc)lc.textContent=ls.value.toUpperCase();});}\n");
     sb.append("})();\n</script>\n");
+    // Admin contact notification polling (admin/owner only)
+    if ("owner".equals(userRole) || "admin".equals(userRole)) {
+      String ctx = escapeJsonString(contextPath == null ? "" : contextPath);
+      sb.append("<script>\n(function(){\n");
+      sb.append("var _c=").append(ctx).append(";\n");
+      sb.append("var btn=document.getElementById('adminMsgBtn');\n");
+      sb.append("var badge=document.getElementById('adminMsgBadge');\n");
+      sb.append("if(!btn||!badge){return;}\n");
+      sb.append("function pollAdmin(){\n");
+      sb.append("  fetch(_c+'/admin/api/contacts?status=new&limit=0')\n");
+      sb.append("    .then(function(r){return r.json();})\n");
+      sb.append("    .then(function(d){\n");
+      sb.append("      var n=d.total||0;\n");
+      sb.append("      if(n>0){\n");
+      sb.append("        badge.textContent=n;\n");
+      sb.append("        badge.classList.remove('hidden');\n");
+      sb.append("        btn.classList.add('has-unread');\n");
+      sb.append("        var label=n+' unread contact message'+(n===1?'':'s');\n");
+      sb.append("        btn.title=label;\n");
+      sb.append("        btn.setAttribute('aria-label',label);\n");
+      sb.append("      }else{\n");
+      sb.append("        badge.classList.add('hidden');\n");
+      sb.append("        btn.classList.remove('has-unread');\n");
+      sb.append("        btn.title='Contact messages';\n");
+      sb.append("        btn.setAttribute('aria-label','Contact messages');\n");
+      sb.append("      }\n");
+      sb.append("    }).catch(function(){});\n");
+      sb.append("}\n");
+      sb.append("pollAdmin();\n");
+      sb.append("setInterval(pollAdmin,30000);\n");
+      sb.append("})();\n</script>\n");
+    }
     return sb.toString();
   }
 
@@ -5762,7 +5805,7 @@ public final class HtmlRenderer {
 
     sb.append("})();\n");
     sb.append("</script>\n");
-    sb.append(renderSharedTopBarJs(contextPath));
+    sb.append(renderSharedTopBarJs(contextPath, callerRole));
     sb.append("</body>\n</html>\n");
     return sb.toString();
   }
@@ -8269,7 +8312,7 @@ public final class HtmlRenderer {
 
     sb.append("})();\n");
     sb.append("</script>\n");
-    sb.append(renderSharedTopBarJs(contextPath));
+    sb.append(renderSharedTopBarJs(contextPath, account.getRole()));
 
     sb.append("</body>\n</html>\n");
     return sb.toString();
@@ -8584,7 +8627,7 @@ public final class HtmlRenderer {
 
     sb.append("})();\n");
     sb.append("</script>\n");
-    sb.append(renderSharedTopBarJs(contextPath));
+    sb.append(renderSharedTopBarJs(contextPath, account.getRole()));
 
     sb.append("</body>\n</html>\n");
     return sb.toString();

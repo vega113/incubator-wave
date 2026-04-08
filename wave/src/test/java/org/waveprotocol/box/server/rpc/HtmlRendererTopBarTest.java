@@ -118,4 +118,33 @@ public final class HtmlRendererTopBarTest extends TestCase {
 
     assertTrue(html.contains("id=\"adminMsgBtn\""));
   }
+
+  public void testRenderSharedTopBarJsAdminIncludesPolling() {
+    String js = HtmlRenderer.renderSharedTopBarJs("/wave", "admin");
+
+    assertTrue(js.contains("adminMsgBtn"));
+    assertTrue(js.contains("/admin/api/contacts?status=new&limit=0"));
+    assertTrue(js.contains("setInterval"));
+  }
+
+  public void testRenderSharedTopBarJsOwnerIncludesPolling() {
+    String js = HtmlRenderer.renderSharedTopBarJs("", "owner");
+
+    assertTrue(js.contains("adminMsgBtn"));
+    assertTrue(js.contains("/admin/api/contacts?status=new&limit=0"));
+  }
+
+  public void testRenderSharedTopBarJsUserNoPolling() {
+    String js = HtmlRenderer.renderSharedTopBarJs("", "user");
+
+    assertFalse(js.contains("adminMsgBtn"));
+    assertFalse(js.contains("/admin/api/contacts"));
+  }
+
+  public void testRenderSharedTopBarJsOneArgNoPolling() {
+    // One-arg overload should not include admin polling
+    String js = HtmlRenderer.renderSharedTopBarJs("/wave");
+
+    assertFalse(js.contains("adminMsgBtn"));
+  }
 }
