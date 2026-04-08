@@ -82,7 +82,7 @@ private static Element createSvgIcon(String svgHtml) {
 
 Icons:
 - **Recent**: rotate-ccw (`<polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-3.51"></path>`)
-- **Next Unread**: alert-circle (`<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><circle cx="12" cy="16" r="1" fill="currentColor"></circle>`)
+- **Next Unread**: bell (`<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 01-3.46 0"></path>`)
 - **Previous**: chevron-up
 - **Next**: chevron-down
 - **Last**: chevrons-down

@@ -42,7 +42,7 @@ String nextUnread();
 - [ ] **Step 2: Compile to verify**
 
 ```bash
-cd /Users/vega/devroot/worktrees/fix-wave-toolbar-icons
+cd <repo-root>
 sbt "project wave" "compile"
 ```
 Expected: `[success]`
