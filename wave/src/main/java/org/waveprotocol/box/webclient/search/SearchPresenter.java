@@ -1025,7 +1025,13 @@ public final class SearchPresenter
         // returned different results or empty set). Skip rebuild when the
         // count matches to avoid tearing down and re-creating DOM elements
         // on every polling refresh, which causes visible flicker.
-        if (digestUis.countEntries() != search.getMinimumTotal()) {
+        // Compare against the page window (min of querySize and total) rather
+        // than getMinimumTotal() directly: the backing list may be pre-sized
+        // to the full server-reported total (e.g. 100) while only querySize
+        // (e.g. 25) results are rendered, which would otherwise cause a false
+        // mismatch and trigger renderDigests() on every polling refresh.
+        int expectedDigestCount = Math.min(querySize, search.getMinimumTotal());
+        if (digestUis.countEntries() != expectedDigestCount) {
           renderDigests();
         }
         renderWaveCount();
