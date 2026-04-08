@@ -103,6 +103,9 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     /** Assigned at upload time via listener.requestNewAttachmentId(). */
     AttachmentId attachmentId;
 
+    /** True once the file has been successfully uploaded and inserted into the wave. */
+    boolean completed = false;
+
     /** The card panel shown in the preview grid. */
     final HTMLPanel card;
 
@@ -138,6 +141,13 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
 
     void showError() {
       card.addStyleName("upload-card-error");
+    }
+
+    void markCompleted() {
+      completed = true;
+      setProgressWidth(100);
+      card.addStyleName("upload-card-done");
+      setCardControlsEnabled(this, false);
     }
   }
 
@@ -178,6 +188,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     "box-shadow:0 1px 4px rgba(74,144,217,.15);transition:box-shadow .2s;}" +
     ".upload-card:hover{box-shadow:0 2px 8px rgba(74,144,217,.3);}" +
     ".upload-card-error{border-color:#d93025 !important;background:#fff8f8;}" +
+    ".upload-card-done{border-color:#2e7d32 !important;opacity:0.75;}" +
     // Remove button
     ".upload-card-remove{position:absolute;top:4px;right:4px;width:20px;height:20px;" +
     "border-radius:50%;border:none;background:#f0f4f8;color:#5a7fa8;cursor:pointer;" +
@@ -488,7 +499,10 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
   }
 
   private void updateUploadButton() {
-    int n = pendingFiles.size();
+    int n = 0;
+    for (FileEntry fe : pendingFiles) {
+      if (!fe.completed) n++;
+    }
     if (n == 0) {
       uploadBtn.setText("Upload");
       uploadBtn.setEnabled(false);
@@ -527,7 +541,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       sizeBtnLarge.setEnabled(true);
       compressToggleBtn.setEnabled(true);
       for (FileEntry fe : pendingFiles) {
-        setCardControlsEnabled(fe, true);
+        if (!fe.completed) setCardControlsEnabled(fe, true);
       }
       if (batchFailed) {
         showStatus("Some uploads failed. Please close and try again, or remove failed files.", true);
@@ -540,6 +554,11 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       return;
     }
     FileEntry entry = pendingFiles.get(index);
+    // Skip already-completed entries (successfully uploaded in a previous run).
+    if (entry.completed) {
+      uploadNext(index + 1);
+      return;
+    }
     entry.attachmentId = listener.requestNewAttachmentId();
     entry.setProgressWidth(0);
 
@@ -592,14 +611,14 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       cancelBtn.setEnabled(true);
       addMoreBtn.setEnabled(true);
       for (FileEntry fe : pendingFiles) {
-        setCardControlsEnabled(fe, true);
+        if (!fe.completed) setCardControlsEnabled(fe, true);
       }
       uploadNext(0);
       return;
     }
 
     if (success) {
-      entry.setProgressWidth(100);
+      entry.markCompleted();
       String caption = entry.captionInput.getText().trim();
       if (caption.isEmpty()) caption = entry.fileName;
       listener.onDoneWithSizeAndCaption(waveRefStr, entry.attachmentId.getId(),
