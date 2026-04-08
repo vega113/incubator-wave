@@ -1,173 +1,72 @@
 # AGENTS.md — Repo Entry Point for Incubator Wave
 
-This is the top-level repo guidance entrypoint for `incubator-wave`. Read this
-first, then open:
+This is the top-level operator entrypoint for `incubator-wave`.
 
-- `docs/github-issues.md` for the live GitHub Issues workflow and historical
-  Beads archive policy.
-- `docs/agents/tool-usage.md` for Codex tool routing, model tiers, and MCP guidance.
-- `docs/superpowers/plans/2026-03-18-agent-orchestration-plan.md` for the detailed
-  multi-agent execution flow.
-
-This repository uses a delegation-first operating model. The main Codex thread
-acts as team lead: it coordinates, routes work, and verifies outcomes.
-Planning, implementation, and review should move to dedicated agents working in
-isolated git worktrees.
+Read in this order:
+- `docs/github-issues.md` for the live issue workflow and Beads archive policy.
+- `docs/agents/tool-usage.md` for Codex-specific model/tool/MCP routing.
+- `docs/superpowers/plans/2026-03-18-agent-orchestration-plan.md` for the detailed multi-agent execution flow.
 
 ## Operating Model
-- Keep the main thread focused on intake, routing, integration, and final
-  verification.
-- Route substantive investigation, planning, implementation, and review to the
-  appropriate agent type instead of doing the work directly in the lead thread.
-- Use GitHub Issues as the live task tracker for new implementation work.
-- Treat `.beads/` as a historical archive only. Do not create or update Beads
-  tasks or comments for new work.
-- Follow [docs/superpowers/plans/2026-03-18-agent-orchestration-plan.md](docs/superpowers/plans/2026-03-18-agent-orchestration-plan.md)
-  as the canonical detailed execution model for multi-agent task delivery.
-- When that orchestration plan applies, follow it directly and do not invent
-  an alternative workflow in the middle of task execution.
-- Favor tool use over guesswork. Keep calls minimal, scoped, and purposeful.
+- Keep the main thread focused on intake, routing, integration, and final verification.
+- Route substantive planning, implementation, and review work to dedicated lanes in isolated worktrees.
+- Use GitHub Issues as the live tracker for new work.
+- Treat `.beads/` as archive-only for historical context.
+- If this file and the orchestration plan disagree, the orchestration plan is authoritative.
 
 ## Session Memory
-- At the start of every session, read `MEMORY.md` (the index) from the Claude
-  project memory directory (`.claude/projects/` under the repo or user config
-  root).
-- After reading the index, read only the memory files that are relevant to the
-  current task.
-- Memory contains workflow rules, coding patterns, model selection, drill
-  procedure, and project-specific lessons.
-- This memory persists across sessions, so check it before starting work.
+- At session start, read `MEMORY.md` from `.claude/projects/` for this repo.
+- Read only the memory files relevant to the current task.
+- Treat memory as persistent workflow/architecture guidance across sessions.
 
 ## Jakarta Dual-Source Rule
-- The codebase keeps runtime-active Jakarta replacements under
-  `wave/src/jakarta-overrides/java/` while the legacy source remains under
-  `wave/src/main/java/`.
-- When a matching override exists, edit the Jakarta override copy. The override
-  version is what runs, so changes made only in `wave/src/main/java/` will not
-  take effect.
+- Runtime-active Jakarta replacements live under `wave/src/jakarta-overrides/java/`.
+- Legacy source remains under `wave/src/main/java/`.
+- If an override exists, edit the override copy; main-tree-only edits will not change runtime behavior.
 
-## Agent Roles
+## Role Summary
+- Lead: intake, routing, synthesis, and final checks.
+- Planner: create/verify issue-level plan and acceptance slices.
+- Architect: investigate constraints and produce complex implementation plans.
+- Worker: implement assigned slice in dedicated worktree.
+- Reviewer: review implementation and produce actionable findings.
 
-### Lead
-- Acts as team lead and dispatcher.
-- Converts the user request into the right agent flow, then waits for agent
-  output instead of doing the work itself.
-- Uses the lead thread only for coordination, synthesis, and final checks.
+For detailed role behavior and sequencing, follow:
+`docs/superpowers/plans/2026-03-18-agent-orchestration-plan.md`.
 
-### Planner
-- Receives requirements and turns them into GitHub Issues and implementation
-  slices.
-- Breaks the work into independently executable pieces with clear acceptance
-  criteria.
-- If the task is complex enough to need a real implementation plan, the
-  planner spawns an architect agent first.
-- If a task does not already have an adequate plan in the linked GitHub Issue
-  or the repo docs, the planner must enter plan mode, write the plan, run a
-  Claude review (`claude-review`) on that plan, address the comments, and only
-  then hand the task off for implementation.
+## Worktree And Branch Guardrails
+- Every agent that edits code/docs must work in its own git worktree.
+- Prefer multiple independent worktrees/lanes over single-threaded execution when the task can be safely parallelized.
+- Do not implement from `/Users/vega/devroot/incubator-wave`.
+- Use `/Users/vega/devroot/worktrees/<branch-name>` for worktree paths.
+- Never create worktrees under `.claude/worktrees/`.
+- Launch tmux lanes from the worktree directory, not from the main repo tree.
+- Do not run `git checkout` or `git switch` inside the main repo during lane execution; it flips shared HEAD for open sessions.
+- Do not mix lane edits in the main working tree.
 
-### Architect
-- Investigates the codebase, docs, and constraints for complex tasks.
-- Produces the implementation plan, risk list, and sequencing strategy.
-- Must run a Claude review (`claude-review`) on the plan before concluding,
-  then address the review comments and update the plan as needed.
-- See `docs/agents/tool-usage.md` for Codex model routing.
+## Task Lifecycle
+- Ensure the linked issue has an adequate plan before implementation.
+- If no adequate plan exists, switch to plan mode, write plan, run Claude review, then implement.
+- Keep issue comments current during execution, not only at the end.
+- After implementation, run reviewer flow, address findings, then prepare PR.
 
-### Worker
-- Implements the assigned GitHub Issue slice in a dedicated git worktree.
-- Keeps the change set narrow and reports the files changed plus verification
-  performed.
-- If the task can be split safely, the worker should spawn additional
-  subagents for independent implementation slices.
-- See `docs/agents/tool-usage.md` for Codex model routing.
-
-### Reviewer
-- Reviews worker output in a separate git worktree.
-- Reviews the implementation directly and also runs a Claude review
-  (`claude-review`) on the same change set.
-- Produces one unified review that combines both perspectives and lists the
-  final actionable findings.
-
-## Git Worktrees And PRs
-- Every agent that edits code or docs must work in its own git worktree.
-- Prefer multiple worktrees with multiple agents over single-threaded work in
-  the main tree whenever the task can be parallelized safely.
-- When a new worktree needs access to the existing file-based persistence
-  state, use the Codex skill `incubator-wave-worktree-file-store`.
-- That skill should run `scripts/worktree-file-store.sh --source $HOME/devroot/incubator-wave`
-  from the target worktree before testing.
-- Prefer the script's default `symlink` mode so worktrees reuse the same
-  `_accounts`, `_attachments`, and `_deltas` state. Use `--mode copy` only
-  when isolated persistence state is explicitly needed.
-- Do not mix agent edits in the main working tree.
-- Use `/Users/vega/devroot/worktrees` as the shared root for local worktrees.
-- **CRITICAL — tmux lanes must always be launched FROM the worktree directory, never from
-  `/Users/vega/devroot/incubator-wave` or any subdirectory (e.g. `war/static`).** Any
-  `git checkout` or `git switch` run inside the main repo changes the shared HEAD and flips
-  the branch for every open Claude Code session. The canonical launch sequence is:
-  ```bash
-  git worktree add /Users/vega/devroot/worktrees/<branch-name> -b <branch-name>
-  # then launch claude from that directory:
-  tmux send-keys -t "<session>:<window>.<pane>" \
-    "cd /Users/vega/devroot/worktrees/<branch-name> && claude --model <model> --dangerously-skip-permissions < /tmp/lane-prompt.txt" Enter
-  ```
-- **NEVER** create worktrees under `.claude/worktrees/` inside the main repo tree. Always
-  use `/Users/vega/devroot/worktrees/<branch-name>` as the target path for `git worktree add`.
-- Before opening a PR for app-affecting changes, run a local server sanity
-  verification appropriate to the area changed and record the exact command
-  plus result in the linked GitHub Issue.
-- Keep that check narrow and relevant: boot the app and hit a local health or
-  auth endpoint for server/runtime changes, or exercise the affected UI against
-  the local server for client changes.
-- Before merge, clear review conversations by actually addressing them.
-- Do not resolve review threads just to bypass monitoring or branch protection.
-- When implementation is complete and review is resolved, create a pull request
-  from the reviewed worktree.
-- Keep GitHub Issues, commits, and PRs aligned so the task status is always
-  traceable.
-
-## Task Workflow
-- Any agent working on a GitHub Issue slice must first ensure there is a
-  current plan for that issue.
-- If no adequate plan exists, the agent must switch to plan mode, create the
-  plan, run a Claude review (`claude-review`) on the plan, address the review
-  comments, then switch back to work mode and implement.
-- For the full orchestration sequence, branch/worktree rules, issue comment
-  template, and PR flow, follow
-  [docs/superpowers/plans/2026-03-18-agent-orchestration-plan.md](docs/superpowers/plans/2026-03-18-agent-orchestration-plan.md).
-- If any short-form rule in `AGENTS.md` is ambiguous, the orchestration plan is
-  the authoritative source for task execution behavior.
-- After implementation, review the code, run the reviewer flow, address review
-  comments, and only then prepare the pull request.
+## PR Readiness Rules
+- Before PR for app-affecting changes, run a narrow local sanity verification relevant to changed area.
+- Record exact verification command and result in the linked GitHub Issue.
+- Address review conversations; do not resolve threads just to bypass monitoring or branch protection.
+- Keep issue, commits, and PR traceability aligned.
 
 ## GitHub Issue Updates
-- Update the linked GitHub Issue with comments throughout execution, not only
-  at the end.
-- Include every commit SHA created for the task and a short summary of what
-  each commit does.
-- Capture review feedback from code review or Claude review, plus the follow-up
-  comment that explains how each important finding was addressed.
-- Before opening a pull request, the issue comments should reflect the final
-  implementation summary, the review outcome, and the commit list that landed
-  the work.
-- Use `docs/github-issues.md` for the default label/filter conventions and the
-  evidence-recording workflow.
+- Record worktree path and branch.
+- Record plan path used for implementation.
+- Record commit SHAs with one-line summaries.
+- Record verification commands and outcomes.
+- Record review findings plus follow-up resolution notes.
+- Record PR number/URL.
 
-## Changelog Guidelines
-- Every PR that changes user-facing behavior MUST update
-  `wave/config/changelog.json` before merging.
-- Add a new entry at the top of the array with `version`, `date`
-  (`YYYY-MM-DD`), `title`, `summary`, and `sections` (`feature` / `fix`).
-- Keep entries concise: a 1-2 sentence summary and short bullet-style change
-  lists.
-- Treat `scripts/validate-changelog.py` as mandatory before merge or deploy,
-  and run it against `wave/config/changelog.json`, the single source of truth,
-  before landing user-facing changes.
+Use `docs/github-issues.md` as the canonical evidence format and workflow reference.
 
-## Code Guidelines
-- Follow [CODE_GUIDELINES.md](CODE_GUIDELINES.md) for repo-wide code style and
-  contribution rules.
-- Repo-specific addenda: avoid one-line code blocks inside bracketed lists,
-  prefer extracting behavior into named functions instead of adding
-  explanatory comments in code, and avoid mutable variables or mid-function
-  returns when practical.
+## Changelog And Code Rules
+- Any PR changing user-facing behavior must update `wave/config/changelog.json`.
+- Validate changelog with `scripts/validate-changelog.py` before merge/deploy.
+- Follow `CODE_GUIDELINES.md` for repo-wide style and contribution rules.
