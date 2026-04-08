@@ -345,11 +345,23 @@ public class DocumentModifyService implements OperationService {
     while (range != null) {
       int replaceAt = range.getStart();
 
+      // For IMAGE elements, insertInto shifts position 0 to 1 to preserve the
+      // initial document newline. Track the effective insert start so the
+      // delete range begins after the inserted element, not on top of it.
+      int effectiveInsertAt = replaceAt;
+      if (!modifyAction.hasTextAt(valueIndex)) {
+        Element insertedElement = modifyAction.getElement(valueIndex);
+        if (insertedElement != null && insertedElement.getType() == ElementType.IMAGE
+            && replaceAt == 0) {
+          effectiveInsertAt = 1;
+        }
+      }
+
       int numInserted = insertInto(operation, doc, view, replaceAt, modifyAction, valueIndex);
 
       // Remove the text after what was inserted (so it looks like it has been
       // replaced).
-      view.delete(replaceAt + numInserted, range.getEnd() + numInserted);
+      view.delete(effectiveInsertAt + numInserted, range.getEnd() + numInserted);
 
       // Shift the iterator from the start of the replacement with the amount of
       // characters that have been added.

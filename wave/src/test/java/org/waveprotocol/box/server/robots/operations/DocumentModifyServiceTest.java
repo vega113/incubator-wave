@@ -173,6 +173,30 @@ public class DocumentModifyServiceTest extends RobotsTestBase {
     assertEquals(0, countOccurrences(getRootBlip().getContent().toXmlString(), "<image "));
   }
 
+  public void testReplaceAtZeroWithImagePreservesImage() throws Exception {
+    Image image = new Image(ATTACHMENT_ID, CAPTION);
+    OperationRequest operation =
+        operationRequest(
+            OperationType.DOCUMENT_MODIFY,
+            getRootBlipId(),
+            Parameter.of(
+                ParamsProperty.MODIFY_ACTION,
+                new DocumentModifyAction(
+                    ModifyHow.REPLACE,
+                    Collections.singletonList((String) null),
+                    null,
+                    Collections.singletonList((Element) image),
+                    null,
+                    false)));
+
+    service.execute(operation, helper.getContext(), ALEX);
+
+    String xml = getRootBlip().getContent().toXmlString();
+    assertTrue("IMAGE must survive a REPLACE whose range starts at 0", xml.contains("<image "));
+    assertTrue(xml.contains("attachment=\"" + ATTACHMENT_ID + "\""));
+    assertTrue(xml.indexOf("<line") < xml.indexOf("<image "));
+  }
+
   private void executeInsert(Element element) throws Exception {
     executeInsertAt(1, element);
   }
