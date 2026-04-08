@@ -249,6 +249,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
 
   // ---- UiBinder fields ----
   @UiField HTMLPanel dropZone;
+  @UiField HTMLPanel waveSeparator;
   @UiField FileUpload fileUpload;
   @UiField Button addMoreBtn;
   @UiField Button uploadBtn;
@@ -279,6 +280,14 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     initWidget(BINDER.createAndBindUi(this));
     form.setEncoding(FormPanel.ENCODING_MULTIPART);
     form.setMethod(FormPanel.METHOD_POST);
+
+    // Inject SVG wave separator (SVG xmlns can't be in UiBinder XML directly)
+    waveSeparator.getElement().setInnerHTML(
+        "<svg viewBox='0 0 400 20' preserveAspectRatio='none' " +
+        "xmlns='http://www.w3.org/2000/svg'>" +
+        "<path d='M0,10 C50,0 100,20 150,10 C200,0 250,20 300,10 C350,0 400,20 400,10' " +
+        "fill='none' stroke='#4a90d9' stroke-width='2' stroke-opacity='0.4'/>" +
+        "</svg>");
 
     setMultipleAttribute(fileUpload.getElement());
 

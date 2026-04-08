@@ -40,13 +40,8 @@
       <g:Button ui:field="addMoreBtn" styleName="upload-add-more-btn">+ Add More Files</g:Button>
     </g:HTMLPanel>
 
-    <!-- Wave separator (SVG) -->
-    <div class="upload-wave-separator">
-      <svg viewBox="0 0 400 20" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M0,10 C50,0 100,20 150,10 C200,0 250,20 300,10 C350,0 400,20 400,10"
-              fill="none" stroke="#4a90d9" stroke-width="2" stroke-opacity="0.4"/>
-      </svg>
-    </div>
+    <!-- Wave separator (SVG injected programmatically in Java to avoid xmlns issues) -->
+    <g:HTMLPanel ui:field="waveSeparator" styleName="upload-wave-separator"/>
 
     <!-- Hidden form (kept for GWT compilation; actual upload uses XHR) -->
     <g:FormPanel ui:field="form">
