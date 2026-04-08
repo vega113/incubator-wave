@@ -395,7 +395,7 @@ public class BlipOperationServices implements OperationService {
     if (content.length() > 0 && content.charAt(0) == '\n') {
       // While the client libraries force a newline to be sent as the first
       // character we'll remove it here since the new blip we created already
-      // contains a newline.
+      // contains a newline. Handle both CRLF and LF prefixes.
       content = content.substring(1);
     }
     XmlStringBuilder builder = buildMultilineContent(content);
