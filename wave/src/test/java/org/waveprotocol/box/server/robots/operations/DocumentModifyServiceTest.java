@@ -20,6 +20,7 @@
 package org.waveprotocol.box.server.robots.operations;
 
 import com.google.wave.api.Element;
+import com.google.wave.api.ElementType;
 import com.google.wave.api.Gadget;
 import com.google.wave.api.Image;
 import com.google.wave.api.InvalidRequestException;
@@ -27,14 +28,17 @@ import com.google.wave.api.JsonRpcConstant.ParamsProperty;
 import com.google.wave.api.OperationRequest;
 import com.google.wave.api.OperationRequest.Parameter;
 import com.google.wave.api.OperationType;
+import com.google.wave.api.data.ElementSerializer;
 import com.google.wave.api.impl.DocumentModifyAction;
 import com.google.wave.api.impl.DocumentModifyAction.ModifyHow;
+import com.google.wave.api.impl.DocumentModifyQuery;
 
 import org.waveprotocol.box.server.robots.RobotsTestBase;
 import org.waveprotocol.box.server.robots.testing.OperationServiceHelper;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.wave.model.conversation.ObservableConversation;
 import org.waveprotocol.wave.model.conversation.ObservableConversationBlip;
+import org.waveprotocol.wave.model.document.util.LineContainers;
 
 import java.util.Collections;
 
@@ -101,6 +105,35 @@ public class DocumentModifyServiceTest extends RobotsTestBase {
     assertTrue(xml.contains("alt=\"" + CAPTION + "\""));
   }
 
+  public void testInsertAfterWithAttachmentQueryDoesNotReprocessSameOriginal() throws Exception {
+    LineContainers.appendToLastLine(
+        getRootBlip().getContent(),
+        ElementSerializer.apiElementToXml(new Image(ATTACHMENT_ID, CAPTION)));
+
+    Image inserted = new Image("att+456", "Inserted");
+    OperationRequest operation =
+        operationRequest(
+            OperationType.DOCUMENT_MODIFY,
+            getRootBlipId(),
+            Parameter.of(
+                ParamsProperty.MODIFY_QUERY,
+                new DocumentModifyQuery(
+                    ElementType.ATTACHMENT, Collections.<String, String>emptyMap(), 2)),
+            Parameter.of(
+                ParamsProperty.MODIFY_ACTION,
+                new DocumentModifyAction(
+                    ModifyHow.INSERT_AFTER,
+                    Collections.singletonList((String) null),
+                    null,
+                    Collections.<Element>singletonList(inserted),
+                    null,
+                    false)));
+
+    service.execute(operation, helper.getContext(), ALEX);
+
+    assertEquals(2, countOccurrences(getRootBlip().getContent().toXmlString(), "<image "));
+  }
+
   private void executeInsert(Element element) throws Exception {
     OperationRequest operation =
         operationRequest(
@@ -118,6 +151,16 @@ public class DocumentModifyServiceTest extends RobotsTestBase {
                     false)));
 
     service.execute(operation, helper.getContext(), ALEX);
+  }
+
+  private int countOccurrences(String content, String needle) {
+    int count = 0;
+    int start = 0;
+    while ((start = content.indexOf(needle, start)) != -1) {
+      count++;
+      start += needle.length();
+    }
+    return count;
   }
 
   private String getRootBlipId() throws InvalidRequestException {
