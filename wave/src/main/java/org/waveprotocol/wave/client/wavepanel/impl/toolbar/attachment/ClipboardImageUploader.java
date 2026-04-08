@@ -34,6 +34,7 @@ import org.waveprotocol.wave.client.editor.selection.content.SelectionHelper;
 import org.waveprotocol.wave.media.model.AttachmentId;
 import org.waveprotocol.wave.media.model.AttachmentIdGenerator;
 import org.waveprotocol.wave.model.document.indexed.LocationMapper;
+import org.waveprotocol.wave.model.document.util.DocHelper;
 import org.waveprotocol.wave.model.document.util.Point;
 import org.waveprotocol.wave.model.document.util.XmlStringBuilder;
 import org.waveprotocol.wave.model.id.WaveId;
@@ -90,10 +91,12 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     int insertOffset = captureInsertOffset(doc, sel);
     int selectionEndOffset = captureSelectionEndOffset(doc, sel, insertOffset);
 
-    // Delete the selected text synchronously before starting the async upload.
-    // Deleting after upload completion would apply stale offsets if the user
-    // edits the document while the XHR is in-flight, risking data-loss.
+    // Capture the selected text BEFORE deleting it so it can be restored if
+    // the upload fails (data-loss guard).  Delete synchronously to avoid
+    // stale-offset problems if the user edits while the XHR is in-flight.
+    String deletedText = null;
     if (selectionEndOffset > insertOffset) {
+      deletedText = DocHelper.getText(doc, insertOffset, selectionEndOffset);
       doc.deleteRange(insertOffset, selectionEndOffset);
     }
 
@@ -107,9 +110,10 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     // different blip before the async upload completes.
     final CMutableDocument capturedDoc = doc;
     final String attachmentIdStr = attachmentId.getId();
+    final String capturedDeletedText = deletedText;
     startXhrUpload(nativeEvent, attachmentIdStr, waveRefToken,
         () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertOffset),
-        () -> onUploadFailure());
+        () -> onUploadFailure(capturedDoc, insertOffset, capturedDeletedText));
 
     return true; // consumed — suppress text paste
   }
@@ -131,8 +135,12 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
     doc.insertXml(insertPoint, xml);
   }
 
-  private void onUploadFailure() {
+  private void onUploadFailure(CMutableDocument doc, int insertOffset, String deletedText) {
     hideProgressIndicator();
+    // Restore the text that was synchronously deleted before the upload started.
+    if (deletedText != null && !deletedText.isEmpty()) {
+      doc.insertText(insertOffset, deletedText);
+    }
     showErrorToast("Image upload failed.");
   }
 
