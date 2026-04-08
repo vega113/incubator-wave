@@ -75,33 +75,29 @@ public final class ContactServlet extends HttpServlet {
 
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-    // Get current user (redirect to sign-in if not logged in)
+    // Attempt to get logged-in user — anonymous users get an empty form
     WebSession session = WebSessions.from(req, false);
     ParticipantId user = sessionManager.getLoggedInUser(session);
-    if (user == null) {
-      resp.sendRedirect("/auth/signin?r=/contact");
-      return;
-    }
 
     String email = "";
     String name = "";
-    try {
-      AccountData acct = accountStore.getAccount(user);
-      if (acct != null && acct.isHuman()) {
-        HumanAccountData human = acct.asHuman();
-        if (human.getEmail() != null) {
-          email = human.getEmail();
+    if (user != null) {
+      try {
+        AccountData acct = accountStore.getAccount(user);
+        if (acct != null && acct.isHuman()) {
+          HumanAccountData human = acct.asHuman();
+          if (human.getEmail() != null) {
+            email = human.getEmail();
+          }
         }
+      } catch (PersistenceException e) {
+        LOG.warning("Failed to load account data for contact page", e);
       }
-    } catch (PersistenceException e) {
-      LOG.warning("Failed to load account data for contact page", e);
-    }
-
-    // Derive display name from participant address (before @)
-    String username = user.getAddress();
-    int atIdx = username.indexOf('@');
-    if (atIdx > 0) {
-      name = username.substring(0, atIdx);
+      String username = user.getAddress();
+      int atIdx = username.indexOf('@');
+      if (atIdx > 0) {
+        name = username.substring(0, atIdx);
+      }
     }
 
     resp.setContentType("text/html;charset=utf-8");
