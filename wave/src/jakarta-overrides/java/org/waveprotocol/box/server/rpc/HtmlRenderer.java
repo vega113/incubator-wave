@@ -6554,20 +6554,6 @@ public final class HtmlRenderer {
     sb.append(".form-group input[readonly] { background: #f3f4f6; color: ").append(WAVE_TEXT_MUTED).append("; cursor: not-allowed; }\n");
     sb.append(".form-group textarea { resize: vertical; min-height: 140px; }\n");
 
-    // File drop zone
-    sb.append(".drop-zone {\n");
-    sb.append("  border: 2px dashed ").append(WAVE_BORDER).append(";\n");
-    sb.append("  border-radius: 8px; padding: 24px; text-align: center;\n");
-    sb.append("  cursor: pointer; transition: border-color 0.2s, background 0.2s;\n");
-    sb.append("  color: ").append(WAVE_TEXT_MUTED).append("; font-size: 13px;\n");
-    sb.append("}\n");
-    sb.append(".drop-zone:hover, .drop-zone.dragover { border-color: ").append(WAVE_PRIMARY).append("; background: rgba(0,119,182,0.04); }\n");
-    sb.append(".drop-zone input[type=file] { display: none; }\n");
-    sb.append(".drop-zone .icon { font-size: 32px; margin-bottom: 8px; }\n");
-    sb.append(".file-list { margin-top: 10px; }\n");
-    sb.append(".file-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #f8fafc; border-radius: 6px; margin-bottom: 4px; font-size: 13px; }\n");
-    sb.append(".file-item .remove { cursor: pointer; color: #dc2626; font-weight: 600; }\n");
-
     // Submit button
     sb.append(".btn-submit {\n");
     sb.append("  display: inline-block; padding: 12px 32px;\n");
@@ -6635,10 +6621,15 @@ public final class HtmlRenderer {
     sb.append("  <div class=\"contact-card\">\n");
     sb.append("    <form id=\"contactForm\">\n");
 
-    // Sending as (read-only email)
+    // Email field — readonly (pre-filled) for authenticated users, editable+required for anonymous
     sb.append("      <div class=\"form-group\">\n");
-    sb.append("        <label>Sending as</label>\n");
-    sb.append("        <input type=\"email\" value=\"").append(escapeHtml(email)).append("\" readonly>\n");
+    if (email.isEmpty()) {
+      sb.append("        <label for=\"contactEmail\">Email address <span style=\"color:#dc2626\">*</span></label>\n");
+      sb.append("        <input type=\"email\" id=\"contactEmail\" required placeholder=\"your@email.com\">\n");
+    } else {
+      sb.append("        <label>Sending as</label>\n");
+      sb.append("        <input type=\"email\" id=\"contactEmail\" value=\"").append(escapeHtml(email)).append("\" readonly>\n");
+    }
     sb.append("      </div>\n");
 
     // Name
@@ -6668,19 +6659,15 @@ public final class HtmlRenderer {
     sb.append("        <textarea id=\"contactMessage\" required placeholder=\"How can we help you?\"></textarea>\n");
     sb.append("      </div>\n");
 
-    // File attachments
-    sb.append("      <div class=\"form-group\">\n");
-    sb.append("        <label>Attachments <span style=\"font-weight:400;color:").append(WAVE_TEXT_MUTED).append("\">(optional, max 3 files, 10MB each)</span></label>\n");
-    sb.append("        <div class=\"drop-zone\" id=\"dropZone\">\n");
-    sb.append("          <div class=\"icon\">&#128206;</div>\n");
-    sb.append("          <div>Drag & drop files here or <span style=\"color:").append(WAVE_PRIMARY).append(";font-weight:600;text-decoration:underline\">browse</span></div>\n");
-    sb.append("          <input type=\"file\" id=\"fileInput\" multiple>\n");
-    sb.append("        </div>\n");
-    sb.append("        <div class=\"file-list\" id=\"fileList\"></div>\n");
+    // Honeypot — hidden from humans, bots fill it in
+    sb.append("      <div style=\"display:none\" aria-hidden=\"true\">\n");
+    sb.append("        <label for=\"hp_field\">Leave this blank</label>\n");
+    sb.append("        <input type=\"text\" id=\"hp_field\" name=\"hp\" tabindex=\"-1\" autocomplete=\"off\">\n");
     sb.append("      </div>\n");
 
     // Submit
     sb.append("      <button type=\"submit\" class=\"btn-submit\" id=\"submitBtn\">Send Message</button>\n");
+    sb.append("      <div id=\"formError\" style=\"display:none;margin-top:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#b91c1c;font-size:14px;\"></div>\n");
     sb.append("    </form>\n");
 
     // Success message (shown after submit)
@@ -6731,76 +6718,52 @@ public final class HtmlRenderer {
     sb.append("  var form = document.getElementById('contactForm');\n");
     sb.append("  var submitBtn = document.getElementById('submitBtn');\n");
     sb.append("  var successMsg = document.getElementById('successMsg');\n");
-    sb.append("  var dropZone = document.getElementById('dropZone');\n");
-    sb.append("  var fileInput = document.getElementById('fileInput');\n");
-    sb.append("  var fileList = document.getElementById('fileList');\n");
-    sb.append("  var files = [];\n");
-    sb.append("  var MAX_FILES = 3;\n");
-    sb.append("  var MAX_SIZE = 10 * 1024 * 1024;\n");
-
-    // File drag-drop handlers
-    sb.append("  dropZone.addEventListener('click', function() { fileInput.click(); });\n");
-    sb.append("  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });\n");
-    sb.append("  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });\n");
-    sb.append("  dropZone.addEventListener('drop', function(e) {\n");
-    sb.append("    e.preventDefault(); dropZone.classList.remove('dragover');\n");
-    sb.append("    addFiles(e.dataTransfer.files);\n");
-    sb.append("  });\n");
-    sb.append("  fileInput.addEventListener('change', function() { addFiles(fileInput.files); fileInput.value = ''; });\n");
-
-    sb.append("  function addFiles(newFiles) {\n");
-    sb.append("    for (var i = 0; i < newFiles.length; i++) {\n");
-    sb.append("      if (files.length >= MAX_FILES) { alert('Maximum ' + MAX_FILES + ' files allowed'); break; }\n");
-    sb.append("      if (newFiles[i].size > MAX_SIZE) { alert(newFiles[i].name + ' exceeds 10MB limit'); continue; }\n");
-    sb.append("      files.push(newFiles[i]);\n");
-    sb.append("    }\n");
-    sb.append("    renderFiles();\n");
+    sb.append("  var formError = document.getElementById('formError');\n");
+    sb.append("  var hpField = document.getElementById('hp_field');\n");
+    sb.append("\n");
+    sb.append("  function showError(msg) {\n");
+    sb.append("    formError.textContent = msg;\n");
+    sb.append("    formError.style.display = 'block';\n");
     sb.append("  }\n");
-
-    sb.append("  function renderFiles() {\n");
-    sb.append("    var html = '';\n");
-    sb.append("    for (var i = 0; i < files.length; i++) {\n");
-    sb.append("      var sz = files[i].size < 1024 ? files[i].size + ' B' : (files[i].size / 1024).toFixed(1) + ' KB';\n");
-    sb.append("      html += '<div class=\"file-item\"><span>' + esc(files[i].name) + ' (' + sz + ')</span>';\n");
-    sb.append("      html += '<span class=\"remove\" data-idx=\"' + i + '\">&times;</span></div>';\n");
-    sb.append("    }\n");
-    sb.append("    fileList.innerHTML = html;\n");
-    sb.append("    fileList.querySelectorAll('.remove').forEach(function(el) {\n");
-    sb.append("      el.addEventListener('click', function() { files.splice(parseInt(this.dataset.idx), 1); renderFiles(); });\n");
-    sb.append("    });\n");
+    sb.append("  function clearError() {\n");
+    sb.append("    formError.style.display = 'none';\n");
+    sb.append("    formError.textContent = '';\n");
     sb.append("  }\n");
-
-    sb.append("  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }\n");
-
-    // Form submit
+    sb.append("\n");
     sb.append("  form.addEventListener('submit', function(e) {\n");
     sb.append("    e.preventDefault();\n");
+    sb.append("    clearError();\n");
     sb.append("    var name = document.getElementById('contactName').value.trim();\n");
+    sb.append("    var emailEl = document.getElementById('contactEmail');\n");
+    sb.append("    var email = emailEl ? emailEl.value.trim() : '';\n");
     sb.append("    var subject = document.getElementById('contactSubject').value;\n");
     sb.append("    var message = document.getElementById('contactMessage').value.trim();\n");
-    sb.append("    if (!name || !message) { alert('Name and message are required.'); return; }\n");
+    sb.append("    var hp = hpField ? hpField.value : '';\n");
+    sb.append("    if (!name) { showError('Name is required.'); return; }\n");
+    sb.append("    if (!message) { showError('Message is required.'); return; }\n");
+    sb.append("    if (emailEl && !emailEl.readOnly && !email) { showError('Email address is required.'); return; }\n");
     sb.append("    submitBtn.disabled = true;\n");
     sb.append("    submitBtn.textContent = 'Sending...';\n");
+    sb.append("    var payload = {name: name, email: email, subject: subject, message: message, hp: hp};\n");
     sb.append("    fetch('/contact', {\n");
     sb.append("      method: 'POST',\n");
     sb.append("      headers: {'Content-Type': 'application/json'},\n");
-    sb.append("      body: JSON.stringify({name: name, subject: subject, message: message})\n");
+    sb.append("      body: JSON.stringify(payload)\n");
     sb.append("    }).then(function(r) { return r.json(); }).then(function(data) {\n");
     sb.append("      if (data.ok) {\n");
     sb.append("        form.style.display = 'none';\n");
     sb.append("        successMsg.style.display = 'block';\n");
     sb.append("      } else {\n");
-    sb.append("        alert(data.error || 'Failed to send message');\n");
+    sb.append("        showError(data.error || 'Failed to send message. Please try again.');\n");
     sb.append("        submitBtn.disabled = false;\n");
     sb.append("        submitBtn.textContent = 'Send Message';\n");
     sb.append("      }\n");
     sb.append("    }).catch(function(err) {\n");
-    sb.append("      alert('Network error: ' + err.message);\n");
+    sb.append("      showError('Network error: ' + err.message);\n");
     sb.append("      submitBtn.disabled = false;\n");
     sb.append("      submitBtn.textContent = 'Send Message';\n");
     sb.append("    });\n");
     sb.append("  });\n");
-
     sb.append("})();\n");
     sb.append("</script>\n");
     sb.append("</body>\n</html>\n");
