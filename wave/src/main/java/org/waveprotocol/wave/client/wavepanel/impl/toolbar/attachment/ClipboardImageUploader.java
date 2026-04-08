@@ -58,6 +58,9 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   /** Progress indicator element shown during upload. May be null. */
   private Element progressIndicator;
 
+  /** Number of XHR uploads currently in progress. */
+  private int inFlightCount;
+
   /**
    * @param idGenerator generates unique attachment IDs
    * @param waveId      the current wave (used to compute the wave ref token)
@@ -91,9 +94,12 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
 
     showProgressIndicator();
 
+    // Capture the document reference now; the editor adapter may switch to a
+    // different blip before the async upload completes.
+    final CMutableDocument capturedDoc = doc;
     final String attachmentIdStr = attachmentId.getId();
     startXhrUpload(nativeEvent, attachmentIdStr, waveRefToken,
-        () -> onUploadSuccess(attachmentIdStr, insertOffset),
+        () -> onUploadSuccess(capturedDoc, attachmentIdStr, insertOffset),
         () -> onUploadFailure());
 
     return true; // consumed — suppress text paste
@@ -103,13 +109,8 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   // Upload callbacks (called from JSNI on the GWT event thread)
   // ---------------------------------------------------------------------------
 
-  private void onUploadSuccess(String attachmentId, int insertOffset) {
+  private void onUploadSuccess(CMutableDocument doc, String attachmentId, int insertOffset) {
     hideProgressIndicator();
-
-    CMutableDocument doc = editor.getDocument();
-    if (doc == null) {
-      return;
-    }
 
     @SuppressWarnings("unchecked")
     Point<ContentNode> insertPoint =
@@ -130,8 +131,9 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   // ---------------------------------------------------------------------------
 
   private void showProgressIndicator() {
+    inFlightCount++;
     if (progressIndicator != null) {
-      return; // already showing
+      return; // already showing; counter bumped above
     }
     progressIndicator = Document.get().createDivElement();
     progressIndicator.setInnerHTML(
@@ -146,9 +148,12 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
   }
 
   private void hideProgressIndicator() {
-    if (progressIndicator != null) {
-      progressIndicator.removeFromParent();
-      progressIndicator = null;
+    if (--inFlightCount <= 0) {
+      inFlightCount = 0;
+      if (progressIndicator != null) {
+        progressIndicator.removeFromParent();
+        progressIndicator = null;
+      }
     }
   }
 
@@ -211,7 +216,7 @@ public final class ClipboardImageUploader implements ImagePasteHandler {
    * <ul>
    *   <li>{@code attachmentId} — attachment id (matches URL path)</li>
    *   <li>{@code waveRef} — URL-encoded wave ref token</li>
-   *   <li>{@code uploadFormElement} — image blob named {@code pasted-image.png}</li>
+   *   <li>{@code uploadFormElement} — image blob with filename {@code pasted-image.png}</li>
    * </ul>
    */
   private native void startXhrUpload(NativeEvent event,

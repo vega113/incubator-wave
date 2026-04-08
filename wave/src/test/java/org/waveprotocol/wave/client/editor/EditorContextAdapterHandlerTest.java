@@ -50,4 +50,17 @@ public class EditorContextAdapterHandlerTest extends TestCase {
     // verify by switching to a non-EditorImpl context - must not throw
     adapter.switchEditor(null);
   }
+
+  public void testClearHandlerWithNullDoesNotCrash() {
+    EditorContextAdapter adapter = new EditorContextAdapter(null);
+    adapter.setImagePasteHandler(HANDLER);
+    adapter.setImagePasteHandler(null); // must not throw; clears the handler
+  }
+
+  public void testClearHandlerThenSwitchEditorDoesNotCrash() {
+    EditorContextAdapter adapter = new EditorContextAdapter(null);
+    adapter.setImagePasteHandler(HANDLER);
+    adapter.setImagePasteHandler(null);
+    adapter.switchEditor(null); // null handler must be forwarded without NPE
+  }
 }

@@ -71,7 +71,7 @@ public class EditorContextAdapter implements EditorContext {
   }
 
   private void forwardImagePasteHandler(EditorContext ctx) {
-    if (imagePasteHandler != null && ctx instanceof EditorImpl) {
+    if (ctx instanceof EditorImpl) {
       ((EditorImpl) ctx).setImagePasteHandler(imagePasteHandler);
     }
   }
