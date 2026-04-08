@@ -188,7 +188,26 @@ public class BlipOperationServicesTest extends RobotsTestBase {
     int helloIdx = xml.indexOf("Hello");
     int lineIdx = xml.indexOf("<line", helloIdx);
     int worldIdx = xml.indexOf("World", lineIdx);
-    assertTrue("Expected <line> element between Hello and World",
+    assertTrue("Expected <line/> element between Hello and World",
+        helloIdx >= 0 && lineIdx > helloIdx && worldIdx > lineIdx);
+  }
+
+  public void testBuildMultilineContent_trailingNewline() {
+    XmlStringBuilder result = BlipOperationServices.buildMultilineContent("Hello\n");
+    String xml = result.getXmlString();
+    int helloIdx = xml.indexOf("Hello");
+    int lineIdx = xml.indexOf("<line", helloIdx);
+    assertTrue("Expected trailing <line/> element after Hello",
+        helloIdx >= 0 && lineIdx > helloIdx);
+  }
+
+  public void testBuildMultilineContent_crlfNormalization() {
+    XmlStringBuilder result = BlipOperationServices.buildMultilineContent("Hello\r\nWorld");
+    String xml = result.getXmlString();
+    int helloIdx = xml.indexOf("Hello");
+    int lineIdx = xml.indexOf("<line", helloIdx);
+    int worldIdx = xml.indexOf("World", lineIdx);
+    assertTrue("Expected <line/> element for CRLF newline",
         helloIdx >= 0 && lineIdx > helloIdx && worldIdx > lineIdx);
   }
 

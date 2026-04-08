@@ -405,6 +405,7 @@ public class BlipOperationServices implements OperationService {
    * element so that line breaks are preserved in the Wave document model.
    */
   static XmlStringBuilder buildMultilineContent(String content) {
+    content = content.replace("\r\n", "\n").replace("\r", "\n");
     String[] lines = content.split("\n", -1);
     XmlStringBuilder builder = XmlStringBuilder.createEmpty();
     for (int i = 0; i < lines.length; i++) {
