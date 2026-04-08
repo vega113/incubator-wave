@@ -533,7 +533,9 @@ public final class AdminServlet extends HttpServlet {
     String searchType = config.getString("core.search_type");
     w.append("\"searchIndex\":{");
     w.append("\"type\":").append(jsonStr(searchType));
-    boolean otSearchFlagEnabled = featureFlagService.isEnabled("ot-search", null);
+    // Match routing predicate in FeatureFlaggedSearchProviderImpl: either flag activates Lucene.
+    boolean otSearchFlagEnabled = featureFlagService.isEnabled("ot-search", null)
+        || featureFlagService.isEnabled("lucene9", null);
     w.append(",\"otSearchFlagEnabled\":").append(String.valueOf(otSearchFlagEnabled));
     // Use lastRebuildWaveCount for accurate persistent store count (set during full rebuild)
     if (lucene9Indexer != null && lucene9Indexer.getLastRebuildWaveCount() >= 0) {
