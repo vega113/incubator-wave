@@ -31,6 +31,7 @@ import org.waveprotocol.wave.client.editor.NodeEventHandler;
 import org.waveprotocol.wave.client.editor.NodeEventHandlerImpl;
 import org.waveprotocol.wave.client.editor.RenderingMutationHandler;
 import org.waveprotocol.wave.client.editor.content.ContentElement;
+import org.waveprotocol.wave.client.editor.content.ContentNode;
 import org.waveprotocol.wave.client.editor.event.EditorEvent;
 import org.waveprotocol.wave.model.document.util.XmlStringBuilder;
 
@@ -114,6 +115,23 @@ public class CheckBox {
       }
     }
 
+    @Override
+    public void onDeactivated(ContentElement element) {
+      // When a checked task checkbox is removed, clean up the task-completed class on its
+      // enclosing paragraph so the styling does not linger after deletion.
+      String name = element.getAttribute(ContentElement.NAME);
+      if (name != null && name.startsWith(TaskDocumentUtil.TASK_NAME_PREFIX)
+          && getChecked(element) && !hasAnyCheckedTaskSibling(element)) {
+        Element implNodelet = element.getImplNodelet();
+        if (implNodelet != null) {
+          Element paragraph = implNodelet.getParentElement();
+          if (paragraph != null) {
+            paragraph.removeClassName(TASK_COMPLETED_CLASS);
+          }
+        }
+      }
+    }
+
     private static final String TASK_COMPLETED_CLASS = "task-completed";
 
     private void updateCheckboxDom(ContentElement checkbox, boolean isChecked) {
@@ -128,11 +146,39 @@ public class CheckBox {
         if (paragraph != null) {
           if (isChecked) {
             paragraph.addClassName(TASK_COMPLETED_CLASS);
-          } else {
+          } else if (!hasAnyCheckedTaskSibling(checkbox)) {
             paragraph.removeClassName(TASK_COMPLETED_CLASS);
           }
         }
       }
+    }
+
+    /**
+     * Returns true if the paragraph containing {@code checkbox} has at least one
+     * other task checkbox that is still checked. Used to guard against
+     * prematurely removing the task-completed class when multiple task
+     * checkboxes share a paragraph.
+     */
+    private boolean hasAnyCheckedTaskSibling(ContentElement checkbox) {
+      ContentElement parent = checkbox.getParentElement();
+      if (parent == null) {
+        return false;
+      }
+      for (ContentNode node = parent.getFirstChild(); node != null; node = node.getNextSibling()) {
+        if (node == checkbox || !(node instanceof ContentElement)) {
+          continue;
+        }
+        ContentElement sibling = (ContentElement) node;
+        if (!isCheckBox(sibling)) {
+          continue;
+        }
+        String sibName = sibling.getAttribute(ContentElement.NAME);
+        if (sibName != null && sibName.startsWith(TaskDocumentUtil.TASK_NAME_PREFIX)
+            && getChecked(sibling)) {
+          return true;
+        }
+      }
+      return false;
     }
   }
 
