@@ -346,11 +346,16 @@ public final class ContactServlet extends HttpServlet {
 
   /**
    * Linear email format check — avoids ReDoS from backtracking regex on user-supplied input.
-   * Accepts only strings with exactly one '@', a non-empty local part, and a domain containing
-   * at least one '.' with a non-empty TLD.
+   * Accepts only strings with exactly one '@', no whitespace/control characters, a non-empty
+   * local part, and a domain containing at least one '.' with a non-empty TLD.
    */
   static boolean isValidEmail(String email) {
     if (email == null || email.isEmpty()) return false;
+    // Reject any whitespace or control characters (e.g. newlines, tabs)
+    for (int i = 0; i < email.length(); i++) {
+      char c = email.charAt(i);
+      if (c <= 0x20 || c == 0x7F) return false;
+    }
     int atIdx = email.indexOf('@');
     if (atIdx <= 0) return false;                          // no '@' or starts with '@'
     if (email.indexOf('@', atIdx + 1) >= 0) return false; // multiple '@'
