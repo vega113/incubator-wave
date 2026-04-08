@@ -125,6 +125,26 @@ public final class SearchPresenterTest extends TestCase {
     assertEquals(7, snapshot.getDigests().get(0).getBlipCount());
     assertEquals("bob@example.com", snapshot.getDigests().get(0).getAuthor().getAddress());
     assertEquals(0, snapshot.getDigests().get(0).getParticipantsSnippet().size());
+    assertFalse(snapshot.getDigests().get(0).isPinned());
+  }
+
+  public void testParseOtSearchDocumentExtractsPinnedFlag() {
+    DocInitialization document = DocProviders.POJO.parse(
+        "<body>"
+            + "<metadata query=\"in:inbox\" total=\"1\" updated=\"1711411200000\"></metadata>"
+            + "<results>"
+            + "<result blips=\"3\" creator=\"bob@example.com\" id=\"example.com/w+abc\""
+            + " modified=\"1711411100000\" participants=\"1\""
+            + " pinned=\"true\""
+            + " snippet=\"Pinned item\" title=\"Pinned wave\" unread=\"0\"></result>"
+            + "</results>"
+            + "</body>").asOperation();
+
+    SearchPresenter.OtSearchSnapshot snapshot =
+        SearchPresenter.parseOtSearchSnapshot(document);
+
+    assertEquals(1, snapshot.getDigests().size());
+    assertTrue(snapshot.getDigests().get(0).isPinned());
   }
 
   public void testApplyOtSearchDiffUpdatesCurrentDocumentState() {
