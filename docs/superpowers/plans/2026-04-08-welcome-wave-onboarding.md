@@ -209,7 +209,6 @@ Expected: PASS
 - [ ] **Step 4: Commit**
 
 ```bash
-git add wave/config/changelog.d/2026-04-08-welcome-wave-onboarding.json \
-  wave/config/changelog.json
+git add wave/config/changelog.d/2026-04-08-welcome-wave-onboarding.json
 git commit -m "docs: announce welcome wave onboarding refresh"
 ```

@@ -134,7 +134,7 @@ public final class WelcomeWaveContentBuilder {
   private static int appendLinkedLine(Document doc, String label, String url) {
     Doc.E line = LineContainers.appendLine(doc, XmlStringBuilder.createText(label));
     int start = doc.getLocation(Point.after(doc, line));
-    int end = doc.getLocation(Point.end(doc.getParentElement(line)));
+    int end = start + label.length();
     doc.setAnnotation(start, end, AnnotationConstants.LINK_MANUAL, url);
     return locateAfterLineElement(doc);
   }

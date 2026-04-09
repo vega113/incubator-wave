@@ -10,7 +10,7 @@
 ## Problem
 
 New accounts currently receive a minimal one-blip welcome wave created by
-[`WelcomeWaveCreator`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java).
+[`WelcomeWaveCreator`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java).
 It says almost nothing about what Wave is, what SupaWave adds, how to use core
 features, or why the product is especially useful for complex communication
 with AI agents.
@@ -191,9 +191,9 @@ lifecycle.
 The existing call paths differ by deployment mode and the design must cover
 both:
 
-- [`UserRegistrationServlet`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/UserRegistrationServlet.java)
-- [`EmailConfirmServlet`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/EmailConfirmServlet.java)
-- [`WelcomeWaveCreator`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java)
+- [`UserRegistrationServlet`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/UserRegistrationServlet.java)
+- [`EmailConfirmServlet`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/EmailConfirmServlet.java)
+- [`WelcomeWaveCreator`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java)
 
 Lifecycle requirement:
 
@@ -287,13 +287,13 @@ clearer.
 
 **Modify**
 
-- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java)
+- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreator.java)
 
 **Create**
 
-- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveContentBuilder.java`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveContentBuilder.java)
-- [`wave/src/test/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreatorTest.java`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/src/test/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreatorTest.java)
-- [`wave/config/changelog.d/2026-04-08-welcome-wave-onboarding.json`](/Users/vega/devroot/worktrees/welcome-wave-onboarding-20260408/wave/config/changelog.d/2026-04-08-welcome-wave-onboarding.json)
+- [`wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveContentBuilder.java`](wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WelcomeWaveContentBuilder.java)
+- [`wave/src/test/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreatorTest.java`](wave/src/test/java/org/waveprotocol/box/server/rpc/WelcomeWaveCreatorTest.java)
+- [`wave/config/changelog.d/2026-04-08-welcome-wave-onboarding.json`](wave/config/changelog.d/2026-04-08-welcome-wave-onboarding.json)
 
 ### Responsibilities
 
