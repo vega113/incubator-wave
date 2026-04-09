@@ -35,7 +35,7 @@ public final class TaskQueryNormalizer {
    *
    * @param raw raw query token value
    * @param user current user, used to resolve `me` and local-domain tasks
-   * @return canonical lower-case participant address
+   * @return canonical lower-case participant address, or the reserved token {@code "all"} unchanged
    */
   public static String normalize(String raw, ParticipantId user) {
     if (raw == null || raw.trim().isEmpty()) {
