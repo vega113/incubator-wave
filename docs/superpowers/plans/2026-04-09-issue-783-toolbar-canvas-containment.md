@@ -54,7 +54,7 @@ Expected: the command stages the app, links the shared file store, creates a run
 - [ ] **Step 2: Start the local server**
 
 ```bash
-PORT=9900 JAVA_OPTS='-Djava.util.logging.config.file=/Users/vega/devroot/worktrees/toolbar-canvas-gradient-fit-20260409/wave/config/wiab-logging.conf -Djava.security.auth.login.config=/Users/vega/devroot/worktrees/toolbar-canvas-gradient-fit-20260409/wave/config/jaas.config' bash scripts/wave-smoke.sh start
+PORT=9900 JAVA_OPTS='-Djava.util.logging.config.file=wave/config/wiab-logging.conf -Djava.security.auth.login.config=wave/config/jaas.config' bash scripts/wave-smoke.sh start
 ```
 
 Expected: the server starts successfully on `http://127.0.0.1:9900`.
@@ -78,7 +78,7 @@ Expected: action icons look too close to the soft toolbar edge, especially in th
 sbt "testOnly org.waveprotocol.box.server.util.ToolbarLayoutContractTest -- -q"
 ```
 
-Expected: the existing test suite passes while asserting the current compact sizing (`padding: 0 4px; min-width: 28px;`), which confirms the automated contract needs to move with the fix.
+Expected: the existing test suite passes while asserting the current compact sizing (`padding: 0 6px; min-width: 32px;`), which confirms the automated contract needs to move with the fix.
 
 - [ ] **Step 2: Add only the shared compact idle canvas**
 
