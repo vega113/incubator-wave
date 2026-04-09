@@ -94,10 +94,20 @@
              <td><span ui:field='exMentions' class='{css.helpExample}'>mentions:me</span></td>
              <td>Waves where you are @mentioned</td>
            </tr>
-           <tr ui:field='tasksFilterRow'>
-             <td><span ui:field='exTasks' class='{css.helpExample}'>tasks:me</span></td>
-             <td>Waves with tasks assigned to you</td>
-           </tr>
+           <tbody ui:field='tasksFilterSection'>
+             <tr>
+               <td><span ui:field='exTasksAll' class='{css.helpExample}'>tasks:all</span></td>
+               <td>Waves you can access that contain any task</td>
+             </tr>
+             <tr>
+               <td><span ui:field='exTasks' class='{css.helpExample}'>tasks:me</span></td>
+               <td>Waves with tasks assigned to you</td>
+             </tr>
+             <tr>
+               <td><code>tasks:user@domain</code></td>
+               <td>Tasks assigned to someone specific &#x2014; try: <span ui:field='exTasksUserTry' class='{css.helpExample}'>tasks:alice@example.com</span>; same-domain shorthand: <span ui:field='exTasksLocalTry' class='{css.helpExample}'>tasks:alice</span></td>
+             </tr>
+           </tbody>
            <tr>
              <td><em>free text</em></td>
              <td>Implicit content: search &#x2014; try: <span ui:field='exFreeTextTry' class='{css.helpExample}'>meeting notes</span></td>
@@ -147,6 +157,7 @@
            <span ui:field='exPinnedCreator' class='{css.helpExample}'>in:pinned orderby:creatordesc</span>
            <span ui:field='exCreatorArchive' class='{css.helpExample}'>creator:bob in:archive</span>
            <span ui:field='exMentionsUnread' class='{css.helpExample}'>mentions:me unread:true</span>
+           <span ui:field='exTasksUnread' class='{css.helpExample}'>tasks:all unread:true</span>
          </div>
        </div>
      </div>

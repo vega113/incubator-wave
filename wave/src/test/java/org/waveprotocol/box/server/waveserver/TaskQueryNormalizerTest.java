@@ -30,6 +30,19 @@ public final class TaskQueryNormalizerTest extends TestCase {
         TaskQueryNormalizer.normalize("me", ParticipantId.ofUnsafe("User@Example.com")));
   }
 
+  public void testNormalizePreservesReservedAllToken() {
+    assertEquals(
+        "all",
+        TaskQueryNormalizer.normalize("all", ParticipantId.ofUnsafe("user@example.com")));
+  }
+
+  public void testNormalizeKeepsExplicitAllAddressQueryable() {
+    assertEquals(
+        "all@example.com",
+        TaskQueryNormalizer.normalize("all@example.com",
+            ParticipantId.ofUnsafe("user@example.com")));
+  }
+
   public void testNormalizeAppendsLocalDomainForBareNames() {
     assertEquals(
         "alice@example.com",

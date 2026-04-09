@@ -133,11 +133,15 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
   @UiField SpanElement exPinnedCreator;
   @UiField SpanElement exCreatorArchive;
   @UiField SpanElement exMentionsUnread;
+  @UiField SpanElement exTasksUnread;
   @UiField
   Element mentionsFilterRow;
-  @UiField SpanElement exTasks;
   @UiField
-  Element tasksFilterRow;
+  Element tasksFilterSection;
+  @UiField SpanElement exTasksAll;
+  @UiField SpanElement exTasks;
+  @UiField SpanElement exTasksUserTry;
+  @UiField SpanElement exTasksLocalTry;
 
   private Listener listener;
 
@@ -214,6 +218,10 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     wireExample(exPublic);
     wireExample(exUnread);
     wireExample(exMentions);
+    wireExample(exTasksAll);
+    wireExample(exTasks);
+    wireExample(exTasksUserTry);
+    wireExample(exTasksLocalTry);
     // "Try:" examples for abstract filter rows
     wireExample(exWithTry);
     wireExample(exCreatorTry);
@@ -235,7 +243,7 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
     wireExample(exPinnedCreator);
     wireExample(exCreatorArchive);
     wireExample(exMentionsUnread);
-    wireExample(exTasks);
+    wireExample(exTasksUnread);
   }
 
   /** Stacks help columns vertically on narrow viewports (≤600 px). */
@@ -293,8 +301,12 @@ public class SearchWidget extends Composite implements SearchView, ChangeHandler
 
   @Override
   public void setTasksSearchVisible(boolean visible) {
-    tasksFilterRow.getStyle().setProperty("display", visible ? "table-row" : "none");
+    tasksFilterSection.getStyle().setProperty("display", visible ? "table-row-group" : "none");
+    exTasksAll.getStyle().setProperty("display", visible ? "inline-block" : "none");
     exTasks.getStyle().setProperty("display", visible ? "inline-block" : "none");
+    exTasksUserTry.getStyle().setProperty("display", visible ? "inline-block" : "none");
+    exTasksLocalTry.getStyle().setProperty("display", visible ? "inline-block" : "none");
+    exTasksUnread.getStyle().setProperty("display", visible ? "inline-block" : "none");
   }
 
   @Override

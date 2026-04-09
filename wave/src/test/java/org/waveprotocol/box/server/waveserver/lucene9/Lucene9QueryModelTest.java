@@ -85,6 +85,11 @@ public class Lucene9QueryModelTest extends TestCase {
     assertEquals("tasks:me", model.toLegacyQuery());
   }
 
+  public void testTasksAllQueryPassesThroughToLegacy() throws InvalidQueryException {
+    Lucene9QueryModel model = parser.parse("tasks:all");
+    assertEquals("tasks:all", model.toLegacyQuery());
+  }
+
   public void testTasksQueryHasNoTextQuery() throws InvalidQueryException {
     Lucene9QueryModel model = parser.parse("tasks:me");
     assertFalse("tasks:me should not be a Lucene text query", model.hasTextQuery());

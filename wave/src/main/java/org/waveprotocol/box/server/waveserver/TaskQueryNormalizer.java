@@ -29,7 +29,9 @@ public final class TaskQueryNormalizer {
 
   /**
    * Normalizes a raw tasks token to the canonical lower-case participant address.
-   * "me" resolves to the current user; bare names get the local domain appended.
+   * "me" resolves to the current user; bare names get the local domain appended;
+   * and the reserved token "all" is preserved so the search layer can interpret
+   * it as "match any visible task."
    *
    * @param raw raw query token value
    * @param user current user, used to resolve `me` and local-domain tasks
@@ -51,6 +53,8 @@ public final class TaskQueryNormalizer {
     String normalized;
     if ("me".equalsIgnoreCase(trimmed)) {
       normalized = address;
+    } else if ("all".equalsIgnoreCase(trimmed)) {
+      normalized = "all";
     } else if (trimmed.contains("@")) {
       normalized = trimmed;
     } else {

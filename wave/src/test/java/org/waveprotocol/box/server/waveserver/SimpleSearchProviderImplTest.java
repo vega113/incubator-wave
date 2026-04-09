@@ -968,6 +968,22 @@ public class SimpleSearchProviderImplTest extends TestCase {
     submitDeltaToExistingWavelet(name, author, blipOp);
   }
 
+  private void addUnassignedTaskToBlip(WaveletName name, ParticipantId author,
+      String blipId, String taskId, String text) throws Exception {
+    WaveletOperationContext context = new WaveletOperationContext(author, 0, 1);
+    WaveletOperation blipOp = new WaveletBlipOperation(blipId, new BlipContentOperation(context,
+        new DocOpBuilder()
+            .annotationBoundary(AnnotationBoundaryMapImpl.builder()
+                .initializationValues(AnnotationConstants.TASK_ID, taskId)
+                .build())
+            .characters(text)
+            .annotationBoundary(AnnotationBoundaryMapImpl.builder()
+                .initializationEnd(AnnotationConstants.TASK_ID)
+                .build())
+            .build()));
+    submitDeltaToExistingWavelet(name, author, blipOp);
+  }
+
   private SearchProvider newUnreadAwareSearchProvider(final Map<String, Integer> unreadCounts) {
     ConversationUtil conversationUtil = new ConversationUtil(idGenerator);
     WaveDigester digester = new WaveDigester(conversationUtil) {
@@ -1259,6 +1275,60 @@ public class SimpleSearchProviderImplTest extends TestCase {
 
     assertEquals(1, results.getNumResults());
     assertEquals("task-explicit",
+        WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
+  }
+
+  public void testSearchFilterByTasksAllReturnsWavesWithAnyTaskAssignee() throws Exception {
+    WaveletName mine = WaveletName.of(WaveId.of(DOMAIN, "task-all-mine"), WAVELET_ID);
+    WaveletName others = WaveletName.of(WaveId.of(DOMAIN, "task-all-other"), WAVELET_ID);
+    WaveletName unassigned = WaveletName.of(WaveId.of(DOMAIN, "task-all-unassigned"), WAVELET_ID);
+    WaveletName none = WaveletName.of(WaveId.of(DOMAIN, "task-all-none"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(mine, USER1, addParticipantToWavelet(USER1, mine));
+    addTaskAnnotationToBlip(mine, USER1, "b+1", "follow up", USER1);
+
+    submitDeltaToNewWavelet(others, USER1, addParticipantToWavelet(USER1, others));
+    addTaskAnnotationToBlip(others, USER1, "b+2", "review this", USER2);
+
+    submitDeltaToNewWavelet(unassigned, USER1, addParticipantToWavelet(USER1, unassigned));
+    addUnassignedTaskToBlip(unassigned, USER1, "b+3", "task-unassigned-1", "triage this");
+
+    submitDeltaToNewWavelet(none, USER1, addParticipantToWavelet(USER1, none));
+
+    SearchResult results = searchProvider.search(USER1, "tasks:all", 0, 10);
+
+    assertEquals(3, results.getNumResults());
+    List<String> waveIds = Lists.newArrayList();
+    for (Digest digest : results.getDigests()) {
+      waveIds.add(WaveId.deserialise(digest.getWaveId()).getId());
+    }
+    assertTrue(waveIds.contains("task-all-mine"));
+    assertTrue(waveIds.contains("task-all-other"));
+    assertTrue(waveIds.contains("task-all-unassigned"));
+    assertFalse(waveIds.contains("task-all-none"));
+  }
+
+  public void testSearchFilterByTasksAllComposesWithUnreadFilter() throws Exception {
+    WaveletName unreadTask = WaveletName.of(WaveId.of(DOMAIN, "task-all-unread"), WAVELET_ID);
+    WaveletName readTask = WaveletName.of(WaveId.of(DOMAIN, "task-all-read"), WAVELET_ID);
+    WaveletName unreadNoTask = WaveletName.of(WaveId.of(DOMAIN, "task-all-unread-no-task"), WAVELET_ID);
+
+    submitDeltaToNewWavelet(unreadTask, USER1, addParticipantToWavelet(USER1, unreadTask));
+    addTaskAnnotationToBlip(unreadTask, USER1, "b+1", "task item", USER2);
+
+    submitDeltaToNewWavelet(readTask, USER1, addParticipantToWavelet(USER1, readTask));
+    addTaskAnnotationToBlip(readTask, USER1, "b+2", "task item", USER1);
+
+    submitDeltaToNewWavelet(unreadNoTask, USER1, addParticipantToWavelet(USER1, unreadNoTask));
+    appendBlipToWavelet(unreadNoTask, USER1, "b+3", "plain message");
+
+    SearchProvider provider = newUnreadAwareSearchProvider(
+        ImmutableMap.of("task-all-unread", 2, "task-all-read", 0, "task-all-unread-no-task", 3));
+
+    SearchResult results = provider.search(USER1, "tasks:all unread:true", 0, 10);
+
+    assertEquals(1, results.getNumResults());
+    assertEquals("task-all-unread",
         WaveId.deserialise(results.getDigests().get(0).getWaveId()).getId());
   }
 
