@@ -285,7 +285,7 @@ Expected:
 
 Run:
 ```bash
-PORT=9900 JAVA_OPTS='-Djava.util.logging.config.file=/Users/vega/devroot/worktrees/issue-757-toolbar-clip-spacing-20260409/wave/config/wiab-logging.conf -Djava.security.auth.login.config=/Users/vega/devroot/worktrees/issue-757-toolbar-clip-spacing-20260409/wave/config/jaas.config' bash scripts/wave-smoke.sh start
+PORT=9900 JAVA_OPTS='-Djava.util.logging.config.file=wave/config/wiab-logging.conf -Djava.security.auth.login.config=wave/config/jaas.config' bash scripts/wave-smoke.sh start
 PORT=9900 bash scripts/wave-smoke.sh check
 ```
 
