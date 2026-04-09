@@ -39,8 +39,8 @@
 }
 
 .self.compact {
-  padding: 0 4px;
-  min-width: 28px;
+  padding: 0 6px;
+  min-width: 32px;
   justify-content: center;
 }
 

@@ -40,8 +40,8 @@ public final class ToolbarLayoutContractTest extends TestCase {
     String css = normalized(read(
         "wave/src/main/resources/org/waveprotocol/wave/client/widget/toolbar/buttons/HorizontalToolbarButtonWidget.css"));
 
-    assertTrue(css.contains("padding: 0 4px;"));
-    assertTrue(css.contains("min-width: 28px;"));
+    assertTrue(css.contains("padding: 0 6px;"));
+    assertTrue(css.contains("min-width: 32px;"));
   }
 
   public void testSearchPanelReservesThirtySixPixelsForToolbarHeight() throws Exception {
