@@ -87,4 +87,4 @@ Result: PASS (`ROOT=200 WEBCLIENT=200`).
 - Direct review: no blockers found in the scoped diff.
 - Claude review: PASS. Notes addressed:
   - Aligned the JVM test encoder with the production GWT query encoder for space handling by converting `+` to `%20` in the test helper.
-  - Remaining note: changelog fragment `version` should be reconciled with the eventual PR number if repository practice changes.
+  - Set the changelog fragment `version` to `Unreleased` so the record is accurate before PR creation.
