@@ -129,15 +129,21 @@ Expected: all tests in this class pass, including the renamed method.
 
 ```json
 {
-  "type": "fix",
-  "scope": "toolbar",
-  "description": "increase icon display size to 20px to reduce vertical dead space in toolbar buttons",
-  "pr": 0,
-  "issue": 778
+  "releaseId": "2026-04-09-toolbar-icon-canvas-fit",
+  "version": "PR #<number>",
+  "date": "2026-04-09",
+  "title": "Increase toolbar icon canvas size for tighter vertical fit",
+  "summary": "Bumps the shared toolbar icon display size from 17px to 20px.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Search and wave toolbar icons render at 20px inside the existing action buttons"
+      ]
+    }
+  ]
 }
 ```
-
-(The `pr` field will be updated to the actual PR number after the pull request is created.)
 
 ---
 
@@ -182,7 +188,7 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Start the local server (if not already running)**
 
-From the worktree root `/Users/vega/devroot/worktrees/toolbar-icon-canvas-fit-20260409`:
+From the repo/worktree root:
 ```bash
 sbt "~compile" &
 # Or start the full server:

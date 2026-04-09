@@ -11,7 +11,5 @@
         "Search and wave toolbar icons render at 20px inside the existing action buttons, reducing visible vertical dead space without changing toolbar layout"
       ]
     }
-  ],
-  "pr": 778,
-  "issue": 778
+  ]
 }
