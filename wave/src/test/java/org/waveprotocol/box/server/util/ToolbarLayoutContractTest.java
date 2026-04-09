@@ -77,12 +77,12 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(javaSource.contains("wrapper.setClassName(\"toolbar-svg-icon\")"));
   }
 
-  public void testSharedToolbarIconCssUsesSeventeenPixelDisplaySize() throws Exception {
+  public void testSharedToolbarIconCssUsesTwentyPixelDisplaySize() throws Exception {
     String javaSource = read(
         "wave/src/main/java/org/waveprotocol/box/webclient/client/WebClient.java");
 
-    // Single source of truth: the constant must declare 17px
-    assertTrue(javaSource.contains("TOOLBAR_ICON_DISPLAY_PX = \"17px\""));
+    // Single source of truth: the constant must declare 20px
+    assertTrue(javaSource.contains("TOOLBAR_ICON_DISPLAY_PX = \"20px\""));
 
     int wrapperRule = javaSource.indexOf(".toolbar-svg-icon {");
     int svgRule = javaSource.indexOf(".toolbar-svg-icon svg {");
