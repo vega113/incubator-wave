@@ -968,6 +968,22 @@ public class SimpleSearchProviderImplTest extends TestCase {
     submitDeltaToExistingWavelet(name, author, blipOp);
   }
 
+  private void addUnassignedTaskToBlip(WaveletName name, ParticipantId author,
+      String blipId, String taskId, String text) throws Exception {
+    WaveletOperationContext context = new WaveletOperationContext(author, 0, 1);
+    WaveletOperation blipOp = new WaveletBlipOperation(blipId, new BlipContentOperation(context,
+        new DocOpBuilder()
+            .annotationBoundary(AnnotationBoundaryMapImpl.builder()
+                .initializationValues(AnnotationConstants.TASK_ID, taskId)
+                .build())
+            .characters(text)
+            .annotationBoundary(AnnotationBoundaryMapImpl.builder()
+                .initializationEnd(AnnotationConstants.TASK_ID)
+                .build())
+            .build()));
+    submitDeltaToExistingWavelet(name, author, blipOp);
+  }
+
   private SearchProvider newUnreadAwareSearchProvider(final Map<String, Integer> unreadCounts) {
     ConversationUtil conversationUtil = new ConversationUtil(idGenerator);
     WaveDigester digester = new WaveDigester(conversationUtil) {
@@ -1265,6 +1281,7 @@ public class SimpleSearchProviderImplTest extends TestCase {
   public void testSearchFilterByTasksAllReturnsWavesWithAnyTaskAssignee() throws Exception {
     WaveletName mine = WaveletName.of(WaveId.of(DOMAIN, "task-all-mine"), WAVELET_ID);
     WaveletName others = WaveletName.of(WaveId.of(DOMAIN, "task-all-other"), WAVELET_ID);
+    WaveletName unassigned = WaveletName.of(WaveId.of(DOMAIN, "task-all-unassigned"), WAVELET_ID);
     WaveletName none = WaveletName.of(WaveId.of(DOMAIN, "task-all-none"), WAVELET_ID);
 
     submitDeltaToNewWavelet(mine, USER1, addParticipantToWavelet(USER1, mine));
@@ -1273,17 +1290,21 @@ public class SimpleSearchProviderImplTest extends TestCase {
     submitDeltaToNewWavelet(others, USER1, addParticipantToWavelet(USER1, others));
     addTaskAnnotationToBlip(others, USER1, "b+2", "review this", USER2);
 
+    submitDeltaToNewWavelet(unassigned, USER1, addParticipantToWavelet(USER1, unassigned));
+    addUnassignedTaskToBlip(unassigned, USER1, "b+3", "task-unassigned-1", "triage this");
+
     submitDeltaToNewWavelet(none, USER1, addParticipantToWavelet(USER1, none));
 
     SearchResult results = searchProvider.search(USER1, "tasks:all", 0, 10);
 
-    assertEquals(2, results.getNumResults());
+    assertEquals(3, results.getNumResults());
     List<String> waveIds = Lists.newArrayList();
     for (Digest digest : results.getDigests()) {
       waveIds.add(WaveId.deserialise(digest.getWaveId()).getId());
     }
     assertTrue(waveIds.contains("task-all-mine"));
     assertTrue(waveIds.contains("task-all-other"));
+    assertTrue(waveIds.contains("task-all-unassigned"));
     assertFalse(waveIds.contains("task-all-none"));
   }
 

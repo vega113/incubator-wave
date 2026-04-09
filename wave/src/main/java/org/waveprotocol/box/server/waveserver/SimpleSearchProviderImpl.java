@@ -1012,8 +1012,12 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
   }
 
   /**
-   * Filters wave results by task assignee annotations. Only waves whose blip content
-   * contains task/assignee annotations matching all of the requested addresses are kept.
+   * Filters wave results by task annotations. Waves are kept when:
+   * - matchAnyTask is true and the wave has at least one task (assigned or not), OR
+   * - all of the requiredAssignees are present as task assignees in the wave.
+   *
+   * <p>IMPORTANT: for tasks:all, we check TASK_ID annotations (not just TASK_ASSIGNEE)
+   * so that unassigned tasks are included.
    */
   private void filterByTasks(List<WaveViewData> results, Set<String> requiredAssignees,
       boolean matchAnyTask) {
@@ -1021,10 +1025,15 @@ public class SimpleSearchProviderImpl extends AbstractSearchProviderImpl {
     while (it.hasNext()) {
       WaveViewData wave = it.next();
       try {
-        Set<String> foundAssignees = TaskDocumentExtractor.extractTaskAssignees(wave);
-        if ((matchAnyTask && foundAssignees.isEmpty())
-            || !foundAssignees.containsAll(requiredAssignees)) {
+        if (matchAnyTask && !TaskDocumentExtractor.hasAnyTask(wave)) {
           it.remove();
+          continue;
+        }
+        if (!requiredAssignees.isEmpty()) {
+          Set<String> foundAssignees = TaskDocumentExtractor.extractTaskAssignees(wave);
+          if (!foundAssignees.containsAll(requiredAssignees)) {
+            it.remove();
+          }
         }
       } catch (Exception e) {
         LOG.warning("Failed to check tasks for wave " + wave.getWaveId(), e);

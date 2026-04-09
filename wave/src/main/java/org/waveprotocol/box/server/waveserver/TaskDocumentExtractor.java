@@ -42,6 +42,61 @@ public final class TaskDocumentExtractor {
   }
 
   /**
+   * Returns true if the wave contains at least one task (assigned or unassigned),
+   * detected via task annotations. Use this for {@code tasks:all} matching so
+   * that unassigned tasks are not excluded and assigned tasks still match even
+   * when only the assignee annotation is present in older test fixtures/data.
+   */
+  public static boolean hasAnyTask(WaveViewData wave) {
+    for (ObservableWaveletData wavelet : wave.getWavelets()) {
+      if (!IdUtil.isConversationalId(wavelet.getWaveletId())) {
+        continue;
+      }
+      for (String docId : wavelet.getDocumentIds()) {
+        ReadableBlipData blip = wavelet.getDocument(docId);
+        if (blip == null) {
+          continue;
+        }
+        if (blipHasAnyTask(blip)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private static boolean blipHasAnyTask(ReadableBlipData blip) {
+    final boolean[] found = {false};
+    blip.getContent().asOperation().apply(new DocInitializationCursor() {
+      @Override
+      public void annotationBoundary(AnnotationBoundaryMap map) {
+        for (int i = 0; i < map.changeSize(); i++) {
+          String key = map.getChangeKey(i);
+          String newValue = map.getNewValue(i);
+          if ((AnnotationConstants.TASK_ID.equals(key)
+              || AnnotationConstants.TASK_ASSIGNEE.equals(key))
+              && newValue != null && !newValue.isEmpty()) {
+            found[0] = true;
+          }
+        }
+      }
+
+      @Override
+      public void characters(String chars) {
+      }
+
+      @Override
+      public void elementStart(String type, Attributes attrs) {
+      }
+
+      @Override
+      public void elementEnd() {
+      }
+    });
+    return found[0];
+  }
+
+  /**
    * Extracts all task assignees from all conversational wavelets in a wave.
    * Returns a set of lower-case participant addresses.
    */

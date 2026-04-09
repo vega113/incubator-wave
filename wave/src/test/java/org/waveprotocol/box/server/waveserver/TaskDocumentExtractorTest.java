@@ -60,6 +60,25 @@ public final class TaskDocumentExtractorTest extends TestCase {
     assertTrue(assignees.isEmpty());
   }
 
+  public void testHasAnyTaskReturnsTrueForAssignedTask() {
+    WaveViewData wave = createWaveWithTaskAssignee("alice@example.com");
+
+    assertTrue(TaskDocumentExtractor.hasAnyTask(wave));
+  }
+
+  public void testHasAnyTaskReturnsTrueForUnassignedTask() {
+    WaveViewData wave = createWaveWithTaskId("task-unassigned");
+
+    assertTrue(TaskDocumentExtractor.hasAnyTask(wave));
+    assertTrue(TaskDocumentExtractor.extractTaskAssignees(wave).isEmpty());
+  }
+
+  public void testHasAnyTaskReturnsFalseWhenNoTaskAnnotations() {
+    WaveViewData wave = createWaveWithPlainContent("Hello world");
+
+    assertFalse(TaskDocumentExtractor.hasAnyTask(wave));
+  }
+
   public void testExtractsMultipleAssigneesFromDifferentBlips() {
     WaveId waveId = WaveId.of(DOMAIN, "w+multi");
     WaveletId waveletId = WaveletId.of(DOMAIN, "conv+root");
@@ -183,6 +202,30 @@ public final class TaskDocumentExtractorTest extends TestCase {
         .characters("task text")
         .annotationBoundary(AnnotationBoundaryMapImpl.builder()
             .initializationEnd(AnnotationConstants.TASK_ASSIGNEE)
+            .build())
+        .build();
+    wavelet.createDocument("b+blip1", CREATOR,
+        Collections.<ParticipantId>emptySet(), doc, 1234567890, 0);
+
+    WaveViewDataImpl waveView = WaveViewDataImpl.create(waveId);
+    waveView.addWavelet(wavelet);
+    return waveView;
+  }
+
+  private WaveViewData createWaveWithTaskId(String taskId) {
+    WaveId waveId = WaveId.of(DOMAIN, "w+task-id");
+    WaveletId waveletId = WaveletId.of(DOMAIN, "conv+root");
+    WaveletName waveletName = WaveletName.of(waveId, waveletId);
+    ObservableWaveletData wavelet = WaveletDataUtil.createEmptyWavelet(
+        waveletName, CREATOR, HashedVersion.unsigned(0), 1234567890);
+
+    DocInitialization doc = new DocInitializationBuilder()
+        .annotationBoundary(AnnotationBoundaryMapImpl.builder()
+            .initializationValues(AnnotationConstants.TASK_ID, taskId)
+            .build())
+        .characters("task text")
+        .annotationBoundary(AnnotationBoundaryMapImpl.builder()
+            .initializationEnd(AnnotationConstants.TASK_ID)
             .build())
         .build();
     wavelet.createDocument("b+blip1", CREATOR,
