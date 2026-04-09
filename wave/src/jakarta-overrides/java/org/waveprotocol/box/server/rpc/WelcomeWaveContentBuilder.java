@@ -47,6 +47,19 @@ public final class WelcomeWaveContentBuilder {
   private static final String PUBLIC_URL = "https://supawave.ai/public";
   private static final String CONTACT_URL = "https://supawave.ai/contact";
   private static final String GPT_BOT_TS_URL = "https://github.com/vega113/gpt-bot-ts";
+
+  private static final String WAVE_0_URI =
+      "wave://supawave.ai/w+PSWhwKguwjA/~/conv+root/b+PSWhwKguwjB";
+  private static final String WAVE_1_URI =
+      "wave://supawave.ai/w+IaeaidlHtXA/~/conv+root/b+IaeaidlHtXB";
+  private static final String WAVE_2_URI =
+      "wave://supawave.ai/w+IaeaidlHtXC/~/conv+root/b+IaeaidlHtXD";
+  private static final String WAVE_3_URI =
+      "wave://supawave.ai/w+IaeaidlHtXE/~/conv+root/b+IaeaidlHtXF";
+  private static final String WAVE_4_URI =
+      "wave://supawave.ai/w+IaeaidlHtXG/~/conv+root/b+IaeaidlHtXH";
+  private static final String WAVE_5_URI =
+      "wave://supawave.ai/w+IaeaidlHtXI/~/conv+root/b+IaeaidlHtXJ";
   @Inject
   public WelcomeWaveContentBuilder() {
   }
@@ -54,45 +67,79 @@ public final class WelcomeWaveContentBuilder {
   public AuthoringResult populate(ObservableConversationBlip rootBlip, ParticipantId newUser) {
     Document doc = rootBlip.getContent();
     doc.emptyElement(doc.getDocumentElement());
+    List<PendingLink> pendingLinks = new ArrayList<PendingLink>();
 
     appendLine(doc, "Welcome to SupaWave");
     TitleHelper.setExplicitTitle(doc, "Welcome to SupaWave");
 
     int helpAnchor = appendLine(doc,
-        "This welcome wave is a field guide. Open the collapsed inline blips for deeper details.");
+        "This welcome wave is your dock. The short path lives in the main blip. Open the collapsed inline blips when you want more depth.");
+    appendBlankLine(doc);
     int waveAnchor = appendLine(doc, "What Wave is");
     appendLine(doc,
-        "Wave is a shared conversation plus document where replies, edits, participants, and context stay together.");
-    appendLine(doc, "Why Wave is unique");
-    appendLine(doc,
-        "Instead of splitting work across email, chat, and docs, Wave keeps the full conversation in one place.");
+        "Wave keeps the conversation and the document in the same place. Replies, edits, participants, and context stay together.");
+    appendBlankLine(doc);
     appendLine(doc, "Why it works well with AI agents");
     appendLine(doc,
-        "Complex human and AI collaboration works better when the whole conversation is persistent, branchable, and editable in context.");
-    appendLine(doc, "Try this now");
-    appendLine(doc, "Create a wave with New Wave.");
-    appendLine(doc, "Add participants from the participant bar.");
-    appendLine(doc, "Search to find waves, messages, people, and public waves.");
-    appendLine(doc, "Use @mention to pull people and bots into the right spot in the conversation.");
+        "Humans and agents can work inside the same persistent object, so the thread, the draft, and the context stay together instead of scattering across tools.");
+    appendBlankLine(doc);
+    appendLine(doc, "Why Wave feels different");
+    appendLine(doc,
+        "Email splits the thread. Chat loses the document. Docs lose the conversation. Wave keeps all three in one moving object.");
+    appendBlankLine(doc);
+    appendLine(doc, "A few good first moves");
+    appendLine(doc, "- Start a new wave with New Wave.");
+    appendLine(doc, "- Add people or bots from the participant bar.");
+    appendLine(doc, "- Search to find waves, messages, people, and public waves.");
+    appendLine(doc, "- Use @mention where the context actually lives.");
+    appendLine(doc, "- Pin what keeps moving.");
+    appendLine(doc, "- Archive what should leave the inbox but stay searchable.");
+    appendBlankLine(doc);
     appendLine(doc, "Public waves");
-    appendLine(doc, "Browse public waves from the public directory when you want openly shared conversations.");
-    appendLine(doc, "Pin and Archive");
     appendLine(doc,
-        "Pin the waves you keep returning to, and Archive the ones you want out of the inbox without deleting them.");
+        "Browse public waves from the @ icon in the left search panel or from the public directory.");
+    appendBlankLine(doc);
     int robotAnchor = appendLine(doc, "Robots and Data API");
+    appendLine(doc, "Software participants can live in waves too, not just beside them.");
+    appendLine(doc, "Talk to the bot");
     appendLine(doc,
-        "SupaWave robots can read and write in waves through the robot API. A concrete example is gpt-bot-ts@supawave.ai.");
-    int historyAnchor = appendLine(doc, "Useful links");
-    appendLinkedLine(doc, "Grokipedia history", GROKIPEDIA_URL);
-    appendLinkedLine(doc, "incubator-wave repository", INCUBATOR_WAVE_URL);
-    appendLinkedLine(doc, "SupaWave changelog", CHANGELOG_URL);
-    appendLinkedLine(doc, "SupaWave API docs", API_DOCS_URL);
-    appendLinkedLine(doc, "Public directory", PUBLIC_URL);
-    appendLinkedLine(doc, "Contact Us", CONTACT_URL);
-    appendLinkedLine(doc, "gpt-bot-ts repository", GPT_BOT_TS_URL);
-    int developmentAnchor = appendLine(doc,
-        "SupaWave is in active development, with ongoing modernization around snapshots, tags, contacts, and future federation work.");
+        "Invite gpt-ts-bot@supawave.ai into a wave, then talk to it where the relevant text already is.");
+    appendLine(doc,
+        "It works best when you @mention it in the right reply thread and ask for something concrete: summarize, draft, explain, or continue the work in context.");
+    appendLine(doc, "- Summarize this thread.");
+    appendLine(doc, "- Draft a reply in this tone.");
+    appendLine(doc, "- Explain what's changed since yesterday.");
+    appendLine(doc, "- Turn this into a checklist.");
+    appendBlankLine(doc);
+    appendLine(doc, "Wave-to-wave navigation");
+    appendLine(doc,
+        "These onboarding/public support waves are linked on purpose, so you can move through the set instead of treating this like a dead-end help page.");
+    appendLine(doc, "Onboarding waves");
+    appendLinkedLine(doc, pendingLinks, "Wave 0", WAVE_0_URI);
+    appendLinkedLine(doc, pendingLinks, "Wave 1", WAVE_1_URI);
+    appendLinkedLine(doc, pendingLinks, "Wave 2", WAVE_2_URI);
+    appendLinkedLine(doc, pendingLinks, "Wave 3", WAVE_3_URI);
+    appendLinkedLine(doc, pendingLinks, "Wave 4", WAVE_4_URI);
+    appendLinkedLine(doc, pendingLinks, "Wave 5", WAVE_5_URI);
+    appendBlankLine(doc);
+    int historyAnchor = appendLine(doc, "History in one line");
+    appendLine(doc,
+        "Google Wave became Apache Wave, and SupaWave is the current fork carrying the model forward.");
+    appendBlankLine(doc);
+    appendLine(doc, "Useful links");
+    appendLinkedLine(doc, pendingLinks, "Grokipedia history", GROKIPEDIA_URL);
+    appendLinkedLine(doc, pendingLinks, "incubator-wave repository", INCUBATOR_WAVE_URL);
+    appendLinkedLine(doc, pendingLinks, "SupaWave changelog", CHANGELOG_URL);
+    appendLinkedLine(doc, pendingLinks, "SupaWave API docs", API_DOCS_URL);
+    appendLinkedLine(doc, pendingLinks, "Public directory", PUBLIC_URL);
+    appendLinkedLine(doc, pendingLinks, "Contact Us", CONTACT_URL);
+    appendLinkedLine(doc, pendingLinks, "TypeScript bot repository", GPT_BOT_TS_URL);
+    appendBlankLine(doc);
+    int developmentAnchor = appendLine(doc, "In active development");
+    appendLine(doc,
+        "SupaWave is in active development. Current work includes snapshots, tags, contacts, better onboarding, and future federation work.");
     appendIssueLine(doc);
+    applyPendingLinks(doc, pendingLinks);
 
     // Add threads in reverse document order so each insertion does not shift
     // the anchor positions that still need to be used.
@@ -105,7 +152,7 @@ public final class WelcomeWaveContentBuilder {
         "Google Wave introduced the model. Apache Wave carried the open-source codebase forward. SupaWave is a modern fork focused on practical collaboration, AI-friendly workflows, and current product iteration."));
     result.addCollapsedThreadId(addDetailThread(rootBlip, robotAnchor,
         "Robot and API detail",
-        "The robot API lets software participants read and write in waves. The TypeScript example robot gpt-bot-ts@supawave.ai lives in the gpt-bot-ts repo and shows a concrete SupaWave agent that works with Wave-native context."));
+        "The robot API lets software participants read and write in waves. The live bot account is gpt-ts-bot@supawave.ai, and its code lives in the gpt-bot-ts repository. That combination gives you a concrete SupaWave agent that works with Wave-native context."));
     result.addCollapsedThreadId(addDetailThread(rootBlip, waveAnchor,
         "Why the word Wave matters",
         "The term wave comes from Firefly, where a wave is an electronic communication. That metaphor fits Wave because a single wave can hold both the message and the conversation around it."));
@@ -133,12 +180,24 @@ public final class WelcomeWaveContentBuilder {
     return locateAfterLineElement(doc);
   }
 
-  private static int appendLinkedLine(Document doc, String label, String url) {
+  private static void appendBlankLine(Document doc) {
+    appendLine(doc, "");
+  }
+
+  private static int appendLinkedLine(Document doc, List<PendingLink> pendingLinks,
+      String label, String url) {
     Doc.E line = LineContainers.appendLine(doc, XmlStringBuilder.createText(label));
-    int start = doc.getLocation(Point.after(doc, line));
-    int end = start + label.length();
-    doc.setAnnotation(start, end, AnnotationConstants.LINK_MANUAL, url);
+    pendingLinks.add(new PendingLink(line, label, url));
     return locateAfterLineElement(doc);
+  }
+
+  private static void applyPendingLinks(Document doc, List<PendingLink> pendingLinks) {
+    doc.setAnnotation(0, doc.size(), AnnotationConstants.LINK_MANUAL, null);
+    for (PendingLink pendingLink : pendingLinks) {
+      int start = doc.getLocation(Point.start(doc, pendingLink.line));
+      int end = start + pendingLink.label.length() + 1;
+      doc.setAnnotation(start, end, AnnotationConstants.LINK_MANUAL, pendingLink.url);
+    }
   }
 
   private static void appendIssueLine(Document doc) {
@@ -182,5 +241,17 @@ public final class WelcomeWaveContentBuilder {
       }
     }
     return -1;
+  }
+
+  private static final class PendingLink {
+    private final Doc.E line;
+    private final String label;
+    private final String url;
+
+    private PendingLink(Doc.E line, String label, String url) {
+      this.line = line;
+      this.label = label;
+      this.url = url;
+    }
   }
 }

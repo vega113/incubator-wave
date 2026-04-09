@@ -1,0 +1,17 @@
+{
+  "releaseId": "2026-04-09-welcome-wave-polish",
+  "version": "PR #762",
+  "date": "2026-04-09",
+  "title": "Welcome wave polish",
+  "summary": "The welcome wave now has clearer navigation guidance, stronger bot coaching for gpt-ts-bot@supawave.ai, public-wave discovery via the @ icon in the left search panel, and direct internal wave links across the onboarding/public support waves.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added gpt-ts-bot@supawave.ai guidance with concrete usage instructions in the welcome wave",
+        "Explained public-wave discovery via the @ icon in the left search panel",
+        "Added direct wave:// links to all six onboarding/public support waves"
+      ]
+    }
+  ]
+}
