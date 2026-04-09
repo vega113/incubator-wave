@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-09-tasks-default-query",
-  "version": "PR #776",
+  "version": "PR #777",
   "date": "2026-04-09",
   "title": "Tasks button shows all assigned tasks by default",
   "summary": "The Tasks toolbar button now opens `tasks:me` instead of `tasks:me unread:true`, showing all assigned tasks rather than only unread ones.",
