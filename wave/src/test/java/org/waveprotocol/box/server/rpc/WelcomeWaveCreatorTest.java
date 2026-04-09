@@ -81,6 +81,7 @@ public class WelcomeWaveCreatorTest extends TestCase {
     assertTrue(rootText.contains("Making Waves Public"));
     assertTrue(rootText.contains("Tips, Shortcuts, and Hidden Features"));
     assertFalse(rootText.contains("Wave 0"));
+    assertFalse(rootText.contains("Wave 1"));
     assertFalse(rootText.contains("Wave 2"));
     assertFalse(rootText.contains("Wave 3"));
     assertFalse(rootText.contains("Wave 4"));
