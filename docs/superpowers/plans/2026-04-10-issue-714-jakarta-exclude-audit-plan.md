@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Audit The Live Exact Exclude Lists
+## Task 1: Audit The Live Exact Exclude Lists
 
 **Files:**
 - Verify: `build.sbt`
@@ -31,11 +31,27 @@ node <<'NODE'
 const fs = require('fs');
 const path = require('path');
 const build = fs.readFileSync('build.sbt', 'utf8');
-const start = build.indexOf('val mainExactExcludes: Set[String] = Set(');
-const sub = build.slice(start);
-const end = sub.indexOf('\n  )');
-const block = sub.slice(0, end);
-const entries = [...block.matchAll(/"([^"]+)"/g)].map(m => m[1]).filter(s => s.includes('/'));
+function extractSetEntries(setName) {
+  const marker = `val ${setName}: Set[String] = Set(`;
+  const start = build.indexOf(marker);
+  if (start === -1) {
+    throw new Error(`Could not find ${setName} in build.sbt`);
+  }
+  const sub = build.slice(start);
+  const end = sub.indexOf('\n  )');
+  if (end === -1) {
+    throw new Error(`Could not find end of ${setName} block in build.sbt`);
+  }
+  const block = sub.slice(0, end);
+  return [...block.matchAll(/"([^"]+)"/g)].map(m => m[1]).filter(s => s.includes('/'));
+}
+function optionalSetEntries(setName) {
+  return build.includes(`val ${setName}: Set[String] = Set(`) ? extractSetEntries(setName) : [];
+}
+const entries = [
+  ...extractSetEntries('mainExactExcludes'),
+  ...optionalSetEntries('mainLegacyCompileExcludes')
+];
 let both = 0, mainOnly = 0, missing = 0;
 for (const rel of entries) {
   const hasMain = fs.existsSync(path.join('wave/src/main/java', rel));
@@ -59,11 +75,21 @@ node <<'NODE'
 const fs = require('fs');
 const path = require('path');
 const build = fs.readFileSync('build.sbt','utf8');
-const start = build.indexOf('val mainExactExcludes: Set[String] = Set(');
-const sub = build.slice(start);
-const end = sub.indexOf('\n  )');
-const block = sub.slice(0, end);
-const entries = [...block.matchAll(/"([^"]+)"/g)].map(m => m[1]).filter(s => s.includes('/'));
+function extractSetEntries(setName) {
+  const marker = `val ${setName}: Set[String] = Set(`;
+  const start = build.indexOf(marker);
+  if (start === -1) {
+    throw new Error(`Could not find ${setName} in build.sbt`);
+  }
+  const sub = build.slice(start);
+  const end = sub.indexOf('\n  )');
+  if (end === -1) {
+    throw new Error(`Could not find end of ${setName} block in build.sbt`);
+  }
+  const block = sub.slice(0, end);
+  return [...block.matchAll(/"([^"]+)"/g)].map(m => m[1]).filter(s => s.includes('/'));
+}
+const entries = extractSetEntries('mainExactExcludes');
 const commentRe = /\/\*[\s\S]*?\*\/|(^|\s+)\/\/.*$/gm;
 const normalizeNs = (s) => s.replace(/javax\./g, 'jakarta.').replace(/javax\//g, 'jakarta/').replace(/Javax/g, 'Jakarta');
 const stripCommentsAndWs = (s) => s.replace(commentRe, '\n').split(/\r?\n/).map(l => l.trim()).filter(Boolean).join('\n');
@@ -110,7 +136,7 @@ NODE
 
 Expected: `total: 4`, `both: 1`, `jakartaOnly: 0`, `missing: 3`.
 
-### Task 2: Clean Up Dead Exclude Metadata In `build.sbt`
+## Task 2: Clean Up Dead Exclude Metadata In `build.sbt`
 
 **Files:**
 - Modify: `build.sbt`
@@ -122,7 +148,7 @@ Update the main exact exclude block in `build.sbt` so it becomes two sets:
 ```scala
   // --- Exact excludes under src/main/java ---
   // These files have active Jakarta replacements in src/jakarta-overrides/java.
-  val mainJakartaOverrideExcludes: Set[String] = Set(
+  val mainExactExcludes: Set[String] = Set(
     // existing duplicate-path entries only
   )
 
@@ -161,7 +187,7 @@ with:
 
 ```scala
   val mainFileExcluded = underMain && (
-    mainJakartaOverrideExcludes.exists(suffix => p.endsWith("/" + suffix)) ||
+    mainExactExcludes.exists(suffix => p.endsWith("/" + suffix)) ||
     mainLegacyCompileExcludes.exists(suffix => p.endsWith("/" + suffix))
   )
 ```
@@ -182,11 +208,11 @@ Keep the live entry:
     "org/waveprotocol/box/server/robots/RobotApiModule.java"
 ```
 
-### Task 3: Verify That The Cleanup Is Pure Metadata Hygiene
+## Task 3: Verify That The Cleanup Is Pure Metadata Hygiene
 
 **Files:**
 - Verify: `build.sbt`
-- Create: `journal/local-verification/2026-04-10-issue-714-jakarta-excludes.md`
+- Create locally only (gitignored; do not commit): `journal/local-verification/2026-04-10-issue-714-jakarta-excludes.md`
 
 - [ ] **Step 1: Re-run the exclude audit and confirm there are no missing paths left**
 
@@ -252,7 +278,6 @@ Write `journal/local-verification/2026-04-10-issue-714-jakarta-excludes.md` with
 - [ ] **Step 5: Commit**
 
 ```bash
-git add build.sbt docs/superpowers/plans/2026-04-10-issue-714-jakarta-exclude-audit-plan.md \
-  journal/local-verification/2026-04-10-issue-714-jakarta-excludes.md
+git add build.sbt docs/superpowers/plans/2026-04-10-issue-714-jakarta-exclude-audit-plan.md
 git commit -m "build: clean stale jakarta exclude metadata"
 ```

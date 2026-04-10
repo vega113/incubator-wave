@@ -42,7 +42,7 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
 
   // --- Exact excludes under src/main/java (Gradle mainExactExcludes, lines 283-332) ---
   // These files have active Jakarta replacements in src/jakarta-overrides/java.
-  val mainJakartaOverrideExcludes: Set[String] = Set(
+  val mainExactExcludes: Set[String] = Set(
     "org/waveprotocol/box/server/rpc/ServerRpcProvider.java",
     "org/waveprotocol/box/server/ServerModule.java",
     "org/waveprotocol/box/server/StatModule.java",
@@ -81,7 +81,7 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
     "com/google/wave/api/AbstractRobot.java",
     "org/waveprotocol/box/server/stat/RequestScopeFilter.java",
     "org/waveprotocol/box/server/stat/TimingFilter.java",
-    // Security filters with Jakarta overrides (resolve "Multiple sources matched" warnings)
+    // Security filters with Jakarta overrides (resolve multiple-source match warnings)
     "org/waveprotocol/box/server/security/SecurityHeadersFilter.java",
     "org/waveprotocol/box/server/security/NoCacheFilter.java",
     "org/waveprotocol/box/server/security/StaticCacheFilter.java",
@@ -114,7 +114,7 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
 
   // Jakarta mode: apply full Gradle exclusion list
   val mainFileExcluded = underMain && (
-    mainJakartaOverrideExcludes.exists(suffix => p.endsWith("/" + suffix)) ||
+    mainExactExcludes.exists(suffix => p.endsWith("/" + suffix)) ||
     mainLegacyCompileExcludes.exists(suffix => p.endsWith("/" + suffix))
   )
 
