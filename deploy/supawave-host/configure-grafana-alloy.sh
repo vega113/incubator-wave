@@ -12,8 +12,11 @@ WAVE_LOG_PATH=${WAVE_LOG_PATH:-/home/*/supawave/shared/logs/wave-json*.log}
 WAVE_TIMESTAMP_FORMAT=${WAVE_TIMESTAMP_FORMAT:-RFC3339Nano}
 
 case "$WAVE_TIMESTAMP_FORMAT" in
-  RFC3339Nano|RFC3339|UnixMs|UnixUs|UnixNs) ;;
-  *) echo "Invalid WAVE_TIMESTAMP_FORMAT: $WAVE_TIMESTAMP_FORMAT (allowed: RFC3339Nano, RFC3339, UnixMs, UnixUs, UnixNs)" >&2; exit 1 ;;
+  RFC3339Nano|RFC3339|Unix|UnixMs|UnixUs|UnixNs) ;;
+  *[\"\'\\$\`]*)
+    echo "Invalid WAVE_TIMESTAMP_FORMAT: $WAVE_TIMESTAMP_FORMAT (contains unsafe characters)" >&2; exit 1 ;;
+  "") echo "WAVE_TIMESTAMP_FORMAT must not be empty" >&2; exit 1 ;;
+  *) ;;  # Allow custom Go time layouts (e.g. "2006-01-02T15:04:05Z07:00")
 esac
 
 required=(
