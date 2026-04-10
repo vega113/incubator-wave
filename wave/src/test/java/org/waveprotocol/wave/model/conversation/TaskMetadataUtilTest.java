@@ -26,9 +26,9 @@ import junit.framework.TestCase;
  */
 public class TaskMetadataUtilTest extends TestCase {
 
-  public void testFormatTaskOwnerLabelOmitsOwnerPrefixForEmailAddress() {
+  public void testFormatTaskAssigneeLabelOmitsOwnerPrefixForEmailAddress() {
     assertEquals("alice",
-        TaskMetadataUtil.formatTaskOwnerLabel("alice@example.com"));
+        TaskMetadataUtil.formatTaskAssigneeLabel("alice@example.com"));
   }
 
   public void testFormatParticipantDisplayStripsDomainForEmailAddress() {
@@ -36,17 +36,17 @@ public class TaskMetadataUtilTest extends TestCase {
         TaskMetadataUtil.formatParticipantDisplay("alice@example.com"));
   }
 
-  public void testFormatTaskOwnerLabelKeepsOpaqueIdentifierWithoutPrefix() {
+  public void testFormatTaskAssigneeLabelKeepsOpaqueIdentifierWithoutPrefix() {
     assertEquals("build-bot",
-        TaskMetadataUtil.formatTaskOwnerLabel("build-bot"));
+        TaskMetadataUtil.formatTaskAssigneeLabel("build-bot"));
   }
 
-  public void testFormatTaskOwnerLabelReturnsEmptyForNull() {
-    assertEquals("", TaskMetadataUtil.formatTaskOwnerLabel(null));
+  public void testFormatTaskAssigneeLabelReturnsEmptyForNull() {
+    assertEquals("", TaskMetadataUtil.formatTaskAssigneeLabel(null));
   }
 
-  public void testFormatTaskOwnerLabelReturnsEmptyForBlank() {
-    assertEquals("", TaskMetadataUtil.formatTaskOwnerLabel("   "));
+  public void testFormatTaskAssigneeLabelReturnsEmptyForBlank() {
+    assertEquals("", TaskMetadataUtil.formatTaskAssigneeLabel("   "));
   }
 
   public void testParseDateInputValueRoundTripsThroughFormatter() {

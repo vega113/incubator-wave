@@ -39,7 +39,7 @@ public final class TaskMetadataUtil {
   /**
    * Formats a task assignee pill label from a participant identifier.
    */
-  public static String formatTaskOwnerLabel(String assignee) {
+  public static String formatTaskAssigneeLabel(String assignee) {
     return formatParticipantDisplay(assignee);
   }
 
