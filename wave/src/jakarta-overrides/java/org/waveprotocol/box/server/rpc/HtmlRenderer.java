@@ -1743,6 +1743,7 @@ public final class HtmlRenderer {
     sb.append("  <div class=\"card\">\n");
     sb.append("    <h1>Sign In</h1>\n");
     sb.append("    <div class=\"subtitle\">@").append(escapeHtml(domain)).append("</div>\n");
+    sb.append("    <div class=\"msg success\" id=\"successBanner\" style=\"display:none;margin-bottom:16px;\"></div>\n");
 
     if (disableLoginPage) {
       sb.append("    <p>HTTP authentication disabled by administrator. "
@@ -1791,10 +1792,14 @@ public final class HtmlRenderer {
     sb.append("function setFocus() { var el = document.getElementById(\"address\"); if (el) el.focus(); }\n");
     sb.append("function handleResponse(rt, msg) {\n");
     sb.append("  var lbl = document.getElementById(\"messageLbl\");\n");
-    sb.append("  if (!lbl) return;\n");
-    sb.append("  if (rt == RESPONSE_STATUS_NONE) { lbl.style.display = \"none\"; }\n");
-    sb.append("  else if (rt == RESPONSE_STATUS_FAILED) {\n");
-    sb.append("    lbl.style.display = \"block\"; lbl.className = \"msg error\"; lbl.textContent = msg;\n");
+    sb.append("  var banner = document.getElementById(\"successBanner\");\n");
+    sb.append("  if (rt == RESPONSE_STATUS_NONE) {\n");
+    sb.append("    if (lbl) lbl.style.display = \"none\";\n");
+    sb.append("    if (banner) banner.style.display = \"none\";\n");
+    sb.append("  } else if (rt == RESPONSE_STATUS_FAILED) {\n");
+    sb.append("    if (lbl) { lbl.style.display = \"block\"; lbl.className = \"msg error\"; lbl.textContent = msg; }\n");
+    sb.append("  } else if (rt == RESPONSE_STATUS_SUCCESS) {\n");
+    sb.append("    if (banner) { banner.style.display = \"block\"; banner.textContent = msg; }\n");
     sb.append("  }\n");
     sb.append("}\n");
     sb.append("</script>\n");
@@ -4135,6 +4140,47 @@ public final class HtmlRenderer {
   // =========================================================================
   // 12. Email Confirmation Page
   // =========================================================================
+
+  /**
+   * Renders the "Check your inbox" page shown after registration when email
+   * confirmation is required. The user is redirected here via PRG so refreshing
+   * this page is safe.
+   *
+   * @param domain           the wave server domain
+   * @param analyticsAccount Google Analytics account ID (may be null/empty)
+   */
+  public static String renderCheckEmailPage(String domain, String analyticsAccount) {
+    StringBuilder sb = new StringBuilder(4096);
+    sb.append("<!DOCTYPE html>\n<html dir=\"ltr\">\n<head>\n");
+    sb.append("<meta charset=\"UTF-8\">\n");
+    sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");
+    sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">\n");
+    sb.append("<link rel=\"alternate icon\" href=\"/static/favicon.ico\">\n");
+    sb.append("<title>Check Your Inbox - SupaWave</title>\n");
+    sb.append(AUTH_CSS);
+    appendAnalyticsFragment(sb, analyticsAccount, null);
+    sb.append("</head>\n<body>\n");
+
+    sb.append(WAVE_SVG);
+    sb.append("<div class=\"page-wrapper\">\n");
+    sb.append("  <div class=\"brand\">\n");
+    sb.append("    ").append(WAVE_LOGO_SVG);
+    sb.append("    <div class=\"brand-name\">SupaWave</div>\n");
+    sb.append("  </div>\n");
+
+    sb.append("  <div class=\"card\">\n");
+    sb.append("    <h1>Check your inbox</h1>\n");
+    sb.append("    <div class=\"msg success\" style=\"margin-bottom:16px;\">\n");
+    sb.append("      We&#39;ve sent you a confirmation email. Click the link inside to activate your account.\n");
+    sb.append("    </div>\n");
+    sb.append("    <div class=\"footer-link\">\n");
+    sb.append("      <a href=\"/auth/signin\">Back to sign in &rarr;</a>\n");
+    sb.append("    </div>\n");
+    sb.append("  </div>\n"); // .card
+    sb.append("</div>\n"); // .page-wrapper
+    sb.append("</body>\n</html>\n");
+    return sb.toString();
+  }
 
   /**
    * Renders the email confirmation result page.
