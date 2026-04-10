@@ -168,7 +168,10 @@ public final class ToplevelToolbarWidget extends Composite
       item.asAbstractButton.setParent(this);
       item.proxy.setDelegate(item.onToplevel);
       item.onOverflow.setState(State.INVISIBLE);
-      item.onToplevel.setState(item.proxy.hackGetState());
+      State state = item.proxy.hackGetState();
+      if (state != null) {
+        item.onToplevel.setState(state);
+      }
     }
   }
 
