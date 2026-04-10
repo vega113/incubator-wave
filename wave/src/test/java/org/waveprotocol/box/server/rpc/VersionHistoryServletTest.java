@@ -33,4 +33,8 @@ public final class VersionHistoryServletTest extends TestCase {
   public void testSnapshotJsonKeepsConversationalBlips() {
     assertTrue(VersionHistoryServlet.shouldIncludeSnapshotDocument("b+abc"));
   }
+
+  public void testSnapshotJsonHandlesNullInput() {
+    assertFalse(VersionHistoryServlet.shouldIncludeSnapshotDocument(null));
+  }
 }
