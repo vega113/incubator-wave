@@ -1939,7 +1939,7 @@ public class EditorImpl extends LogicalPanel.Impl implements
     }
   }
 
-  private void maybeRestoreAncestorScrollPositions(Element e) {
+  private void maybeRestoreAncestorScrollPositions(@SuppressWarnings("unused") Element e) {
     if (QuirksConstants.ADJUSTS_SCROLL_TOP_WHEN_FOCUSING && ancestorScrollPositions != null) {
       ancestorScrollPositions.restore(ELEMENT_SCROLL_ADAPTER);
       ancestorScrollPositions = null;
