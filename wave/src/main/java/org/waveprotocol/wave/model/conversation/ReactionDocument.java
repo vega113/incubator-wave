@@ -230,8 +230,18 @@ public class ReactionDocument<N, E extends N, T extends N> {
   }
 
   private void removeAddressFromReaction(E reactionElement, String address) {
-    E userElement = findUserElement(reactionElement, address);
-    if (userElement != null) {
+    List<E> toRemove = new ArrayList<E>();
+    for (N child = doc.getFirstChild(reactionElement);
+         child != null;
+         child = doc.getNextSibling(child)) {
+      E userElement = doc.asElement(child);
+      if (userElement != null
+          && USER_TAG.equals(doc.getTagName(userElement))
+          && address.equals(doc.getAttribute(userElement, ADDRESS_ATTR))) {
+        toRemove.add(userElement);
+      }
+    }
+    for (E userElement : toRemove) {
       doc.deleteNode(userElement);
     }
   }
