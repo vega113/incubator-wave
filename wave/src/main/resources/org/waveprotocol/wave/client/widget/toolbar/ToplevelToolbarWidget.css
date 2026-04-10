@@ -30,11 +30,15 @@
 
 @sprite .toolbar {
   gwt-image: 'fillImage';
-  /* Hide the buttons that overflow. */
+  /* Clip buttons that exceed the row width; flex-wrap: nowrap prevents a
+     wrapped second row from pushing the toolbar beyond 36px and overlapping
+     downstream layout regions (waveCount/list/thread). When overflow is
+     enabled the OverflowPanelUpdater moves excess items to the submenu before
+     they can exceed the container width. */
   overflow: hidden;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   height: auto;
   min-height: 36px;
   box-sizing: border-box;

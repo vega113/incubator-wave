@@ -36,6 +36,10 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(css.contains("min-height: 36px;"));
     assertTrue(css.contains("background-image: linear-gradient(180deg, #eef7ff 0%, #dcecff 100%);"));
     assertTrue(css.contains("background-color: #e7f2ff;"));
+    // flex-wrap: nowrap is required so that overflow-disabled toolbars (e.g. search) cannot
+    // wrap buttons to a second row and push the toolbar beyond the 36px layout contract.
+    assertTrue(css.contains("flex-wrap: nowrap;"));
+    assertFalse(css.contains("flex-wrap: wrap;"));
   }
 
   public void testCompactButtonsUseDenseWidthContract() throws Exception {
