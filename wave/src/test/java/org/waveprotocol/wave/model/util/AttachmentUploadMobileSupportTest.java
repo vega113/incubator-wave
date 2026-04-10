@@ -33,9 +33,15 @@ public final class AttachmentUploadMobileSupportTest extends TestCase {
   }
 
   public void testShouldRecoverSelectionOnlyWhenAwaitingChooserReturn() {
-    assertTrue(AttachmentUploadMobileSupport.shouldRecoverSelection(true, false, 1));
-    assertFalse(AttachmentUploadMobileSupport.shouldRecoverSelection(false, false, 1));
-    assertFalse(AttachmentUploadMobileSupport.shouldRecoverSelection(true, true, 1));
-    assertFalse(AttachmentUploadMobileSupport.shouldRecoverSelection(true, false, 0));
+    // Recover when awaiting, not uploading, and file count exceeds pre-click count.
+    assertTrue(AttachmentUploadMobileSupport.shouldRecoverSelection(true, false, 1, 0));
+    assertTrue(AttachmentUploadMobileSupport.shouldRecoverSelection(true, false, 2, 1));
+    // No recovery when not awaiting.
+    assertFalse(AttachmentUploadMobileSupport.shouldRecoverSelection(false, false, 1, 0));
+    // No recovery when uploading.
+    assertFalse(AttachmentUploadMobileSupport.shouldRecoverSelection(true, true, 1, 0));
+    // No recovery when file count unchanged (cancel with stale FileList).
+    assertFalse(AttachmentUploadMobileSupport.shouldRecoverSelection(true, false, 1, 1));
+    assertFalse(AttachmentUploadMobileSupport.shouldRecoverSelection(true, false, 0, 0));
   }
 }

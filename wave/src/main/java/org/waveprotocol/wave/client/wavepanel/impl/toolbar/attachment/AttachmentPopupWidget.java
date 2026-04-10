@@ -294,6 +294,9 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
   private int nextStoreIndex = 0;
   private boolean awaitingFileSelection = false;
   private Timer fileSelectionRecoveryTimer;
+  private int selectionNonce = 0;
+  private int processedNonce = -1;
+  private int fileCountAtArmTime = 0;
 
   public AttachmentPopupWidget() {
     initWidget(BINDER.createAndBindUi(this));
@@ -314,6 +317,8 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       @Override
       public void onClick(ClickEvent event) {
         if (isUploading) return;
+        selectionNonce++;
+        fileCountAtArmTime = getNativeFileCount(fileUpload.getElement());
         awaitingFileSelection = true;
         armFileSelectionRecovery();
         nativeClickFileInput(fileUpload.getElement());
@@ -324,6 +329,8 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
       @Override
       public void onClick(ClickEvent event) {
         if (isUploading) return;
+        selectionNonce++;
+        fileCountAtArmTime = getNativeFileCount(fileUpload.getElement());
         awaitingFileSelection = true;
         armFileSelectionRecovery();
         nativeClickFileInput(fileUpload.getElement());
@@ -333,7 +340,7 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
     fileUpload.addChangeHandler(new ChangeHandler() {
       @Override
       public void onChange(ChangeEvent event) {
-        onFilesSelected();
+        onFilesSelected(selectionNonce);
       }
     });
 
@@ -408,8 +415,10 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
   //  File selection & preview
   // ─────────────────────────────────────────────
 
-  private void onFilesSelected() {
+  private void onFilesSelected(int nonce) {
     if (isUploading) return;
+    if (processedNonce == nonce) return;
+    processedNonce = nonce;
     awaitingFileSelection = false;
     stopFileSelectionRecovery();
     int added = appendFilesToStore(fileUpload.getElement());
@@ -771,8 +780,8 @@ public final class AttachmentPopupWidget extends Composite implements Attachment
 
   private void maybeRecoverFileSelection() {
     if (AttachmentUploadMobileSupport.shouldRecoverSelection(awaitingFileSelection,
-        isUploading, getNativeFileCount(fileUpload.getElement()))) {
-      onFilesSelected();
+        isUploading, getNativeFileCount(fileUpload.getElement()), fileCountAtArmTime)) {
+      onFilesSelected(selectionNonce);
     }
   }
 

@@ -32,7 +32,7 @@ public final class AttachmentUploadMobileSupport {
   }
 
   public static boolean shouldRecoverSelection(boolean awaitingFileSelection, boolean isUploading,
-      int fileCount) {
-    return awaitingFileSelection && !isUploading && fileCount > 0;
+      int fileCount, int fileCountAtArmTime) {
+    return awaitingFileSelection && !isUploading && fileCount > fileCountAtArmTime;
   }
 }
