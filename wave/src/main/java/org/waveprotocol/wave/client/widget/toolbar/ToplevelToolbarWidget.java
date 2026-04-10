@@ -153,6 +153,9 @@ public final class ToplevelToolbarWidget extends Composite
    * all items are shown at the top level and the "..." button is hidden.
    */
   public void setOverflowEnabled(boolean overflowEnabled) {
+    if (this.overflowEnabled == overflowEnabled) {
+      return;
+    }
     this.overflowEnabled = overflowEnabled;
     overflowButton.setVisible(overflowEnabled);
     if (!overflowEnabled) {
