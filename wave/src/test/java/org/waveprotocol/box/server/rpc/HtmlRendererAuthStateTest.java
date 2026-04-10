@@ -1,6 +1,7 @@
 package org.waveprotocol.box.server.rpc;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import org.junit.Test;
 
@@ -18,6 +19,8 @@ public final class HtmlRendererAuthStateTest {
 
     assertTrue(html.contains("Account created"));
     assertTrue(html.contains("id=\"successBanner\""));
+    assertTrue(html.contains("role=\"status\""));
+    assertTrue(html.contains("aria-live=\"polite\""));
     assertTrue(html.contains("Forgot password?"));
     assertTrue(html.contains("Login with email link"));
   }
@@ -47,6 +50,22 @@ public final class HtmlRendererAuthStateTest {
     assertTrue(html.contains("We sent a fresh activation email."));
     assertTrue(html.contains("Forgot password?"));
     assertTrue(html.contains("Login with email link"));
+  }
+
+  @Test
+  public void activationRequiredSignInPageHidesLoginFormWhenDisabled() {
+    String html = HtmlRenderer.renderActivationRequiredAuthenticationPage(
+        "example.com",
+        "We sent a fresh activation email.",
+        "",
+        true,
+        true,
+        true);
+
+    assertTrue(html.contains("HTTP authentication disabled by administrator."));
+    assertFalse(html.contains("id=\"wiab_loginform\""));
+    assertFalse(html.contains("Forgot password?"));
+    assertFalse(html.contains("Login with email link"));
   }
 
   @Test
