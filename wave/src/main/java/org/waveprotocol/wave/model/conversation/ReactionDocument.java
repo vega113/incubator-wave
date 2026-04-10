@@ -143,8 +143,12 @@ public class ReactionDocument<N, E extends N, T extends N> {
     }
 
     E root = ensureRootElement();
-    E targetReaction = findReactionByEmoji(root, emoji);
-    boolean wasInTarget = targetReaction != null && containsAddress(targetReaction, address);
+
+    // Check ALL duplicate emoji elements for the address, not just the first one.
+    // Concurrent OT can produce multiple <reaction emoji="..."> siblings for the same emoji;
+    // checking only findReactionByEmoji (first match) would miss addresses in later duplicates
+    // and incorrectly re-add the user instead of toggling them off.
+    boolean wasInTarget = containsAddressInAnyDuplicate(root, emoji, address);
 
     // Purge address from every reaction element to maintain the one-reaction-per-user invariant,
     // even when concurrent sessions have created duplicate entries.
@@ -155,7 +159,7 @@ public class ReactionDocument<N, E extends N, T extends N> {
     }
 
     // Re-locate the target after purge (it may have been deleted if it became empty).
-    targetReaction = findReactionByEmoji(root, emoji);
+    E targetReaction = findReactionByEmoji(root, emoji);
     if (targetReaction == null) {
       targetReaction = createReaction(root, emoji);
     }
@@ -192,6 +196,19 @@ public class ReactionDocument<N, E extends N, T extends N> {
       }
     }
     return null;
+  }
+
+  private boolean containsAddressInAnyDuplicate(E root, String emoji, String address) {
+    for (N node = doc.getFirstChild(root); node != null; node = doc.getNextSibling(node)) {
+      E reactionElement = doc.asElement(node);
+      if (reactionElement != null
+          && REACTION_TAG.equals(doc.getTagName(reactionElement))
+          && emoji.equals(doc.getAttribute(reactionElement, EMOJI_ATTR))
+          && containsAddress(reactionElement, address)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private void purgeAddressFromAllReactions(E root, String address) {

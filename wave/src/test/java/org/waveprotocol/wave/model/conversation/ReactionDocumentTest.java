@@ -168,4 +168,22 @@ public final class ReactionDocumentTest extends TestCase {
     assertEquals("heart", reactions.get(0).getEmoji());
     assertEquals(Arrays.asList("alice@example.com"), reactions.get(0).getAddresses());
   }
+
+  public void testToggleOffWhenAddressInLaterDuplicateElement() {
+    // Concurrent OT produced two thumbs_up elements; alice is only in the SECOND one.
+    // toggleReaction must still detect her as present and toggle her off.
+    ReactionDocument<Node, Element, Text> doc = createDocument(
+        "<reactions>"
+        + "<reaction emoji=\"thumbs_up\"><user address=\"bob@example.com\"/></reaction>"
+        + "<reaction emoji=\"thumbs_up\"><user address=\"alice@example.com\"/></reaction>"
+        + "</reactions>");
+
+    doc.toggleReaction("alice@example.com", "thumbs_up");
+
+    // alice should be gone; bob must remain.
+    List<ReactionDocument.Reaction> reactions = doc.getReactions();
+    assertEquals(1, reactions.size());
+    assertEquals("thumbs_up", reactions.get(0).getEmoji());
+    assertEquals(Arrays.asList("bob@example.com"), reactions.get(0).getAddresses());
+  }
 }
