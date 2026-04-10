@@ -49,6 +49,20 @@ public final class ReactionRowRendererTest extends TestCase {
     assertTrue(output.contains("data-reaction-active=\"true\""));
   }
 
+  public void testRenderUsesReactionSpecificAddIconWhenEditable() {
+    SafeHtml html = ReactionRowRenderer.render(
+        "b+blip4",
+        Collections.<ReactionDocument.Reaction>emptyList(),
+        "alice@example.com",
+        true);
+
+    String output = html.asString();
+    assertTrue(output.contains("data-reaction-add=\"true\""));
+    assertTrue(output.contains("aria-label=\"Add reaction\""));
+    assertTrue(output.contains("waveReactionAddIcon"));
+    assertFalse(output.contains(">+</button>"));
+  }
+
   public void testRenderOmitsAddButtonWhenReadOnly() {
     SafeHtml html = ReactionRowRenderer.render(
         "b+blip2",
