@@ -1960,7 +1960,7 @@ public final class HtmlRenderer {
     sb.append("  <div class=\"card\">\n");
     sb.append("    <h1>Sign In</h1>\n");
     sb.append("    <div class=\"subtitle\">@").append(escapeHtml(domain)).append("</div>\n");
-    sb.append("    <div class=\"auth-state-inline success\" id=\"successBanner\" style=\"display:none;\">");
+    sb.append("    <div class=\"auth-state-inline success\" id=\"successBanner\" role=\"status\" aria-live=\"polite\" aria-atomic=\"true\" style=\"display:none;\">");
     sb.append("<div class=\"auth-state-inline-pill\">Account ready</div>");
     sb.append("<h2>Account created</h2>");
     sb.append("<p></p></div>\n");
@@ -4427,7 +4427,8 @@ public final class HtmlRenderer {
    * the normal sign-in affordances available.
    */
   public static String renderActivationRequiredAuthenticationPage(String domain, String message,
-      String analyticsAccount, boolean passwordResetEnabled, boolean magicLinkEnabled) {
+      String analyticsAccount, boolean disableLoginPage,
+      boolean passwordResetEnabled, boolean magicLinkEnabled) {
     StringBuilder sb = new StringBuilder(8192);
     sb.append("<!DOCTYPE html>\n<html dir=\"ltr\">\n<head>\n");
     sb.append("<meta charset=\"UTF-8\">\n");
@@ -4454,29 +4455,34 @@ public final class HtmlRenderer {
     sb.append("      <p>").append(escapeHtml(message))
         .append(" Activate your account first, then return here to sign in.</p>\n");
     sb.append("    </div>\n");
-    sb.append("    <form id=\"wiab_loginform\" action=\"\" method=\"post\">\n");
-    sb.append("      <label for=\"address\">Username</label>\n");
-    sb.append("      <div class=\"input-group\">\n");
-    sb.append("        <input type=\"text\" name=\"address\" id=\"address\" autocomplete=\"username\" placeholder=\"your.name\">\n");
-    sb.append("        <span class=\"domain-suffix\">@").append(escapeHtml(domain)).append("</span>\n");
-    sb.append("      </div>\n");
-    sb.append("      <label for=\"password\">Password</label>\n");
-    sb.append("      <input type=\"password\" name=\"password\" id=\"password\" autocomplete=\"current-password\" placeholder=\"Enter your password\">\n");
-    sb.append("      <input type=\"submit\" class=\"btn-primary\" name=\"signIn\" id=\"signIn\" value=\"Sign in\" style=\"width:100%;\">\n");
-    sb.append("    </form>\n");
-    if (passwordResetEnabled) {
+    if (disableLoginPage) {
+      sb.append("    <p>HTTP authentication disabled by administrator. "
+          + "Install and use your certificate instead.</p>\n");
+    } else {
+      sb.append("    <form id=\"wiab_loginform\" action=\"\" method=\"post\">\n");
+      sb.append("      <label for=\"address\">Username</label>\n");
+      sb.append("      <div class=\"input-group\">\n");
+      sb.append("        <input type=\"text\" name=\"address\" id=\"address\" autocomplete=\"username\" placeholder=\"your.name\">\n");
+      sb.append("        <span class=\"domain-suffix\">@").append(escapeHtml(domain)).append("</span>\n");
+      sb.append("      </div>\n");
+      sb.append("      <label for=\"password\">Password</label>\n");
+      sb.append("      <input type=\"password\" name=\"password\" id=\"password\" autocomplete=\"current-password\" placeholder=\"Enter your password\">\n");
+      sb.append("      <input type=\"submit\" class=\"btn-primary\" name=\"signIn\" id=\"signIn\" value=\"Sign in\" style=\"width:100%;\">\n");
+      sb.append("    </form>\n");
+      if (passwordResetEnabled) {
+        sb.append("    <div class=\"footer-link\">\n");
+        sb.append("      <a href=\"/auth/password-reset\">Forgot password?</a>\n");
+        sb.append("    </div>\n");
+      }
+      if (magicLinkEnabled) {
+        sb.append("    <div class=\"footer-link\">\n");
+        sb.append("      <a href=\"/auth/magic-link\">Login with email link</a>\n");
+        sb.append("    </div>\n");
+      }
       sb.append("    <div class=\"footer-link\">\n");
-      sb.append("      <a href=\"/auth/password-reset\">Forgot password?</a>\n");
+      sb.append("      Need a different account? <a href=\"/auth/register\">Register</a>\n");
       sb.append("    </div>\n");
     }
-    if (magicLinkEnabled) {
-      sb.append("    <div class=\"footer-link\">\n");
-      sb.append("      <a href=\"/auth/magic-link\">Login with email link</a>\n");
-      sb.append("    </div>\n");
-    }
-    sb.append("    <div class=\"footer-link\">\n");
-    sb.append("      Need a different account? <a href=\"/auth/register\">Register</a>\n");
-    sb.append("    </div>\n");
     sb.append("  </div>\n");
     sb.append("</div>\n");
     sb.append("</body>\n</html>\n");

@@ -269,7 +269,7 @@ public class AuthenticationServlet extends HttpServlet {
             resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
             resp.setContentType("text/html;charset=utf-8");
             resp.getWriter().write(HtmlRenderer.renderActivationRequiredAuthenticationPage(
-                domain, message, analyticsAccount,
+                domain, message, analyticsAccount, isLoginPageDisabled,
                 passwordResetEnabled, magicLinkEnabled));
             return;
           }
