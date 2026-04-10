@@ -33,6 +33,8 @@ import org.jdom.input.SAXBuilder;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -156,10 +158,13 @@ public class RobotCapabilitiesParser {
           continue;
         }
         // Prefer the 2-legged active endpoint when both are advertised.
-        if (forUrl.endsWith(ACTIVE_RPC_PATH)) {
-          rpcServerUrl = forUrl;
-        } else if (rpcServerUrl.isEmpty() && forUrl.endsWith(DATA_API_RPC_PATH)) {
-          rpcServerUrl = forUrl;
+        // Only accept endpoints on the same host as this server.
+        if (isSameHost(forUrl, activeRobotApiUrl)) {
+          if (forUrl.endsWith(ACTIVE_RPC_PATH)) {
+            rpcServerUrl = forUrl;
+          } else if (rpcServerUrl.isEmpty() && forUrl.endsWith(DATA_API_RPC_PATH)) {
+            rpcServerUrl = forUrl;
+          }
         }
       }
     } catch (IOException iox) {
@@ -203,6 +208,18 @@ public class RobotCapabilitiesParser {
     }
 
     this.capabilities.put(eventType, new Capability(eventType, contexts, filter));
+  }
+
+  private static boolean isSameHost(String url, String referenceUrl) {
+    try {
+      URI u = new URI(url);
+      URI ref = new URI(referenceUrl);
+      return u.getScheme() != null && u.getScheme().equals(ref.getScheme())
+          && u.getHost() != null && u.getHost().equals(ref.getHost())
+          && u.getPort() == ref.getPort();
+    } catch (URISyntaxException e) {
+      return false;
+    }
   }
 
   @SuppressWarnings({"cast", "unchecked"})
