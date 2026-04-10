@@ -514,7 +514,7 @@ public class EventGenerator {
    *        WaveletData and BlipData.
    * @param rpcServerUrl the server RPC endpoint the robot should use for
    *        follow-up JSON-RPC calls.
-   * @returns true if an event was generated, false otherwise
+   * @return the event message bundle containing all generated events
    */
   public EventMessageBundle generateEvents(WaveletAndDeltas waveletAndDeltas,
       Map<EventType, Capability> capabilities, EventDataConverter converter,
