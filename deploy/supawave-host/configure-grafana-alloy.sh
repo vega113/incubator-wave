@@ -11,6 +11,10 @@ GCLOUD_SCRAPE_INTERVAL=${GCLOUD_SCRAPE_INTERVAL:-60s}
 WAVE_LOG_PATH=${WAVE_LOG_PATH:-/home/*/supawave/shared/logs/wave-json*.log}
 WAVE_TIMESTAMP_FORMAT=${WAVE_TIMESTAMP_FORMAT:-RFC3339Nano}
 
+if [[ "$WAVE_TIMESTAMP_FORMAT" =~ [[:cntrl:]] ]]; then
+  echo "Invalid WAVE_TIMESTAMP_FORMAT: contains control characters" >&2; exit 1
+fi
+
 case "$WAVE_TIMESTAMP_FORMAT" in
   RFC3339Nano|RFC3339|Unix|UnixMs|UnixUs|UnixNs) ;;
   *[\"\'\\$\`]*)
