@@ -1,0 +1,108 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.waveprotocol.wave.model.conversation;
+
+import junit.framework.TestCase;
+
+import org.waveprotocol.wave.model.document.MutableDocumentImpl;
+import org.waveprotocol.wave.model.document.raw.impl.Element;
+import org.waveprotocol.wave.model.document.raw.impl.Node;
+import org.waveprotocol.wave.model.document.raw.impl.Text;
+import org.waveprotocol.wave.model.document.util.DocProviders;
+import org.waveprotocol.wave.model.id.IdUtil;
+
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Unit tests for the per-blip reactions data document helper.
+ */
+public final class ReactionDocumentTest extends TestCase {
+
+  private ReactionDocument<Node, Element, Text> document;
+
+  @Override
+  protected void setUp() throws Exception {
+    document = createDocument("");
+  }
+
+  private static ReactionDocument<Node, Element, Text> createDocument(String xmlContent) {
+    MutableDocumentImpl<Node, Element, Text> baseDocument = DocProviders.MOJO.parse(xmlContent);
+    return new ReactionDocument<Node, Element, Text>(baseDocument);
+  }
+
+  public void testReactionDataDocumentIdUsesReactPrefix() {
+    assertEquals("react+b+abc", IdUtil.reactionDataDocumentId("b+abc"));
+  }
+
+  public void testIsReactionDataDocumentRecognizesPrefixedIds() {
+    assertTrue(IdUtil.isReactionDataDocument("react+b+abc"));
+    assertFalse(IdUtil.isReactionDataDocument("b+abc"));
+    assertFalse(IdUtil.isReactionDataDocument("tags"));
+  }
+
+  public void testReactionTargetBlipIdReturnsOriginalBlipId() {
+    assertEquals("b+abc", IdUtil.reactionTargetBlipId("react+b+abc"));
+    assertNull(IdUtil.reactionTargetBlipId("tags"));
+  }
+
+  public void testGetReactionsReturnsEmptyForEmptyDocument() {
+    assertTrue(document.getReactions().isEmpty());
+  }
+
+  public void testToggleReactionAddsFirstReactionForUser() {
+    document.toggleReaction("alice@example.com", "thumbs_up");
+
+    List<ReactionDocument.Reaction> reactions = document.getReactions();
+    assertEquals(1, reactions.size());
+    assertEquals("thumbs_up", reactions.get(0).getEmoji());
+    assertEquals(Arrays.asList("alice@example.com"), reactions.get(0).getAddresses());
+  }
+
+  public void testToggleReactionRemovesSameReactionForUser() {
+    document.toggleReaction("alice@example.com", "thumbs_up");
+    document.toggleReaction("alice@example.com", "thumbs_up");
+
+    assertTrue(document.getReactions().isEmpty());
+  }
+
+  public void testToggleReactionMovesUserToDifferentEmoji() {
+    document.toggleReaction("alice@example.com", "thumbs_up");
+    document.toggleReaction("alice@example.com", "tada");
+
+    List<ReactionDocument.Reaction> reactions = document.getReactions();
+    assertEquals(1, reactions.size());
+    assertEquals("tada", reactions.get(0).getEmoji());
+    assertEquals(Arrays.asList("alice@example.com"), reactions.get(0).getAddresses());
+  }
+
+  public void testToggleReactionPreservesOtherUsersOnOldEmoji() {
+    document.toggleReaction("alice@example.com", "thumbs_up");
+    document.toggleReaction("bob@example.com", "thumbs_up");
+    document.toggleReaction("alice@example.com", "tada");
+
+    List<ReactionDocument.Reaction> reactions = document.getReactions();
+    assertEquals(2, reactions.size());
+    assertEquals("thumbs_up", reactions.get(0).getEmoji());
+    assertEquals(Arrays.asList("bob@example.com"), reactions.get(0).getAddresses());
+    assertEquals("tada", reactions.get(1).getEmoji());
+    assertEquals(Arrays.asList("alice@example.com"), reactions.get(1).getAddresses());
+  }
+}
