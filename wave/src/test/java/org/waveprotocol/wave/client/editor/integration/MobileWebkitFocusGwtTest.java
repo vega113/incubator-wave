@@ -27,7 +27,6 @@ import org.waveprotocol.wave.client.editor.Editor;
 import org.waveprotocol.wave.client.editor.EditorImplWebkitMobile;
 import org.waveprotocol.wave.client.editor.EditorSettings;
 import org.waveprotocol.wave.client.editor.EditorStaticDeps;
-import org.waveprotocol.wave.client.common.util.UserAgent;
 import org.waveprotocol.wave.client.editor.keys.KeyBindingRegistry;
 import org.waveprotocol.wave.client.editor.content.misc.StyleAnnotationHandler;
 import org.waveprotocol.wave.client.editor.content.paragraph.LineRendering;
@@ -52,6 +51,11 @@ public class MobileWebkitFocusGwtTest extends TestBase {
     private TestMobileEditor(Element e) {
       super(true, e);
     }
+
+    @Override
+    protected boolean isAndroid() {
+      return true; // Force Android code path so CI exercises the actual fix.
+    }
   }
 
   @Override
@@ -66,12 +70,6 @@ public class MobileWebkitFocusGwtTest extends TestBase {
   }
 
   public void testFocusRestoresSelectionForMobileEditor() throws Exception {
-    if (!UserAgent.isAndroid()) {
-      // The production fix is Android-specific; desktop GWT runners should skip rather than
-      // report a false failure for the preserved legacy mobile-Safari path.
-      return;
-    }
-
     editor.setContent(DocProviders.POJO.parse("<body><line/>mobile</body>").asOperation(),
         DocumentSchema.NO_SCHEMA_CONSTRAINTS);
 

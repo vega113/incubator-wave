@@ -37,9 +37,14 @@ public class EditorImplWebkitMobile extends EditorImpl {
   @Override
   public void focus(boolean collapsed) {
     // Android needs the standard focus path so edit sessions start with a real caret.
-    if (UserAgent.isAndroid()) {
+    if (isAndroid()) {
       super.focus(collapsed);
     }
+  }
+
+  /** Returns true if the current environment is Android. Overridable for testing. */
+  protected boolean isAndroid() {
+    return UserAgent.isAndroid();
   }
 
   @Override

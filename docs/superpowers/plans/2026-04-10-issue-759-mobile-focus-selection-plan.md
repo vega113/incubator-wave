@@ -98,10 +98,16 @@ Expected: PASS.
 ```json
 {
   "releaseId": "2026-04-10-mobile-edit-loss-focus",
+  "version": "PR #796",
   "title": "Mobile edit persistence follow-up",
   "summary": "Android/mobile edit sessions now restore a valid caret when opening a blip editor, preventing typed text from appearing only locally and disappearing after reload.",
   "date": "2026-04-10",
-  "type": "fix"
+  "sections": [
+    {
+      "type": "fix",
+      "summary": "Android/mobile edit sessions now restore a valid caret when opening a blip editor, preventing typed text from appearing only locally and disappearing after reload."
+    }
+  ]
 }
 ```
 
