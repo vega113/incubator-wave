@@ -160,7 +160,7 @@ public class UserRegistrationServletTest extends TestCase {
     Config config = ConfigFactory.parseMap(ImmutableMap.<String, Object>of(
         "administration.disable_registration", false,
         "administration.analytics_account", "UA-someid",
-        "core.email_confirmation_enabled", false));
+        "core.email_confirmation_enabled", true));
     UserRegistrationServlet servlet =
         new UserRegistrationServlet(store, "example.com", config, null, welcomeWaveCreator,
             new org.waveprotocol.box.server.waveserver.AnalyticsRecorder(
