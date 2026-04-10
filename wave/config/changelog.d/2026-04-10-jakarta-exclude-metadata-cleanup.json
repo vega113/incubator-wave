@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-10-jakarta-exclude-metadata-cleanup",
+  "version": "PR #803",
+  "date": "2026-04-10",
+  "title": "Clean stale Jakarta exclude metadata",
+  "summary": "The SBT build metadata now reflects the current dual-source Jakarta layout and no longer carries stale exclude entries.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "`build.sbt` now keeps the active Jakarta duplicate-path excludes and legacy main-only skips separate so the exclude metadata matches the runtime source layout"
+      ]
+    }
+  ]
+}
