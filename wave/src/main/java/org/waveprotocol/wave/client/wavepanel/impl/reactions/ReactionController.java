@@ -84,8 +84,8 @@ public final class ReactionController extends ConversationListenerImpl
 
   @Override
   public void onConversationRemoved(ObservableConversation conversation) {
-    conversation.removeListener(this);
     unbindThread(conversation.getRootThread());
+    conversation.removeListener(this);
   }
 
   @Override

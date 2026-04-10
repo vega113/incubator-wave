@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-10-wave-reactions",
-  "version": "PR #798",
+  "version": "PR #799",
   "date": "2026-04-10",
   "title": "Wave Reactions",
   "summary": "Blips now support lightweight emoji reactions with inline counts and quick toggles.",

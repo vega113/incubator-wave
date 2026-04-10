@@ -43,8 +43,14 @@ public final class ReactionRowRenderer {
     SafeHtmlBuilder html = new SafeHtmlBuilder();
     if (reactions != null) {
       for (ReactionDocument.Reaction reaction : reactions) {
-        appendReactionChip(html, blipId, reaction,
-            currentUserAddress != null && reaction.getAddresses().contains(currentUserAddress));
+        if (reaction == null) {
+          continue;
+        }
+        List<String> addresses = reaction.getAddresses();
+        boolean active = currentUserAddress != null
+            && addresses != null
+            && addresses.contains(currentUserAddress);
+        appendReactionChip(html, blipId, reaction, active);
       }
     }
     if (editable) {
