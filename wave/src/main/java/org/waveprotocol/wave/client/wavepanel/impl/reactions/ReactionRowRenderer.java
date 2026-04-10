@@ -73,8 +73,7 @@ public final class ReactionRowRenderer {
       html.appendHtmlConstant(
           "<button type=\"button\" class=\"" + ADD_CLASS + "\" data-reaction-add=\"true\" "
               + "data-reaction-blip-id=\"" + EscapeUtils.htmlEscape(blipId) + "\" "
-              + "aria-label=\"" + ADD_BUTTON_LABEL + "\" title=\"" + ADD_BUTTON_LABEL + "\" "
-              + "aria-haspopup=\"dialog\">");
+              + "aria-label=\"" + ADD_BUTTON_LABEL + "\" title=\"" + ADD_BUTTON_LABEL + "\">");
       html.appendHtmlConstant(ADD_ICON_HTML);
       html.appendHtmlConstant("</button>");
     }
