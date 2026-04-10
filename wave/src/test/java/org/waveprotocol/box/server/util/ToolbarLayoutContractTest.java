@@ -36,10 +36,10 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(css.contains("min-height: 36px;"));
     assertTrue(css.contains("background-image: linear-gradient(180deg, #eef7ff 0%, #dcecff 100%);"));
     assertTrue(css.contains("background-color: #e7f2ff;"));
-    // flex-wrap: nowrap is required so that overflow-disabled toolbars (e.g. search) cannot
-    // wrap buttons to a second row and push the toolbar beyond the 36px layout contract.
-    assertTrue(css.contains("flex-wrap: nowrap;"));
-    assertFalse(css.contains("flex-wrap: wrap;"));
+    // flex-wrap: wrap is required so OverflowPanelUpdater can detect overflowed buttons via
+    // offsetTop > 0. Toolbars with overflow disabled apply nowrap via inline style instead.
+    assertTrue(css.contains("flex-wrap: wrap;"));
+    assertFalse(css.contains("flex-wrap: nowrap;"));
   }
 
   public void testCompactButtonsUseDenseWidthContract() throws Exception {
@@ -108,6 +108,17 @@ public final class ToolbarLayoutContractTest extends TestCase {
         "wave/src/main/java/org/waveprotocol/box/webclient/search/SearchPanelWidget.java");
 
     assertTrue(javaSource.contains("toolbar.setOverflowEnabled(false);"));
+  }
+
+  public void testOverflowDisabledAppliesNowrapInlineStyle() throws Exception {
+    String javaSource = read(
+        "wave/src/main/java/org/waveprotocol/wave/client/widget/toolbar/ToplevelToolbarWidget.java");
+
+    // When overflow is disabled, flex-wrap: nowrap must be set as an inline style on the
+    // toolbar element so that buttons cannot wrap to a second row and breach the 36px contract.
+    // The shared CSS keeps flex-wrap: wrap so OverflowPanelUpdater can detect wrapping via offsetTop.
+    assertTrue(javaSource.contains("setProperty(\"flexWrap\", \"nowrap\")"));
+    assertTrue(javaSource.contains("clearProperty(\"flexWrap\")"));
   }
 
   public void testWaveToolbarsDoNotDisableOverflowByDefault() throws Exception {

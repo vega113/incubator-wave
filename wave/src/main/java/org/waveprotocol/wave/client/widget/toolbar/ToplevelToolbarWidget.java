@@ -159,9 +159,17 @@ public final class ToplevelToolbarWidget extends Composite
     this.overflowEnabled = overflowEnabled;
     overflowButton.setVisible(overflowEnabled);
     if (!overflowEnabled) {
+      // Prevent wrapping when overflow is disabled: without this, buttons that
+      // exceed the row width would wrap to a second line and push the toolbar
+      // beyond the 36px height contract. OverflowPanelUpdater is not active
+      // here so the wrapping would never be resolved via the submenu.
+      self.getElement().getStyle().setProperty("flexWrap", "nowrap");
       restoreItemsToToplevel();
       overflowSubmenu.setState(State.INVISIBLE);
     } else {
+      // Restore default CSS flex-wrap: wrap so OverflowPanelUpdater can detect
+      // overflowed buttons via offsetTop > 0 (buttons on a second row).
+      self.getElement().getStyle().clearProperty("flexWrap");
       overflowLogic.updateStateEventually();
     }
   }
