@@ -33,14 +33,18 @@ import org.waveprotocol.wave.model.conversation.ObservableConversation;
 import org.waveprotocol.wave.model.conversation.ObservableConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationThread;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
+import org.waveprotocol.wave.model.conversation.ReactionDataDocuments;
 import org.waveprotocol.wave.model.conversation.ReactionDocument;
 import org.waveprotocol.wave.model.document.DocHandler;
 import org.waveprotocol.wave.model.document.indexed.DocumentHandler;
 import org.waveprotocol.wave.model.document.ObservableDocument;
-import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.util.CollectionUtils;
 import org.waveprotocol.wave.model.util.IdentityMap;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Keeps rendered reaction rows in sync with their backing data documents.
@@ -84,8 +88,8 @@ public final class ReactionController extends ConversationListenerImpl
 
   @Override
   public void onConversationRemoved(ObservableConversation conversation) {
-    unbindThread(conversation.getRootThread());
     conversation.removeListener(this);
+    unbindConversation(conversation);
   }
 
   @Override
@@ -136,14 +140,16 @@ public final class ReactionController extends ConversationListenerImpl
   }
 
   private void bindBlip(final ObservableConversationBlip blip) {
+    blipsById.put(blip.getId(), blip);
     if (handlers.has(blip)) {
       render(blip);
       return;
     }
-
-    final ObservableDocument reactionDoc =
-        (ObservableDocument) blip.getConversation().getDataDocument(
-            IdUtil.reactionDataDocumentId(blip.getId()));
+    if (!ReactionDataDocuments.hasExistingReactionDocument(blip)) {
+      render(blip);
+      return;
+    }
+    final ObservableDocument reactionDoc = ReactionDataDocuments.getObservableDocument(blip);
     DocHandler handler = new DocHandler() {
       @Override
       public void onDocumentEvents(DocumentHandler.EventBundle<
@@ -155,18 +161,14 @@ public final class ReactionController extends ConversationListenerImpl
     };
     reactionDoc.addListener(handler);
     handlers.put(blip, handler);
-    blipsById.put(blip.getId(), blip);
     render(blip);
   }
 
   private void unbindBlip(ObservableConversationBlip blip) {
-    DocHandler handler = handlers.get(blip);
-    if (handler != null) {
-      ObservableDocument reactionDoc =
-          (ObservableDocument) blip.getConversation().getDataDocument(
-              IdUtil.reactionDataDocumentId(blip.getId()));
+    DocHandler handler = handlers.removeAndReturn(blip);
+    if (handler != null && ReactionDataDocuments.hasExistingReactionDocument(blip)) {
+      ObservableDocument reactionDoc = ReactionDataDocuments.getObservableDocument(blip);
       reactionDoc.removeListener(handler);
-      handlers.remove(blip);
     }
     blipsById.remove(blip.getId());
   }
@@ -181,13 +183,15 @@ public final class ReactionController extends ConversationListenerImpl
     ReactionDocument<org.waveprotocol.wave.model.document.Doc.N,
         org.waveprotocol.wave.model.document.Doc.E,
         org.waveprotocol.wave.model.document.Doc.T> reactionDocument =
-        new ReactionDocument<>(blip.getConversation().getDataDocument(
-            IdUtil.reactionDataDocumentId(blip.getId())));
+        ReactionDataDocuments.getIfPresent(blip);
+    List<ReactionDocument.Reaction> reactions = reactionDocument != null
+        ? reactionDocument.getReactions()
+        : Collections.<ReactionDocument.Reaction>emptyList();
     String currentUserAddress = signedInUser != null ? signedInUser.getAddress() : null;
-    String html = ReactionRowRenderer.render(blip.getId(), reactionDocument.getReactions(),
+    String html = ReactionRowRenderer.render(blip.getId(), reactions,
         currentUserAddress, signedInUser != null).asString();
     row.setInnerHTML(html);
-    boolean empty = reactionDocument.getReactions().isEmpty() && signedInUser == null;
+    boolean empty = reactions.isEmpty() && signedInUser == null;
     row.getStyle().setProperty("display", empty ? "none" : "");
   }
 
@@ -252,9 +256,31 @@ public final class ReactionController extends ConversationListenerImpl
     ReactionDocument<org.waveprotocol.wave.model.document.Doc.N,
         org.waveprotocol.wave.model.document.Doc.E,
         org.waveprotocol.wave.model.document.Doc.T> reactionDocument =
-        new ReactionDocument<>(blip.getConversation().getDataDocument(
-            IdUtil.reactionDataDocumentId(blip.getId())));
+        ReactionDataDocuments.getOrCreate(blip);
     reactionDocument.toggleReaction(signedInUser.getAddress(), emoji);
+    if (!handlers.has(blip) && blip instanceof ObservableConversationBlip) {
+      bindBlip((ObservableConversationBlip) blip);
+    }
     render(blip);
+  }
+
+  private void unbindConversation(ObservableConversation conversation) {
+    final List<ObservableConversationBlip> blipsToRemove = new ArrayList<ObservableConversationBlip>();
+    handlers.each(new IdentityMap.ProcV<ConversationBlip, DocHandler>() {
+      @Override
+      public void apply(ConversationBlip blip, DocHandler handler) {
+        if (blip.getConversation() == conversation && blip instanceof ObservableConversationBlip) {
+          blipsToRemove.add((ObservableConversationBlip) blip);
+        }
+      }
+    });
+    for (ObservableConversationBlip blip : blipsById.values()) {
+      if (blip.getConversation() == conversation && !blipsToRemove.contains(blip)) {
+        blipsToRemove.add(blip);
+      }
+    }
+    for (ObservableConversationBlip blip : blipsToRemove) {
+      unbindBlip(blip);
+    }
   }
 }

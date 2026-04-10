@@ -49,9 +49,9 @@ import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ConversationThread;
 import org.waveprotocol.wave.model.conversation.ConversationView;
 import org.waveprotocol.wave.model.conversation.DirectMessageUtil;
+import org.waveprotocol.wave.model.conversation.ReactionDataDocuments;
 import org.waveprotocol.wave.model.conversation.ReactionDocument;
 import org.waveprotocol.wave.model.conversation.WaveLockState;
-import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.supplement.ReadableSupplementedWave;
 import org.waveprotocol.wave.model.supplement.ThreadState;
 import org.waveprotocol.wave.model.util.CollectionUtils;
@@ -345,9 +345,11 @@ public final class FullDomRenderer implements RenderingRules<UiBuilder> {
     ReactionDocument<org.waveprotocol.wave.model.document.Doc.N,
         org.waveprotocol.wave.model.document.Doc.E,
         org.waveprotocol.wave.model.document.Doc.T> reactionDocument =
-        new ReactionDocument<>(blip.getConversation().getDataDocument(
-            IdUtil.reactionDataDocumentId(blip.getId())));
-    SafeHtml html = ReactionRowRenderer.render(blip.getId(), reactionDocument.getReactions(),
+        ReactionDataDocuments.getIfPresent(blip);
+    List<ReactionDocument.Reaction> reactions = reactionDocument != null
+        ? reactionDocument.getReactions()
+        : Collections.<ReactionDocument.Reaction>emptyList();
+    SafeHtml html = ReactionRowRenderer.render(blip.getId(), reactions,
         signedInUser != null ? signedInUser.getAddress() : null, signedInUser != null);
     return UiBuilder.Constant.of(html);
   }

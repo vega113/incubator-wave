@@ -61,4 +61,18 @@ public final class ReactionRowRendererTest extends TestCase {
     assertTrue(output.contains("eyes"));
     assertFalse(output.contains("data-reaction-add=\"true\""));
   }
+
+  public void testRenderSkipsNullReactionEntries() {
+    SafeHtml html = ReactionRowRenderer.render(
+        "b+blip3",
+        Arrays.asList(
+            null,
+            new ReactionDocument.Reaction("fire", Collections.singletonList("alice@example.com"))),
+        "alice@example.com",
+        true);
+
+    String output = html.asString();
+    assertTrue(output.contains("fire"));
+    assertTrue(output.contains("data-reaction-active=\"true\""));
+  }
 }
