@@ -34,6 +34,7 @@ public final class ReactionRowRendererTest extends TestCase {
 
   public void testRenderIncludesChipCountsAndAddButtonWhenEditable() {
     SafeHtml html = ReactionRowRenderer.render(
+        "b+blip1",
         Arrays.asList(
             new ReactionDocument.Reaction("thumbs_up", Arrays.asList("alice@example.com", "bob@example.com")),
             new ReactionDocument.Reaction("tada", Collections.singletonList("carol@example.com"))),
@@ -50,6 +51,7 @@ public final class ReactionRowRendererTest extends TestCase {
 
   public void testRenderOmitsAddButtonWhenReadOnly() {
     SafeHtml html = ReactionRowRenderer.render(
+        "b+blip2",
         Collections.singletonList(
             new ReactionDocument.Reaction("eyes", Collections.singletonList("alice@example.com"))),
         null,

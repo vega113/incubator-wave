@@ -24,7 +24,6 @@ import org.waveprotocol.wave.model.document.MutableDocument;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Provides an integrity-preserving interface for a per-blip reactions data document.

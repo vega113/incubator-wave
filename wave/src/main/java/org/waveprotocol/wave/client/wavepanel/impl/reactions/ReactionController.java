@@ -85,6 +85,7 @@ public final class ReactionController extends ConversationListenerImpl
   @Override
   public void onConversationRemoved(ObservableConversation conversation) {
     conversation.removeListener(this);
+    unbindThread(conversation.getRootThread());
   }
 
   @Override
@@ -121,6 +122,15 @@ public final class ReactionController extends ConversationListenerImpl
       bindBlip(blip);
       for (ObservableConversationThread reply : blip.getReplyThreads()) {
         bindThread(reply);
+      }
+    }
+  }
+
+  private void unbindThread(ObservableConversationThread thread) {
+    for (ObservableConversationBlip blip : thread.getBlips()) {
+      unbindBlip(blip);
+      for (ObservableConversationThread reply : blip.getReplyThreads()) {
+        unbindThread(reply);
       }
     }
   }
