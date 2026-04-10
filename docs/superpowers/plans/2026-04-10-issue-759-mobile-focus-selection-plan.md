@@ -105,7 +105,9 @@ Expected: PASS.
   "sections": [
     {
       "type": "fix",
-      "summary": "Android/mobile edit sessions now restore a valid caret when opening a blip editor, preventing typed text from appearing only locally and disappearing after reload."
+      "items": [
+        "Android/mobile edit sessions now restore a valid caret when opening a blip editor, preventing typed text from appearing only locally and disappearing after reload."
+      ]
     }
   ]
 }
