@@ -104,16 +104,12 @@ public final class ReactionController extends ConversationListenerImpl
 
   @Override
   public void onThreadAdded(ObservableConversationThread thread) {
-    for (ObservableConversationBlip blip : thread.getBlips()) {
-      bindBlip(blip);
-    }
+    bindThread(thread);
   }
 
   @Override
   public void onThreadDeleted(ObservableConversationThread thread) {
-    for (ObservableConversationBlip blip : thread.getBlips()) {
-      unbindBlip(blip);
-    }
+    unbindThread(thread);
   }
 
   private void bindConversation(ObservableConversation conversation) {
