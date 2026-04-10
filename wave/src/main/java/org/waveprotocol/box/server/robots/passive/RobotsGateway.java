@@ -250,9 +250,7 @@ public class RobotsGateway implements WaveBus.Subscriber {
    */
   public void updateRobotAccount(Robot robot) throws CapabilityFetchException,
       PersistenceException {
-    // TODO: Pass in activeAPIUrl
-    String activeApiUrl = "";
-    RobotAccountData newAccount = connector.fetchCapabilities(robot.getAccount(), activeApiUrl);
+    RobotAccountData newAccount = connector.fetchCapabilities(robot.getAccount(), defaultRpcServerUrl);
     accountStore.putAccount(newAccount);
     robot.setAccount(newAccount);
   }
