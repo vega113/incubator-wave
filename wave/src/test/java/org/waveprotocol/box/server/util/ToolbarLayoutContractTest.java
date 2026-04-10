@@ -34,6 +34,8 @@ public final class ToolbarLayoutContractTest extends TestCase {
 
     assertTrue(css.contains("height: auto;"));
     assertTrue(css.contains("min-height: 36px;"));
+    assertTrue(css.contains("background-image: linear-gradient(180deg, #eef7ff 0%, #dcecff 100%);"));
+    assertTrue(css.contains("background-color: #e7f2ff;"));
   }
 
   public void testCompactButtonsUseDenseWidthContract() throws Exception {
@@ -62,6 +64,7 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(javaSource.contains("private static int TOOLBAR_HEIGHT_PX = 36;"));
     assertTrue(css.contains("height: auto;"));
     assertTrue(css.contains("min-height: 36px;"));
+    assertTrue(css.contains("background-image: linear-gradient(180deg, #eef7ff 0%, #dcecff 100%);"));
   }
 
   public void testTopConversationReservesThirtySixPixelsForToolbarHeight() throws Exception {
@@ -74,6 +77,7 @@ public final class ToolbarLayoutContractTest extends TestCase {
         "ParticipantsViewBuilder.COLLAPSED_HEIGHT_PX + 36 + \"px\""));
     assertTrue(css.contains("height: auto;"));
     assertTrue(css.contains("min-height: 36px;"));
+    assertTrue(css.contains("background-image: linear-gradient(180deg, #eef7ff 0%, #dcecff 100%);"));
   }
 
   public void testSearchToolbarSvgContractMatchesPolishedToolbarSizing() throws Exception {
@@ -112,12 +116,12 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertFalse(editToolbar.contains("setOverflowEnabled(false);"));
   }
 
-  public void testSharedToolbarIconCssUsesTwentyPixelDisplaySize() throws Exception {
+  public void testSharedToolbarIconCssUsesSeventeenPixelDisplaySize() throws Exception {
     String javaSource = read(
         "wave/src/main/java/org/waveprotocol/box/webclient/client/WebClient.java");
 
-    // Single source of truth: the constant must declare 20px
-    assertTrue(javaSource.contains("TOOLBAR_ICON_DISPLAY_PX = \"20px\""));
+    // Single source of truth: the constant must declare 17px
+    assertTrue(javaSource.contains("TOOLBAR_ICON_DISPLAY_PX = \"17px\""));
 
     int wrapperRule = javaSource.indexOf(".toolbar-svg-icon {");
     int svgRule = javaSource.indexOf(".toolbar-svg-icon svg {");
@@ -136,6 +140,17 @@ public final class ToolbarLayoutContractTest extends TestCase {
     int secondSvgUse = javaSource.indexOf("TOOLBAR_ICON_DISPLAY_PX", firstSvgUse + 1);
     assertTrue(firstSvgUse > svgRule);
     assertTrue(secondSvgUse > svgRule);
+  }
+
+  public void testViewToolbarRecentIconDoesNotUseRefreshGlyph() throws Exception {
+    String javaSource = read(
+        "wave/src/main/java/org/waveprotocol/wave/client/wavepanel/impl/toolbar/ViewToolbar.java");
+
+    assertTrue(javaSource.contains("private static final String ICON_RECENT = SVG_OPEN"));
+    assertTrue(javaSource.contains("<circle cx=\\\"12\\\" cy=\\\"12\\\" r=\\\"9\\\"></circle>"));
+    assertTrue(javaSource.contains("<path d=\\\"M12 7v5l-3 2\\\"></path></svg>"));
+    assertFalse(javaSource.contains("<path d=\\\"M1 4v6h6\\\"></path>"));
+    assertFalse(javaSource.contains("<path d=\\\"M3.51 15a9 9 0 1 0 2.13-9.36L1 10\\\"></path></svg>"));
   }
 
   private static String read(String relativePath) throws IOException {
