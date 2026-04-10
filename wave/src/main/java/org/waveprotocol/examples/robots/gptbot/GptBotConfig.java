@@ -396,16 +396,20 @@ public final class GptBotConfig {
    */
   public enum ReplyMode {
     PASSIVE,
-    ACTIVE;
+    ACTIVE,
+    ACTIVE_STREAM;
 
     private static ReplyMode from(String value, String environmentName, String defaultValue) {
       String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
       ReplyMode mode = PASSIVE;
       if ("active".equals(normalized)) {
         mode = ACTIVE;
+      } else if ("active-stream".equals(normalized) || "active_stream".equals(normalized)
+          || "activestream".equals(normalized)) {
+        mode = ACTIVE_STREAM;
       } else if (!normalized.isEmpty() && !"passive".equals(normalized)) {
         LOG.warning("Ignoring invalid value for " + environmentName + ": " + value
-            + "; allowed values: passive,active; using default " + defaultValue);
+            + "; allowed values: passive,active,active-stream; using default " + defaultValue);
       }
       return mode;
     }

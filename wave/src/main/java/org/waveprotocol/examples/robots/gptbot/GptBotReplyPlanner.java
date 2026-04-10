@@ -82,13 +82,46 @@ public final class GptBotReplyPlanner {
   }
 
   Optional<String> replyForPrompt(String promptText, String waveContext, String waveId) {
-    Optional<String> reply = Optional.empty();
+    return Optional.of(runCompletion(promptText, waveContext, waveId, null));
+  }
+
+  Optional<String> replyForPromptStreaming(String promptText, String waveContext, String waveId,
+      CodexClient.StreamingListener listener) {
+    return Optional.of(runCompletion(promptText, waveContext, waveId, listener));
+  }
+
+  private String runCompletion(String promptText, String waveContext, String waveId,
+      CodexClient.StreamingListener listener) {
     String normalizedPrompt = promptText == null ? "" : promptText.strip();
     if (normalizedPrompt.isEmpty()) {
       normalizedPrompt = CLARIFYING_PROMPT;
     }
 
-    // Build messages list: system + wave context + history + new user message
+    Map<String, String> userMsg = new LinkedHashMap<>();
+    List<Map<String, String>> messages = buildMessages(normalizedPrompt, waveContext, waveId, userMsg);
+
+    String response = "";
+    try {
+      String codexResponse = listener == null
+          ? codexClient.completeMessages(messages)
+          : codexClient.completeMessagesStreaming(messages, listener);
+      if (codexResponse != null) {
+        response = codexResponse.strip();
+      }
+    } catch (RuntimeException e) {
+      LOG.warning("Codex completion failed", e);
+      response = "I'm having trouble generating a full answer right now, but I'm here to help.";
+    }
+    if (response.isEmpty()) {
+      response = "I'm here — what would you like me to help with?";
+    }
+
+    recordConversationTurn(waveId, userMsg, response);
+    return response;
+  }
+
+  private List<Map<String, String>> buildMessages(String normalizedPrompt, String waveContext,
+      String waveId, Map<String, String> userMsg) {
     List<Map<String, String>> messages = new ArrayList<>();
 
     Map<String, String> systemMsg = new LinkedHashMap<>();
@@ -105,7 +138,6 @@ public final class GptBotReplyPlanner {
     systemMsg.put("content", systemContent.toString());
     messages.add(systemMsg);
 
-    // Add history turns (token-budget pruning applied at store time).
     if (waveId != null && !waveId.isEmpty()) {
       synchronized (historyLock) {
         WaveHistory history = conversationHistory.get(waveId);
@@ -115,27 +147,13 @@ public final class GptBotReplyPlanner {
       }
     }
 
-    // Add the new user message
-    Map<String, String> userMsg = new LinkedHashMap<>();
     userMsg.put("role", "user");
     userMsg.put("content", sanitize(normalizedPrompt, MAX_PROMPT_CHARS));
     messages.add(userMsg);
+    return messages;
+  }
 
-    String response = "";
-    try {
-      String codexResponse = codexClient.completeMessages(messages);
-      if (codexResponse != null) {
-        response = codexResponse.strip();
-      }
-    } catch (RuntimeException e) {
-      LOG.warning("Codex completion failed", e);
-      response = "I'm having trouble generating a full answer right now, but I'm here to help.";
-    }
-    if (response.isEmpty()) {
-      response = "I'm here — what would you like me to help with?";
-    }
-
-    // Update conversation history
+  private void recordConversationTurn(String waveId, Map<String, String> userMsg, String response) {
     if (waveId != null && !waveId.isEmpty()) {
       synchronized (historyLock) {
         WaveHistory history = conversationHistory.computeIfAbsent(waveId, k -> new WaveHistory());
@@ -147,9 +165,6 @@ public final class GptBotReplyPlanner {
         history.pruneToFit(maxHistoryTokens);
       }
     }
-
-    reply = Optional.of(response);
-    return reply;
   }
 
   String buildPrompt(String userPrompt, String waveContext) {
