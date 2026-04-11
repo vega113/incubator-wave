@@ -23,6 +23,7 @@ import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.event.dom.client.ClickEvent;
 
+import org.waveprotocol.box.common.SearchQuerySyntax;
 import org.waveprotocol.wave.client.events.ClientEvents;
 import org.waveprotocol.wave.client.events.SearchQueryEvent;
 import org.waveprotocol.wave.client.widget.toast.ToastNotification;
@@ -121,10 +122,7 @@ public final class TagController {
     if (!TagState.REMOVED.equals(tagView.getState())) {
       final Pair<Conversation, String> tag = models.getTag(tagView);
       if (tag != null) {
-        String tagName = tag.second;
-        String query = tagName.contains(" ")
-            ? "tag:\"" + tagName + "\""
-            : "tag:" + tagName;
+        String query = "tag:" + SearchQuerySyntax.serializeTokenValue(tag.second);
         ClientEvents.get().fireEvent(new SearchQueryEvent(query));
       }
     }
