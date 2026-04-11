@@ -128,6 +128,20 @@ public class SupaWaveApiClientTest extends TestCase {
     assertEquals("https://wave.example.com/robot/rpc/?tenant=x", httpClient.lastRpcRequestUri.toString());
   }
 
+  public void testCreateReplyFallsBackToTrustedRobotEndpointWhenRpcServerUrlHasUnexpectedPath() {
+    GptBotConfig config = testConfig();
+    RecordingHttpClient httpClient = new RecordingHttpClient();
+    SupaWaveApiClient client = new SupaWaveApiClient(config, httpClient);
+
+    Optional<String> replyId = client.createReply("example.com!w+abc123",
+        "example.com!conv+root", "b+parent", "\nHello",
+        "https://wave.example.com/not-a-rpc-endpoint");
+
+    assertEquals(Optional.of("b+child"), replyId);
+    assertEquals("https://wave.example.com/robot/rpc", httpClient.lastRpcRequestUri.toString());
+    assertTrue(httpClient.lastTokenRequestBody.contains("token_type=robot"));
+  }
+
   private static GptBotConfig testConfig() {
     return GptBotConfig.forTest().withBaseUrl("https://wave.example.com");
   }

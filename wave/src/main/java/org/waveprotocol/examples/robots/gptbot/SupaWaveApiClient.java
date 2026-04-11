@@ -483,10 +483,37 @@ public final class SupaWaveApiClient implements SupaWaveClient {
       int candidatePort = candidate.getPort() == -1
           ? ("https".equalsIgnoreCase(candidate.getScheme()) ? 443 : 80)
           : candidate.getPort();
-      return configuredPort == candidatePort;
+      if (configuredPort != candidatePort) {
+        return false;
+      }
+      String candidatePath = normalizeRpcPath(candidate.getPath());
+      return candidatePath.equals(expectedRpcPath(configured.getPath(), "/robot/rpc"))
+          || candidatePath.equals(expectedRpcPath(configured.getPath(), "/robot/dataapi/rpc"));
     } catch (IllegalArgumentException e) {
       return false;
     }
+  }
+
+  private static String expectedRpcPath(String basePath, String rpcPath) {
+    String normalizedBasePath = normalizeRpcPath(basePath);
+    if (normalizedBasePath.isEmpty()) {
+      return rpcPath;
+    }
+    if (rpcPath.startsWith("/")) {
+      return normalizedBasePath + rpcPath;
+    }
+    return normalizedBasePath + "/" + rpcPath;
+  }
+
+  private static String normalizeRpcPath(String path) {
+    if (path == null || path.isBlank() || "/".equals(path)) {
+      return "";
+    }
+    String normalized = path.trim();
+    while (normalized.endsWith("/") && normalized.length() > 1) {
+      normalized = normalized.substring(0, normalized.length() - 1);
+    }
+    return normalized;
   }
 
   private String tokenEndpoint() {
