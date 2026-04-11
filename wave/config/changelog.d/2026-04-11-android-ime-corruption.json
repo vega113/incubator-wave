@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-11-android-ime-corruption",
-  "version": "Issue #828",
+  "version": "PR #831",
   "date": "2026-04-11",
   "title": "Fix Android IME word-boundary corruption",
   "summary": "Android/mobile editing no longer double-applies delayed post-composition DOM mutations that dropped leading letters and spaces while finishing a blip.",
