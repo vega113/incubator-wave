@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-11-remote-wavelet-logging-cleanup",
+  "version": "PR #840",
+  "date": "2026-04-11",
+  "title": "Remote Wavelet Logging Cleanup",
+  "summary": "Removed redundant remote wavelet delta parsing/logging and cleaned up the related implementation details.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Remove redundant parsing/logging of incoming signed deltas in RemoteWaveletContainerImpl so malformed protobuf payloads no longer trigger direct stack trace output from this path"
+      ]
+    }
+  ]
+}
