@@ -28,6 +28,7 @@ import com.google.gwt.junit.client.GWTTestCase;
 
 import org.waveprotocol.wave.client.common.util.EventWrapper;
 import org.waveprotocol.wave.client.common.util.FakeSignalEvent;
+import org.waveprotocol.wave.client.common.util.QuirksConstants;
 import org.waveprotocol.wave.client.common.util.SignalEvent;
 import org.waveprotocol.wave.client.common.util.SignalEvent.KeyModifier;
 import org.waveprotocol.wave.client.common.util.SignalEvent.KeySignalType;
@@ -590,7 +591,7 @@ public class EditorEventHandlerGwtTest
     FakeEditorInteractor interactor = setupFakeEditorInteractor(new FocusedContentRange(caret));
     EditorEventHandler handler = createEditorEventHandler(interactor, subHandler);
 
-    interactor.call(FakeEditorInteractor.COMPOSITION_START).nOf(1);
+    interactor.call(FakeEditorInteractor.COMPOSITION_START).nOf(1).withArgs(caret);
     interactor.call(FakeEditorInteractor.COMPOSITION_UPDATE).nOf(2);
     interactor.call(FakeEditorInteractor.COMPOSITION_END).nOf(1);
     interactor.call(FakeEditorInteractor.NOTIFYING_TYPING_EXTRACTOR).nOf(1).anyArgs();
@@ -689,6 +690,59 @@ public class EditorEventHandlerGwtTest
         setupFakeEditorInteractor(new FocusedContentRange(start, end));
     EditorEventHandler handler =
         createEditorEventHandler(interactor, new FakeEditorEventsSubHandler());
+
+    assertFalse(handler.handleEvent(mutation));
+    interactor.checkExpectations();
+  }
+
+  /**
+   * On WebKit, the trailing DOM mutation after browser compositionend can be
+   * the event that flushes delayed application-side composition end. That same
+   * mutation must not also re-enter the typing extractor.
+   */
+  public void testDomMutationImmediatelyAfterCompositionEndSkipsTypingExtractor() {
+    assertTrue(QuirksConstants.MODIFIES_DOM_AND_FIRES_TEXTINPUT_AFTER_COMPOSITION);
+
+    FakeEditorEvent[] composition = FakeEditorEvent.compositionSequence(0);
+    FakeEditorEvent mutation = FakeEditorEvent.create(BrowserEvents.DOMCharacterDataModified);
+
+    Point<ContentNode> caret = Point.inText(
+        new ContentTextNode(Document.get().createTextNode("new"), null), 3);
+    FocusedContentRange collapsedSelection = new FocusedContentRange(caret);
+
+    FakeEditorInteractor interactor = setupFakeEditorInteractor(collapsedSelection);
+    FakeEditorEventsSubHandler subHandler = new FakeEditorEventsSubHandler();
+    subHandler.call(FakeEditorEventsSubHandler.HANDLE_DOM_MUTATION).anyOf();
+    interactor.call(FakeEditorInteractor.COMPOSITION_START).nOf(1).withArgs(caret);
+    interactor.call(FakeEditorInteractor.COMPOSITION_END).nOf(1).returns(collapsedSelection);
+
+    EditorEventHandler handler = createEditorEventHandler(interactor, subHandler);
+
+    assertFalse(handler.handleEvent(composition[0]));
+    assertEquals(EditorEventHandler.State.COMPOSITION, handler.getState());
+    assertFalse(handler.handleEvent(composition[1]));
+    assertEquals(EditorEventHandler.State.COMPOSITION, handler.getState());
+    assertFalse(handler.handleEvent(mutation));
+    assertEquals(EditorEventHandler.State.NORMAL, handler.getState());
+
+    interactor.checkExpectations();
+  }
+
+  public void testCollapsedDomMutationOutsideCompositionStillNotifiesTypingExtractor() {
+    FakeEditorEvent mutation = FakeEditorEvent.create(BrowserEvents.DOMCharacterDataModified);
+
+    Point<ContentNode> caret = Point.inText(
+        new ContentTextNode(Document.get().createTextNode("new"), null), 3);
+    FocusedContentRange collapsedSelection = new FocusedContentRange(caret);
+
+    FakeEditorInteractor interactor = setupFakeEditorInteractor(collapsedSelection);
+    FakeEditorEventsSubHandler subHandler = new FakeEditorEventsSubHandler();
+    subHandler.call(FakeEditorEventsSubHandler.HANDLE_DOM_MUTATION).anyOf();
+    interactor.call(FakeEditorInteractor.NOTIFYING_TYPING_EXTRACTOR)
+        .nOf(1)
+        .withArgs(caret, false);
+
+    EditorEventHandler handler = createEditorEventHandler(interactor, subHandler);
 
     assertFalse(handler.handleEvent(mutation));
     interactor.checkExpectations();
@@ -923,7 +977,7 @@ public class EditorEventHandlerGwtTest
 
     @Override
     public void compositionStart(Point<ContentNode> caret) {
-      methodCalledHelper(COMPOSITION_START);
+      methodCalledHelper(COMPOSITION_START, caret);
     }
 
     @Override
