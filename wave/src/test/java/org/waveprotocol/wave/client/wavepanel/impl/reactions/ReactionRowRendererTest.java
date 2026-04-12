@@ -90,7 +90,23 @@ public final class ReactionRowRendererTest extends TestCase {
 
     String output = html.asString();
     assertTrue(output.contains("<span class=\"waveReactionEmoji\">thumbs_up</span>"));
-    assertTrue(output.contains("</span> <span class=\"waveReactionCount\">2</span>"));
+    assertTrue(output.contains("<span class=\"waveReactionCount\" data-reaction-inspect=\"true\" title=\"See who reacted\">2</span>"));
+  }
+
+  public void testRenderMarksReactionChipAsInspectable() {
+    SafeHtml html = ReactionRowRenderer.render(
+        "b+blip7",
+        Collections.singletonList(
+            new ReactionDocument.Reaction("thumbs_up",
+                Arrays.asList("alice@example.com", "bob@example.com"))),
+        "alice@example.com",
+        true);
+
+    String output = html.asString();
+    assertFalse(output.contains("aria-haspopup=\"dialog\""));
+    assertTrue(output.contains("data-reaction-emoji=\"thumbs_up\""));
+    assertTrue(output.contains("data-reaction-inspect=\"true\""));
+    assertTrue(output.contains("title=\"See who reacted\""));
   }
 
   public void testRenderOmitsAddButtonWhenReadOnly() {
