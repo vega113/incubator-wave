@@ -103,9 +103,10 @@ public final class ReactionRowRendererTest extends TestCase {
         true);
 
     String output = html.asString();
-    assertTrue(output.contains("aria-haspopup=\"dialog\""));
-    assertTrue(output.contains("title=\"See who reacted\""));
+    assertFalse(output.contains("aria-haspopup=\"dialog\""));
+    assertTrue(output.contains("data-reaction-emoji=\"thumbs_up\""));
     assertTrue(output.contains("data-reaction-inspect=\"true\""));
+    assertTrue(output.contains("title=\"See who reacted\""));
   }
 
   public void testRenderOmitsAddButtonWhenReadOnly() {

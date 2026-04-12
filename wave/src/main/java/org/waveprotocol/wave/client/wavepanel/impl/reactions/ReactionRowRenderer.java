@@ -97,8 +97,7 @@ public final class ReactionRowRenderer {
     String safeEmoji = EscapeUtils.htmlEscape(emoji);
     html.appendHtmlConstant("<button type=\"button\" class=\"" + classes
         + "\" data-reaction-emoji=\"" + safeEmoji + "\" data-reaction-active=\""
-        + active + "\" data-reaction-blip-id=\"" + EscapeUtils.htmlEscape(blipId) + "\" "
-        + "aria-haspopup=\"dialog\" title=\"" + AUTHOR_DIALOG_HINT + "\">");
+        + active + "\" data-reaction-blip-id=\"" + EscapeUtils.htmlEscape(blipId) + "\">");
     html.appendHtmlConstant("<span class=\"" + EMOJI_CLASS + "\">");
     html.appendEscaped(emoji);
     html.appendHtmlConstant("</span> <span class=\"" + COUNT_CLASS + "\" "

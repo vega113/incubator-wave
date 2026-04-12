@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-12-issue-833-reaction-authors",
-  "version": "PR #833",
+  "version": "PR #862",
   "date": "2026-04-12",
   "title": "Show who reacted on desktop and mobile",
   "summary": "Adds a Wave-native reaction-authors popup so people can inspect who reacted without relying on browser-default menus or tooltips.",

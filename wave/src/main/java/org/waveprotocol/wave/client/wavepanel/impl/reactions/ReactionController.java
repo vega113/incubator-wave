@@ -92,6 +92,9 @@ public final class ReactionController extends ConversationListenerImpl
   private String suppressedInspectBlipId;
   private String suppressedInspectEmoji;
   private double suppressedInspectUntilMs;
+  private String suppressedClickBlipId;
+  private String suppressedClickEmoji;
+  private double suppressedClickUntilMs;
   private ReactionAuthorsPopup authorsPopup;
 
   private ReactionController(ObservableConversationView conversationView, ViewIdMapper viewIdMapper,
@@ -444,10 +447,12 @@ public final class ReactionController extends ConversationListenerImpl
         org.waveprotocol.wave.model.document.Doc.T> reactionDocument =
         ReactionDataDocuments.getIfPresent(blip);
     if (reactionDocument == null) {
+      hideAuthorsPopup();
       return;
     }
     ReactionDocument.Reaction reaction = findReaction(reactionDocument, emoji);
     if (reaction == null || reaction.getAddresses() == null || reaction.getAddresses().isEmpty()) {
+      hideAuthorsPopup();
       return;
     }
     hideAuthorsPopup();
@@ -490,12 +495,16 @@ public final class ReactionController extends ConversationListenerImpl
     String primary = TaskMetadataUtil.formatParticipantDisplay(normalizedAddress);
     String secondary = normalizedAddress;
     if (profileManager != null && !normalizedAddress.isEmpty()) {
-      Profile profile = profileManager.getProfile(ParticipantId.ofUnsafe(normalizedAddress));
-      if (profile != null) {
-        String fullName = profile.getFullName() == null ? "" : profile.getFullName().trim();
-        if (!fullName.isEmpty() && !normalizedAddress.equals(fullName)) {
-          primary = fullName;
+      try {
+        Profile profile = profileManager.getProfile(ParticipantId.ofUnsafe(normalizedAddress));
+        if (profile != null) {
+          String fullName = profile.getFullName() == null ? "" : profile.getFullName().trim();
+          if (!fullName.isEmpty() && !normalizedAddress.equals(fullName)) {
+            primary = fullName;
+          }
         }
+      } catch (IllegalArgumentException e) {
+        // Fall back to the raw address when the participant id is malformed.
       }
     }
     if (primary == null || primary.isEmpty()) {
@@ -532,11 +541,25 @@ public final class ReactionController extends ConversationListenerImpl
   }
 
   private void suppressClick(String blipId, String emoji) {
-    suppressInspect(blipId, emoji);
+    suppressedClickBlipId = blipId;
+    suppressedClickEmoji = emoji;
+    suppressedClickUntilMs = Duration.currentTimeMillis() + INSPECT_SUPPRESSION_MS;
   }
 
   private boolean shouldSuppressClick(String blipId, String emoji) {
-    return emoji != null && !emoji.isEmpty() && shouldSuppressInspect(blipId, emoji);
+    if (Duration.currentTimeMillis() > suppressedClickUntilMs) {
+      clearSuppressedClick();
+      return false;
+    }
+    return blipId != null && emoji != null
+        && blipId.equals(suppressedClickBlipId)
+        && emoji.equals(suppressedClickEmoji);
+  }
+
+  private void clearSuppressedClick() {
+    suppressedClickBlipId = null;
+    suppressedClickEmoji = null;
+    suppressedClickUntilMs = 0d;
   }
 
   private void unbindConversation(ObservableConversation conversation) {
