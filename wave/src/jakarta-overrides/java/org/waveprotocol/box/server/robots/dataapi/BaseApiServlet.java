@@ -44,6 +44,7 @@ import org.waveprotocol.wave.util.logging.Log;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -206,10 +207,27 @@ public abstract class BaseApiServlet extends HttpServlet {
   }
 
   private void handleResults(
-      OperationResults results, HttpServletResponse resp,
+      OperationContextImpl results, HttpServletResponse resp,
       List<OperationRequest> operations, ProtocolVersion version)
       throws IOException {
-    OperationUtil.submitDeltas(results, waveletProvider, LOGGING_REQUEST_LISTENER);
+    List<String> submitFailures = new ArrayList<String>();
+    OperationUtil.submitDeltas(results, waveletProvider, new WaveletProvider.SubmitRequestListener() {
+      @Override
+      public void onFailure(String errorMessage) {
+        submitFailures.add(errorMessage);
+        LOGGING_REQUEST_LISTENER.onFailure(errorMessage);
+      }
+
+      @Override
+      public void onSuccess(
+          int operationsApplied,
+          org.waveprotocol.wave.model.version.HashedVersion hashedVersionAfterApplication,
+          long applicationTimestamp) {
+        LOGGING_REQUEST_LISTENER.onSuccess(
+            operationsApplied, hashedVersionAfterApplication, applicationTimestamp);
+      }
+    });
+    applySubmissionFailures(results, operations, submitFailures);
 
     LinkedList<JsonRpcResponse> responses = Lists.newLinkedList();
     for (OperationRequest operation : operations) {
@@ -228,5 +246,29 @@ public abstract class BaseApiServlet extends HttpServlet {
       writer.flush();
     }
     resp.setStatus(HttpServletResponse.SC_OK);
+  }
+
+  private void applySubmissionFailures(
+      OperationContextImpl results, List<OperationRequest> operations, List<String> submitFailures) {
+    if (submitFailures.isEmpty()) {
+      return;
+    }
+
+    String errorMessage = String.join("; ", submitFailures);
+    for (OperationRequest operation : operations) {
+      if (!isMutatingOperation(operation)) {
+        continue;
+      }
+      JsonRpcResponse response = results.getResponse(operation.getId());
+      if (response == null || !response.isError()) {
+        results.replaceErrorResponse(operation, errorMessage);
+      }
+    }
+  }
+
+  private boolean isMutatingOperation(OperationRequest operation) {
+    OpScopeMapper.OpType opType = mapOperationToOpType(operation);
+    return opType != OpScopeMapper.OpType.FETCH_WAVE
+        && opType != OpScopeMapper.OpType.LIST_WAVES;
   }
 }
