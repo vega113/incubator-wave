@@ -196,7 +196,7 @@ public class Mongo4DeltaCollection implements DeltaStore.DeltasAccess {
             waveletName.waveId.serialise(), waveletName.waveletId.serialise()));
       }
     } catch (RuntimeException e) {
-      throw new PersistenceException(e);
+      throw new PersistenceException("Failed to append delta for " + waveletName, e);
     }
   }
 }

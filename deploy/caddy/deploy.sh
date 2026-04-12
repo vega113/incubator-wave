@@ -454,6 +454,7 @@ post_swap_smoke() {
 
 stop_replaced_slot() {
   local old_slot=$1
+  local ps_output=""
   if dc stop "wave-${old_slot}" 2>/dev/null; then
     return 0
   fi
@@ -461,7 +462,12 @@ stop_replaced_slot() {
   echo "[deploy] WARNING: graceful stop failed for wave-${old_slot}; forcing shutdown" >&2
   dc kill "wave-${old_slot}" 2>/dev/null || true
 
-  if dc ps "wave-${old_slot}" --format json 2>/dev/null | grep -q '"running"'; then
+  if ! ps_output="$(dc ps "wave-${old_slot}" --format json 2>/dev/null)"; then
+    echo "[deploy] ERROR: unable to verify whether replaced slot wave-${old_slot} is still running" >&2
+    return 1
+  fi
+
+  if printf '%s\n' "$ps_output" | grep -q '"running"'; then
     echo "[deploy] ERROR: replaced slot wave-${old_slot} is still running" >&2
     return 1
   fi

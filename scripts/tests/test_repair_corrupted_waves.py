@@ -1,13 +1,20 @@
 import unittest
 
 from scripts.repair_corrupted_waves import classify_group
+from scripts.repair_corrupted_waves import classify_waves
 from scripts.repair_corrupted_waves import collect_safe_repairs
 
 
-def make_group(applied_version, docs, later_hashes):
+def make_group(
+    applied_version,
+    docs,
+    later_hashes,
+    waveid="supawave.ai/test",
+    waveletid="supawave.ai!conv+root",
+):
   return {
-      "waveid": "supawave.ai/test",
-      "waveletid": "supawave.ai!conv+root",
+      "waveid": waveid,
+      "waveletid": waveletid,
       "applied_version": applied_version,
       "docs": docs,
       "later_hashes": set(later_hashes),
@@ -139,6 +146,88 @@ class DuplicateGroupClassificationTest(unittest.TestCase):
 
     self.assertEqual(
         [{"waveid": "safe-wave", "waveletid": "wavelet", "drop_doc_ids": ["a", "b", "c"]}],
+        repairs,
+    )
+
+  def test_classify_waves_keeps_wavelets_separate_within_same_wave(self):
+    safe_docs = [
+        type("Doc", (), {
+            "doc_id": "old",
+            "author": "vega@supawave.ai",
+            "application_ts": 1,
+            "applied_version": 38,
+            "applied_hash": "H38",
+            "resulting_version": 39,
+            "resulting_hash": "dead",
+            "op_types": ["WaveletBlipOperation"],
+            "blip_ids": ["b+abc"],
+            "op_count": 1,
+        })(),
+        type("Doc", (), {
+            "doc_id": "new",
+            "author": "vega@supawave.ai",
+            "application_ts": 2,
+            "applied_version": 38,
+            "applied_hash": "H38",
+            "resulting_version": 39,
+            "resulting_hash": "live",
+            "op_types": ["WaveletBlipOperation"],
+            "blip_ids": ["b+abc"],
+            "op_count": 1,
+        })(),
+    ]
+    ambiguous_docs = [
+        type("Doc", (), {
+            "doc_id": "left",
+            "author": "vega@supawave.ai",
+            "application_ts": 1,
+            "applied_version": 52,
+            "applied_hash": "H52",
+            "resulting_version": 53,
+            "resulting_hash": "left-live",
+            "op_types": ["WaveletBlipOperation"],
+            "blip_ids": ["b+left"],
+            "op_count": 1,
+        })(),
+        type("Doc", (), {
+            "doc_id": "right",
+            "author": "vega@supawave.ai",
+            "application_ts": 2,
+            "applied_version": 52,
+            "applied_hash": "H52",
+            "resulting_version": 53,
+            "resulting_hash": "right-live",
+            "op_types": ["WaveletBlipOperation"],
+            "blip_ids": ["b+left"],
+            "op_count": 1,
+        })(),
+    ]
+
+    waves = classify_waves([
+        make_group(
+            38,
+            safe_docs,
+            {"live"},
+            waveid="supawave.ai/shared-wave",
+            waveletid="supawave.ai!conv+root",
+        ),
+        make_group(
+            52,
+            ambiguous_docs,
+            {"left-live", "right-live"},
+            waveid="supawave.ai/shared-wave",
+            waveletid="supawave.ai!conv+sidebar",
+        ),
+    ])
+
+    repairs = collect_safe_repairs(waves)
+
+    self.assertEqual(
+        [{
+            "waveid": "supawave.ai/shared-wave",
+            "waveletid": "supawave.ai!conv+root",
+            "drop_doc_ids": ["old"],
+        }],
         repairs,
     )
 

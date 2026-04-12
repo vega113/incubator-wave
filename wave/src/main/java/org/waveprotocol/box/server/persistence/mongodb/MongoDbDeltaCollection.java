@@ -194,12 +194,16 @@ public class MongoDbDeltaCollection implements DeltaStore.DeltasAccess {
   @Override
   public void append(Collection<WaveletDeltaRecord> newDeltas) throws PersistenceException {
 
-    for (WaveletDeltaRecord delta : newDeltas) {
-      // Using Journaled Write Concern
-      // (http://docs.mongodb.org/manual/core/write-concern/#journaled)
-      deltaDbCollection.insert(MongoDbDeltaStoreUtil.serialize(delta,
-          waveletName.waveId.serialise(), waveletName.waveletId.serialise()),
-          WriteConcern.JOURNALED);
+    try {
+      for (WaveletDeltaRecord delta : newDeltas) {
+        // Using Journaled Write Concern
+        // (http://docs.mongodb.org/manual/core/write-concern/#journaled)
+        deltaDbCollection.insert(MongoDbDeltaStoreUtil.serialize(delta,
+            waveletName.waveId.serialise(), waveletName.waveletId.serialise()),
+            WriteConcern.JOURNALED);
+      }
+    } catch (RuntimeException e) {
+      throw new PersistenceException("Failed to append delta for " + waveletName, e);
     }
   }
 }

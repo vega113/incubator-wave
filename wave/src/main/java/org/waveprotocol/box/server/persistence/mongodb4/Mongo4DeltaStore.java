@@ -49,6 +49,10 @@ import java.util.Set;
 public class Mongo4DeltaStore implements DeltaStore {
 
   private static final java.util.logging.Logger LOG = java.util.logging.Logger.getLogger(Mongo4DeltaStore.class.getName());
+  private static final int INDEX_OPTIONS_CONFLICT = 85;
+  private static final String APPLIED_AT_VERSION_INDEX_NAME =
+      Mongo4DeltaStoreUtil.FIELD_WAVE_ID + "_1_" + Mongo4DeltaStoreUtil.FIELD_WAVELET_ID
+          + "_1_" + Mongo4DeltaStoreUtil.FIELD_TRANSFORMED_APPLIEDATVERSION + "_1";
 
   /** Name of the MongoDB collection to store Deltas */
   private static final String DELTAS_COLLECTION = "deltas";
@@ -81,13 +85,7 @@ public class Mongo4DeltaStore implements DeltaStore {
           Indexes.ascending(Mongo4DeltaStoreUtil.FIELD_WAVE_ID, Mongo4DeltaStoreUtil.FIELD_WAVELET_ID),
           bg);
 
-      // Compound index for version-based delta retrieval
-      coll.createIndex(
-          Indexes.ascending(
-              Mongo4DeltaStoreUtil.FIELD_WAVE_ID,
-              Mongo4DeltaStoreUtil.FIELD_WAVELET_ID,
-              Mongo4DeltaStoreUtil.FIELD_TRANSFORMED_APPLIEDATVERSION),
-          bg);
+      ensureAppliedAtVersionIndex(coll);
 
       // Compound index for end-version lookups
       coll.createIndex(
@@ -101,6 +99,46 @@ public class Mongo4DeltaStore implements DeltaStore {
     } catch (MongoException e) {
       LOG.warning("Mongo4DeltaStore: failed to create indexes on deltas collection: " + e.getMessage());
     }
+  }
+
+  private void ensureAppliedAtVersionIndex(MongoCollection<Document> coll) {
+    Bson keys = Indexes.ascending(
+        Mongo4DeltaStoreUtil.FIELD_WAVE_ID,
+        Mongo4DeltaStoreUtil.FIELD_WAVELET_ID,
+        Mongo4DeltaStoreUtil.FIELD_TRANSFORMED_APPLIEDATVERSION);
+    IndexOptions uniqueOptions =
+        new IndexOptions().background(true).name(APPLIED_AT_VERSION_INDEX_NAME).unique(true);
+    try {
+      coll.createIndex(keys, uniqueOptions);
+    } catch (MongoException initialFailure) {
+      if (isIndexOptionsConflict(initialFailure)) {
+        LOG.info("Mongo4DeltaStore: upgrading applied-version index to unique");
+        coll.dropIndex(APPLIED_AT_VERSION_INDEX_NAME);
+        try {
+          coll.createIndex(keys, uniqueOptions);
+          return;
+        } catch (MongoException retryFailure) {
+          restoreNonUniqueAppliedAtVersionIndex(coll, keys);
+          LOG.warning(
+              "Mongo4DeltaStore: applied-version uniqueness upgrade blocked by existing data; "
+                  + "run corrupted-wave repair before retrying. " + retryFailure.getMessage());
+          return;
+        }
+      }
+      restoreNonUniqueAppliedAtVersionIndex(coll, keys);
+      LOG.warning(
+          "Mongo4DeltaStore: unable to enforce unique applied-version writes; "
+              + "leaving the legacy index in place. " + initialFailure.getMessage());
+    }
+  }
+
+  private void restoreNonUniqueAppliedAtVersionIndex(MongoCollection<Document> coll, Bson keys) {
+    coll.createIndex(keys, new IndexOptions().background(true).name(APPLIED_AT_VERSION_INDEX_NAME));
+  }
+
+  private boolean isIndexOptionsConflict(MongoException error) {
+    return error.getCode() == INDEX_OPTIONS_CONFLICT
+        || error.getMessage().contains("already exists with different options");
   }
 
   @Override

@@ -51,11 +51,37 @@ class DeployOverlapSafetyTest(unittest.TestCase):
     workflow = BUILD_WORKFLOW.read_text(encoding="utf-8")
     self.assertIn("scripts.tests.test_deploy_overlap_safety", workflow)
 
-  def _run_script(self, command: str, active_slot: str, previous_slot: str | None, running_services: list[str]):
+  def test_deploy_fails_closed_when_old_slot_status_cannot_be_verified(self):
+    result, _ = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        stop_fail_services=["wave-blue"],
+        ps_error_services=["wave-blue"],
+    )
+
+    self.assertNotEqual(0, result.returncode)
+    self.assertIn(
+        "unable to verify whether replaced slot wave-blue is still running",
+        result.stderr,
+    )
+
+  def _run_script(
+      self,
+      command: str,
+      active_slot: str,
+      previous_slot: str | None,
+      running_services: list[str],
+      stop_fail_services: list[str] | None = None,
+      ps_error_services: list[str] | None = None,
+  ):
     bash_path = self._bash_path()
     if bash_path is None:
       self.skipTest("requires bash >= 4 to execute deploy/caddy/deploy.sh")
 
+    stop_fail_services = stop_fail_services or []
+    ps_error_services = ps_error_services or []
     temp_dir = Path(tempfile.mkdtemp(prefix="deploy-overlap-safety-"))
     fake_bin = temp_dir / "bin"
     fake_bin.mkdir(parents=True)
@@ -65,6 +91,15 @@ class DeployOverlapSafetyTest(unittest.TestCase):
     if previous_slot is not None:
       (deploy_root / "shared" / "previous-slot").write_text(f"{previous_slot}\n", encoding="utf-8")
     ops_log = temp_dir / "ops.log"
+    stop_fail_checks = "\n".join(
+        f'if [[ "$cmd" == *" stop {service}"* ]]; then exit 1; fi'
+        for service in stop_fail_services
+    )
+    ps_error_checks = "\n".join(
+        f'if [[ "$cmd" == *" ps {service} --format json"* ]]; then '
+        f'echo "docker ps failed for {service}" >&2; exit 2; fi'
+        for service in ps_error_services
+    )
     running_checks = "\n".join(
         f'if [[ "$cmd" == *" ps {service} --format json"* ]]; then '
         f'printf \'{{"Service":"{service}","State":"running"}}\\n\'; exit 0; fi'
@@ -75,9 +110,11 @@ class DeployOverlapSafetyTest(unittest.TestCase):
         fake_bin / "docker",
         f"""#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\\n' "$*" >> "{ops_log}"
-cmd="$*"
-case "$cmd" in
+	printf '%s\\n' "$*" >> "{ops_log}"
+	cmd="$*"
+	{stop_fail_checks}
+	{ps_error_checks}
+	case "$cmd" in
   "compose version")
     exit 0
     ;;

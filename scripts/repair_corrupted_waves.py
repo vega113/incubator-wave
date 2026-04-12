@@ -163,8 +163,9 @@ def classify_waves(groups: list[dict[str, Any]]) -> dict[str, Any]:
   waves: dict[str, dict[str, Any]] = {}
   for group in groups:
     classification = classify_group(group)
+    wave_key = f"{group['waveid']}::{group['waveletid']}"
     wave = waves.setdefault(
-        group["waveid"],
+        wave_key,
         {
             "waveid": group["waveid"],
             "waveletid": group["waveletid"],
@@ -231,8 +232,8 @@ def render_text_report(waves: dict[str, Any]) -> str:
   ambiguous = [wave for wave in waves.values() if wave["status"] != "safe"]
   lines.append(f"safe_to_repair={len(safe)}")
   lines.append(f"ambiguous={len(ambiguous)}")
-  for wave in sorted(waves.values(), key=lambda item: item["waveid"]):
-    lines.append(f"{wave['status']}: {wave['waveid']}")
+  for wave in sorted(waves.values(), key=lambda item: (item["waveid"], item["waveletid"])):
+    lines.append(f"{wave['status']}: {wave['waveid']} {wave['waveletid']}")
     for group in wave["groups"]:
       lines.append(
           f"  applied={group['applied_version']} status={group['status']} reason={group['reason']}"

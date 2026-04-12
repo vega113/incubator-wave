@@ -23,6 +23,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.persistence.memory.MemoryDeltaStore;
+import org.waveprotocol.wave.model.id.IdURIEncoderDecoder;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
@@ -35,7 +36,6 @@ import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutionException;
-import org.waveprotocol.wave.model.id.IdURIEncoderDecoder;
 
 /**
  * Runs wavelet state tests with the {@link DeltaStoreBasedWaveletState}.
@@ -93,6 +93,33 @@ public class DeltaStoreBasedWaveletStateTest extends WaveletStateTestBase {
     WaveletDeltaRecord persisted = store.open(NAME).getDelta(0);
     assertNotNull(persisted);
     assertEquals(delta.getResultingVersion(), persisted.getResultingVersion());
+  }
+
+  public void testPersistRejectsStaleWriterWithoutLeavingQueueStuck() throws Exception {
+    WaveletState stale = createEmptyState(NAME);
+    WaveletState fresh = createEmptyState(NAME);
+    WaveletDeltaRecord delta = makeDelta(V0, 1234567890L, 1);
+
+    fresh.appendDelta(delta);
+    fresh.persist(delta.getResultingVersion()).get();
+
+    stale.appendDelta(delta);
+    try {
+      stale.persist(delta.getResultingVersion()).get();
+      fail("Expected stale persist to be rejected");
+    } catch (ExecutionException e) {
+      assertTrue(e.getCause() instanceof PersistenceException);
+    }
+
+    var retry = stale.persist(delta.getResultingVersion());
+    assertTrue("stale retry should fail fast instead of hanging", retry.isDone());
+    try {
+      retry.get();
+      fail("Expected stale retry to be rejected");
+    } catch (ExecutionException e) {
+      assertTrue(e.getCause() instanceof PersistenceException);
+      assertTrue(e.getCause().getMessage().contains("stale"));
+    }
   }
 
   // TODO(soren): We need to add tests here that verify interactions with storage.
