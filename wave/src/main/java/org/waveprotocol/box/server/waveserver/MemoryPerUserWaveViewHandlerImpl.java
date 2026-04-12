@@ -259,12 +259,32 @@ public class MemoryPerUserWaveViewHandlerImpl
       }
       HashedVersion cachedVersion = container.getLastCommittedVersion();
       if (cachedVersion == null || cachedVersion.getVersion() < version.getVersion()) {
-        waveMap.invalidateWave(waveletName.waveId);
+        invalidateWaveBestEffort(waveletName.waveId);
       }
+    } catch (IllegalStateException e) {
+      if (isCommitCallbackWriteLockPrecondition(e)) {
+        LOG.fine("Skipping cached version check while commit callback still holds write lock for "
+            + waveletName);
+        return;
+      }
+      LOG.warning("Failed to compare cached version for " + waveletName, e);
+      invalidateWaveBestEffort(waveletName.waveId);
     } catch (WaveletStateException | RuntimeException e) {
       LOG.warning("Failed to compare cached version for " + waveletName, e);
-      waveMap.invalidateWave(waveletName.waveId);
+      invalidateWaveBestEffort(waveletName.waveId);
     }
+  }
+
+  private void invalidateWaveBestEffort(WaveId waveId) {
+    try {
+      waveMap.invalidateWave(waveId);
+    } catch (RuntimeException e) {
+      LOG.warning("Failed to invalidate cached wave " + waveId, e);
+    }
+  }
+
+  private boolean isCommitCallbackWriteLockPrecondition(IllegalStateException e) {
+    return e.getMessage() != null && e.getMessage().contains("should not hold write lock");
   }
 
   private void markWaveMapDirty(WaveletName waveletName) {

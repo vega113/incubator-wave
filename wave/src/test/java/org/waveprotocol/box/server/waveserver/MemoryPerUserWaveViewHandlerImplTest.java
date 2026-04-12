@@ -136,6 +136,47 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
     assertEquals(1, reloadingWaveMap.getLoadAllWaveletsCallCount());
   }
 
+  public void testWaveletCommittedSkipsInvalidateWhenCommittedVersionCheckRequiresWriteLock()
+      throws Exception {
+    ReloadingWaveMap reloadingWaveMap =
+        new ReloadingWaveMap(
+            new DeltaStoreBasedSnapshotStore(
+                new org.waveprotocol.box.server.persistence.memory.MemoryDeltaStore(), null),
+            new LocalWaveletContainer.Factory() {
+              @Override
+              public LocalWaveletContainer create(
+                  WaveletNotificationSubscriber notifiee,
+                  WaveletName waveletName,
+                  String domain) {
+                throw new UnsupportedOperationException();
+              }
+            },
+            new RemoteWaveletContainer.Factory() {
+              @Override
+              public RemoteWaveletContainer create(
+                  WaveletNotificationSubscriber notifiee,
+                  WaveletName waveletName,
+                  String domain) {
+                throw new UnsupportedOperationException();
+              }
+            },
+            createLoadedWaves(
+                new FakeLocalWavelet(
+                    WAVELET_NAME,
+                    PARTICIPANT,
+                    null,
+                    new IllegalStateException("should not hold write lock"))));
+    MemoryPerUserWaveViewHandlerImpl handler =
+        new MemoryPerUserWaveViewHandlerImpl(reloadingWaveMap);
+
+    handler.retrievePerUserWaveView(PARTICIPANT);
+    assertEquals(1, reloadingWaveMap.getLoadAllWaveletsCallCount());
+
+    handler.waveletCommitted(WAVELET_NAME, HashedVersion.unsigned(2L));
+
+    assertEquals(0, reloadingWaveMap.getInvalidateWaveCallCount());
+  }
+
   public void testWaveletCommittedMarksWaveMapDirtyWhenInvalidateThrowsRuntimeException()
       throws Exception {
     ExplodingInvalidateWaveMap reloadingWaveMap =
@@ -150,6 +191,7 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
     handler.explicitPerUserWaveViews.invalidate(PARTICIPANT);
 
     handler.waveletCommitted(WAVELET_NAME, HashedVersion.unsigned(2L));
+    assertEquals(1, reloadingWaveMap.getInvalidateWaveCallCount());
 
     handler.retrievePerUserWaveView(PARTICIPANT);
     assertEquals(2, reloadingWaveMap.getLoadAllWaveletsCallCount());
@@ -185,6 +227,7 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
     private final ImmutableMap<WaveId, Wave> loadedWaves;
     private boolean loaded;
     private int loadAllWaveletsCallCount;
+    private int invalidateWaveCallCount;
 
     private ReloadingWaveMap(DeltaAndSnapshotStore store,
         LocalWaveletContainer.Factory localFactory, RemoteWaveletContainer.Factory remoteFactory,
@@ -204,9 +247,35 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
       return loadAllWaveletsCallCount;
     }
 
+    int getInvalidateWaveCallCount() {
+      return invalidateWaveCallCount;
+    }
+
     @Override
     Map<WaveId, Wave> getWaves() {
       return loaded ? loadedWaves : ImmutableMap.of();
+    }
+
+    protected void recordInvalidateWaveCall() {
+      invalidateWaveCallCount++;
+    }
+
+    @Override
+    public void invalidateWave(WaveId waveId) {
+      recordInvalidateWaveCall();
+      super.invalidateWave(waveId);
+    }
+
+    @Override
+    public WaveletContainer getCachedWavelet(WaveletName waveletName) {
+      if (!loaded) {
+        return null;
+      }
+      Wave wave = loadedWaves.get(waveletName.waveId);
+      if (wave == null) {
+        return null;
+      }
+      return wave.getCachedWavelet(waveletName.waveletId);
     }
 
     @Override
@@ -266,6 +335,7 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
 
     @Override
     public void invalidateWave(WaveId waveId) {
+      recordInvalidateWaveCall();
       throw new RuntimeException("boom");
     }
   }
@@ -274,16 +344,26 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
     private final WaveletName waveletName;
     private final ParticipantId participant;
     private final HashedVersion lastCommittedVersion;
+    private final RuntimeException lastCommittedVersionException;
 
     private FakeLocalWavelet(WaveletName waveletName) {
-      this(waveletName, PARTICIPANT, null);
+      this(waveletName, PARTICIPANT, null, null);
     }
 
     private FakeLocalWavelet(
         WaveletName waveletName, ParticipantId participant, HashedVersion lastCommittedVersion) {
+      this(waveletName, participant, lastCommittedVersion, null);
+    }
+
+    private FakeLocalWavelet(
+        WaveletName waveletName,
+        ParticipantId participant,
+        HashedVersion lastCommittedVersion,
+        RuntimeException lastCommittedVersionException) {
       this.waveletName = waveletName;
       this.participant = participant;
       this.lastCommittedVersion = lastCommittedVersion;
+      this.lastCommittedVersionException = lastCommittedVersionException;
     }
 
     @Override
@@ -325,6 +405,9 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
 
     @Override
     public HashedVersion getLastCommittedVersion() {
+      if (lastCommittedVersionException != null) {
+        throw lastCommittedVersionException;
+      }
       return lastCommittedVersion;
     }
 
