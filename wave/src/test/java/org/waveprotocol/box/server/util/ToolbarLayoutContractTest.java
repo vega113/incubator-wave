@@ -59,13 +59,16 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertFalse(css.contains("border: 1px solid rgba(176,196,216,0.55);"));
   }
 
-  public void testCompactButtonsUseSingleActiveSurfaceWhenDown() throws Exception {
+  public void testCompactButtonsReuseSharedDownOverlay() throws Exception {
     String css = normalized(read(
         "wave/src/main/resources/org/waveprotocol/wave/client/widget/toolbar/buttons/HorizontalToolbarButtonWidget.css"));
 
-    assertTrue(css.contains(".enabled.down.compact > .overlay {"));
-    assertTrue(css.contains("background-color: transparent;"));
-    assertTrue(css.contains("border: none;"));
+    assertTrue(css.contains(".enabled.down > .overlay {"));
+    assertTrue(css.contains("background-color: rgba(0, 119, 182, 0.1);"));
+    assertTrue(css.contains("border: 1px solid rgba(0, 119, 182, 0.25);"));
+    assertFalse(css.contains(".enabled.down.compact > .overlay {"));
+    assertFalse(css.contains("background-color: transparent;"));
+    assertFalse(css.contains("border: none;"));
   }
 
   public void testSearchPanelReservesThirtySixPixelsForToolbarHeight() throws Exception {

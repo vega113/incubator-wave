@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-12-toolbar-toggle-active-surface",
+  "version": "Unreleased",
+  "date": "2026-04-12",
+  "title": "Fix top-panel toggle button active surface",
+  "summary": "Pinned and archive top-panel buttons now keep a full-width active highlight instead of showing only a partial pressed background when toggled on.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Restored the shared down-state overlay for compact top-panel icon buttons like Pin and Archive so the active highlight spans the full button width",
+        "Removed the compact-only down-state override that reintroduced a split active background on toggled toolbar buttons"
+      ]
+    }
+  ]
+}
