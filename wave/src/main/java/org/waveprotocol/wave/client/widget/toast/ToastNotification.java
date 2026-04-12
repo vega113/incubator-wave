@@ -104,7 +104,7 @@ public final class ToastNotification {
    * @param level severity / color theme
    */
   public static void showPersistent(String id, String message, Level level) {
-    showPersistentInternal(id, message, level, null, null);
+    showPersistentInternal(id, message, level, null, null, null, null);
   }
 
   /**
