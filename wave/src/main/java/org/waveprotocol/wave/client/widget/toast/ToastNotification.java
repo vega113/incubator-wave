@@ -104,7 +104,7 @@ public final class ToastNotification {
    * @param level severity / color theme
    */
   public static void showPersistent(String id, String message, Level level) {
-    showPersistentInternal(id, message, level, null, null);
+    showPersistentInternal(id, message, level, null, null, null, null);
   }
 
   /**
@@ -118,11 +118,46 @@ public final class ToastNotification {
    */
   public static void showPersistentAction(
       String id, String message, Level level, String actionLabel, Runnable action) {
-    showPersistentInternal(id, message, level, actionLabel, action);
+    showPersistentInternal(id, message, level, actionLabel, action, null, null);
+  }
+
+  /**
+   * Shows a persistent toast with primary and secondary inline actions.
+   *
+   * @param id a caller-chosen identifier so the correct toast can be dismissed
+   * @param message text to display
+   * @param level severity / color theme
+   * @param actionLabel primary button text shown to the user
+   * @param action callback run when the primary action is clicked
+   * @param secondaryActionLabel secondary button text shown to the user
+   * @param secondaryAction callback run when the secondary action is clicked
+   */
+  public static void showPersistentActions(
+      String id,
+      String message,
+      Level level,
+      String actionLabel,
+      Runnable action,
+      String secondaryActionLabel,
+      Runnable secondaryAction) {
+    showPersistentInternal(
+        id,
+        message,
+        level,
+        actionLabel,
+        action,
+        secondaryActionLabel,
+        secondaryAction);
   }
 
   private static void showPersistentInternal(
-      final String id, String message, Level level, String actionLabel, final Runnable action) {
+      final String id,
+      String message,
+      Level level,
+      String actionLabel,
+      final Runnable action,
+      String secondaryActionLabel,
+      final Runnable secondaryAction) {
     if (id == null) {
       return;
     }
@@ -184,34 +219,8 @@ public final class ToastNotification {
     messageEl.setInnerText(message);
     toast.appendChild(messageEl);
 
-    if (actionLabel != null && !actionLabel.isEmpty() && action != null) {
-      Element actionBtn = Document.get().createButtonElement();
-      actionBtn.setInnerText(actionLabel);
-      Style actionStyle = actionBtn.getStyle();
-      actionStyle.setProperty("background", "rgba(255,255,255,0.16)");
-      actionStyle.setProperty("border", "1px solid rgba(255,255,255,0.28)");
-      actionStyle.setProperty("borderRadius", "999px");
-      actionStyle.setProperty("color", "#fff");
-      actionStyle.setProperty("cursor", "pointer");
-      actionStyle.setProperty("fontSize", "12px");
-      actionStyle.setProperty("fontWeight", "600");
-      actionStyle.setProperty("padding", "4px 10px");
-      actionStyle.setProperty("whiteSpace", "nowrap");
-
-      Event.sinkEvents(actionBtn, Event.ONCLICK);
-      Event.setEventListener(actionBtn, new com.google.gwt.user.client.EventListener() {
-        @Override
-        public void onBrowserEvent(Event event) {
-          if (Event.ONCLICK == event.getTypeInt()) {
-            event.preventDefault();
-            event.stopPropagation();
-            dismissPersistent(id);
-            action.run();
-          }
-        }
-      });
-      toast.appendChild(actionBtn);
-    }
+    appendPersistentActionButton(toast, id, actionLabel, action, false);
+    appendPersistentActionButton(toast, id, secondaryActionLabel, secondaryAction, true);
 
     Document.get().getBody().appendChild(toast);
     persistentToasts.put(id, toast);
@@ -397,5 +406,49 @@ public final class ToastNotification {
       toast.getStyle().setProperty("bottom", bottomPx + "px");
       index++;
     }
+  }
+
+  private static void appendPersistentActionButton(
+      Element toast,
+      final String id,
+      String actionLabel,
+      final Runnable action,
+      boolean secondaryAction) {
+    if (actionLabel == null || actionLabel.isEmpty() || action == null) {
+      return;
+    }
+
+    Element actionBtn = Document.get().createButtonElement();
+    actionBtn.setPropertyString("type", "button");
+    actionBtn.setInnerText(actionLabel);
+    Style actionStyle = actionBtn.getStyle();
+    actionStyle.setProperty("background",
+        secondaryAction ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.16)");
+    actionStyle.setProperty("border",
+        secondaryAction ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.28)");
+    actionStyle.setProperty("borderRadius", "999px");
+    actionStyle.setProperty("color", "#fff");
+    actionStyle.setProperty("cursor", "pointer");
+    actionStyle.setProperty("fontSize", "12px");
+    actionStyle.setProperty("fontWeight", secondaryAction ? "500" : "600");
+    actionStyle.setProperty("padding", "4px 10px");
+    actionStyle.setProperty("whiteSpace", "nowrap");
+
+    Event.sinkEvents(actionBtn, Event.ONCLICK);
+    Event.setEventListener(actionBtn, new com.google.gwt.user.client.EventListener() {
+      @Override
+      public void onBrowserEvent(Event event) {
+        if (Event.ONCLICK == event.getTypeInt()) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!persistentToasts.containsKey(id)) {
+            return;
+          }
+          dismissPersistent(id);
+          action.run();
+        }
+      }
+    });
+    toast.appendChild(actionBtn);
   }
 }

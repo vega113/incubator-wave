@@ -132,8 +132,25 @@ public final class WavePanelTagsLayoutTest extends TestCase {
     assertTrue(manager.contains("DEFAULT_RESTORE_WINDOW_MS = 20_000"));
     assertTrue(manager.contains("conversation.addTag(tagName);"));
     assertTrue(manager.contains("presenter.show(tagName, new Runnable()"));
+    assertTrue(manager.contains("Runnable onClose"));
     assertTrue(messages.contains("String removedTagUndoToast(String tag)"));
     assertTrue(messages.contains("String restoreTagAction()"));
+    assertTrue(messages.contains("String closeTagAction()"));
+    assertTrue(controller.contains("ToastNotification.showPersistentActions("));
+    assertTrue(controller.contains("messages.closeTagAction()"));
+  }
+
+  public void testPersistentToastSupportsManualCloseAction() throws Exception {
+    String toast =
+        read("wave/src/main/java/org/waveprotocol/wave/client/widget/toast/ToastNotification.java");
+
+    assertTrue(toast.contains("showPersistentInternal("));
+    assertTrue(toast.contains("id, message, level, null, null, null, null"));
+    assertTrue(toast.contains("showPersistentActions("));
+    assertTrue(toast.contains("secondaryActionLabel"));
+    assertTrue(toast.contains("secondaryAction"));
+    assertTrue(toast.contains("actionBtn.setPropertyString(\"type\", \"button\");"));
+    assertTrue(toast.contains("if (!persistentToasts.containsKey(id)) {"));
   }
 
   private String read(String relativePath) throws IOException {

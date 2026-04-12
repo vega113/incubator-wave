@@ -84,13 +84,15 @@ public final class TagController {
           new UndoableTagRemovalManager.GwtScheduler(),
           new UndoableTagRemovalManager.Presenter() {
             @Override
-            public void show(String tagName, Runnable onUndo) {
-              ToastNotification.showPersistentAction(
+            public void show(String tagName, Runnable onUndo, Runnable onClose) {
+              ToastNotification.showPersistentActions(
                   TAG_REMOVAL_TOAST_ID,
                   messages.removedTagUndoToast(tagName),
                   ToastNotification.Level.INFO,
                   messages.restoreTagAction(),
-                  onUndo);
+                  onUndo,
+                  messages.closeTagAction(),
+                  onClose);
             }
 
             @Override
