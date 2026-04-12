@@ -1290,9 +1290,9 @@ ThisBuild / compileGwtDev := {
   val forkOpts = ForkOptions()
     .withRunJVMOptions(Vector("-Xmx1024M"))
 
-  val warDir = (base / "war").getAbsolutePath
+  val devWarDir = (base / "war-dev").getAbsolutePath
   val gwtArgs = Seq(
-    "-war", warDir,
+    "-war", devWarDir,
     "-draftCompile",
     "-style", "PRETTY",
     "-localWorkers", "2",
@@ -1301,6 +1301,7 @@ ThisBuild / compileGwtDev := {
   )
 
   log.info("[compileGwtDev] Native mode — one-permutation draft compile")
+  log.info("[compileGwtDev] Writing dev artifacts to " + devWarDir)
   log.info("[compileGwtDev] Classpath has " + fullCp.size + " entries")
   val cpStr = fullCp.map(_.getAbsolutePath).mkString(java.io.File.pathSeparator)
 
@@ -1338,3 +1339,4 @@ Universal / packageBin := (Universal / packageBin).dependsOn(compileGwt, verifyG
 cleanFiles += baseDirectory.value / "war" / "webclient"
 cleanFiles += baseDirectory.value / "war" / "org"
 cleanFiles += baseDirectory.value / "war" / "WEB-INF"
+cleanFiles += baseDirectory.value / "war-dev"
