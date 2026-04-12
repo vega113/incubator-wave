@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 public final class WavePanelCssCompatibilityTest extends TestCase {
   private static final Pattern MEDIA_QUERY_PATTERN = Pattern.compile("(?i)@media\\b");
   private static final Pattern CALC_FUNCTION_PATTERN = Pattern.compile("(?i)\\bcalc\\s*\\(");
+  private static final Pattern CSS_COMMENT_PATTERN = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
 
   public void testBlockedCssConstructMatchersCatchFormattingVariants() {
     assertTrue(containsBlockedMediaQuery("@MEDIA(max-width:768px) { .editHint { display: none; } }"));
@@ -45,7 +46,7 @@ public final class WavePanelCssCompatibilityTest extends TestCase {
         "wave/src/main/java/org/waveprotocol/wave/client/wavepanel/view/dom/full/BlipMetaViewBuilder.java");
 
     assertTrue(builder.contains("!MobileDetector.isMobile()"));
-    assertTrue(css.contains(".editHint"));
+    assertTrue(containsSelectorRule(css, ".editHint"));
     assertFalse(containsBlockedMediaQuery(css));
   }
 
@@ -53,8 +54,14 @@ public final class WavePanelCssCompatibilityTest extends TestCase {
     String css = read(
         "wave/src/main/java/org/waveprotocol/wave/client/wavepanel/view/dom/full/Tags.css");
 
-    assertTrue(css.contains(".inlineEditor"));
+    assertTrue(containsSelectorRule(css, ".inlineEditor"));
     assertFalse(containsBlockedCalcFunction(css));
+  }
+
+  public void testSelectorRuleMatcherRejectsSubstringsAndComments() {
+    assertTrue(containsSelectorRule(".inlineEditor { display: inline-flex; }", ".inlineEditor"));
+    assertFalse(containsSelectorRule(".inlineEditorVisible { display: inline-flex; }", ".inlineEditor"));
+    assertFalse(containsSelectorRule("/* .editHint { display: none; } */", ".editHint"));
   }
 
   private String read(String relativePath) throws IOException {
@@ -67,5 +74,12 @@ public final class WavePanelCssCompatibilityTest extends TestCase {
 
   private boolean containsBlockedCalcFunction(String css) {
     return CALC_FUNCTION_PATTERN.matcher(css).find();
+  }
+
+  private boolean containsSelectorRule(String css, String selector) {
+    String cssWithoutComments = CSS_COMMENT_PATTERN.matcher(css).replaceAll("");
+    Pattern selectorRulePattern = Pattern.compile(
+        "(?m)(^|,)\\s*" + Pattern.quote(selector) + "(?=\\s*(,|\\{))");
+    return selectorRulePattern.matcher(cssWithoutComments).find();
   }
 }
