@@ -10,6 +10,8 @@ BUILD_FILE = REPO_ROOT / "build.sbt"
 
 
 def java_paths(root: Path) -> set[str]:
+  if not root.is_dir():
+    raise AssertionError(f"missing Java source root: {root}")
   return {
       str(path.relative_to(root)).replace("\\", "/")
       for path in root.rglob("*.java")
@@ -44,6 +46,11 @@ def build_set_entries(name: str) -> list[str]:
 
 
 class Issue714DuplicateSourcesTest(unittest.TestCase):
+
+  def test_java_paths_fails_closed_for_missing_root(self) -> None:
+    missing_root = REPO_ROOT / "wave" / "src" / "missing-java-root"
+    with self.assertRaisesRegex(AssertionError, "missing Java source root"):
+      java_paths(missing_root)
 
   def test_parse_set_entries_accepts_single_line_set(self) -> None:
     text = 'val mainExactExcludes: Set[String] = Set("foo", "bar")'
