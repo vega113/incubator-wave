@@ -90,9 +90,11 @@ public class MemoryPerUserWaveViewHandlerImpl
    * Monotonic epoch for the last non-search wavelet mutation observed on the wave bus.
    */
   private final AtomicLong waveMutationEpoch = new AtomicLong(0);
+  private final WaveMap waveMap;
 
   @Inject
   public MemoryPerUserWaveViewHandlerImpl(final WaveMap waveMap) {
+    this.waveMap = waveMap;
     // Let the view expire if it not accessed for some time.
     explicitPerUserWaveViews =
         CacheBuilder.newBuilder().expireAfterAccess(PER_USER_WAVES_VIEW_CACHE_MINUTES,
@@ -239,7 +241,50 @@ public class MemoryPerUserWaveViewHandlerImpl
 
   @Override
   public void waveletCommitted(WaveletName waveletName, HashedVersion version) {
-    markWaveMapDirty(waveletName);
+    try {
+      invalidateWaveCacheIfStale(waveletName, version);
+    } finally {
+      markWaveMapDirty(waveletName);
+    }
+  }
+
+  private void invalidateWaveCacheIfStale(WaveletName waveletName, HashedVersion version) {
+    if (waveletName == null || version == null || isSearchWavelet(waveletName)) {
+      return;
+    }
+    try {
+      WaveletContainer container = waveMap.getCachedWavelet(waveletName);
+      if (container == null) {
+        return;
+      }
+      HashedVersion cachedVersion = container.getLastCommittedVersion();
+      if (cachedVersion == null || cachedVersion.getVersion() < version.getVersion()) {
+        invalidateWaveBestEffort(waveletName.waveId);
+      }
+    } catch (IllegalStateException e) {
+      if (isCommitCallbackWriteLockPrecondition(e)) {
+        LOG.fine("Skipping cached version check while commit callback still holds write lock for "
+            + waveletName);
+        return;
+      }
+      LOG.warning("Failed to compare cached version for " + waveletName, e);
+      invalidateWaveBestEffort(waveletName.waveId);
+    } catch (WaveletStateException | RuntimeException e) {
+      LOG.warning("Failed to compare cached version for " + waveletName, e);
+      invalidateWaveBestEffort(waveletName.waveId);
+    }
+  }
+
+  private void invalidateWaveBestEffort(WaveId waveId) {
+    try {
+      waveMap.invalidateWave(waveId);
+    } catch (RuntimeException e) {
+      LOG.warning("Failed to invalidate cached wave " + waveId, e);
+    }
+  }
+
+  private boolean isCommitCallbackWriteLockPrecondition(IllegalStateException e) {
+    return e.getMessage() != null && e.getMessage().contains("should not hold write lock");
   }
 
   private void markWaveMapDirty(WaveletName waveletName) {

@@ -103,6 +103,14 @@ final class Wave implements Iterable<WaveletContainer> {
     return getWavelet(waveletId, remoteWavelets);
   }
 
+  WaveletContainer getCachedWavelet(WaveletId waveletId) {
+    WaveletContainer wavelet = remoteWavelets.getIfPresent(waveletId);
+    if (wavelet != null) {
+      return wavelet;
+    }
+    return localWavelets.getIfPresent(waveletId);
+  }
+
   LocalWaveletContainer getOrCreateLocalWavelet(WaveletId waveletId) {
     try {
       return localWavelets.get(waveletId);

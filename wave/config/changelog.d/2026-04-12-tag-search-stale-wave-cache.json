@@ -1,0 +1,17 @@
+{
+  "releaseId": "2026-04-12-tag-search-stale-wave-cache",
+  "version": "PR #855",
+  "date": "2026-04-12",
+  "title": "Keep tag search fresh after wave cache commit notifications",
+  "summary": "Fixes stale `tag:` results when a cached wave lags behind a newer committed wavelet version delivered through commit notifications.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Invalidate a cached wave only when a commit notification proves the cached wavelet version is older than the committed version",
+        "Preserve fresh local wave state so immediate metadata searches still reuse the in-memory cache when no newer committed data exists",
+        "Add regression coverage for existing tag documents, stale shared-store caches, and pure `tag:` queries that must stay on the legacy search path"
+      ]
+    }
+  ]
+}
