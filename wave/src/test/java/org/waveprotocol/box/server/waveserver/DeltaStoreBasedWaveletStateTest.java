@@ -122,6 +122,25 @@ public class DeltaStoreBasedWaveletStateTest extends WaveletStateTestBase {
     }
   }
 
+  public void testPersistFailsClearlyWhenCachedDeltaIsMissing() throws Exception {
+    WaveletState state = createEmptyState(NAME);
+    WaveletDeltaRecord first = makeDelta(V0, 1234567890L, 1);
+    WaveletDeltaRecord second = makeDelta(first.getResultingVersion(), 1234567891L, 1);
+
+    state.appendDelta(first);
+    state.appendDelta(second);
+    state.flush(second.getResultingVersion());
+
+    try {
+      state.persist(second.getResultingVersion()).get();
+      fail("Expected persist to fail when an in-memory delta is missing");
+    } catch (ExecutionException e) {
+      assertTrue(e.getCause() instanceof PersistenceException);
+      assertTrue(e.getCause().getMessage().contains("Missing cached delta"));
+      assertTrue(e.getCause().getMessage().contains(NAME.toString()));
+    }
+  }
+
   // TODO(soren): We need to add tests here that verify interactions with storage.
   // The base tests only test the public interface, not any interactions with the storage system.
 

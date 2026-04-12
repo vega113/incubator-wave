@@ -1,5 +1,8 @@
+import json
+import tempfile
 import unittest
 
+from scripts.repair_corrupted_waves import apply_safe_repairs
 from scripts.repair_corrupted_waves import classify_group
 from scripts.repair_corrupted_waves import classify_waves
 from scripts.repair_corrupted_waves import collect_safe_repairs
@@ -85,6 +88,40 @@ class DuplicateGroupClassificationTest(unittest.TestCase):
     self.assertEqual("ambiguous", result.status)
     self.assertIsNone(result.keep_doc_id)
 
+  def test_safe_when_multiple_docs_share_single_surviving_hash(self):
+    docs = [
+        type("Doc", (), {
+            "doc_id": "older-live",
+            "author": "vega@supawave.ai",
+            "application_ts": 1,
+            "applied_version": 233,
+            "applied_hash": "H233",
+            "resulting_version": 234,
+            "resulting_hash": "live",
+            "op_types": ["WaveletBlipOperation"],
+            "blip_ids": ["b+abc"],
+            "op_count": 1,
+        })(),
+        type("Doc", (), {
+            "doc_id": "newer-live",
+            "author": "vega@supawave.ai",
+            "application_ts": 2,
+            "applied_version": 233,
+            "applied_hash": "H233",
+            "resulting_version": 234,
+            "resulting_hash": "live",
+            "op_types": ["WaveletBlipOperation"],
+            "blip_ids": ["b+abc"],
+            "op_count": 1,
+        })(),
+    ]
+
+    result = classify_group(make_group(233, docs, {"live"}))
+
+    self.assertEqual("safe", result.status)
+    self.assertEqual("older-live", result.keep_doc_id)
+    self.assertEqual(["newer-live"], result.drop_doc_ids)
+
   def test_ambiguous_when_replay_shape_differs(self):
     docs = [
         type("Doc", (), {
@@ -145,7 +182,15 @@ class DuplicateGroupClassificationTest(unittest.TestCase):
     repairs = collect_safe_repairs(waves)
 
     self.assertEqual(
-        [{"waveid": "safe-wave", "waveletid": "wavelet", "drop_doc_ids": ["a", "b", "c"]}],
+        [{
+            "waveid": "safe-wave",
+            "waveletid": "wavelet",
+            "drop_doc_ids": ["a", "b", "c"],
+            "snapshot_delete_filter": {
+                "waveId": "safe-wave",
+                "waveletId": "wavelet",
+            },
+        }],
         repairs,
     )
 
@@ -227,9 +272,34 @@ class DuplicateGroupClassificationTest(unittest.TestCase):
             "waveid": "supawave.ai/shared-wave",
             "waveletid": "supawave.ai!conv+root",
             "drop_doc_ids": ["old"],
+            "snapshot_delete_filter": {
+                "waveId": "supawave.ai/shared-wave",
+                "waveletId": "supawave.ai!conv+root",
+            },
         }],
         repairs,
     )
+
+  def test_apply_safe_repairs_records_snapshot_delete_filter_in_backup(self):
+    repairs = [{
+        "waveid": "supawave.ai/shared-wave",
+        "waveletid": "supawave.ai!conv+root",
+        "drop_doc_ids": ["abc123"],
+        "snapshot_delete_filter": {
+            "waveId": "supawave.ai/shared-wave",
+            "waveletId": "supawave.ai!conv+root",
+        },
+    }]
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+      backup_path = f"{temp_dir}/backup.json"
+
+      apply_safe_repairs("cat >/dev/null", repairs, backup_path)
+
+      with open(backup_path, encoding="utf-8") as fh:
+        payload = json.load(fh)
+
+    self.assertEqual(repairs, payload["repairs"])
 
 
 if __name__ == "__main__":

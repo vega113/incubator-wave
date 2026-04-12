@@ -119,15 +119,17 @@ def classify_group(group: dict[str, Any]) -> GroupClassification:
   docs: list[DuplicateDoc] = group["docs"]
   later_hashes: set[str] = group["later_hashes"]
 
-  winner_ids = [doc.doc_id for doc in docs if doc.resulting_hash in later_hashes]
-  if len(set(winner_ids)) > 1:
+  winner_hashes = list(dict.fromkeys(
+      doc.resulting_hash for doc in docs if doc.resulting_hash in later_hashes
+  ))
+  if len(winner_hashes) > 1:
     return GroupClassification(
         status="ambiguous",
         reason="multiple duplicate branches are referenced by later history",
         keep_doc_id=None,
         drop_doc_ids=[],
     )
-  if not winner_ids:
+  if not winner_hashes:
     return GroupClassification(
         status="ambiguous",
         reason="no unique surviving branch found in later history",
@@ -149,7 +151,8 @@ def classify_group(group: dict[str, Any]) -> GroupClassification:
         drop_doc_ids=[],
     )
 
-  keep_doc_id = winner_ids[0]
+  surviving_hash = winner_hashes[0]
+  keep_doc_id = next(doc.doc_id for doc in docs if doc.resulting_hash == surviving_hash)
   drop_doc_ids = [doc.doc_id for doc in docs if doc.doc_id != keep_doc_id]
   return GroupClassification(
       status="safe",
@@ -256,6 +259,10 @@ def collect_safe_repairs(waves: dict[str, Any]) -> list[dict[str, Any]]:
             "waveid": wave["waveid"],
             "waveletid": wave["waveletid"],
             "drop_doc_ids": drop_doc_ids,
+            "snapshot_delete_filter": {
+                "waveId": wave["waveid"],
+                "waveletId": wave["waveletid"],
+            },
         }
     )
   return repairs
@@ -274,14 +281,18 @@ def apply_safe_repairs(shell_command: str, repairs: list[dict[str, Any]], backup
   js_lines = []
   for repair in repairs:
     ids = ", ".join(f'ObjectId("{doc_id}")' for doc_id in repair["drop_doc_ids"])
+    snapshot_delete_filter = repair.get("snapshot_delete_filter", {
+        "waveId": repair["waveid"],
+        "waveletId": repair["waveletid"],
+    })
     js_lines.append(
         "db.deltas.deleteMany({_id: {$in: [" + ids + "]}});"
     )
     js_lines.append(
         "db.snapshots.deleteMany({waveId: "
-        + json.dumps(repair["waveid"])
+        + json.dumps(snapshot_delete_filter["waveId"])
         + ", waveletId: "
-        + json.dumps(repair["waveletid"])
+        + json.dumps(snapshot_delete_filter["waveletId"])
         + "});"
     )
   proc = subprocess.run(

@@ -337,6 +337,11 @@ class DeltaStoreBasedWaveletState implements WaveletState {
           HashedVersion v = (last == null) ? versionZero : last;
           do {
             WaveletDeltaRecord d = cachedDeltas.get(v);
+            if (d == null) {
+              throw new PersistenceException("Missing cached delta for "
+                  + deltasAccess.getWaveletName() + " at applied version " + v
+                  + " while persisting up to " + version);
+            }
             deltas.add(d);
             v = d.getResultingVersion();
           } while (v.getVersion() < version.getVersion());
