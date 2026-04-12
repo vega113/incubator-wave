@@ -148,6 +148,7 @@ public final class WavePanelTagsLayoutTest extends TestCase {
     assertTrue(toast.contains("showPersistentActions("));
     assertTrue(toast.contains("secondaryActionLabel"));
     assertTrue(toast.contains("secondaryAction"));
+    assertTrue(toast.contains("actionBtn.setPropertyString(\"type\", \"button\");"));
   }
 
   private String read(String relativePath) throws IOException {

@@ -419,6 +419,7 @@ public final class ToastNotification {
     }
 
     Element actionBtn = Document.get().createButtonElement();
+    actionBtn.setPropertyString("type", "button");
     actionBtn.setInnerText(actionLabel);
     Style actionStyle = actionBtn.getStyle();
     actionStyle.setProperty("background",
