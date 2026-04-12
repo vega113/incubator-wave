@@ -180,6 +180,14 @@ public class OperationContextImpl implements OperationContext, OperationResults 
     setResponse(operation.getId(), JsonRpcResponse.error(operation.getId(), errorMessage));
   }
 
+  /**
+   * Replaces an existing response when a later stage (for example delta submission)
+   * invalidates the optimistic operation result.
+   */
+  public void replaceErrorResponse(OperationRequest operation, String errorMessage) {
+    responses.put(operation.getId(), JsonRpcResponse.error(operation.getId(), errorMessage));
+  }
+
   @Override
   public void processEvent(OperationRequest operation, Event event) throws InvalidRequestException {
     // Create JSON-RPC error response.

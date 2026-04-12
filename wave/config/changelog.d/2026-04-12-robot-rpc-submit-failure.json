@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-12-robot-rpc-submit-failure",
+  "version": "Unreleased",
+  "date": "2026-04-12",
+  "title": "Robot RPC commit-failure responses",
+  "summary": "Robot RPC write calls now return JSON-RPC errors when the underlying delta fails to commit, instead of returning a success payload with a reply id that was never persisted.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "The Jakarta robot RPC servlet now rewrites optimistic write responses into JSON-RPC errors when delta submission fails, so streaming bots do not receive phantom newBlipId values",
+        "Added a regression test covering submitRequest failure handling for mutating robot RPC operations"
+      ]
+    }
+  ]
+}
