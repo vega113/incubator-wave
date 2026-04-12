@@ -241,8 +241,11 @@ public class MemoryPerUserWaveViewHandlerImpl
 
   @Override
   public void waveletCommitted(WaveletName waveletName, HashedVersion version) {
-    invalidateWaveCacheIfStale(waveletName, version);
-    markWaveMapDirty(waveletName);
+    try {
+      invalidateWaveCacheIfStale(waveletName, version);
+    } finally {
+      markWaveMapDirty(waveletName);
+    }
   }
 
   private void invalidateWaveCacheIfStale(WaveletName waveletName, HashedVersion version) {
@@ -250,7 +253,7 @@ public class MemoryPerUserWaveViewHandlerImpl
       return;
     }
     try {
-      WaveletContainer container = waveMap.getWavelet(waveletName);
+      WaveletContainer container = waveMap.getCachedWavelet(waveletName);
       if (container == null) {
         return;
       }
@@ -258,7 +261,7 @@ public class MemoryPerUserWaveViewHandlerImpl
       if (cachedVersion == null || cachedVersion.getVersion() < version.getVersion()) {
         waveMap.invalidateWave(waveletName.waveId);
       }
-    } catch (WaveletStateException e) {
+    } catch (WaveletStateException | RuntimeException e) {
       LOG.warning("Failed to compare cached version for " + waveletName, e);
       waveMap.invalidateWave(waveletName.waveId);
     }

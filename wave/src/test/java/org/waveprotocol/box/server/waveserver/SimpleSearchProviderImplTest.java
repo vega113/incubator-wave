@@ -981,6 +981,20 @@ public class SimpleSearchProviderImplTest extends TestCase {
     assertEquals(wave.waveId.serialise(), newTagResults.getDigests().get(0).getWaveId());
   }
 
+  public void testWaveletCommittedDoesNotWarmColdWaveCache() throws Exception {
+    WaveletName wave = WaveletName.of(WaveId.of(DOMAIN, "cold-commit-cache"), WAVELET_ID);
+
+    submitDeltaToNewWaveletWithoutView(wave, USER1, runtimeAddParticipant(USER1));
+    HashedVersion committedVersion = waveMap.getWavelet(wave).getLastCommittedVersion();
+
+    waveMap.unloadAllWavelets();
+    assertTrue(waveMap.getWaves().isEmpty());
+
+    runtimeWaveViewProvider.waveletCommitted(wave, committedVersion);
+
+    assertTrue(waveMap.getWaves().isEmpty());
+  }
+
   public void testSearchFilterByMentionsReturnsOnlyMentionedWaves() throws Exception {
     WaveletName mentionedWave = WaveletName.of(WaveId.of(DOMAIN, "mentioned"), WAVELET_ID);
     WaveletName unmentionedWave = WaveletName.of(WaveId.of(DOMAIN, "unmentioned"), WAVELET_ID);

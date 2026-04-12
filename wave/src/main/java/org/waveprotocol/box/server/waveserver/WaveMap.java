@@ -127,6 +127,14 @@ public class WaveMap {
     }
   }
 
+  public WaveletContainer getCachedWavelet(WaveletName waveletName) {
+    Wave wave = waves.getIfPresent(waveletName.waveId);
+    if (wave == null) {
+      return null;
+    }
+    return wave.getCachedWavelet(waveletName.waveletId);
+  }
+
   /**
    * Returns defensive copy of the map that holds waves.
    */
