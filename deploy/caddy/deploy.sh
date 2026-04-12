@@ -452,17 +452,20 @@ post_swap_smoke() {
   return 0
 }
 
-schedule_cooldown() {
+stop_replaced_slot() {
   local old_slot=$1
-  local systemd_scope=""
-  if [ "$(id -u)" -ne 0 ]; then
-    systemd_scope="--user"
+  if dc stop "wave-${old_slot}" 2>/dev/null; then
+    return 0
   fi
-  systemctl $systemd_scope stop "wave-cooldown.service" 2>/dev/null || true
-  if ! systemd-run $systemd_scope --on-active=30min --unit="wave-cooldown" \
-      -- docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" stop "wave-${old_slot}" 2>/dev/null; then
-    echo "[deploy] WARNING: failed to schedule cooldown timer — old slot will stay running"
+
+  echo "[deploy] WARNING: graceful stop failed for wave-${old_slot}; forcing shutdown" >&2
+  dc kill "wave-${old_slot}" 2>/dev/null || true
+
+  if dc ps "wave-${old_slot}" --format json 2>/dev/null | grep -q '"running"'; then
+    echo "[deploy] ERROR: replaced slot wave-${old_slot} is still running" >&2
+    return 1
   fi
+  return 0
 }
 
 update_state() {
@@ -520,7 +523,7 @@ deploy_release() {
   fi
 
   update_state
-  schedule_cooldown "$ACTIVE_SLOT"
+  stop_replaced_slot "$ACTIVE_SLOT"
   echo "[deploy] Deploy complete. Active: ${TARGET_SLOT}"
 }
 
@@ -578,7 +581,7 @@ rollback_release() {
   current=$(cat "$deploy_root/shared/active-slot")
   echo "$prev" > "$deploy_root/shared/active-slot"
   echo "$current" > "$deploy_root/shared/previous-slot"
-  schedule_cooldown "$current"
+  stop_replaced_slot "$current"
   echo "[deploy] Rolled back to ${prev}"
 }
 
@@ -603,7 +606,8 @@ show_status() {
   echo "Cooldown timer:"
   local systemd_scope=""
   [ "$(id -u)" -ne 0 ] && systemd_scope="--user"
-  systemctl $systemd_scope status wave-cooldown.timer 2>/dev/null || echo "  (none active)"
+  systemctl $systemd_scope status wave-cooldown.timer 2>/dev/null \
+    || echo "  disabled (replaced slot stops immediately)"
 }
 
 # ---------------------------------------------------------------------------

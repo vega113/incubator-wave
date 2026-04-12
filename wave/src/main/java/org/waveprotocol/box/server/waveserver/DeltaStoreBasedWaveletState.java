@@ -323,6 +323,13 @@ class DeltaStoreBasedWaveletState implements WaveletState {
         // Done, version is already persisted.
         version = last;
       } else {
+        HashedVersion expectedDurableVersion = (last == null) ? versionZero : last;
+        HashedVersion durableEndVersion = deltasAccess.getEndVersion();
+        if (durableEndVersion != null && !durableEndVersion.equals(expectedDurableVersion)) {
+          throw new PersistenceException("Refusing to persist stale wavelet state for "
+              + deltasAccess.getWaveletName() + ": expected durable end version "
+              + expectedDurableVersion + " but found " + durableEndVersion);
+        }
         ImmutableList.Builder<WaveletDeltaRecord> deltas = ImmutableList.builder();
         HashedVersion v = (last == null) ? versionZero : last;
         do {
