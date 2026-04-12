@@ -207,6 +207,7 @@ public final class SearchPresenter
   private final RemoteViewServiceMultiplexer channel;
   private WaveStore waveStore;
   private boolean otSearchEnabled;
+  private boolean otSearchFallbackEnabled;
   private boolean useOtSearch;
   /** Set to true once the first snapshot or delta arrives for the OT search wavelet. */
   private boolean otSearchReceivedData;
@@ -418,22 +419,10 @@ public final class SearchPresenter
   }
 
   private static boolean supportsOtSearch(String query) {
-    boolean supportsOtSearch = true;
-    if (query != null) {
-      supportsOtSearch = !containsTagFilter(query);
-    }
-    return supportsOtSearch;
-  }
-
-  private static boolean containsTagFilter(String query) {
-    String[] tokens = query.split("\\s+");
-    for (String token : tokens) {
-      int separatorIndex = token.indexOf(':');
-      if (separatorIndex > 0 && "tag".equals(token.substring(0, separatorIndex))) {
-        return true;
-      }
-    }
-    return false;
+    // Query-shape heuristics caused false negatives for tag: searches. OT search
+    // supports the full search query surface; real runtime failures still fall
+    // back through the explicit ot-search-fallback gate below.
+    return true;
   }
 
   static boolean shouldUsePolling(boolean otSearchEnabled, boolean otSearchReady) {
@@ -458,9 +447,12 @@ public final class SearchPresenter
       return;
     }
     subscribeToSearchWavelet(queryText);
-    doSearch();
-    // Do NOT start the repeating poll here. OT handles live updates;
-    // otSearchTimeoutTask starts polling if OT times out or falls back.
+    if (SearchBootstrapUiState.shouldBootstrapViaHttpWhenOtStarts(
+        otSearchEnabled, otSearchFallbackEnabled)) {
+      doSearch();
+    }
+    // Do NOT start the repeating poll here. OT handles live updates. If fallback is enabled,
+    // timeout / reconnect paths can still move to legacy HTTP search explicitly.
   }
 
   /**
@@ -477,6 +469,7 @@ public final class SearchPresenter
     searchQueryHandlerRegistration =
         ClientEvents.get().addSearchQueryEventHandler(searchQueryEventHandler);
     otSearchEnabled = Session.get().hasFeature("ot-search") && channel != null;
+    otSearchFallbackEnabled = Session.get().hasFeature("ot-search-fallback");
     if (otSearchEnabled) {
       useOtSearch = false;
       networkStatusHandlerRegistration =
@@ -1137,9 +1130,10 @@ public final class SearchPresenter
   @Override
   public void onShowMoreClicked() {
     querySize += getPageSize();
-    if (shouldUsePolling(otSearchEnabled, useOtSearch)) {
+    if (SearchBootstrapUiState.shouldUseHttpSearchForWindowRequest(
+        otSearchEnabled, useOtSearch, otSearchFallbackEnabled)) {
       doSearch();
-    } else {
+    } else if (useOtSearch) {
       if (canProjectOtSearchWindow(querySize, otSearchSnapshot)) {
         applyOtSearchResults();
       } else {
@@ -1147,6 +1141,10 @@ public final class SearchPresenter
             "OT search cannot serve query window " + querySize + " for query '" + queryText + "'",
             null);
       }
+    } else {
+      OT_SEARCH_LOG.warning(
+          "Ignoring show-more request while waiting for OT search data and HTTP fallback is disabled for query '"
+              + queryText + "'");
     }
   }
 
@@ -1501,6 +1499,10 @@ public final class SearchPresenter
   }
 
   private void fallbackToPolling(String message, Throwable cause) {
+    if (!otSearchFallbackEnabled) {
+      failOtSearchWithoutFallback(message, cause);
+      return;
+    }
     if (cause == null) {
       OT_SEARCH_LOG.warning(message + "; falling back to polling");
     } else {
@@ -1516,6 +1518,23 @@ public final class SearchPresenter
     scheduler.cancel(otSearchTimeoutTask);
     scheduler.cancel(searchUpdater);
     startPolling();
+  }
+
+  private void failOtSearchWithoutFallback(String message, Throwable cause) {
+    if (cause == null) {
+      OT_SEARCH_LOG.severe(message + "; HTTP fallback disabled");
+    } else {
+      OT_SEARCH_LOG.log(Level.SEVERE, message + "; HTTP fallback disabled", cause);
+    }
+    useOtSearch = false;
+    allowLoadingSkeletonDuringSearch = false;
+    unsubscribeFromSearchWavelet();
+    otSearchDocument = null;
+    otSearchSnapshot = OtSearchSnapshot.empty();
+    otSearchReceivedData = false;
+    scheduler.cancel(otSearchTimeoutTask);
+    scheduler.cancel(searchUpdater);
+    render();
   }
 
   private boolean shouldShowLoadingSkeleton() {
@@ -1546,6 +1565,12 @@ public final class SearchPresenter
       return;
     }
     otSearchTimedOut = true;
+    if (!otSearchFallbackEnabled) {
+      failOtSearchWithoutFallback(
+          "OT search timed out for query '" + queryText + "'",
+          null);
+      return;
+    }
     OT_SEARCH_LOG.warning(
         "OT search timed out for query '" + queryText + "'; falling back to HTTP polling");
     unsubscribeFromSearchWavelet();

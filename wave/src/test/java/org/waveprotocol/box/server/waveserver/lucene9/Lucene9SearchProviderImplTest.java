@@ -20,14 +20,17 @@ package org.waveprotocol.box.server.waveserver.lucene9;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.wave.api.SearchResult;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import junit.framework.TestCase;
 import org.mockito.Mockito;
+import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.box.server.waveserver.SimpleSearchProviderImpl;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
@@ -55,17 +58,19 @@ public final class Lucene9SearchProviderImplTest extends TestCase {
     verify(indexer, never()).searchWaveIds(any(), any(), anyInt());
   }
 
-  public void testPureTagQueryReturnsLegacyResultsWithoutLuceneSearch() {
+  public void testPureTagQueryUsesLuceneCandidatesAndLegacyDigests() throws Exception {
     SimpleSearchProviderImpl legacySearchProvider = Mockito.mock(SimpleSearchProviderImpl.class);
     Lucene9WaveIndexerImpl indexer = Mockito.mock(Lucene9WaveIndexerImpl.class);
-    SearchResult legacyResult = new SearchResult("tag:project-x");
+    SearchResult legacyResult = new SearchResult("");
     legacyResult.addDigest(new SearchResult.Digest(
         "Project X", "snippet", "example.com!w+project-x", Collections.singletonList(
         "user@example.com"), 123L, 123L, 0, 1));
     legacyResult.setTotalResults(1);
 
     when(legacySearchProvider.search(ParticipantId.ofUnsafe("user@example.com"),
-        "tag:project-x", 0, 10000)).thenReturn(legacyResult);
+        "", 0, 10000)).thenReturn(legacyResult);
+    when(indexer.searchWaveIds(any(), any(), anyInt())).thenReturn(
+        new LinkedHashSet<>(Collections.singletonList(WaveId.of("example.com", "w+project-x"))));
 
     Lucene9SearchProviderImpl provider = new Lucene9SearchProviderImpl(
         legacySearchProvider,
@@ -79,6 +84,6 @@ public final class Lucene9SearchProviderImplTest extends TestCase {
     assertEquals(1, result.getTotalResults());
     assertEquals(1, result.getNumResults());
     assertEquals("example.com!w+project-x", result.getDigests().get(0).getWaveId());
-    verify(indexer, never()).searchWaveIds(any(), any(), anyInt());
+    verify(indexer).searchWaveIds(any(), any(), eq(10000));
   }
 }
