@@ -59,13 +59,14 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertFalse(css.contains("border: 1px solid rgba(176,196,216,0.55);"));
   }
 
-  public void testCompactButtonsUseSingleActiveSurfaceWhenDown() throws Exception {
+  public void testCompactButtonsReuseSharedDownOverlay() throws Exception {
     String css = normalized(read(
         "wave/src/main/resources/org/waveprotocol/wave/client/widget/toolbar/buttons/HorizontalToolbarButtonWidget.css"));
 
-    assertTrue(css.contains(".enabled.down.compact > .overlay {"));
-    assertTrue(css.contains("background-color: transparent;"));
-    assertTrue(css.contains("border: none;"));
+    assertTrue(css.contains(".enabled.down > .overlay {"));
+    assertTrue(css.contains("background-color: rgba(0, 119, 182, 0.1);"));
+    assertTrue(css.contains("border: 1px solid rgba(0, 119, 182, 0.25);"));
+    assertFalse(css.contains(".enabled.down.compact > .overlay {"));
   }
 
   public void testSearchPanelReservesThirtySixPixelsForToolbarHeight() throws Exception {
@@ -91,6 +92,15 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(css.contains("height: auto;"));
     assertTrue(css.contains("min-height: 36px;"));
     assertTrue(css.contains("background-image: linear-gradient(180deg, #eef7ff 0%, #dcecff 100%);"));
+  }
+
+  public void testTopConversationTracksActualToolbarHeightWhenLayoutChanges() throws Exception {
+    String javaSource = read(
+        "wave/src/main/java/org/waveprotocol/wave/client/wavepanel/view/dom/TopConversationDomImpl.java");
+
+    assertTrue(javaSource.contains("toolbar.getOffsetTop() + toolbar.getOffsetHeight()"));
+    assertTrue(javaSource.contains("setTop(topPx, Unit.PX);"));
+    assertTrue(javaSource.contains("Scheduler.get().scheduleDeferred"));
   }
 
   public void testSearchToolbarSvgContractMatchesPolishedToolbarSizing() throws Exception {
