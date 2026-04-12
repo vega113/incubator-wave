@@ -67,6 +67,46 @@ class DeployOverlapSafetyTest(unittest.TestCase):
         result.stderr,
     )
 
+  def test_deploy_reverts_swap_when_replaced_slot_stays_running(self):
+    result, temp_dir = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        stop_fail_services=["wave-blue"],
+    )
+
+    self.assertNotEqual(0, result.returncode)
+    self.assertIn("replaced slot wave-blue is still running", result.stderr)
+    self.assertEqual("blue", (temp_dir / "deploy-root" / "shared" / "active-slot").read_text(encoding="utf-8").strip())
+    self.assertIn(
+        "# active: blue",
+        (temp_dir / "deploy-root" / "shared" / "upstream.caddy").read_text(encoding="utf-8"),
+    )
+    ops = (temp_dir / "ops.log").read_text(encoding="utf-8")
+    self.assertIn("stop wave-green", ops)
+
+  def test_rollback_reverts_swap_when_replaced_slot_stays_running(self):
+    result, temp_dir = self._run_script(
+        command="rollback",
+        active_slot="green",
+        previous_slot="blue",
+        running_services=["caddy", "wave-blue", "wave-green"],
+        stop_fail_services=["wave-green"],
+    )
+
+    self.assertNotEqual(0, result.returncode)
+    self.assertIn("replaced slot wave-green is still running", result.stderr)
+    shared_dir = temp_dir / "deploy-root" / "shared"
+    self.assertEqual("green", (shared_dir / "active-slot").read_text(encoding="utf-8").strip())
+    self.assertEqual("blue", (shared_dir / "previous-slot").read_text(encoding="utf-8").strip())
+    self.assertIn(
+        "# active: green",
+        (shared_dir / "upstream.caddy").read_text(encoding="utf-8"),
+    )
+    ops = (temp_dir / "ops.log").read_text(encoding="utf-8")
+    self.assertIn("stop wave-blue", ops)
+
   def _run_script(
       self,
       command: str,
@@ -138,6 +178,12 @@ set -euo pipefail
     exit 0
     ;;
   *" stop wave-green"*)
+    exit 0
+    ;;
+  *" kill wave-blue"*)
+    exit 0
+    ;;
+  *" kill wave-green"*)
     exit 0
     ;;
   "run --rm --network host "*|*"run --rm --network host "*)
@@ -219,7 +265,7 @@ exit 1
         text=True,
         check=False,
     )
-    return result, ops_log
+    return result, temp_dir
 
   @staticmethod
   def _write_executable(path: Path, content: str) -> None:

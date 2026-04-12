@@ -474,6 +474,28 @@ stop_replaced_slot() {
   return 0
 }
 
+best_effort_stop_slot() {
+  local slot=$1
+  dc stop "wave-${slot}" 2>/dev/null || dc kill "wave-${slot}" 2>/dev/null || true
+}
+
+revert_swap() {
+  local restored_slot=$1
+  local reverted_slot=$2
+  local reason=$3
+
+  echo "[deploy] ERROR: ${reason}" >&2
+  if ! generate_upstream "$restored_slot"; then
+    echo "[deploy] ERROR: failed to regenerate upstream for ${restored_slot} while reverting swap" >&2
+  else
+    if ! reload_caddy; then
+      echo "[deploy] ERROR: failed to reload Caddy while reverting swap to ${restored_slot}" >&2
+    fi
+  fi
+  best_effort_stop_slot "$reverted_slot"
+  exit 1
+}
+
 update_state() {
   echo "$TARGET_SLOT" > "$deploy_root/shared/active-slot"
   echo "$ACTIVE_SLOT" > "$deploy_root/shared/previous-slot"
@@ -528,8 +550,11 @@ deploy_release() {
     exit 1
   fi
 
+  if ! stop_replaced_slot "$ACTIVE_SLOT"; then
+    revert_swap "$ACTIVE_SLOT" "$TARGET_SLOT" \
+      "replaced slot ${ACTIVE_SLOT} failed to stop after deploy swap; reverting"
+  fi
   update_state
-  stop_replaced_slot "$ACTIVE_SLOT"
   echo "[deploy] Deploy complete. Active: ${TARGET_SLOT}"
 }
 
@@ -544,6 +569,8 @@ rollback_release() {
 
   local prev_port
   prev_port=$([ "$prev" = "blue" ] && echo 9898 || echo 9899)
+  local current
+  current=$(cat "$deploy_root/shared/active-slot")
 
   if ! dc ps "wave-${prev}" --format json 2>/dev/null | grep -q '"running"'; then
     local prev_image
@@ -576,18 +603,17 @@ rollback_release() {
 
   if ! post_swap_smoke; then
     echo "[deploy] ERROR: post-rollback proxy smoke failed, reverting"
-    local current_active
-    current_active=$(cat "$deploy_root/shared/active-slot")
-    generate_upstream "$current_active"
+    generate_upstream "$current"
     reload_caddy
     exit 1
   fi
 
-  local current
-  current=$(cat "$deploy_root/shared/active-slot")
+  if ! stop_replaced_slot "$current"; then
+    revert_swap "$current" "$prev" \
+      "replaced slot ${current} failed to stop after rollback swap; reverting"
+  fi
   echo "$prev" > "$deploy_root/shared/active-slot"
   echo "$current" > "$deploy_root/shared/previous-slot"
-  stop_replaced_slot "$current"
   echo "[deploy] Rolled back to ${prev}"
 }
 
