@@ -19,3 +19,9 @@ Verification:
 Review remediation:
 - Addressed Copilot inline review comment on `wave/src/main/java/org/waveprotocol/wave/client/widget/toast/ToastNotification.java`
   requesting explicit `type="button"` on the new toast action buttons.
+- Addressed CodeRabbit review feedback by guarding persistent toast action callbacks with
+  `if (!persistentToasts.containsKey(id)) { return; }` before dismiss/run so rapid repeated
+  clicks cannot fire undo/close more than once while the toast is fading out.
+- Reduced brittleness in `WavePanelTagsLayoutTest` by replacing the exact
+  `showPersistentInternal(id, message, level, null, null, null, null);` source assertion with
+  smaller stable token checks and a dedicated guard assertion.

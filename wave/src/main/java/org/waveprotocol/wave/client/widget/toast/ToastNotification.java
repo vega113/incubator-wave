@@ -441,6 +441,9 @@ public final class ToastNotification {
         if (Event.ONCLICK == event.getTypeInt()) {
           event.preventDefault();
           event.stopPropagation();
+          if (!persistentToasts.containsKey(id)) {
+            return;
+          }
           dismissPersistent(id);
           action.run();
         }

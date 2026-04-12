@@ -144,11 +144,13 @@ public final class WavePanelTagsLayoutTest extends TestCase {
     String toast =
         read("wave/src/main/java/org/waveprotocol/wave/client/widget/toast/ToastNotification.java");
 
-    assertTrue(toast.contains("showPersistentInternal(id, message, level, null, null, null, null);"));
+    assertTrue(toast.contains("showPersistentInternal("));
+    assertTrue(toast.contains("id, message, level, null, null, null, null"));
     assertTrue(toast.contains("showPersistentActions("));
     assertTrue(toast.contains("secondaryActionLabel"));
     assertTrue(toast.contains("secondaryAction"));
     assertTrue(toast.contains("actionBtn.setPropertyString(\"type\", \"button\");"));
+    assertTrue(toast.contains("if (!persistentToasts.containsKey(id)) {"));
   }
 
   private String read(String relativePath) throws IOException {
