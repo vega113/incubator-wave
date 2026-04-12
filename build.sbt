@@ -32,64 +32,19 @@ Compile / unmanagedSourceDirectories += baseDirectory.value / "wave" / "src" / "
 // SBT-only stubs for GWT client classes used by server code (no-op implementations)
 Compile / unmanagedSourceDirectories += baseDirectory.value / "wave" / "src" / "sbt-stubs" / "java"
 
-// ─── Per-file exclusion list (replicates wave/build.gradle lines 283-356 exactly) ───
-// The Gradle build is Jakarta-only. The full Gradle exclusion list is applied.
+// ─── Jakarta/source ownership filters ───
+// The Gradle-era exclusion layout is still the baseline, but issue #714 removed
+// the exact same-path shadow copies so only the remaining legacy/main directory
+// filters are still active here.
 // Files common to both modes (GWT client trees, generated JSO, retired agents/OAuth) are always excluded.
 Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =>
   val p = f.getPath.replace('\\', '/')
   val underMain    = p.contains("/wave/src/main/java/")
   val underJakarta = p.contains("/wave/src/jakarta-overrides/java/")
 
-  // --- Exact excludes under src/main/java (Gradle mainExactExcludes, lines 283-332) ---
-  // These files have active Jakarta replacements in src/jakarta-overrides/java.
-  val mainExactExcludes: Set[String] = Set(
-    "org/waveprotocol/box/server/rpc/ServerRpcProvider.java",
-    "org/waveprotocol/box/server/ServerModule.java",
-    "org/waveprotocol/box/server/StatModule.java",
-    "org/waveprotocol/box/server/SearchModule.java",
-    "org/waveprotocol/box/server/ServerMain.java",
-    "org/waveprotocol/box/server/authentication/SessionManager.java",
-    "org/waveprotocol/box/server/robots/RobotApiModule.java",
-    "org/waveprotocol/box/server/robots/RobotRegistrationServlet.java",
-    "org/waveprotocol/box/server/robots/dataapi/BaseApiServlet.java",
-    "org/waveprotocol/box/server/robots/dataapi/DataApiServlet.java",
-    "org/waveprotocol/box/server/robots/dataapi/DataApiOperationServiceRegistry.java",
-    "org/waveprotocol/box/server/robots/active/ActiveApiServlet.java",
-    "org/waveprotocol/box/server/robots/active/ActiveApiOperationServiceRegistry.java",
-    "org/waveprotocol/box/server/robots/passive/RobotConnector.java",
-    "org/waveprotocol/box/server/robots/operations/NotifyOperationService.java",
-    "org/waveprotocol/box/server/robots/register/RobotRegistrar.java",
-    "org/waveprotocol/box/server/robots/register/RobotRegistrarImpl.java",
-    "org/waveprotocol/box/server/rpc/UserRegistrationServlet.java",
-    "org/waveprotocol/box/server/rpc/AuthenticationServlet.java",
-    "org/waveprotocol/box/server/rpc/SignOutServlet.java",
-    "org/waveprotocol/box/server/authentication/SessionManagerImpl.java",
-    "org/waveprotocol/box/server/rpc/AttachmentServlet.java",
-    "org/waveprotocol/box/server/rpc/SearchServlet.java",
-    "org/waveprotocol/box/server/rpc/AttachmentInfoServlet.java",
-    "org/waveprotocol/box/server/rpc/FetchServlet.java",
-    "org/waveprotocol/box/server/rpc/FetchProfilesServlet.java",
-    "org/waveprotocol/box/server/rpc/LocaleServlet.java",
-    "org/waveprotocol/box/server/rpc/NotificationServlet.java",
-    "org/waveprotocol/box/server/rpc/WaveClientServlet.java",
-    "org/waveprotocol/box/server/rpc/WaveRefServlet.java",
-    "org/waveprotocol/box/server/rpc/HealthServlet.java",
-    "org/waveprotocol/box/server/rpc/FolderServlet.java",
-    "org/waveprotocol/box/server/rpc/SearchesServlet.java",
-    "org/waveprotocol/box/server/rpc/WebSocketChannelImpl.java",
-    "org/waveprotocol/box/server/rpc/WebSocketClientRpcChannel.java",
-    "com/google/wave/api/AbstractRobot.java",
-    "org/waveprotocol/box/server/stat/RequestScopeFilter.java",
-    "org/waveprotocol/box/server/stat/TimingFilter.java",
-    // Security filters with Jakarta overrides (resolve multiple-source match warnings)
-    "org/waveprotocol/box/server/security/SecurityHeadersFilter.java",
-    "org/waveprotocol/box/server/security/NoCacheFilter.java",
-    "org/waveprotocol/box/server/security/StaticCacheFilter.java",
-    // Versioned fetch servlet with Jakarta override
-    "org/waveprotocol/box/server/rpc/VersionedFetchServlet.java",
-    // Public wave fetch servlet with Jakarta override
-    "org/waveprotocol/box/server/rpc/PublicWaveFetchServlet.java"
-  )
+  // Same-path main/Jakarta duplicate classes were removed in issue #714.
+  // Keep this empty set so build tooling and guard scripts can still parse the block.
+  val mainExactExcludes: Set[String] = Set()
 
   // Legacy main-tree files intentionally kept out of the Jakarta/SBT compile surface.
   // These do not currently have same-path Jakarta replacements.
@@ -112,16 +67,14 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
     p.contains("/org/apache/wave/box/server/rpc/")
   )
 
-  // Jakarta mode: apply full Gradle exclusion list
+  // Jakarta mode: apply the remaining main-tree exclusions
   val mainFileExcluded = underMain && (
     mainExactExcludes.exists(suffix => p.endsWith("/" + suffix)) ||
     mainLegacyCompileExcludes.exists(suffix => p.endsWith("/" + suffix))
   )
 
-  // --- Exact excludes under src/jakarta-overrides/java (Gradle lines 341-349) ---
-  val jakartaExactExcludes: Set[String] = Set(
-    "org/waveprotocol/box/server/robots/RobotApiModule.java"
-  )
+  // Same-path Jakarta duplicates were removed in issue #714.
+  val jakartaExactExcludes: Set[String] = Set()
 
   val jakartaFileExcluded = underJakarta && jakartaExactExcludes.exists(suffix => p.endsWith("/" + suffix))
 
