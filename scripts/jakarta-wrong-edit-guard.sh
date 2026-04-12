@@ -45,19 +45,26 @@ CHANGED_OVERRIDE=""
 extract_set_entries() {
   local set_name="$1"
   awk -v set_name="$set_name" '
-    $0 ~ ("val " set_name ": Set\\[String\\] = Set\\(") {
+    !inside && $0 ~ ("val " set_name ": Set\\[String\\] = Set\\(") {
       inside = 1
-      next
+      line = $0
+      sub(/^.*Set\(/, "", line)
     }
     inside {
-      if ($0 ~ /^[[:space:]]*\)/) {
+      if (line == "") {
+        line = $0
+      }
+      if (line ~ /^[[:space:]]*\)[[:space:]]*$/) {
         exit
       }
-      line = $0
       while (match(line, /"[^"]+"/)) {
         print substr(line, RSTART + 1, RLENGTH - 2)
         line = substr(line, RSTART + RLENGTH)
       }
+      if (line ~ /\)[[:space:]]*$/) {
+        exit
+      }
+      line = ""
     }
   ' "$BUILD_FILE"
 }
@@ -117,7 +124,7 @@ contains_line() {
     return 1
   fi
 
-  printf '%s' "$haystack" | grep -Fqx "$needle"
+  printf '%s' "$haystack" | grep -Fqx -- "$needle"
 }
 
 matches_directory_exclude() {

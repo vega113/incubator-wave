@@ -190,6 +190,38 @@ class JakartaWrongEditGuardTest(unittest.TestCase):
     self.assertEqual(0, result.returncode)
     self.assertNotIn("WARNING", result.stdout)
 
+  def test_handles_empty_exact_exclude_sets(self) -> None:
+    self._write(
+        "build.sbt",
+        textwrap.dedent(
+            """
+            val mainExactExcludes: Set[String] = Set()
+
+            val mainLegacyCompileExcludes: Set[String] = Set(
+              "org/example/MainOnly.java"
+            )
+
+            val mainDirExcluded = underMain && (
+              p.contains("/org/example/dirshadow/")
+            )
+
+            val jakartaExactExcludes: Set[String] = Set()
+
+            Compile / javaOptions ++= Seq(
+              "--devices",
+              "--add-opens"
+            )
+            """
+        ).strip()
+        + "\n",
+    )
+
+    result = self._run_guard()
+
+    self.assertEqual(0, result.returncode)
+    self.assertNotIn("WARNING", result.stdout)
+    self.assertEqual("", result.stderr)
+
   def test_script_is_executable_and_runs_directly(self) -> None:
     self.assertTrue(os.access(SCRIPT_PATH, os.X_OK))
 
