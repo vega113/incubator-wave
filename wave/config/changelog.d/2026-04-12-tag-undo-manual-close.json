@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-12-tag-undo-manual-close",
+  "version": "Unreleased",
+  "date": "2026-04-12",
+  "title": "Let users close tag restore toasts",
+  "summary": "Tag-removal restore toasts now include a manual close action that immediately finalizes the delete instead of keeping the restore window open.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Tag removal toasts now include a Close action alongside Restore",
+        "Closing the toast immediately clears the pending restore window so the delete is finalized at once"
+      ]
+    }
+  ]
+}

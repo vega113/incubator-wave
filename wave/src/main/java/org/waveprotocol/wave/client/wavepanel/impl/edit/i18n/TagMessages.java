@@ -49,4 +49,7 @@ public interface TagMessages extends Messages {
 
   @DefaultMessage("Restore")
   String restoreTagAction();
+
+  @DefaultMessage("Close")
+  String closeTagAction();
 }

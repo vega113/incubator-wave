@@ -43,7 +43,7 @@ final class UndoableTagRemovalManager {
   }
 
   interface Presenter {
-    void show(String tagName, Runnable onUndo);
+    void show(String tagName, Runnable onUndo, Runnable onClose);
     void dismiss();
   }
 
@@ -91,6 +91,11 @@ final class UndoableTagRemovalManager {
       public void run() {
         undoPendingRemoval();
       }
+    }, new Runnable() {
+      @Override
+      public void run() {
+        closePendingRemoval();
+      }
     });
     pendingExpiry = scheduler.schedule(restoreWindowMs, new Runnable() {
       @Override
@@ -118,8 +123,20 @@ final class UndoableTagRemovalManager {
 
     Conversation conversation = pendingRemoval.conversation;
     String tagName = pendingRemoval.tagName;
-    clearPendingRemoval();
+    clearPendingRemovalWithoutPresenterDismiss();
     conversation.addTag(tagName);
+  }
+
+  private void closePendingRemoval() {
+    clearPendingRemovalWithoutPresenterDismiss();
+  }
+
+  private void clearPendingRemovalWithoutPresenterDismiss() {
+    if (pendingExpiry != null) {
+      pendingExpiry.cancel();
+      pendingExpiry = null;
+    }
+    pendingRemoval = null;
   }
 
   private static final class PendingRemoval {
