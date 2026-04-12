@@ -107,6 +107,14 @@ class GrafanaAlloyLoggingConfigTest(unittest.TestCase):
     self.assertIn('WAVE_TIMESTAMP_FORMAT=${WAVE_TIMESTAMP_FORMAT:-RFC3339Nano}', script_text)
     self.assertIn('format = \\"$WAVE_TIMESTAMP_FORMAT\\"', script_text)
 
+  def test_alloy_file_targets_use_internal_path_labels_and_service_name(self):
+    script_text = ALLOY_CONFIG_SCRIPT.read_text(encoding="utf-8")
+
+    self.assertIn('__path__    = \\"/var/log/{syslog,messages,*.log}\\"', script_text)
+    self.assertIn('__path__     = \\"$WAVE_LOG_PATH\\"', script_text)
+    self.assertIn('service_name = \\"supawave\\"', script_text)
+    self.assertNotIn('path     = \\"$WAVE_LOG_PATH\\"', script_text)
+
 
 if __name__ == "__main__":
   unittest.main()
