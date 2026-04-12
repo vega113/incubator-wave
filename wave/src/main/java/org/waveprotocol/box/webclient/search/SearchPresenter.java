@@ -1142,11 +1142,18 @@ public final class SearchPresenter
         switchToHttpPollingForExpandedWindow(
             "OT search cannot serve query window " + querySize + " for query '" + queryText + "'");
       }
-    } else {
+    } else if (isHttpPollingActiveForCurrentQuery()) {
+      querySize = requestedSize;
+      doSearch();
+    } else if (otSearchWaveletName != null) {
       querySize = requestedSize;
       OT_SEARCH_LOG.info(
           "Queued show-more request for query '" + queryText
               + "' until OT search data becomes available");
+    } else {
+      OT_SEARCH_LOG.warning(
+          "Ignoring show-more request after OT search became unavailable for query '"
+              + queryText + "'");
     }
   }
 
@@ -1525,7 +1532,8 @@ public final class SearchPresenter
     OT_SEARCH_LOG.warning(message + "; switching to HTTP search for the requested window");
     useOtSearch = false;
     allowLoadingSkeletonDuringSearch = false;
-    otSearchTimedOut = false;
+    // Once OT has proven it cannot project this window, keep the query on HTTP.
+    otSearchTimedOut = true;
     unsubscribeFromSearchWavelet();
     otSearchDocument = null;
     otSearchSnapshot = OtSearchSnapshot.empty();
@@ -1543,13 +1551,28 @@ public final class SearchPresenter
     }
     useOtSearch = false;
     allowLoadingSkeletonDuringSearch = false;
+    otSearchTimedOut = true;
     unsubscribeFromSearchWavelet();
     otSearchDocument = null;
     otSearchSnapshot = OtSearchSnapshot.empty();
     otSearchReceivedData = false;
     scheduler.cancel(otSearchTimeoutTask);
     scheduler.cancel(searchUpdater);
+    clearSearchResultsAfterOtFailure();
     render();
+  }
+
+  private boolean isHttpPollingActiveForCurrentQuery() {
+    return !useOtSearch && otSearchWaveletName == null && scheduler.isScheduled(searchUpdater);
+  }
+
+  private void clearSearchResultsAfterOtFailure() {
+    querySize = getPageSize();
+    if (search instanceof SimpleSearch) {
+      ((SimpleSearch) search).replaceResults(0, Collections.<SearchService.DigestSnapshot>emptyList());
+    } else {
+      search.cancel();
+    }
   }
 
   private boolean shouldShowLoadingSkeleton() {
