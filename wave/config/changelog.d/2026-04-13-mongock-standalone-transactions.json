@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-13-mongock-standalone-transactions",
+  "version": "PR #886",
+  "date": "2026-04-13",
+  "title": "Disable Mongock transactions for standalone Mongo deployments",
+  "summary": "Mongo-backed startup migrations now disable Mongock transactions so standalone MongoDB deployments can apply schema changes without replica-set transaction support.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Disabled Mongock transaction usage before the startup migration runner executes against Mongo v4",
+        "Kept the driver on primary reads while leaving read and write concern overrides unchanged"
+      ]
+    }
+  ]
+}

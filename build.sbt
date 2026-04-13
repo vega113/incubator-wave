@@ -352,6 +352,7 @@ Test / testOptions += Tests.Filter { name =>
       || name.contains(".server.persistence.file.")
       || name.contains(".server.persistence.protos.")
       || name.endsWith(".MongoMigrationRunnerTest")
+      || name.endsWith(".MongockMongoMigrationRunnerTest")
       || name.endsWith(".MongoMigrationBaselineTest")
       || name.endsWith(".MongoDeltaStoreAppendGuardTest")
   )
