@@ -44,6 +44,13 @@ import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.wave.data.WaveletData;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
+
 /**
  * Tests for the {@link WaveClientRpcImpl}.
  */
@@ -203,6 +210,56 @@ public class WaveClientRpcImplTest extends TestCase implements TestingConstants 
     assertTrue(controller.failed());
     assertTrue(controller.errorText().contains("search query"));
     assertEquals(null, frontend.lastSearchQuery);
+  }
+
+  public void testOpenRejectsMismatchedSearchQueryWithoutLoggingRawQuery() {
+    ProtocolOpenRequest request = ProtocolOpenRequest.newBuilder()
+        .setParticipantId(USER)
+        .setWaveId(ModernIdSerialiser.INSTANCE.serialiseWaveId(WAVE_ID))
+        .setSearchQuery("from:alice@example.com secret project")
+        .build();
+    Logger logger = Logger.getLogger(WaveClientRpcImpl.class.getName());
+    final List<LogRecord> warningRecords = new ArrayList<LogRecord>();
+    Handler captureHandler = new Handler() {
+      @Override
+      public void publish(LogRecord record) {
+        if (record.getLevel().intValue() >= Level.WARNING.intValue()) {
+          warningRecords.add(record);
+        }
+      }
+
+      @Override
+      public void flush() {
+      }
+
+      @Override
+      public void close() throws SecurityException {
+      }
+    };
+    Level savedLevel = logger.getLevel();
+    boolean savedUseParentHandlers = logger.getUseParentHandlers();
+    logger.addHandler(captureHandler);
+    logger.setLevel(Level.ALL);
+    logger.setUseParentHandlers(false);
+
+    try {
+      rpcImpl.open(controller, request, new RpcCallback<ProtocolWaveletUpdate>() {
+        @Override
+        public void run(ProtocolWaveletUpdate update) {
+          fail("Unexpected callback");
+        }
+      });
+    } finally {
+      logger.removeHandler(captureHandler);
+      logger.setLevel(savedLevel);
+      logger.setUseParentHandlers(savedUseParentHandlers);
+    }
+
+    assertTrue(controller.failed());
+    assertEquals(1, warningRecords.size());
+    String warning = warningRecords.get(0).getMessage();
+    assertFalse(warning.contains("from:alice@example.com secret project"));
+    assertTrue(warning.contains(WAVE_ID.serialise()));
   }
 
   /**

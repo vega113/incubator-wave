@@ -311,8 +311,8 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
     if (expectedSearchWaveletName.waveId.equals(waveId)) {
       return true;
     }
-    LOG.warning("Rejecting search open for " + waveId + " query '" + searchQuery
-        + "' expected " + expectedSearchWaveletName.waveId);
+    LOG.warning("Rejecting search open for " + waveId
+        + "; expected search wave " + expectedSearchWaveletName.waveId);
     controller.setFailed("Invalid search query for target wave");
     return false;
   }
