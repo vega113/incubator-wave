@@ -53,7 +53,10 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/alloy.zip" \
             "https://github.com/grafana/alloy/releases/download/${GRAFANA_ALLOY_VERSION}/alloy-linux-amd64.zip"
           unzip -q "$RUNNER_TEMP/alloy.zip" -d "$RUNNER_TEMP/alloy"
-          install "$RUNNER_TEMP/alloy/alloy-linux-amd64" /usr/local/bin/alloy
+          mkdir -p "$RUNNER_TEMP/bin"
+          install "$RUNNER_TEMP/alloy/alloy-linux-amd64" "$RUNNER_TEMP/bin/alloy"
+          chmod +x "$RUNNER_TEMP/bin/alloy"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Start perf metrics exporter
         run: |
@@ -110,6 +113,7 @@ jobs:
 
       - name: Upsert Grafana dashboard
         if: ${{ always() && env.GRAFANA_URL != '' && env.GRAFANA_DASHBOARD_API_TOKEN != '' && env.GRAFANA_PROMETHEUS_DATASOURCE_UID != '' }}
+        continue-on-error: true
         run: |
           if [ -f scripts/upsert_grafana_dashboard.py ]; then
             python3 scripts/upsert_grafana_dashboard.py

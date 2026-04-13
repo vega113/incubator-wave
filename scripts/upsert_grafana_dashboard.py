@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import copy
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -62,11 +62,18 @@ def main() -> int:
       method="POST",
   )
 
-  with urllib.request.urlopen(request) as response:
-    if 200 <= response.status < 300:
+  try:
+    with urllib.request.urlopen(request) as response:
+      if 200 <= response.status < 300:
+        return 0
+      print(f"warning: Grafana dashboard upsert returned HTTP {response.status}", file=sys.stderr)
       return 0
-    print(f"warning: Grafana dashboard upsert returned HTTP {response.status}", file=sys.stderr)
-    return 1
+  except urllib.error.HTTPError as exc:
+    print(f"warning: Grafana dashboard upsert HTTP error: {exc.code} {exc.reason}", file=sys.stderr)
+    return 0
+  except urllib.error.URLError as exc:
+    print(f"warning: Grafana dashboard upsert URL error: {exc.reason}", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":

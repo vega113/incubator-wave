@@ -27,6 +27,13 @@ def render_config(
     exporter_port: int,
     run_labels: dict[str, str],
 ) -> str:
+  # api_key_env_var is the *name* of an environment variable, never a secret
+  # value.  Alloy resolves it at runtime via sys.env().  Validate it looks like
+  # an identifier so we can be certain no literal secret was passed.
+  if not api_key_env_var or not api_key_env_var.replace("_", "").isalnum():
+    raise ValueError(
+        f"api_key_env_var must be a valid environment-variable name, got: {api_key_env_var!r}"
+    )
   wave_address = _address_from_url(base_url)
   label_rules = "\n".join(
       f"""  rule {{
@@ -48,20 +55,30 @@ def render_config(
   }}
 }}
 
-prometheus.scrape "wave" {{
+discovery.relabel "wave" {{
   targets = [{{
     __address__ = "{wave_address}",
     __metrics_path__ = "/metrics",
   }}]
+{label_rules}
+}}
+
+prometheus.scrape "wave" {{
+  targets = discovery.relabel.wave.output
   forward_to = [prometheus.remote_write.perf.receiver]
   scrape_interval = "5s"
 }}
 
-prometheus.scrape "perf_exporter" {{
+discovery.relabel "perf_exporter" {{
   targets = [{{
     __address__ = "127.0.0.1:{exporter_port}",
     __metrics_path__ = "/metrics",
   }}]
+{label_rules}
+}}
+
+prometheus.scrape "perf_exporter" {{
+  targets = discovery.relabel.perf_exporter.output
   forward_to = [prometheus.remote_write.perf.receiver]
   scrape_interval = "5s"
 }}

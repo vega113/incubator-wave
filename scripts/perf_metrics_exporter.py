@@ -111,8 +111,8 @@ def render_metrics(summaries: list[dict]) -> str:
       "# TYPE wave_perf_run_info gauge",
       "# HELP wave_perf_response_time_ms Wave perf response-time summary metrics in milliseconds.",
       "# TYPE wave_perf_response_time_ms gauge",
-      "# HELP wave_perf_requests_total Wave perf request totals by outcome.",
-      "# TYPE wave_perf_requests_total gauge",
+      "# HELP wave_perf_requests_count Wave perf request counts by outcome.",
+      "# TYPE wave_perf_requests_count gauge",
       "# HELP wave_perf_success_ratio Wave perf success ratio from 0 to 1.",
       "# TYPE wave_perf_success_ratio gauge",
       "# HELP wave_perf_assertion_status Wave perf assertion pass status where 1 is pass and 0 is fail.",
@@ -126,7 +126,7 @@ def render_metrics(summaries: list[dict]) -> str:
     for stat_name, stat_value in summary["timings_ms"].items():
       lines.append(f'wave_perf_response_time_ms{{{_format_labels(summary, {"stat": stat_name})}}} {stat_value}')
     for status_name, request_count in summary["requests"].items():
-      lines.append(f'wave_perf_requests_total{{{_format_labels(summary, {"status": status_name})}}} {request_count}')
+      lines.append(f'wave_perf_requests_count{{{_format_labels(summary, {"status": status_name})}}} {request_count}')
     lines.append(f"wave_perf_success_ratio{{{labels}}} {summary['success_ratio']}")
     for assertion_name, assertion_passed in summary["assertions"].items():
       value = 1 if assertion_passed else 0
