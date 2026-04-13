@@ -63,4 +63,19 @@ public final class MongockMongoMigrationRunnerTest {
     verify(driver, never()).setReadConcern(any(ReadConcern.class));
     verify(driver, never()).setWriteConcern(any(WriteConcern.class));
   }
+
+  @Test
+  public void testConfigureDriverDefaultsKeepsTransactionsForMongos() {
+    MongoSync4Driver driver = mock(MongoSync4Driver.class);
+    MongoDatabase database = mock(MongoDatabase.class);
+    when(database.runCommand(any(Document.class)))
+        .thenReturn(new Document("ok", 1.0).append("msg", "isdbgrid"));
+
+    MongockMongoMigrationRunner.configureDriverDefaults(driver, database);
+
+    verify(driver, never()).disableTransaction();
+    verify(driver).setReadPreference(ReadPreference.primary());
+    verify(driver, never()).setReadConcern(any(ReadConcern.class));
+    verify(driver, never()).setWriteConcern(any(WriteConcern.class));
+  }
 }
