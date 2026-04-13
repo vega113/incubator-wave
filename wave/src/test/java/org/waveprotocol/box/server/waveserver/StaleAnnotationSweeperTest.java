@@ -272,6 +272,11 @@ public class StaleAnnotationSweeperTest extends TestCase {
     assertLockDenialIsNotWarned("This wave is locked. Editing and replies are not allowed.");
   }
 
+  public void testSweepDoesNotWarnForLockDenialWithAdditionalContext() throws Exception {
+    assertLockDenialIsNotWarned(
+        "Blocked by policy: This wave is locked. Editing and replies are not allowed. [lockId=7]");
+  }
+
   private void assertLockDenialIsNotWarned(String errorMessage) throws Exception {
     CapturingOperationSink<WaveletOperation> output = new CapturingOperationSink<>();
     OpBasedWavelet wavelet = buildWavelet(output);

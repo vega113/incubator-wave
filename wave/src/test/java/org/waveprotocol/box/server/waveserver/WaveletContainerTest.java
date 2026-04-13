@@ -33,10 +33,13 @@ import com.google.protobuf.ByteString;
 
 import junit.framework.TestCase;
 
+import org.waveprotocol.box.common.Receiver;
 import org.waveprotocol.box.server.common.CoreWaveletOperationSerializer;
+import org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.persistence.memory.MemoryDeltaStore;
 import org.waveprotocol.wave.federation.Proto.ProtocolHashedVersion;
+import org.waveprotocol.wave.federation.Proto.ProtocolAppliedWaveletDelta;
 import org.waveprotocol.wave.federation.Proto.ProtocolSignature;
 import org.waveprotocol.wave.federation.Proto.ProtocolSignedDelta;
 import org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta;
@@ -58,7 +61,10 @@ import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.version.HashedVersionFactory;
 import org.waveprotocol.wave.model.version.HashedVersionFactoryImpl;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.data.ObservableWaveletData;
+import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
+import org.waveprotocol.wave.model.operation.wave.TransformedWaveletDelta;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -259,6 +265,25 @@ public class WaveletContainerTest extends TestCase {
     assertTrue(container.describeLoadState().contains("state=OK"));
   }
 
+  public void testWaveletContainerDefaultsAreConservative() {
+    WaveletContainer container = new ConservativeDefaultWaveletContainer();
+
+    assertFalse(container.isLoaded());
+    assertEquals("state=UNKNOWN, loaded=false", container.describeLoadState());
+  }
+
+  public void testAwaitLoadTimeoutMessageIncludesWaveletDiagnostics() throws Exception {
+    WaveletNotificationSubscriber notifiee = mock(WaveletNotificationSubscriber.class);
+    SettableFuture<WaveletState> pendingState = SettableFuture.create();
+    TestWaveletContainer container =
+        new TestWaveletContainer(localWaveletName, notifiee, pendingState);
+
+    String message = container.formatAwaitLoadTimeoutMessage();
+
+    assertTrue(message.contains(localWaveletName.toString()));
+    assertTrue(message.contains("state=LOADING"));
+  }
+
   public void testLocalEmptyDelta() throws Exception {
     ProtocolSignedDelta emptyDelta = ProtocolSignedDelta.newBuilder()
         .addSignature(fakeSignature1)
@@ -421,6 +446,75 @@ public class WaveletContainerTest extends TestCase {
 
   private static ProtocolWaveletDelta serialize(WaveletDelta d) {
     return CoreWaveletOperationSerializer.serialize(d);
+  }
+
+  private static final class ConservativeDefaultWaveletContainer implements WaveletContainer {
+    @Override
+    public WaveletName getWaveletName() {
+      return localWaveletName;
+    }
+
+    @Override
+    public ObservableWaveletData copyWaveletData() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CommittedWaveletSnapshot getSnapshot() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public <T> T applyFunction(com.google.common.base.Function<ReadableWaveletData, T> function) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void requestHistory(HashedVersion versionStart, HashedVersion versionEnd,
+        Receiver<ByteStringMessage<ProtocolAppliedWaveletDelta>> receiver) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void requestTransformedHistory(HashedVersion versionStart, HashedVersion versionEnd,
+        Receiver<TransformedWaveletDelta> receiver) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean checkAccessPermission(ParticipantId participantId) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public HashedVersion getLastCommittedVersion() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean hasParticipant(ParticipantId participant) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ParticipantId getCreator() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ParticipantId getSharedDomainParticipant() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isEmpty() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public HashedVersion getHashedVersion(long version) {
+      throw new UnsupportedOperationException();
+    }
   }
 
   private static final class TestWaveletContainer extends WaveletContainerImpl {

@@ -499,6 +499,8 @@ public class StaleAnnotationSweeper {
   }
 
   private static boolean isLegitimateLockDenial(String errorMessage) {
-    return ROOT_BLIP_LOCKED_ERROR.equals(errorMessage) || WAVE_LOCKED_ERROR.equals(errorMessage);
+    return errorMessage != null
+        && (errorMessage.contains(ROOT_BLIP_LOCKED_ERROR)
+            || errorMessage.contains(WAVE_LOCKED_ERROR));
   }
 }

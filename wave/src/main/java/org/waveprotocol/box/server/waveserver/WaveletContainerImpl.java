@@ -225,14 +225,19 @@ abstract class WaveletContainerImpl implements WaveletContainer {
     Preconditions.checkState(!writeLock.isHeldByCurrentThread(), "should not hold write lock");
     try {
       if (!loadLatch.await(AWAIT_LOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-        LOG.warning("Timed out waiting for wavelet to load " + getWaveletName()
-            + " -- " + describeLoadState());
-        throw new WaveletStateException("Timed out waiting for wavelet to load");
+        String timeoutMessage = formatAwaitLoadTimeoutMessage();
+        LOG.warning(timeoutMessage);
+        throw new WaveletStateException(timeoutMessage);
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new WaveletStateException("Interrupted waiting for wavelet to load");
     }
+  }
+
+  String formatAwaitLoadTimeoutMessage() {
+    return "Timed out waiting for wavelet to load " + getWaveletName()
+        + " (" + describeLoadState() + ")";
   }
 
   /**

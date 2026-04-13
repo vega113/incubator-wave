@@ -420,6 +420,16 @@ public class MemoryPerUserWaveViewHandlerImplTest extends TestCase {
     }
 
     @Override
+    public boolean isLoaded() {
+      return true;
+    }
+
+    @Override
+    public String describeLoadState() {
+      return "state=OK, loaded=true";
+    }
+
+    @Override
     public ObservableWaveletData copyWaveletData() {
       throw new UnsupportedOperationException();
     }
