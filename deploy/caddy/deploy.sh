@@ -328,8 +328,8 @@ slot_requires_mongo_migration_verification() {
   local config_file="$deploy_root/releases/${slot}/application.conf"
   [ -f "$config_file" ] || return 1
 
-  grep -Eq 'mongodb_driver[[:space:]]*[:=][[:space:]]*"?v4"?' "$config_file" || return 1
-  grep -Eq \
+  grep -Eqi 'mongodb_driver[[:space:]]*[:=][[:space:]]*"?v4"?' "$config_file" || return 1
+  grep -Eqi \
     '(signer_info_store_type|attachment_store_type|account_store_type|delta_store_type)[[:space:]]*[:=][[:space:]]*"?mongodb"?' \
     "$config_file"
 }
