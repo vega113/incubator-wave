@@ -97,6 +97,23 @@ core {
     # Without Mongo gate the deploy reaches the sanity env-var guard.
     self.assertIn("SANITY_ADDRESS and SANITY_PASSWORD must both be set", combined)
 
+  def test_deploy_ignores_inline_commented_mongo_config_values(self):
+    """Inline HOCON comments must not trigger the migration gate."""
+    result = self._run_deploy(
+        log_output="wave started without migration marker\n",
+        application_conf="""\
+core {
+  some_other_setting = file // account_store_type = "mongodb"
+  another_setting = memory # mongodb_driver = "v4"
+  delta_store_type = file
+}
+""",
+    )
+
+    combined = f"{result.stdout}\n{result.stderr}"
+    self.assertNotIn("did not report Mongo migration completion", combined)
+    self.assertIn("SANITY_ADDRESS and SANITY_PASSWORD must both be set", combined)
+
   def test_deploy_ignores_partial_value_matches_for_migration_gate(self):
     """Regex must not match extended values like 'v42' or 'mongodbx'."""
     result = self._run_deploy(
