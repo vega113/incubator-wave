@@ -200,6 +200,10 @@ WWW_HOST="www.supawave.ai" \
 docker compose --project-name supawave \
   -f "$DEPLOY_ROOT/current/compose-prod.yml" \
   ps
+
+# For Mongo-backed v4 deployments, confirm startup logged:
+#   "Mongo migrations completed successfully"
+# before treating readiness as complete.
 ```
 
 ---
@@ -216,6 +220,10 @@ WAVE_IMAGE_GREEN="ghcr.io/yourorg/wave:new-version" \
 # Step 2: Wait for green to pass health checks
 #         (health check: curl -fsSI http://127.0.0.1:9899/readyz)
 timeout 300 bash -c 'until curl -fsSI --max-time 3 http://127.0.0.1:9899/readyz 2>/dev/null; do sleep 5; done'
+
+# For Mongo-backed v4 deployments, verify the new slot logs:
+#   "Mongo migrations completed successfully"
+# before switching traffic.
 
 # Step 3: Switch Caddy upstream from blue (9898) to green (9899)
 #         Update WAVE_INTERNAL_PORT and reload Caddy:

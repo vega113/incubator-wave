@@ -3,8 +3,6 @@ package org.waveprotocol.box.server.persistence.mongodb4;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.IndexOptions;
-import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.Updates;
 import java.util.ArrayList;
@@ -37,7 +35,6 @@ final class Mongo4AnalyticsCounterStore implements AnalyticsCounterStore {
 
   Mongo4AnalyticsCounterStore(MongoDatabase db) {
     this.col = db.getCollection(COLLECTION);
-    col.createIndex(Indexes.ascending(HOUR_FIELD), new IndexOptions().unique(true));
   }
 
   @Override public void incrementWavesCreated(long timestampMs) { upsertInc(timestampMs, WAVES_CREATED, 1L); }

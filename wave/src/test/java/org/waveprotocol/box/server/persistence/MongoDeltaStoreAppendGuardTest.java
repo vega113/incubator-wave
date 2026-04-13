@@ -23,6 +23,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mongodb.BasicDBObject;
@@ -51,36 +53,16 @@ public final class MongoDeltaStoreAppendGuardTest extends TestCase {
       WaveId.of("example.com", "append-guard-wave"),
       WaveletId.of("example.com", "conv+root"));
 
-  public void testMongo4StoreDisablesWritesWhenUniqueIndexDropFails() throws Exception {
+  public void testMongo4StoreDoesNotAttemptRuntimeIndexMigration() throws Exception {
     MongoDatabase database = mock(MongoDatabase.class);
     @SuppressWarnings("unchecked")
     MongoCollection<Document> collection = mock(MongoCollection.class);
     when(database.getCollection("deltas")).thenReturn(collection);
 
-    MongoException conflict = new MongoException(85,
-        "index already exists with different options");
-    MongoException dropFailure = new MongoException("drop failed");
-    doAnswer(invocation -> {
-      IndexOptions options = invocation.getArgument(1);
-      if (Boolean.TRUE.equals(options.isUnique())) {
-        throw conflict;
-      }
-      return "ok";
-    }).when(collection).createIndex(any(Bson.class), any(IndexOptions.class));
-    doThrow(dropFailure).when(collection).dropIndex(any(String.class));
+    new Mongo4DeltaStore(database).open(NAME);
 
-    DeltaStore.DeltasAccess access = new Mongo4DeltaStore(database).open(NAME);
-
-    try {
-      access.append(Collections.emptyList());
-      fail("Expected append guard to fail closed");
-    } catch (PersistenceException e) {
-      assertTrue(e.getMessage().contains("Refusing delta writes"));
-      assertTrue(e.getMessage().contains("refusing new delta writes"));
-      assertNotNull(e.getCause());
-      assertNotNull(e.getCause().getCause());
-      assertTrue(e.getCause().getCause().getMessage().contains("drop failed"));
-    }
+    verify(collection, never()).createIndex(any(Bson.class), any(IndexOptions.class));
+    verify(collection, never()).dropIndex(any(String.class));
   }
 
   public void testMongoDbStoreDisablesWritesWhenUniqueIndexDropFails() throws Exception {
@@ -112,28 +94,6 @@ public final class MongoDeltaStoreAppendGuardTest extends TestCase {
       assertNotNull(e.getCause().getCause());
       assertTrue(e.getCause().getCause().getMessage().contains("drop failed"));
     }
-  }
-
-  public void testMongo4StoreTreatsIndexKeySpecsConflictAsUpgradeable() throws Exception {
-    MongoDatabase database = mock(MongoDatabase.class);
-    @SuppressWarnings("unchecked")
-    MongoCollection<Document> collection = mock(MongoCollection.class);
-    when(database.getCollection("deltas")).thenReturn(collection);
-
-    MongoException conflict = new MongoException(86,
-        "same name as the requested index");
-    AtomicInteger uniqueAttempts = new AtomicInteger();
-    doAnswer(invocation -> {
-      IndexOptions options = invocation.getArgument(1);
-      if (Boolean.TRUE.equals(options.isUnique()) && uniqueAttempts.getAndIncrement() == 0) {
-        throw conflict;
-      }
-      return "ok";
-    }).when(collection).createIndex(any(Bson.class), any(IndexOptions.class));
-
-    DeltaStore.DeltasAccess access = new Mongo4DeltaStore(database).open(NAME);
-
-    access.append(Collections.emptyList());
   }
 
   public void testMongoDbStoreTreatsIndexKeySpecsConflictAsUpgradeable() throws Exception {

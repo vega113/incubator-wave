@@ -22,8 +22,6 @@ package org.waveprotocol.box.server.persistence.mongodb4;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.IndexOptions;
-import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.model.Updates;
 import org.bson.Document;
@@ -67,12 +65,7 @@ final class Mongo4ContactMessageStore implements ContactMessageStore {
 
   @Override
   public void initializeContactMessageStore() throws PersistenceException {
-    try {
-      col.createIndex(Indexes.descending("createdAt"));
-      col.createIndex(Indexes.ascending("status"));
-    } catch (RuntimeException e) {
-      throw new PersistenceException("Failed to create indexes on " + COLLECTION, e);
-    }
+    // Mongock owns Mongo schema/index evolution for this collection.
   }
 
   @Override

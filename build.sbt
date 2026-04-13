@@ -177,6 +177,7 @@ lazy val ProtobufV       = "3.25.3"
 lazy val Slf4jV          = "2.0.13"
 lazy val LogbackV        = "1.5.6"
 lazy val MongoV4         = "4.11.1"
+lazy val MongockV        = "5.5.1"
 lazy val LuceneV         = "9.12.1"
 
 libraryDependencies ++= Seq(
@@ -195,6 +196,10 @@ libraryDependencies ++= Seq(
 
   // --- Protobuf ---
   "com.google.protobuf"            % "protobuf-java"              % ProtobufV,
+
+  // --- Mongo migrations ---
+  "io.mongock"                     % "mongock-standalone"         % MongockV,
+  "io.mongock"                     % "mongodb-sync-v4-driver"     % MongockV,
 
   // --- Guava & Guice ---
   "com.google.guava"               % "guava"                      % GuavaV,
@@ -343,7 +348,14 @@ Test / testOptions += Tests.Filter { name =>
   val isMongo = name.contains(".mongodb.")
   val isFederation = name.contains(".wave.federation.")
   val isPersistence = name.contains(".server.persistence.")
-  val isAllowedPersistence = name.contains(".server.persistence.memory.") || name.contains(".server.persistence.file.") || name.contains(".server.persistence.protos.")
+  val isAllowedPersistence = (
+    name.contains(".server.persistence.memory.")
+      || name.contains(".server.persistence.file.")
+      || name.contains(".server.persistence.protos.")
+      || name.endsWith(".MongoMigrationRunnerTest")
+      || name.endsWith(".MongoMigrationBaselineTest")
+      || name.endsWith(".MongoDeltaStoreAppendGuardTest")
+  )
   isJUnit && !isGwt && !isLarge && !isStress && !isMongo && !isFederation && (!isPersistence || isAllowedPersistence)
 }
 

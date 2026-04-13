@@ -123,6 +123,8 @@ public class ServerMain {
     Module robotApiModule = new JakartaRobotApiBindingsModule();
     Module mailModule = injector.getInstance(MailModule.class);
 
+    persistenceModule.runMongoMigrationsIfNeeded();
+
     injector = injector.createChildInjector(serverModule, persistenceModule,
         robotApiModule, searchModule, federationModule, profileFetcherModule, mailModule);
 

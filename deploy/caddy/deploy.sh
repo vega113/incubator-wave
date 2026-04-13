@@ -321,6 +321,31 @@ wait_for_slot_health() {
   return 1
 }
 
+slot_requires_mongo_migration_verification() {
+  local slot=$1
+  local config_file="$deploy_root/releases/${slot}/application.conf"
+  [ -f "$config_file" ] || return 1
+
+  grep -Eq 'mongodb_driver[[:space:]]*=[[:space:]]*"v4"' "$config_file" || return 1
+  grep -Eq \
+    '(signer_info_store_type|attachment_store_type|account_store_type|delta_store_type|contact_store_type)[[:space:]]*=[[:space:]]*"mongodb"' \
+    "$config_file"
+}
+
+verify_mongo_migration_completion() {
+  local slot=$1
+  if ! slot_requires_mongo_migration_verification "$slot"; then
+    return 0
+  fi
+
+  if docker logs "wave-${slot}" 2>&1 | grep -Fq "Mongo migrations completed successfully"; then
+    return 0
+  fi
+
+  echo "[deploy] ERROR: wave-${slot} did not report Mongo migration completion" >&2
+  return 1
+}
+
 sanity_check() {
   # Application-level sanity against the slot on $port using $addr/$pass.
   # SANITY_ADDRESS and SANITY_PASSWORD are mandatory for deploy/rollback and
@@ -540,6 +565,11 @@ deploy_release() {
     exit 1
   fi
 
+  if ! verify_mongo_migration_completion "$TARGET_SLOT"; then
+    dc stop "wave-${TARGET_SLOT}" 2>/dev/null || true
+    exit 1
+  fi
+
   if ! sanity_check_slot "$TARGET_PORT"; then
     echo "[deploy] ERROR: ${TARGET_SLOT} sanity check failed"
     dc stop "wave-${TARGET_SLOT}" 2>/dev/null || true
@@ -594,6 +624,9 @@ rollback_release() {
     fi
     if ! wait_for_slot_health "$prev_port"; then
       echo "[deploy] ERROR: Previous slot health check failed"
+      exit 1
+    fi
+    if ! verify_mongo_migration_completion "$prev"; then
       exit 1
     fi
   fi

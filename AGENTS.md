@@ -24,6 +24,11 @@ Read in this order:
 - Legacy source remains under `wave/src/main/java/`.
 - If an override exists, edit the override copy; main-tree-only edits will not change runtime behavior.
 
+## Mongo Migrations
+- Mongo schema and index changes for Mongo-backed startup must be versioned with Mongock change units under `wave/src/main/java/org/waveprotocol/box/server/persistence/migrations/changesets/`.
+- Automated Mongo migrations must stay compatible across the `N`/`N-1` blue-green overlap window; breaking changes are manual-only.
+- Authoring and verification instructions live in `docs/runbooks/mongo-migrations.md`.
+
 ## Role Summary
 - Lead: intake, routing, synthesis, and final checks.
 - Planner: create/verify issue-level plan and acceptance slices.
