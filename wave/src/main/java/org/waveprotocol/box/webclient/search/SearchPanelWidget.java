@@ -141,6 +141,7 @@ public class SearchPanelWidget extends Composite implements SearchPanelView {
   private Listener listener;
   private HandlerRegistration resizeRegistration;
   private JavaScriptObject toolbarResizeObserver;
+  private JavaScriptObject toolbarMutationObserver;
   private boolean panelOffsetSyncScheduled;
 
   /** Whether an infinite-scroll load-more request is in progress. */
@@ -292,15 +293,32 @@ public class SearchPanelWidget extends Composite implements SearchPanelView {
 
   private native void observeToolbarResize(Element toolbarEl) /*-{
     this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::disconnectToolbarResizeObserver()();
-    if (!$wnd.ResizeObserver || !toolbarEl) {
+    if (!toolbarEl) {
       return;
     }
     var self = this;
-    var observer = new $wnd.ResizeObserver(function() {
-      self.@org.waveprotocol.box.webclient.search.SearchPanelWidget::schedulePanelOffsetSync()();
-    });
-    observer.observe(toolbarEl);
-    this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarResizeObserver = observer;
+    if ($wnd.ResizeObserver) {
+      var resizeObserver = new $wnd.ResizeObserver(function() {
+        self.@org.waveprotocol.box.webclient.search.SearchPanelWidget::schedulePanelOffsetSync()();
+      });
+      resizeObserver.observe(toolbarEl);
+      this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarResizeObserver =
+          resizeObserver;
+      return;
+    }
+    if ($wnd.MutationObserver) {
+      var mutationObserver = new $wnd.MutationObserver(function() {
+        self.@org.waveprotocol.box.webclient.search.SearchPanelWidget::schedulePanelOffsetSync()();
+      });
+      mutationObserver.observe(toolbarEl, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      });
+      this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarMutationObserver =
+          mutationObserver;
+    }
   }-*/;
 
   private native void disconnectToolbarResizeObserver() /*-{
@@ -310,6 +328,13 @@ public class SearchPanelWidget extends Composite implements SearchPanelView {
       observer.disconnect();
     }
     this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarResizeObserver = null;
+
+    var mutationObserver =
+        this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarMutationObserver;
+    if (mutationObserver && mutationObserver.disconnect) {
+      mutationObserver.disconnect();
+    }
+    this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarMutationObserver = null;
   }-*/;
 
   @Override

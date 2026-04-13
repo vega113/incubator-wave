@@ -1,21 +1,5 @@
 [
   {
-    "releaseId": "2026-04-13-search-toolbar-wrap-pinned-saved-searches",
-    "version": "Unreleased",
-    "date": "2026-04-13",
-    "title": "Wrap pinned saved searches onto another toolbar row",
-    "summary": "Pinned saved-search buttons in the search panel now wrap onto additional toolbar rows instead of forcing horizontal scrolling, and the search results panel follows the toolbar's rendered height.",
-    "sections": [
-      {
-        "type": "fix",
-        "items": [
-          "Pinned saved searches in the search panel now remain visible by wrapping onto another toolbar row when space runs out",
-          "The search panel keeps its wave-count bar and result list aligned below the real wrapped toolbar height instead of overlapping the extra row"
-        ]
-      }
-    ]
-  },
-  {
     "releaseId": "2026-04-13-same-name-index-upgrade-conflicts",
     "version": "PR #871",
     "date": "2026-04-13",

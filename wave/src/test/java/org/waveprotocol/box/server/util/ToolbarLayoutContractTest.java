@@ -136,6 +136,10 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertFalse(javaSource.contains("setProperty(\"flexWrap\", \"nowrap\")"));
     assertFalse(javaSource.contains("setProperty(\"overflowX\", \"auto\")"));
     assertFalse(javaSource.contains("setProperty(\"overflowY\", \"hidden\")"));
+    assertTrue(javaSource.contains("clearProperty(\"flexWrap\")"));
+    assertTrue(javaSource.contains("removeStyleName(res.css().noHorizontalScrollbar())"));
+    assertTrue(javaSource.contains("clearProperty(\"overflowX\")"));
+    assertTrue(javaSource.contains("clearProperty(\"overflowY\")"));
   }
 
   public void testSearchPanelTracksActualToolbarHeightWhenLayoutChanges() throws Exception {
@@ -148,6 +152,10 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(javaSource.contains("Scheduler.get().scheduleDeferred"));
     assertTrue(javaSource.contains("Window.addResizeHandler"));
     assertTrue(javaSource.contains("ResizeObserver"));
+    assertTrue(javaSource.contains("MutationObserver"));
+    assertTrue(javaSource.contains("toolbarMutationObserver"));
+    assertTrue(javaSource.contains("disconnectToolbarResizeObserver()"));
+    assertTrue(javaSource.contains("resizeRegistration.removeHandler()"));
   }
 
   public void testWaveToolbarsDoNotDisableOverflowByDefault() throws Exception {
