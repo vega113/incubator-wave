@@ -21,9 +21,15 @@ package org.waveprotocol.box.webclient.search;
 
 import org.waveprotocol.wave.model.util.Preconditions;
 import com.google.gwt.core.client.GWT;
+import com.google.gwt.core.client.JavaScriptObject;
+import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
+import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.dom.client.Style.Visibility;
+import com.google.gwt.event.logical.shared.ResizeEvent;
+import com.google.gwt.event.logical.shared.ResizeHandler;
+import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.resources.client.ClientBundle;
 import com.google.gwt.resources.client.CssResource;
@@ -33,6 +39,7 @@ import com.google.gwt.resources.client.ImageResource.RepeatStyle;
 import com.google.gwt.uibinder.client.UiBinder;
 import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.uibinder.client.UiHandler;
+import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.ui.Composite;
 
 import org.waveprotocol.box.webclient.widget.frame.FramedPanel;
@@ -132,6 +139,10 @@ public class SearchPanelWidget extends Composite implements SearchPanelView {
         }
       }, 20);
   private Listener listener;
+  private HandlerRegistration resizeRegistration;
+  private JavaScriptObject toolbarResizeObserver;
+  private JavaScriptObject toolbarMutationObserver;
+  private boolean panelOffsetSyncScheduled;
 
   /** Whether an infinite-scroll load-more request is in progress. */
   private boolean isLoadingMore = false;
@@ -151,6 +162,24 @@ public class SearchPanelWidget extends Composite implements SearchPanelView {
     toolbar.setOverflowEnabled(false);
     this.renderer = renderer;
     createLoadingSpinner();
+  }
+
+  @Override
+  protected void onLoad() {
+    super.onLoad();
+    ensureToolbarLayoutSync();
+    syncPanelOffsetsToToolbar();
+    schedulePanelOffsetSync();
+  }
+
+  @Override
+  protected void onUnload() {
+    disconnectToolbarResizeObserver();
+    if (resizeRegistration != null) {
+      resizeRegistration.removeHandler();
+      resizeRegistration = null;
+    }
+    super.onUnload();
   }
 
   /**
@@ -227,6 +256,87 @@ public class SearchPanelWidget extends Composite implements SearchPanelView {
     showLoadingSpinner(false);
   }
 
+  private void ensureToolbarLayoutSync() {
+    if (resizeRegistration == null) {
+      resizeRegistration = Window.addResizeHandler(new ResizeHandler() {
+        @Override
+        public void onResize(ResizeEvent event) {
+          schedulePanelOffsetSync();
+        }
+      });
+    }
+    observeToolbarResize(toolbar.getElement());
+  }
+
+  private void schedulePanelOffsetSync() {
+    if (panelOffsetSyncScheduled) {
+      return;
+    }
+    panelOffsetSyncScheduled = true;
+    Scheduler.get().scheduleDeferred(new Scheduler.ScheduledCommand() {
+      @Override
+      public void execute() {
+        panelOffsetSyncScheduled = false;
+        syncPanelOffsetsToToolbar();
+      }
+    });
+  }
+
+  private void syncPanelOffsetsToToolbar() {
+    if (!isAttached()) {
+      return;
+    }
+    int waveCountTopPx = toolbar.getElement().getOffsetTop() + toolbar.getElement().getOffsetHeight();
+    waveCount.getStyle().setTop(waveCountTopPx, Unit.PX);
+    list.getStyle().setTop(waveCountTopPx + waveCount.getOffsetHeight(), Unit.PX);
+  }
+
+  private native void observeToolbarResize(Element toolbarEl) /*-{
+    this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::disconnectToolbarResizeObserver()();
+    if (!toolbarEl) {
+      return;
+    }
+    var self = this;
+    if ($wnd.ResizeObserver) {
+      var resizeObserver = new $wnd.ResizeObserver(function() {
+        self.@org.waveprotocol.box.webclient.search.SearchPanelWidget::schedulePanelOffsetSync()();
+      });
+      resizeObserver.observe(toolbarEl);
+      this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarResizeObserver =
+          resizeObserver;
+      return;
+    }
+    if ($wnd.MutationObserver) {
+      var mutationObserver = new $wnd.MutationObserver(function() {
+        self.@org.waveprotocol.box.webclient.search.SearchPanelWidget::schedulePanelOffsetSync()();
+      });
+      mutationObserver.observe(toolbarEl, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      });
+      this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarMutationObserver =
+          mutationObserver;
+    }
+  }-*/;
+
+  private native void disconnectToolbarResizeObserver() /*-{
+    var observer =
+        this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarResizeObserver;
+    if (observer && observer.disconnect) {
+      observer.disconnect();
+    }
+    this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarResizeObserver = null;
+
+    var mutationObserver =
+        this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarMutationObserver;
+    if (mutationObserver && mutationObserver.disconnect) {
+      mutationObserver.disconnect();
+    }
+    this.@org.waveprotocol.box.webclient.search.SearchPanelWidget::toolbarMutationObserver = null;
+  }-*/;
+
   @Override
   public void init(Listener listener) {
     Preconditions.checkState(this.listener == null, "this.listener == null");
@@ -267,6 +377,7 @@ public class SearchPanelWidget extends Composite implements SearchPanelView {
       waveCount.setInnerText(text);
       waveCount.getStyle().clearProperty("display");
     }
+    schedulePanelOffsetSync();
   }
 
   @Override

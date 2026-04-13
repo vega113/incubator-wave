@@ -160,17 +160,14 @@ public final class ToplevelToolbarWidget extends Composite
     this.overflowEnabled = overflowEnabled;
     overflowButton.setVisible(overflowEnabled);
     if (!overflowEnabled) {
-      // Prevent wrapping when overflow is disabled: without this, buttons that
-      // exceed the row width would wrap to a second line and push the toolbar
-      // beyond the 36px height contract. OverflowPanelUpdater is not active
-      // here so the wrapping would never be resolved via the submenu.
-      self.getElement().getStyle().setProperty("flexWrap", "nowrap");
-      self.addStyleName(res.css().noHorizontalScrollbar());
-      // Allow horizontal scroll so dynamically-added buttons (e.g. pinned saved
-      // searches from SearchPresenter.rebuildSavedSearchButtons) remain reachable
-      // when they exceed the row width, instead of being silently clipped.
-      self.getElement().getStyle().setProperty("overflowX", "auto");
-      self.getElement().getStyle().setProperty("overflowY", "hidden");
+      // When overflow is disabled, keep every button on the toplevel toolbar
+      // and let the shared flex-wrap contract create extra rows naturally.
+      // Callers that care about downstream layout must observe the toolbar's
+      // rendered height rather than assuming a single 36px row.
+      self.getElement().getStyle().clearProperty("flexWrap");
+      self.removeStyleName(res.css().noHorizontalScrollbar());
+      self.getElement().getStyle().clearProperty("overflowX");
+      self.getElement().getStyle().clearProperty("overflowY");
       restoreItemsToToplevel();
       overflowSubmenu.setState(State.INVISIBLE);
     } else {
