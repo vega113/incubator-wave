@@ -50,6 +50,7 @@ public class MongoDbDeltaStore implements DeltaStore {
   private static final java.util.logging.Logger LOG =
       java.util.logging.Logger.getLogger(MongoDbDeltaStore.class.getName());
   private static final int INDEX_OPTIONS_CONFLICT = 85;
+  private static final int INDEX_KEY_SPECS_CONFLICT = 86;
   private static final String APPLIED_AT_VERSION_INDEX_NAME =
       MongoDbDeltaStoreUtil.FIELD_WAVE_ID + "_1_" + MongoDbDeltaStoreUtil.FIELD_WAVELET_ID
           + "_1_" + MongoDbDeltaStoreUtil.FIELD_TRANSFORMED_APPLIEDATVERSION + "_1";
@@ -189,7 +190,7 @@ public class MongoDbDeltaStore implements DeltaStore {
     try {
       coll.createIndex(keys, uniqueOptions);
     } catch (MongoException initialFailure) {
-      if (isIndexOptionsConflict(initialFailure)) {
+      if (isIndexUpgradeConflict(initialFailure)) {
         LOG.info("MongoDbDeltaStore: upgrading applied-version index to unique");
         try {
           coll.dropIndex(APPLIED_AT_VERSION_INDEX_NAME);
@@ -235,8 +236,9 @@ public class MongoDbDeltaStore implements DeltaStore {
         .append("name", APPLIED_AT_VERSION_INDEX_NAME));
   }
 
-  private boolean isIndexOptionsConflict(MongoException error) {
+  private boolean isIndexUpgradeConflict(MongoException error) {
     return error.getCode() == INDEX_OPTIONS_CONFLICT
+        || error.getCode() == INDEX_KEY_SPECS_CONFLICT
         || error.getMessage().contains("already exists with different options");
   }
 }

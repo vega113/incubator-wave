@@ -43,6 +43,7 @@ import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class MongoDeltaStoreAppendGuardTest extends TestCase {
 
@@ -111,5 +112,48 @@ public final class MongoDeltaStoreAppendGuardTest extends TestCase {
       assertNotNull(e.getCause().getCause());
       assertTrue(e.getCause().getCause().getMessage().contains("drop failed"));
     }
+  }
+
+  public void testMongo4StoreTreatsIndexKeySpecsConflictAsUpgradeable() throws Exception {
+    MongoDatabase database = mock(MongoDatabase.class);
+    @SuppressWarnings("unchecked")
+    MongoCollection<Document> collection = mock(MongoCollection.class);
+    when(database.getCollection("deltas")).thenReturn(collection);
+
+    MongoException conflict = new MongoException(86,
+        "same name as the requested index");
+    AtomicInteger uniqueAttempts = new AtomicInteger();
+    doAnswer(invocation -> {
+      IndexOptions options = invocation.getArgument(1);
+      if (Boolean.TRUE.equals(options.isUnique()) && uniqueAttempts.getAndIncrement() == 0) {
+        throw conflict;
+      }
+      return "ok";
+    }).when(collection).createIndex(any(Bson.class), any(IndexOptions.class));
+
+    DeltaStore.DeltasAccess access = new Mongo4DeltaStore(database).open(NAME);
+
+    access.append(Collections.emptyList());
+  }
+
+  public void testMongoDbStoreTreatsIndexKeySpecsConflictAsUpgradeable() throws Exception {
+    DB database = mock(DB.class);
+    DBCollection collection = mock(DBCollection.class);
+    when(database.getCollection("deltas")).thenReturn(collection);
+
+    MongoException conflict = new MongoException(86,
+        "same name as the requested index");
+    AtomicInteger uniqueAttempts = new AtomicInteger();
+    doAnswer(invocation -> {
+      BasicDBObject options = invocation.getArgument(1);
+      if (Boolean.TRUE.equals(options.get("unique")) && uniqueAttempts.getAndIncrement() == 0) {
+        throw conflict;
+      }
+      return null;
+    }).when(collection).createIndex(any(BasicDBObject.class), any(BasicDBObject.class));
+
+    DeltaStore.DeltasAccess access = new MongoDbDeltaStore(database).open(NAME);
+
+    access.append(Collections.emptyList());
   }
 }
