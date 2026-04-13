@@ -79,6 +79,7 @@ final class MongockMongoMigrationRunner implements MongoMigrationRunner {
   }
 
   static void configureDriverDefaults(MongoSync4Driver driver) {
+    driver.disableTransaction();
     driver.setReadPreference(ReadPreference.primary());
   }
 }

@@ -38,6 +38,7 @@ public final class MongockMongoMigrationRunnerTest {
 
     MongockMongoMigrationRunner.configureDriverDefaults(driver);
 
+    verify(driver).disableTransaction();
     verify(driver).setReadPreference(ReadPreference.primary());
     verify(driver, never()).setReadConcern(any(ReadConcern.class));
     verify(driver, never()).setWriteConcern(any(WriteConcern.class));
