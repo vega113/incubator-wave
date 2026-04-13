@@ -16,6 +16,16 @@ class JakartaMetricsSelectorTest(unittest.TestCase):
         build_text,
     )
 
+  def test_jakarta_it_allowlist_includes_metrics_servlet_it(self):
+    build_text = BUILD_PATH.read_text(encoding="utf-8")
+    jakarta_it_block = build_text.split("JakartaIT / testOptions += Tests.Filter { name =>", 1)[1]
+    jakarta_it_block = jakarta_it_block.split("JakartaIT / testOptions += Tests.Argument", 1)[0]
+
+    self.assertIn(
+        '"org.waveprotocol.box.server.jakarta.MetricsPrometheusServletJakartaIT"',
+        jakarta_it_block,
+    )
+
   def test_plan_uses_jakarta_test_selector_for_metrics_servlet_test(self):
     plan_text = PLAN_PATH.read_text(encoding="utf-8")
 
