@@ -39,6 +39,8 @@ import org.waveprotocol.box.server.persistence.mongodb4.Mongo4DeltaStoreUtil;
 @ChangeUnit(id = "delta-applied-version-unique-index", order = "002", author = "codex")
 public final class DeltaAppliedVersionUniqueIndex_002 {
 
+  private static final java.util.logging.Logger LOG =
+      java.util.logging.Logger.getLogger(DeltaAppliedVersionUniqueIndex_002.class.getName());
   private static final int INDEX_OPTIONS_CONFLICT = 85;
   private static final int INDEX_KEY_SPECS_CONFLICT = 86;
   private static final String APPLIED_AT_VERSION_INDEX_NAME =
@@ -85,6 +87,10 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
       try {
         deltas.createIndex(keys, options);
       } catch (MongoException retryFailure) {
+        LOG.log(java.util.logging.Level.WARNING,
+            "Migration could not enforce the unique applied-version index; "
+                + "restoring the non-unique fallback index instead.",
+            retryFailure);
         restoreNonUniqueIndex(deltas, keys);
       }
     }
