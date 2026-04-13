@@ -334,11 +334,25 @@ slot_requires_mongo_migration_verification() {
 
 verify_mongo_migration_completion() {
   local slot=$1
+  local container_id started_at
   if ! slot_requires_mongo_migration_verification "$slot"; then
     return 0
   fi
 
-  if dc logs --no-color "wave-${slot}" 2>&1 | grep -Fq "Completed Mongock Mongo schema migrations"; then
+  container_id="$(dc ps -q "wave-${slot}" 2>/dev/null | head -n1)"
+  if [[ -z "$container_id" ]]; then
+    echo "[deploy] ERROR: unable to determine current container id for wave-${slot}" >&2
+    return 1
+  fi
+
+  started_at="$(docker inspect --format '{{.State.StartedAt}}' "$container_id" 2>/dev/null || true)"
+  if [[ -z "$started_at" ]]; then
+    echo "[deploy] ERROR: unable to determine current startup time for wave-${slot}" >&2
+    return 1
+  fi
+
+  if dc logs --no-color --since "$started_at" "wave-${slot}" 2>&1 \
+      | grep -Fq "Completed Mongock Mongo schema migrations"; then
     return 0
   fi
 

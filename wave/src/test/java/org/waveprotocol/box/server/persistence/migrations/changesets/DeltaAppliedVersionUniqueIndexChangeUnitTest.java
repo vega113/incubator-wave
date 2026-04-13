@@ -20,6 +20,7 @@
 package org.waveprotocol.box.server.persistence.migrations.changesets;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -27,12 +28,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mongodb.MongoException;
+import com.mongodb.MongoClientSettings;
 import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.MongoIterable;
 import com.mongodb.client.model.IndexOptions;
+import com.mongodb.client.model.Filters;
+import org.bson.BsonDocument;
 import org.bson.Document;
 import com.mongodb.Function;
 import org.bson.conversions.Bson;
@@ -111,7 +115,7 @@ public final class DeltaAppliedVersionUniqueIndexChangeUnitTest {
     changeUnit(deltas, guards).execution();
 
     assertEquals(3, createCalls.get());
-    verify(guards).replaceOne(any(Bson.class), any(Document.class), any(com.mongodb.client.model.ReplaceOptions.class));
+    verifyGuardUpsert(guards);
   }
 
   @Test
@@ -133,7 +137,7 @@ public final class DeltaAppliedVersionUniqueIndexChangeUnitTest {
     changeUnit(deltas, guards).execution();
 
     assertEquals(2, createCalls.get());
-    verify(guards).replaceOne(any(Bson.class), any(Document.class), any(com.mongodb.client.model.ReplaceOptions.class));
+    verifyGuardUpsert(guards);
   }
 
   @Test
@@ -244,6 +248,28 @@ public final class DeltaAppliedVersionUniqueIndexChangeUnitTest {
     return new Document(Mongo4DeltaStoreUtil.FIELD_WAVE_ID, 1)
         .append(Mongo4DeltaStoreUtil.FIELD_WAVELET_ID, 1)
         .append(Mongo4DeltaStoreUtil.FIELD_TRANSFORMED_APPLIEDATVERSION, 1);
+  }
+
+  private static void verifyGuardUpsert(MongoCollection<Document> guards) {
+    verify(guards).replaceOne(
+        argThat(DeltaAppliedVersionUniqueIndexChangeUnitTest::isDeltaAppendGuardFilter),
+        argThat(DeltaAppliedVersionUniqueIndexChangeUnitTest::isDeltaAppendGuardDocument),
+        any(com.mongodb.client.model.ReplaceOptions.class));
+  }
+
+  private static boolean isDeltaAppendGuardFilter(Bson filter) {
+    BsonDocument expected = Filters.eq("_id", MongoMigrationGuardStore.DELTA_APPEND_GUARD_ID)
+        .toBsonDocument(Document.class, MongoClientSettings.getDefaultCodecRegistry());
+    BsonDocument actual =
+        filter.toBsonDocument(Document.class, MongoClientSettings.getDefaultCodecRegistry());
+    return expected.equals(actual);
+  }
+
+  private static boolean isDeltaAppendGuardDocument(Document document) {
+    return MongoMigrationGuardStore.DELTA_APPEND_GUARD_ID.equals(document.getString("_id"))
+        && document.getString(MongoMigrationGuardStore.MESSAGE_FIELD) != null
+        && document.getString(MongoMigrationGuardStore.MESSAGE_FIELD)
+            .contains("refusing new delta writes");
   }
 
   private static MongoMigrationConfig mongoDeltaConfig() {

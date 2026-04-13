@@ -123,6 +123,8 @@ public final class MongoMigrationConfig {
   }
 
   public boolean usesMongoContactMessageStore() {
+    // ContactMessageStore follows account-store wiring in PersistenceModule, so
+    // contact-message migrations key off accountStoreType rather than contactStoreType.
     return isMongoStoreType(accountStoreType) && isMongoV4Driver();
   }
 

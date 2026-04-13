@@ -39,6 +39,7 @@ import com.mongodb.client.model.IndexOptions;
 import junit.framework.TestCase;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.waveprotocol.box.server.persistence.migrations.MongoMigrationGuardStore;
 import org.waveprotocol.box.server.persistence.mongodb.MongoDbDeltaStore;
 import org.waveprotocol.box.server.persistence.mongodb4.Mongo4DeltaStore;
 import org.waveprotocol.box.server.persistence.mongodb4.Mongo4DeltaStoreUtil;
@@ -90,8 +91,8 @@ public final class MongoDeltaStoreAppendGuardTest extends TestCase {
     when(database.getCollection("mongoMigrationGuards")).thenReturn(guardCollection);
     when(guardCollection.find(any(Bson.class))).thenReturn(guardQuery);
     when(guardQuery.first()).thenReturn(
-        new Document("_id", "delta-applied-version-append-guard")
-            .append("message", "refusing new delta writes"));
+        new Document("_id", MongoMigrationGuardStore.DELTA_APPEND_GUARD_ID)
+            .append(MongoMigrationGuardStore.MESSAGE_FIELD, "refusing new delta writes"));
     when(deltaCollection.listIndexes()).thenReturn(indexes);
     doAnswer(invocation -> invocation.getArgument(0)).when(indexes).into(any(List.class));
 
