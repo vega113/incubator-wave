@@ -165,6 +165,19 @@ public class Mongo4DeltaStore implements DeltaStore {
     try {
       Document guard = MongoMigrationGuardStore.getDeltaAppendGuard(database);
       if (guard == null) {
+        if (!hasUniqueAppliedAtVersionIndex() && !isDeltaCollectionEmpty()) {
+          // Non-empty collection without the unique index: migration 002 may have run but
+          // skipped index creation because delta_store_type was not mongodb at that time.
+          // A later config switch to Mongo delta leaves the index absent with no guard.
+          // Arm the guard now to fail closed until the index is manually created or
+          // migrations are re-run with the correct config.
+          String msg = "Mongo4DeltaStore: applied-version unique index absent on non-empty "
+              + "deltas collection; refusing writes until migration 002 is re-run with "
+              + "delta_store_type=mongodb or the index is created manually.";
+          LOG.severe(msg);
+          MongoMigrationGuardStore.upsertDeltaAppendGuard(database, msg);
+          return new PersistenceException(msg);
+        }
         return null;
       }
       if (hasUniqueAppliedAtVersionIndex()) {
@@ -181,6 +194,10 @@ public class Mongo4DeltaStore implements DeltaStore {
               + "refusing new delta writes until the migration state can be checked.",
           e);
     }
+  }
+
+  private boolean isDeltaCollectionEmpty() {
+    return getDeltaCollection().estimatedDocumentCount() == 0L;
   }
 
   private boolean hasUniqueAppliedAtVersionIndex() {

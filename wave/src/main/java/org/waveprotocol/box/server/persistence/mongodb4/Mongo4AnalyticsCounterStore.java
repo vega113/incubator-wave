@@ -35,6 +35,27 @@ final class Mongo4AnalyticsCounterStore implements AnalyticsCounterStore {
 
   Mongo4AnalyticsCounterStore(MongoDatabase db) {
     this.col = db.getCollection(COLLECTION);
+    warnIfHourIndexAbsent();
+  }
+
+  private void warnIfHourIndexAbsent() {
+    try {
+      for (Document index : col.listIndexes().into(new ArrayList<>())) {
+        Document key = index.get("key", Document.class);
+        if (key != null && key.containsKey(HOUR_FIELD)
+            && Boolean.TRUE.equals(index.getBoolean("unique"))) {
+          return;
+        }
+      }
+      // Unique hour index absent — if analytics was disabled when the baseline migration ran,
+      // the index was never created. Concurrent upserts can produce duplicate hourly documents.
+      // Run migrations with analytics_counters_enabled=true to install the index.
+      LOG.severe("Mongo4AnalyticsCounterStore: unique 'hour' index not found on "
+          + COLLECTION + ". Concurrent writes may produce duplicate hourly buckets. "
+          + "Re-run startup migrations with analytics_counters_enabled=true to install the index.");
+    } catch (RuntimeException e) {
+      LOG.warning("Mongo4AnalyticsCounterStore: could not verify 'hour' index: " + e.getMessage());
+    }
   }
 
   @Override public void incrementWavesCreated(long timestampMs) { upsertInc(timestampMs, WAVES_CREATED, 1L); }
