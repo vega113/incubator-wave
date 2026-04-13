@@ -329,9 +329,10 @@ slot_requires_mongo_migration_verification() {
   [ -f "$config_file" ] || return 1
 
   # Strip comment lines before matching so that commented-out examples
-  # (e.g. "# mongodb_driver = v4") do not trigger the gate.
+  # (e.g. "# mongodb_driver = v4" or "// mongodb_driver = v4") do not trigger
+  # the gate. HOCON supports # and // single-line comments; strip both.
   local effective_config
-  effective_config="$(grep -Ev '^[[:space:]]*#' "$config_file")"
+  effective_config="$(grep -Ev '^[[:space:]]*(#|//)' "$config_file")"
 
   printf '%s\n' "$effective_config" \
     | grep -Eqi 'mongodb_driver[[:space:]]*[:=][[:space:]]*"?v4"?' || return 1
