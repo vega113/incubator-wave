@@ -56,7 +56,7 @@ echo "digest: sha256:test size: 1234"
       env = os.environ.copy()
       env["PATH"] = f"{fake_bin}:{env['PATH']}"
 
-      result = subprocess.run(
+      result = subprocess.run(  # noqa: S603 - trusted subprocess invocation in test harness
           [bash_path, str(SCRIPT_PATH), "ghcr.io/example/wave:test"],
           cwd=REPO_ROOT,
           env=env,
@@ -225,7 +225,7 @@ exit 99
     env["PATH"] = f"{fake_bin}:{env['PATH']}"
     if extra_env:
       env.update(extra_env)
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603 - trusted subprocess invocation in test harness
         [bash_path, str(SCRIPT_PATH), image_ref],
         cwd=REPO_ROOT,
         env=env,
