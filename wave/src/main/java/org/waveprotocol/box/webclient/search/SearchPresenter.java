@@ -447,8 +447,7 @@ public final class SearchPresenter
       return;
     }
     subscribeToSearchWavelet(queryText);
-    if (SearchBootstrapUiState.shouldBootstrapViaHttpWhenOtStarts(
-        otSearchEnabled, otSearchFallbackEnabled)) {
+    if (SearchBootstrapUiState.shouldBootstrapViaHttpWhenOtStarts(otSearchEnabled)) {
       doSearch();
     }
     // Do NOT start the repeating poll here. OT handles live updates. If fallback is enabled,
@@ -1389,7 +1388,10 @@ public final class SearchPresenter
       otSearchWaveletName = computeSearchWaveletName(Session.get().getAddress(), query);
       useOtSearch = false;
       Collection<WaveletId> ids = Collections.singleton(otSearchWaveletName.waveletId);
-      channel.open(otSearchWaveletName.waveId, IdFilter.of(ids, Collections.<String>emptyList()),
+      channel.openSearch(
+          otSearchWaveletName.waveId,
+          IdFilter.of(ids, Collections.<String>emptyList()),
+          query,
           otSearchUpdateHandler);
       // Schedule a timeout: if no data arrives, fall back to polling.
       scheduler.scheduleDelayed(otSearchTimeoutTask, OT_SEARCH_TIMEOUT_MS);
@@ -1483,7 +1485,7 @@ public final class SearchPresenter
     for (int i = 0; i < visible; i++) {
       digests.add(otSearchSnapshot.getDigests().get(i));
     }
-    ((SimpleSearch) search).replaceResults(otSearchSnapshot.getTotal(), digests);
+    ((SimpleSearch) search).replaceResults(queryText, otSearchSnapshot.getTotal(), digests);
   }
 
   private static boolean canProjectOtSearchWindow(int requestedSize, OtSearchSnapshot snapshot) {
@@ -1558,7 +1560,9 @@ public final class SearchPresenter
     otSearchReceivedData = false;
     scheduler.cancel(otSearchTimeoutTask);
     scheduler.cancel(searchUpdater);
-    clearSearchResultsAfterOtFailure();
+    if (!hasResultsForCurrentQuery()) {
+      clearSearchResultsAfterOtFailure();
+    }
     render();
   }
 
@@ -1566,10 +1570,16 @@ public final class SearchPresenter
     return !useOtSearch && otSearchWaveletName == null && scheduler.isScheduled(searchUpdater);
   }
 
+  private boolean hasResultsForCurrentQuery() {
+    return search instanceof SimpleSearch
+        && ((SimpleSearch) search).hasResultsForQuery(queryText);
+  }
+
   private void clearSearchResultsAfterOtFailure() {
     querySize = getPageSize();
     if (search instanceof SimpleSearch) {
-      ((SimpleSearch) search).replaceResults(0, Collections.<SearchService.DigestSnapshot>emptyList());
+      ((SimpleSearch) search).replaceResults(
+          queryText, 0, Collections.<SearchService.DigestSnapshot>emptyList());
     } else {
       search.cancel();
     }

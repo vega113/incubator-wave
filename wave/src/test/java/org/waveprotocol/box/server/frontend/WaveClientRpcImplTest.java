@@ -35,6 +35,7 @@ import org.waveprotocol.box.server.frontend.testing.FakeClientFrontend;
 import org.waveprotocol.box.server.rpc.testing.FakeServerRpcController;
 import org.waveprotocol.box.server.util.WaveletDataUtil;
 import org.waveprotocol.box.server.util.testing.TestingConstants;
+import org.waveprotocol.box.server.waveserver.search.SearchWaveletManager;
 import org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta;
 import org.waveprotocol.wave.federation.Proto.ProtocolWaveletOperation;
 import org.waveprotocol.wave.model.id.InvalidIdException;
@@ -67,6 +68,7 @@ public class WaveClientRpcImplTest extends TestCase implements TestingConstants 
   private int counter = 0;
 
   private FakeClientFrontend frontend;
+  private SearchWaveletManager searchWaveletManager;
 
   private WaveClientRpcImpl rpcImpl;
 
@@ -88,7 +90,8 @@ public class WaveClientRpcImplTest extends TestCase implements TestingConstants 
     counter = 0;
     controller = new FakeServerRpcController();
     frontend = new FakeClientFrontend();
-    rpcImpl = WaveClientRpcImpl.create(frontend, false);
+    searchWaveletManager = new SearchWaveletManager();
+    rpcImpl = WaveClientRpcImpl.create(frontend, false, searchWaveletManager);
   }
 
   // TODO(arb): test with channelIds.
@@ -162,6 +165,44 @@ public class WaveClientRpcImplTest extends TestCase implements TestingConstants 
     frontend.waveletUpdate(wavelet, POJO_DELTAS);
     assertEquals(1, counter);
     assertFalse(controller.failed());
+  }
+
+  public void testOpenForwardsSearchQueryToFrontend() {
+    WaveletName searchWaveletName =
+        searchWaveletManager.computeWaveletName(PARTICIPANT, "mentions:me");
+    ProtocolOpenRequest request = ProtocolOpenRequest.newBuilder()
+        .setParticipantId(USER)
+        .setWaveId(ModernIdSerialiser.INSTANCE.serialiseWaveId(searchWaveletName.waveId))
+        .setSearchQuery("mentions:me")
+        .build();
+
+    rpcImpl.open(controller, request, new RpcCallback<ProtocolWaveletUpdate>() {
+      @Override
+      public void run(ProtocolWaveletUpdate update) {
+      }
+    });
+
+    assertEquals("mentions:me", frontend.lastSearchQuery);
+    assertFalse(controller.failed());
+  }
+
+  public void testOpenRejectsMismatchedSearchQueryWaveId() {
+    ProtocolOpenRequest request = ProtocolOpenRequest.newBuilder()
+        .setParticipantId(USER)
+        .setWaveId(ModernIdSerialiser.INSTANCE.serialiseWaveId(WAVE_ID))
+        .setSearchQuery("mentions:me")
+        .build();
+
+    rpcImpl.open(controller, request, new RpcCallback<ProtocolWaveletUpdate>() {
+      @Override
+      public void run(ProtocolWaveletUpdate update) {
+        fail("Unexpected callback");
+      }
+    });
+
+    assertTrue(controller.failed());
+    assertTrue(controller.errorText().contains("search query"));
+    assertEquals(null, frontend.lastSearchQuery);
   }
 
   /**

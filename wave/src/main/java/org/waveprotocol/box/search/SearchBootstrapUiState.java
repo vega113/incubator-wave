@@ -38,9 +38,8 @@ public final class SearchBootstrapUiState {
     return otSearchEnabled && !useOtSearch && !otSearchTimedOut;
   }
 
-  public static boolean shouldBootstrapViaHttpWhenOtStarts(
-      boolean otSearchEnabled, boolean otSearchFallbackEnabled) {
-    return !otSearchEnabled || otSearchFallbackEnabled;
+  public static boolean shouldBootstrapViaHttpWhenOtStarts(boolean otSearchEnabled) {
+    return !otSearchEnabled;
   }
 
   public static boolean shouldUseHttpSearchForWindowRequest(
