@@ -1,6 +1,5 @@
 package org.waveprotocol.box.server.persistence;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -30,6 +29,7 @@ public class MongoMigrationBaselineTest {
   private static final String DELTAS_COLLECTION = "deltas";
   private static final String SNAPSHOTS_COLLECTION = "snapshots";
   private static final String CONTACT_MESSAGES_COLLECTION = "contact_messages";
+  private static final String ANALYTICS_HOURLY_COLLECTION = "analytics_hourly";
   private static final String CHANGELOG_COLLECTION = "mongockChangeLog";
   private static final String LOCK_COLLECTION = "mongockLock";
   private static final String APPLIED_VERSION_INDEX_NAME =
@@ -66,9 +66,12 @@ public class MongoMigrationBaselineTest {
           new Document("createdAt", -1)));
       assertNotNull(findIndex(database.getCollection(CONTACT_MESSAGES_COLLECTION),
           new Document("status", 1)));
+      assertUniqueIndex(database.getCollection(ANALYTICS_HOURLY_COLLECTION),
+          new Document("hour", 1));
       List<String> collectionNames = database.listCollectionNames().into(new ArrayList<>());
-      assertFalse("analytics_hourly should not be recreated by the Mongo baseline migration",
-          collectionNames.contains("analytics_hourly"));
+      assertTrue(
+          "missing collection " + ANALYTICS_HOURLY_COLLECTION,
+          collectionNames.contains(ANALYTICS_HOURLY_COLLECTION));
       assertTrue(
           "missing collection " + CHANGELOG_COLLECTION,
           collectionNames.contains(CHANGELOG_COLLECTION));
