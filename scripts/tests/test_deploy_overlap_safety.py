@@ -52,6 +52,29 @@ class DeployOverlapSafetyTest(unittest.TestCase):
         int((temp_dir / "health-count").read_text(encoding="utf-8").strip()),
     )
 
+  def test_deploy_accepts_health_on_remaining_timeout_probe(self):
+    result, temp_dir = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        extra_env={
+            "WAVE_SLOT_HEALTH_INTERVAL_SECONDS": "60",
+            "WAVE_SLOT_HEALTH_TIMEOUT_SECONDS": "90",
+        },
+        health_success_after=3,
+    )
+
+    self.assertEqual(
+        0,
+        result.returncode,
+        msg=f"deploy should probe once more at the remaining timeout boundary:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+    )
+    self.assertEqual(
+        3,
+        int((temp_dir / "health-count").read_text(encoding="utf-8").strip()),
+    )
+
   def test_deploy_rejects_zero_health_interval_with_cleanup(self):
     result, temp_dir = self._run_script(
         command="deploy",
@@ -230,6 +253,8 @@ class DeployOverlapSafetyTest(unittest.TestCase):
     ops_log = temp_dir / "ops.log"
     reload_count = temp_dir / "reload-count"
     health_count = temp_dir / "health-count"
+    fake_now = temp_dir / "fake-now"
+    fake_now.write_text("0\n", encoding="utf-8")
     stop_fail_checks = "\n".join(
         f'if [[ "$cmd" == *" stop {service}"* ]]; then exit 1; fi'
         for service in stop_fail_services
@@ -359,7 +384,25 @@ exit 1
     )
     self._write_executable(
         fake_bin / "sleep",
-        "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n",
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+duration="${{1:-0}}"
+current=$(<"{fake_now}")
+printf '%s\n' "$((current + duration))" > "{fake_now}"
+exit 0
+""",
+    )
+    self._write_executable(
+        fake_bin / "date",
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${{1:-}}" == "+%s" ]]; then
+  cat "{fake_now}"
+  exit 0
+fi
+echo "unexpected date invocation: $*" >&2
+exit 1
+""",
     )
     self._write_executable(
         fake_bin / "systemd-run",
