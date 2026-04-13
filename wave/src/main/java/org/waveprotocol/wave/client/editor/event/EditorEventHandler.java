@@ -417,6 +417,8 @@ public final class EditorEventHandler {
     }
 
     FocusedContentRange selectionBeforeCompositionFlush = cachedSelection;
+    FocusedPointRange<Node> htmlSelectionBeforeCompositionFlush =
+        editorInteractor.getHtmlSelection();
 
     // On mobile browsers (e.g. Android Chrome), keydown with keyCode 229 fires
     // before compositionstart. That keydown activates the typing extractor.
@@ -439,8 +441,10 @@ public final class EditorEventHandler {
       // Android/WebKit can promote a collapsed caret into a transient range for the
       // currently composing word after the pre-composition keydown is flushed. That
       // range belongs to the browser's IME state rather than to an explicit user
-      // replacement selection, so deleting it here drops the already-committed text.
-      caret = isTransientImeRangeAfterFlush(selectionBeforeCompositionFlush, cachedSelection)
+      // replacement selection. Use the live pre-flush browser selection to
+      // distinguish the two, because cachedSelection may still be stale here.
+      caret = isTransientImeRangeAfterFlush(selectionBeforeCompositionFlush,
+          htmlSelectionBeforeCompositionFlush, cachedSelection)
           ? cachedSelection.getFocus()
           : deleteCachedSelectionRangeAndInvalidate(true);
     }
@@ -470,8 +474,12 @@ public final class EditorEventHandler {
   }
 
   private static boolean isTransientImeRangeAfterFlush(
-      FocusedContentRange selectionBeforeFlush, FocusedContentRange selectionAfterFlush) {
+      FocusedContentRange selectionBeforeFlush,
+      FocusedPointRange<Node> htmlSelectionBeforeFlush,
+      FocusedContentRange selectionAfterFlush) {
     return selectionBeforeFlush != null
+        && htmlSelectionBeforeFlush != null
+        && htmlSelectionBeforeFlush.isCollapsed()
         && selectionAfterFlush != null
         && selectionBeforeFlush.isCollapsed()
         && !selectionAfterFlush.isCollapsed()
