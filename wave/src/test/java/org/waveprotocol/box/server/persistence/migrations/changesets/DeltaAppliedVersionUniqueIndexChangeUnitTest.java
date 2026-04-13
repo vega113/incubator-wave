@@ -111,6 +111,26 @@ public final class DeltaAppliedVersionUniqueIndexChangeUnitTest {
   }
 
   @Test
+  public void testExecutionRestoresNonUniqueIndexWhenFirstUniqueCreateHitsDuplicateData() {
+    MongoCollection<Document> deltas = deltasCollection();
+    MongoException duplicateData = new MongoException(11000, "duplicate key");
+    AtomicInteger createCalls = new AtomicInteger();
+    doAnswer(invocation -> {
+      IndexOptions options = invocation.getArgument(1);
+      int call = createCalls.getAndIncrement();
+      if (call == 0) {
+        throw duplicateData;
+      }
+      assertFalse(Boolean.TRUE.equals(options.isUnique()));
+      return "restored";
+    }).when(deltas).createIndex(any(Bson.class), any(IndexOptions.class));
+
+    changeUnit(deltas).execution();
+
+    assertEquals(2, createCalls.get());
+  }
+
+  @Test
   public void testExecutionLogsWarningWhenUniqueRetryFallsBackToNonUniqueIndex() {
     MongoCollection<Document> deltas = deltasCollection();
     when(deltas.listIndexes()).thenReturn(indexesWith(

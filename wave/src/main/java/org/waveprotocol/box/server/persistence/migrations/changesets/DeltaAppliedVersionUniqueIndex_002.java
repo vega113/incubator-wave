@@ -80,6 +80,10 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
     try {
       deltas.createIndex(keys, options);
     } catch (MongoException initialFailure) {
+      if (isDuplicateKeyFailure(initialFailure)) {
+        restoreNonUniqueIndexWithWarning(deltas, keys, initialFailure);
+        return;
+      }
       if (!isIndexUpgradeConflict(initialFailure)) {
         throw initialFailure;
       }
@@ -87,11 +91,7 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
       try {
         deltas.createIndex(keys, options);
       } catch (MongoException retryFailure) {
-        LOG.log(java.util.logging.Level.WARNING,
-            "Migration could not enforce the unique applied-version index; "
-                + "restoring the non-unique fallback index instead.",
-            retryFailure);
-        restoreNonUniqueIndex(deltas, keys);
+        restoreNonUniqueIndexWithWarning(deltas, keys, retryFailure);
       }
     }
   }
@@ -118,10 +118,23 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
     deltas.createIndex(keys, new IndexOptions().background(true).name(APPLIED_AT_VERSION_INDEX_NAME));
   }
 
+  private static void restoreNonUniqueIndexWithWarning(MongoCollection<Document> deltas, Bson keys,
+      MongoException failure) {
+    LOG.log(java.util.logging.Level.WARNING,
+        "Migration could not enforce the unique applied-version index; "
+            + "restoring the non-unique fallback index instead.",
+        failure);
+    restoreNonUniqueIndex(deltas, keys);
+  }
+
   private static boolean isIndexUpgradeConflict(MongoException error) {
     String message = error.getMessage();
     return error.getCode() == INDEX_OPTIONS_CONFLICT
         || error.getCode() == INDEX_KEY_SPECS_CONFLICT
         || (message != null && message.contains("already exists with different options"));
+  }
+
+  private static boolean isDuplicateKeyFailure(MongoException error) {
+    return error.getCode() == 11000;
   }
 }
