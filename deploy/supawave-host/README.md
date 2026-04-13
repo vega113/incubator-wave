@@ -18,6 +18,7 @@ Automation for applying the production resource tuning from `deploy/production/`
 - `rollback.sh` — Restores `/etc/sysctl.conf`, `/etc/security/limits.conf`, PAM session files, and `/etc/fstab` from backups, disables swap, and removes `/swapfile`.
 - `install-grafana-alloy.sh` — Installs Grafana Alloy with Grafana Cloud onboarding variables.
 - `configure-grafana-alloy.sh` — Writes `/etc/alloy/config.alloy` for metrics+logs remote write and restarts `alloy.service`.
+- `grafana-dashboards/supawave-analytics-overview.json` — Starter Grafana dashboard you can import and point at your Prometheus datasource.
 
 Backups and snapshots are stored under `/var/backups/wave-supawave` (override with `BACKUP_DIR`). When running via `sudo`, use `sudo --preserve-env=BACKUP_DIR,SWAP_SIZE_GB ./provision.sh` to pass environment overrides through.
 
@@ -84,6 +85,16 @@ HTTP listener Alloy scrapes for Prometheus-format application metrics.
   - `wave_analytics_active_user_events_total`
   - `wave_analytics_waves_created_total`
   - `wave_analytics_blips_created_total`
+
+### Starter Dashboard
+
+- Import `deploy/supawave-host/grafana-dashboards/supawave-analytics-overview.json`
+  into Grafana.
+- On import, map:
+  - `DS_PROMETHEUS` to your Grafana Cloud metrics datasource
+- The starter dashboard includes:
+  - aggregate stat panels for the new `wave_analytics_*` counters
+  - HTTP request-rate and p95 latency charts from `http_server_requests_*`
 
 ### Loki Query Contract
 
