@@ -13,6 +13,104 @@ BUILD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "build.yml"
 
 
 class DeployOverlapSafetyTest(unittest.TestCase):
+  def test_deploy_waits_long_enough_for_slow_startup(self):
+    result, temp_dir = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        health_success_after=200,
+    )
+
+    self.assertEqual(
+        0,
+        result.returncode,
+        msg=f"deploy failed unexpectedly:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+    )
+    self.assertGreaterEqual(
+        int((temp_dir / "health-count").read_text(encoding="utf-8").strip()),
+        200,
+    )
+
+  def test_deploy_accepts_health_on_timeout_boundary_probe(self):
+    result, temp_dir = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        extra_env={"WAVE_SLOT_HEALTH_TIMEOUT_SECONDS": "420"},
+        health_success_after=211,
+    )
+
+    self.assertEqual(
+        0,
+        result.returncode,
+        msg=f"deploy should accept health on the timeout-boundary probe:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+    )
+    self.assertEqual(
+        211,
+        int((temp_dir / "health-count").read_text(encoding="utf-8").strip()),
+    )
+
+  def test_deploy_accepts_health_on_remaining_timeout_probe(self):
+    result, temp_dir = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        extra_env={
+            "WAVE_SLOT_HEALTH_INTERVAL_SECONDS": "60",
+            "WAVE_SLOT_HEALTH_TIMEOUT_SECONDS": "90",
+        },
+        health_success_after=3,
+    )
+
+    self.assertEqual(
+        0,
+        result.returncode,
+        msg=f"deploy should probe once more at the remaining timeout boundary:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}",
+    )
+    self.assertEqual(
+        3,
+        int((temp_dir / "health-count").read_text(encoding="utf-8").strip()),
+    )
+
+  def test_deploy_rejects_zero_health_interval_with_cleanup(self):
+    result, temp_dir = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        extra_env={"WAVE_SLOT_HEALTH_INTERVAL_SECONDS": "0"},
+    )
+
+    self.assertNotEqual(0, result.returncode)
+    self.assertIn(
+        "WAVE_SLOT_HEALTH_INTERVAL_SECONDS must be a positive integer",
+        result.stderr,
+    )
+    self.assertFalse((temp_dir / "health-count").exists())
+    ops = (temp_dir / "ops.log").read_text(encoding="utf-8")
+    self.assertIn("stop wave-green", ops)
+
+  def test_deploy_rejects_negative_health_timeout_with_cleanup(self):
+    result, temp_dir = self._run_script(
+        command="deploy",
+        active_slot="blue",
+        previous_slot=None,
+        running_services=["caddy", "wave-blue"],
+        extra_env={"WAVE_SLOT_HEALTH_TIMEOUT_SECONDS": "-1"},
+    )
+
+    self.assertNotEqual(0, result.returncode)
+    self.assertIn(
+        "WAVE_SLOT_HEALTH_TIMEOUT_SECONDS must be a non-negative integer",
+        result.stderr,
+    )
+    self.assertFalse((temp_dir / "health-count").exists())
+    ops = (temp_dir / "ops.log").read_text(encoding="utf-8")
+    self.assertIn("stop wave-green", ops)
+
   def test_deploy_stops_old_slot_immediately_after_swap(self):
     result, temp_dir = self._run_script(
         command="deploy",
@@ -131,9 +229,11 @@ class DeployOverlapSafetyTest(unittest.TestCase):
       active_slot: str,
       previous_slot: str | None,
       running_services: list[str],
+      extra_env: dict[str, str] | None = None,
       stop_fail_services: list[str] | None = None,
       ps_error_services: list[str] | None = None,
       reload_fail_on_calls: list[int] | None = None,
+      health_success_after: int = 1,
   ):
     bash_path = self._bash_path()
     if bash_path is None:
@@ -152,6 +252,9 @@ class DeployOverlapSafetyTest(unittest.TestCase):
       (deploy_root / "shared" / "previous-slot").write_text(f"{previous_slot}\n", encoding="utf-8")
     ops_log = temp_dir / "ops.log"
     reload_count = temp_dir / "reload-count"
+    health_count = temp_dir / "health-count"
+    fake_now = temp_dir / "fake-now"
+    fake_now.write_text("0\n", encoding="utf-8")
     stop_fail_checks = "\n".join(
         f'if [[ "$cmd" == *" stop {service}"* ]]; then exit 1; fi'
         for service in stop_fail_services
@@ -238,6 +341,15 @@ for ((i=1;i<=$#;i++)); do
   fi
 done
 if [[ "$args" == *"http://localhost:9899/healthz"* ]]; then
+  count=0
+  if [[ -f "__HEALTH_COUNT__" ]]; then
+    count=$(<"__HEALTH_COUNT__")
+  fi
+  count=$((count + 1))
+  printf '%s\n' "$count" > "__HEALTH_COUNT__"
+  if (( count < __HEALTH_SUCCESS_AFTER__ )); then
+    exit 1
+  fi
   if [ -n "$out" ]; then
     printf '%s' "${out//%{http_code}/200}"
   fi
@@ -262,11 +374,35 @@ if [[ "$args" == *"https://wave.supawave.ai/"* ]]; then
   exit 0
 fi
 exit 1
-""",
+""".replace("__HEALTH_COUNT__", str(health_count)).replace(
+            "__HEALTH_SUCCESS_AFTER__", str(health_success_after)
+        ),
     )
     self._write_executable(
         fake_bin / "systemctl",
         "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n",
+    )
+    self._write_executable(
+        fake_bin / "sleep",
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+duration="${{1:-0}}"
+current=$(<"{fake_now}")
+printf '%s\n' "$((current + duration))" > "{fake_now}"
+exit 0
+""",
+    )
+    self._write_executable(
+        fake_bin / "date",
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${{1:-}}" == "+%s" ]]; then
+  cat "{fake_now}"
+  exit 0
+fi
+echo "unexpected date invocation: $*" >&2
+exit 1
+""",
     )
     self._write_executable(
         fake_bin / "systemd-run",
@@ -286,6 +422,8 @@ exit 1
     env["WWW_HOST"] = "www.supawave.ai"
     env["SANITY_ADDRESS"] = "testregister"
     env["SANITY_PASSWORD"] = "testregister"
+    if extra_env:
+      env.update(extra_env)
 
     result = subprocess.run(
         [bash_path, str(DEPLOY_SCRIPT), command],

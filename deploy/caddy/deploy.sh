@@ -309,14 +309,37 @@ start_target_slot() {
 
 wait_for_slot_health() {
   local port=$1
-  local retries=90
-  local i=0
-  while [ $i -lt $retries ]; do
+  local interval_seconds="${WAVE_SLOT_HEALTH_INTERVAL_SECONDS:-2}"
+  local timeout_seconds="${WAVE_SLOT_HEALTH_TIMEOUT_SECONDS:-420}"
+  if ! [[ "$interval_seconds" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[deploy] ERROR: WAVE_SLOT_HEALTH_INTERVAL_SECONDS must be a positive integer (got: '${interval_seconds}')" >&2
+    return 1
+  fi
+  if ! [[ "$timeout_seconds" =~ ^(0|[1-9][0-9]*)$ ]]; then
+    echo "[deploy] ERROR: WAVE_SLOT_HEALTH_TIMEOUT_SECONDS must be a non-negative integer without leading zeros (got: '${timeout_seconds}')" >&2
+    return 1
+  fi
+  local started_at
+  local elapsed_seconds
+  local remaining_seconds
+  local sleep_seconds
+  started_at=$(date +%s)
+  # Lucene-backed production startups can legitimately take several minutes
+  # before /healthz answers while indexes are rebuilt from MongoDB.
+  while true; do
     if curl -sf "http://localhost:${port}/healthz" > /dev/null 2>&1; then
       return 0
     fi
-    sleep 2
-    i=$((i + 1))
+    elapsed_seconds=$(( $(date +%s) - started_at ))
+    if [ "$elapsed_seconds" -ge "$timeout_seconds" ]; then
+      break
+    fi
+    remaining_seconds=$(( timeout_seconds - elapsed_seconds ))
+    sleep_seconds=$interval_seconds
+    if [ "$remaining_seconds" -lt "$sleep_seconds" ]; then
+      sleep_seconds=$remaining_seconds
+    fi
+    sleep "$sleep_seconds"
   done
   return 1
 }
