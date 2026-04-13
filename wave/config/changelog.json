@@ -95,6 +95,22 @@
     ]
   },
   {
+    "releaseId": "2026-04-13-mongock-standalone-transactions",
+    "version": "PR #886",
+    "date": "2026-04-13",
+    "title": "Disable Mongock transactions for standalone Mongo deployments",
+    "summary": "Mongo-backed startup migrations now disable Mongock transactions so standalone MongoDB deployments can apply schema changes without replica-set transaction support.",
+    "sections": [
+      {
+        "type": "fix",
+        "items": [
+          "Disabled Mongock transaction usage before the startup migration runner executes against Mongo v4",
+          "Kept the driver on primary reads while leaving read and write concern overrides unchanged"
+        ]
+      }
+    ]
+  },
+  {
     "releaseId": "2026-04-13-mongock-provider-gating",
     "version": "Unreleased",
     "date": "2026-04-13",
@@ -122,6 +138,22 @@
         "items": [
           "Deploy builds now push images through a retry helper that retries known transient registry and network failures before giving up.",
           "The retry helper now validates its retry-count and retry-delay environment variables and regression coverage now includes fail-fast, retry exhaustion, and invalid-config cases."
+        ]
+      }
+    ]
+  },
+  {
+    "releaseId": "2026-04-13-deploy-health-wait-window",
+    "version": "PR #883",
+    "date": "2026-04-13",
+    "title": "Restore deploy health wait window",
+    "summary": "Blue-green deploys now wait up to seven minutes for the target slot to report healthy, with the poll interval and timeout still configurable through environment variables.",
+    "sections": [
+      {
+        "type": "fix",
+        "items": [
+          "Restored the default slot health wait window from the old 180-second cutoff to 420 seconds so slower Lucene-backed startups can finish before deploys abort",
+          "Kept the slot health polling interval and timeout configurable through deploy environment variables without requiring script edits"
         ]
       }
     ]
