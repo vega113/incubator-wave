@@ -56,6 +56,10 @@ public final class BaselineMongoSchema_001 {
     if (config.usesMongoContactMessageStore()) {
       ensureContactMessageIndexes();
     }
+    // Always create the analytics index unconditionally for N-1 rollout compatibility:
+    // N-1 nodes with analytics enabled rely on this unique index for conflict-safe hourly
+    // upserts. Omitting it during a blue-green overlap window would allow duplicate buckets.
+    ensureAnalyticsHourlyIndex();
   }
 
   @RollbackExecution
@@ -96,5 +100,12 @@ public final class BaselineMongoSchema_001 {
     MongoCollection<Document> contactMessages = database.getCollection("contact_messages");
     contactMessages.createIndex(Indexes.descending("createdAt"));
     contactMessages.createIndex(Indexes.ascending("status"));
+  }
+
+  private void ensureAnalyticsHourlyIndex() {
+    MongoCollection<Document> analytics = database.getCollection("analytics_hourly");
+    analytics.createIndex(
+        Indexes.ascending("hour"),
+        new IndexOptions().unique(true));
   }
 }

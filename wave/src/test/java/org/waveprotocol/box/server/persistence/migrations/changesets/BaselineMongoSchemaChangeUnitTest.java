@@ -19,8 +19,6 @@
 
 package org.waveprotocol.box.server.persistence.migrations.changesets;
 
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -49,18 +47,20 @@ public final class BaselineMongoSchemaChangeUnitTest {
   }
 
   @Test
-  public void testExecutionDoesNotTouchRemovedAnalyticsCollection() {
-    MongoCollection<Document> databaseAnalytics = collection();
+  public void testExecutionAlwaysCreatesAnalyticsHourlyIndex() {
+    MongoCollection<Document> analyticsHourly = collection();
     MongoDatabase database = mock(MongoDatabase.class);
     when(database.getCollection("contact_messages")).thenReturn(collection());
     when(database.getCollection("deltas")).thenReturn(collection());
     when(database.getCollection("snapshots")).thenReturn(collection());
-    doReturn(databaseAnalytics).when(database).getCollection("analytics_hourly");
+    when(database.getCollection("analytics_hourly")).thenReturn(analyticsHourly);
 
     new BaselineMongoSchema_001(database, mongoContactMessageConfig()).execution();
 
-    verify(database, never()).getCollection("analytics_hourly");
-    verify(databaseAnalytics, never()).createIndex(org.mockito.ArgumentMatchers.any());
+    // Index must always be created unconditionally for N-1 rollout compatibility.
+    verify(analyticsHourly, times(1)).createIndex(
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(com.mongodb.client.model.IndexOptions.class));
   }
 
   private static BaselineMongoSchema_001 changeUnit(MongoMigrationConfig config,
@@ -70,6 +70,7 @@ public final class BaselineMongoSchemaChangeUnitTest {
     when(database.getCollection("contact_messages")).thenReturn(contactMessages);
     when(database.getCollection("deltas")).thenReturn(deltas);
     when(database.getCollection("snapshots")).thenReturn(snapshots);
+    when(database.getCollection("analytics_hourly")).thenReturn(collection());
     return new BaselineMongoSchema_001(database, config);
   }
 
