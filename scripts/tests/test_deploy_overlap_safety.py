@@ -192,6 +192,14 @@ set -euo pipefail
   *" up -d wave-blue"*)
     exit 0
     ;;
+  *" logs --no-color wave-blue"*)
+    printf 'Completed Mongock Mongo schema migrations\n'
+    exit 0
+    ;;
+  *" logs --no-color wave-green"*)
+    printf 'Completed Mongock Mongo schema migrations\n'
+    exit 0
+    ;;
   *" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile"*)
     count=0
     if [[ -f "{reload_count}" ]]; then
