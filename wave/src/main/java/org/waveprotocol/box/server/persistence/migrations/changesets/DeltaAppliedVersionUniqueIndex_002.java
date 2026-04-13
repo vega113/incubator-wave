@@ -31,6 +31,7 @@ import io.mongock.api.annotations.RollbackExecution;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.waveprotocol.box.server.persistence.MongoMigrationConfig;
+import org.waveprotocol.box.server.persistence.migrations.MongoMigrationGuardStore;
 import org.waveprotocol.box.server.persistence.mongodb4.Mongo4DeltaStoreUtil;
 
 /**
@@ -46,6 +47,10 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
   private static final String APPLIED_AT_VERSION_INDEX_NAME =
       Mongo4DeltaStoreUtil.FIELD_WAVE_ID + "_1_" + Mongo4DeltaStoreUtil.FIELD_WAVELET_ID
           + "_1_" + Mongo4DeltaStoreUtil.FIELD_TRANSFORMED_APPLIEDATVERSION + "_1";
+  private static final String DEGRADED_APPEND_GUARD_MESSAGE =
+      "Mongo4DeltaStore: applied-version uniqueness upgrade blocked by existing data; "
+          + "refusing new delta writes until corrupted-wave repair completes and the server "
+          + "restarts.";
   private static final Document APPLIED_AT_VERSION_INDEX_KEY = new Document(
       Mongo4DeltaStoreUtil.FIELD_WAVE_ID, 1)
       .append(Mongo4DeltaStoreUtil.FIELD_WAVELET_ID, 1)
@@ -78,10 +83,11 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
         .unique(true);
 
     try {
-      deltas.createIndex(keys, options);
+      createUniqueAppliedVersionIndex(deltas, keys, options);
     } catch (MongoException initialFailure) {
       if (isDuplicateKeyFailure(initialFailure)) {
         restoreNonUniqueIndexWithWarning(deltas, keys, initialFailure);
+        armAppendGuard();
         return;
       }
       if (!isIndexUpgradeConflict(initialFailure)) {
@@ -89,11 +95,14 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
       }
       deltas.dropIndex(findConflictingIndexName(deltas));
       try {
-        deltas.createIndex(keys, options);
+        createUniqueAppliedVersionIndex(deltas, keys, options);
       } catch (MongoException retryFailure) {
         restoreNonUniqueIndexWithWarning(deltas, keys, retryFailure);
+        armAppendGuard();
+        return;
       }
     }
+    clearAppendGuard();
   }
 
   @RollbackExecution
@@ -116,6 +125,26 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
 
   private static void restoreNonUniqueIndex(MongoCollection<Document> deltas, Bson keys) {
     deltas.createIndex(keys, new IndexOptions().background(true).name(APPLIED_AT_VERSION_INDEX_NAME));
+  }
+
+  private static void createUniqueAppliedVersionIndex(MongoCollection<Document> deltas, Bson keys,
+      IndexOptions options) {
+    deltas.createIndex(keys, options);
+    if (!hasUniqueAppliedVersionIndex(deltas)) {
+      throw new MongoException(
+          INDEX_OPTIONS_CONFLICT,
+          "applied-version index exists without uniqueness after createIndex");
+    }
+  }
+
+  private static boolean hasUniqueAppliedVersionIndex(MongoCollection<Document> deltas) {
+    for (Document index : deltas.listIndexes()) {
+      Document key = index.get("key", Document.class);
+      if (APPLIED_AT_VERSION_INDEX_KEY.equals(key)) {
+        return Boolean.TRUE.equals(index.getBoolean("unique"));
+      }
+    }
+    return false;
   }
 
   private static void restoreNonUniqueIndexWithWarning(MongoCollection<Document> deltas, Bson keys,
@@ -143,5 +172,20 @@ public final class DeltaAppliedVersionUniqueIndex_002 {
 
   private static boolean isDuplicateKeyFailure(MongoException error) {
     return error.getCode() == 11000;
+  }
+
+  private void armAppendGuard() {
+    MongoMigrationGuardStore.upsertDeltaAppendGuard(database, DEGRADED_APPEND_GUARD_MESSAGE);
+  }
+
+  private void clearAppendGuard() {
+    try {
+      MongoMigrationGuardStore.clearDeltaAppendGuard(database);
+    } catch (MongoException clearFailure) {
+      LOG.log(java.util.logging.Level.SEVERE,
+          "Migration installed the unique applied-version index but could not clear the append guard.",
+          clearFailure);
+      throw clearFailure;
+    }
   }
 }

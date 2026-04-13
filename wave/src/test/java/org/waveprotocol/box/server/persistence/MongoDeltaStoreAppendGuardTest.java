@@ -23,26 +23,33 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.MongoException;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.IndexOptions;
 import junit.framework.TestCase;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.waveprotocol.box.server.persistence.migrations.MongoMigrationGuardStore;
 import org.waveprotocol.box.server.persistence.mongodb.MongoDbDeltaStore;
 import org.waveprotocol.box.server.persistence.mongodb4.Mongo4DeltaStore;
+import org.waveprotocol.box.server.persistence.mongodb4.Mongo4DeltaStoreUtil;
 import org.waveprotocol.box.server.waveserver.DeltaStore;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class MongoDeltaStoreAppendGuardTest extends TestCase {
@@ -51,23 +58,43 @@ public final class MongoDeltaStoreAppendGuardTest extends TestCase {
       WaveId.of("example.com", "append-guard-wave"),
       WaveletId.of("example.com", "conv+root"));
 
-  public void testMongo4StoreDisablesWritesWhenUniqueIndexDropFails() throws Exception {
+  public void testMongo4StoreDoesNotAttemptRuntimeIndexMigration() throws Exception {
     MongoDatabase database = mock(MongoDatabase.class);
     @SuppressWarnings("unchecked")
     MongoCollection<Document> collection = mock(MongoCollection.class);
+    @SuppressWarnings("unchecked")
+    MongoCollection<Document> guardCollection = mock(MongoCollection.class);
+    @SuppressWarnings("unchecked")
+    FindIterable<Document> guardQuery = mock(FindIterable.class);
     when(database.getCollection("deltas")).thenReturn(collection);
+    when(database.getCollection("mongoMigrationGuards")).thenReturn(guardCollection);
+    when(guardCollection.find(any(Bson.class))).thenReturn(guardQuery);
+    when(guardQuery.first()).thenReturn(null);
 
-    MongoException conflict = new MongoException(85,
-        "index already exists with different options");
-    MongoException dropFailure = new MongoException("drop failed");
-    doAnswer(invocation -> {
-      IndexOptions options = invocation.getArgument(1);
-      if (Boolean.TRUE.equals(options.isUnique())) {
-        throw conflict;
-      }
-      return "ok";
-    }).when(collection).createIndex(any(Bson.class), any(IndexOptions.class));
-    doThrow(dropFailure).when(collection).dropIndex(any(String.class));
+    new Mongo4DeltaStore(database).open(NAME);
+
+    verify(collection, never()).createIndex(any(Bson.class), any(IndexOptions.class));
+    verify(collection, never()).dropIndex(any(String.class));
+  }
+
+  public void testMongo4StoreDisablesWritesWhenMigrationGuardDocumentIsPresent() throws Exception {
+    MongoDatabase database = mock(MongoDatabase.class);
+    @SuppressWarnings("unchecked")
+    MongoCollection<Document> deltaCollection = mock(MongoCollection.class);
+    @SuppressWarnings("unchecked")
+    MongoCollection<Document> guardCollection = mock(MongoCollection.class);
+    @SuppressWarnings("unchecked")
+    FindIterable<Document> guardQuery = mock(FindIterable.class);
+    @SuppressWarnings("unchecked")
+    ListIndexesIterable<Document> indexes = mock(ListIndexesIterable.class);
+    when(database.getCollection("deltas")).thenReturn(deltaCollection);
+    when(database.getCollection("mongoMigrationGuards")).thenReturn(guardCollection);
+    when(guardCollection.find(any(Bson.class))).thenReturn(guardQuery);
+    when(guardQuery.first()).thenReturn(
+        new Document("_id", MongoMigrationGuardStore.DELTA_APPEND_GUARD_ID)
+            .append(MongoMigrationGuardStore.MESSAGE_FIELD, "refusing new delta writes"));
+    when(deltaCollection.listIndexes()).thenReturn(indexes);
+    doAnswer(invocation -> invocation.getArgument(0)).when(indexes).into(any(List.class));
 
     DeltaStore.DeltasAccess access = new Mongo4DeltaStore(database).open(NAME);
 
@@ -77,9 +104,6 @@ public final class MongoDeltaStoreAppendGuardTest extends TestCase {
     } catch (PersistenceException e) {
       assertTrue(e.getMessage().contains("Refusing delta writes"));
       assertTrue(e.getMessage().contains("refusing new delta writes"));
-      assertNotNull(e.getCause());
-      assertNotNull(e.getCause().getCause());
-      assertTrue(e.getCause().getCause().getMessage().contains("drop failed"));
     }
   }
 
@@ -112,28 +136,6 @@ public final class MongoDeltaStoreAppendGuardTest extends TestCase {
       assertNotNull(e.getCause().getCause());
       assertTrue(e.getCause().getCause().getMessage().contains("drop failed"));
     }
-  }
-
-  public void testMongo4StoreTreatsIndexKeySpecsConflictAsUpgradeable() throws Exception {
-    MongoDatabase database = mock(MongoDatabase.class);
-    @SuppressWarnings("unchecked")
-    MongoCollection<Document> collection = mock(MongoCollection.class);
-    when(database.getCollection("deltas")).thenReturn(collection);
-
-    MongoException conflict = new MongoException(86,
-        "same name as the requested index");
-    AtomicInteger uniqueAttempts = new AtomicInteger();
-    doAnswer(invocation -> {
-      IndexOptions options = invocation.getArgument(1);
-      if (Boolean.TRUE.equals(options.isUnique()) && uniqueAttempts.getAndIncrement() == 0) {
-        throw conflict;
-      }
-      return "ok";
-    }).when(collection).createIndex(any(Bson.class), any(IndexOptions.class));
-
-    DeltaStore.DeltasAccess access = new Mongo4DeltaStore(database).open(NAME);
-
-    access.append(Collections.emptyList());
   }
 
   public void testMongoDbStoreTreatsIndexKeySpecsConflictAsUpgradeable() throws Exception {

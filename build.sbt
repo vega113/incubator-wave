@@ -177,6 +177,7 @@ lazy val ProtobufV       = "3.25.3"
 lazy val Slf4jV          = "2.0.13"
 lazy val LogbackV        = "1.5.6"
 lazy val MongoV4         = "4.11.1"
+lazy val MongockV        = "5.5.1"
 lazy val LuceneV         = "9.12.1"
 
 libraryDependencies ++= Seq(
@@ -195,6 +196,10 @@ libraryDependencies ++= Seq(
 
   // --- Protobuf ---
   "com.google.protobuf"            % "protobuf-java"              % ProtobufV,
+
+  // --- Mongo migrations ---
+  "io.mongock"                     % "mongock-standalone"         % MongockV,
+  "io.mongock"                     % "mongodb-sync-v4-driver"     % MongockV,
 
   // --- Guava & Guice ---
   "com.google.guava"               % "guava"                      % GuavaV,
@@ -260,10 +265,8 @@ libraryDependencies ++= Seq(
 
   // --- Persistence ---
   "javax.jdo"                      % "jdo2-api"                   % "2.1",
-  "org.mongodb"                    % "mongo-java-driver"          % "2.11.2" % Provided,  // compile-only; excluded from runtime (Gradle runtimeClasspath.exclude)
+  "org.mongodb"                    % "mongodb-driver-legacy"      % MongoV4,
   "org.mongodb"                    % "mongodb-driver-sync"        % MongoV4,
-  "io.mongock"                     % "mongock-standalone"         % "5.5.1",
-  "io.mongock"                     % "mongodb-sync-v4-driver"     % "5.5.1",
 
   // --- Cache ---
   "com.github.ben-manes.caffeine"  % "caffeine"                   % "3.1.8",
@@ -303,9 +306,9 @@ excludeDependencies ++= Seq(
   ExclusionRule("commons-logging",          "commons-logging")
 )
 
-// Exclude legacy mongo-java-driver from runtime (compile-only for migration code).
-// We declare it as Compile-only (not Runtime) in libraryDependencies instead.
-// The Gradle build uses configurations.runtimeClasspath.exclude for this.
+// Keep both the sync and legacy MongoDB 4.x driver surfaces on one BSON version.
+// The legacy API backs MongoDbStore / MongoDbDeltaStore, while the sync API powers
+// Mongo4DbProvider and Mongock startup migrations.
 
 // ---------------------------------------------------------------------------
 // Dependency overrides: pin transitive versions for alignment
@@ -320,6 +323,7 @@ dependencyOverrides ++= Seq(
   // Guava alignment
   "com.google.guava"   % "guava"            % GuavaV,
   // MongoDB 4.x driver alignment
+  "org.mongodb"        % "mongodb-driver-legacy" % MongoV4,
   "org.mongodb"        % "bson"               % MongoV4,
   "org.mongodb"        % "mongodb-driver-core" % MongoV4,
   "org.mongodb"        % "mongodb-driver-sync" % MongoV4
@@ -343,7 +347,14 @@ Test / testOptions += Tests.Filter { name =>
   val isMongo = name.contains(".mongodb.")
   val isFederation = name.contains(".wave.federation.")
   val isPersistence = name.contains(".server.persistence.")
-  val isAllowedPersistence = name.contains(".server.persistence.memory.") || name.contains(".server.persistence.file.") || name.contains(".server.persistence.protos.")
+  val isAllowedPersistence = (
+    name.contains(".server.persistence.memory.")
+      || name.contains(".server.persistence.file.")
+      || name.contains(".server.persistence.protos.")
+      || name.endsWith(".MongoMigrationRunnerTest")
+      || name.endsWith(".MongoMigrationBaselineTest")
+      || name.endsWith(".MongoDeltaStoreAppendGuardTest")
+  )
   isJUnit && !isGwt && !isLarge && !isStress && !isMongo && !isFederation && (!isPersistence || isAllowedPersistence)
 }
 

@@ -111,8 +111,7 @@ public final class MongoMigrationConfig {
     return isMongoStoreType(signerInfoStoreType)
         || isMongoStoreType(attachmentStoreType)
         || isMongoStoreType(accountStoreType)
-        || isMongoStoreType(deltaStoreType)
-        || isMongoStoreType(contactStoreType);
+        || isMongoStoreType(deltaStoreType);
   }
 
   public boolean usesMongoDeltaStore() {
@@ -124,6 +123,8 @@ public final class MongoMigrationConfig {
   }
 
   public boolean usesMongoContactMessageStore() {
+    // ContactMessageStore follows account-store wiring in PersistenceModule, so
+    // contact-message migrations key off accountStoreType rather than contactStoreType.
     return isMongoStoreType(accountStoreType) && isMongoV4Driver();
   }
 

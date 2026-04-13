@@ -23,15 +23,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import com.mongodb.DB;
-import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoException;
 
 import org.waveprotocol.box.server.persistence.PersistenceStartException;
 import org.waveprotocol.wave.util.logging.Log;
-
-import java.net.UnknownHostException;
-
 /**
  * Class to lazily setup and manage the MongoDb connection.
  *
@@ -42,16 +38,14 @@ public class MongoDbProvider {
   private static final Log LOG = Log.get(MongoDbProvider.class);
 
   private String dbHost;
-
   private String dbPort;
-
   private String dbName;
 
   /**
    * Our {@link MongoClient} instance, should be accessed by getMongo unless during
    * start().
    */
-  private Mongo mongo;
+  private MongoClient mongo;
 
   /**
    * Lazily instantiated {@link MongoDbStore}.
@@ -63,7 +57,7 @@ public class MongoDbProvider {
    */
   private MongoDbDeltaStore mongoDbDeltaStore;
 
-  /** Stores whether we have successfully setup a live {@link Mongo} instance. */
+  /** Stores whether we have successfully setup a live {@link MongoClient} instance. */
   private boolean isRunning;
 
   /**
@@ -76,7 +70,7 @@ public class MongoDbProvider {
   }
 
   /**
-   * Starts the {@link Mongo} instance and explicitly checks whether it is
+   * Starts the {@link MongoClient} instance and explicitly checks whether it is
    * actually alive.
    *
    * @throws PersistenceStartException if we can't make a connection to MongoDb.
@@ -86,12 +80,8 @@ public class MongoDbProvider {
 
     String host = dbHost;
     int port = Integer.parseInt(dbPort);
-    try {
-      // New MongoDB Client, see http://docs.mongodb.org/manual/release-notes/drivers-write-concern/
-      mongo = new MongoClient(host, port);
-    } catch (UnknownHostException e) {
-      throw new PersistenceStartException("Unable to resolve the MongoDb hostname", e);
-    }
+    // New MongoDB Client, see http://docs.mongodb.org/manual/release-notes/drivers-write-concern/
+    mongo = new MongoClient(host, port);
 
     try {
       // Check to see if we are alive
@@ -124,9 +114,9 @@ public class MongoDbProvider {
   }
 
   /**
-   * Return the {@link Mongo} instance that we are managing.
+   * Return the {@link MongoClient} instance that we are managing.
    */
-  private Mongo getMongo() {
+  private MongoClient getMongo() {
     if (!isRunning) {
       start();
     }

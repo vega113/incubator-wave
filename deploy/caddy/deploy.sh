@@ -35,6 +35,8 @@ registry_host=${GHCR_REGISTRY_HOST:-ghcr.io}
 deploy_env_file="$deploy_root/shared/deploy.env"
 lock_file="$deploy_root/deploy.lock"
 COMPOSE_FILE="$deploy_root/releases/current/compose.yml"
+MONGO_MIGRATION_MARKER_SUPPORT_FILE="mongo-migration-marker-supported"
+MONGO_MIGRATION_MARKER_LABEL="org.waveprotocol.mongo-migration-marker-supported"
 
 require_docker() {
   command -v docker >/dev/null 2>&1 || {
@@ -296,6 +298,21 @@ render_slot_config() {
   cp "$deploy_root/releases/current/application.conf" "$slot_dir/application.conf"
   perl -pi -e "s/wave\\.example\\.test/${canonical_host}/g" "$slot_dir/application.conf"
   echo "${WAVE_IMAGE:?}" > "$slot_dir/image-ref"
+  if image_supports_mongo_migration_marker; then
+    : > "$slot_dir/${MONGO_MIGRATION_MARKER_SUPPORT_FILE}"
+  else
+    rm -f "$slot_dir/${MONGO_MIGRATION_MARKER_SUPPORT_FILE}"
+  fi
+}
+
+image_supports_mongo_migration_marker() {
+  local marker_value
+  marker_value="$(
+    docker image inspect \
+      --format "{{ index .Config.Labels \"$MONGO_MIGRATION_MARKER_LABEL\" }}" \
+      "${WAVE_IMAGE:?}" 2>/dev/null || true
+  )"
+  [ "$marker_value" = "true" ]
 }
 
 start_target_slot() {
@@ -341,6 +358,68 @@ wait_for_slot_health() {
     fi
     sleep "$sleep_seconds"
   done
+  return 1
+}
+
+slot_requires_mongo_migration_verification() {
+  local slot=$1
+  local config_file="$deploy_root/releases/${slot}/application.conf"
+  [ -f "$config_file" ] || return 1
+
+  # Strip whole-line and inline HOCON comment fragments before matching so
+  # that commented-out examples (e.g. "# mongodb_driver = v4") or inline
+  # tails (e.g. "foo = bar # account_store_type = mongodb") do not trigger
+  # the gate. The second sed preserves "://" in URLs by requiring a
+  # non-colon before "//".
+  local effective_config
+  effective_config="$(grep -Ev '^[[:space:]]*(#|//)' "$config_file" \
+    | sed 's/[[:space:]]*#.*//' \
+    | sed 's|\([^:]\) *//.*|\1|')"
+
+  # Accept both bare keys (inside a `core { }` block) and dotted-path form
+  # (e.g. `core.mongodb_driver = "v4"`) since both are valid HOCON.
+  printf '%s\n' "$effective_config" \
+    | grep -Eqi '(^|[[:space:],{])(core\.)?mongodb_driver[[:space:]]*[:=][[:space:]]*"?v4"?([[:space:]}]|,|$)' || return 1
+  printf '%s\n' "$effective_config" \
+    | grep -Eqi \
+      '(^|[[:space:],{])(core\.)?(signer_info_store_type|attachment_store_type|account_store_type|delta_store_type)[[:space:]]*[:=][[:space:]]*"?mongodb"?([[:space:]}]|,|$)' \
+    || return 1
+}
+
+slot_supports_mongo_migration_marker() {
+  local slot=$1
+  [ -f "$deploy_root/releases/${slot}/${MONGO_MIGRATION_MARKER_SUPPORT_FILE}" ]
+}
+
+verify_mongo_migration_completion() {
+  local slot=$1
+  local container_id started_at
+  if ! slot_requires_mongo_migration_verification "$slot"; then
+    return 0
+  fi
+  # Allow rollbacks to N-1 bundles that predate the Mongock startup marker.
+  if ! slot_supports_mongo_migration_marker "$slot"; then
+    return 0
+  fi
+
+  container_id="$(dc ps -q "wave-${slot}" 2>/dev/null | head -n1)"
+  if [[ -z "$container_id" ]]; then
+    echo "[deploy] ERROR: unable to determine current container id for wave-${slot}" >&2
+    return 1
+  fi
+
+  started_at="$(docker inspect --format '{{.State.StartedAt}}' "$container_id" 2>/dev/null || true)"
+  if [[ -z "$started_at" ]]; then
+    echo "[deploy] ERROR: unable to determine current startup time for wave-${slot}" >&2
+    return 1
+  fi
+
+  if dc logs --no-color --since "$started_at" "wave-${slot}" 2>&1 \
+      | grep -Fq "Completed Mongock Mongo schema migrations"; then
+    return 0
+  fi
+
+  echo "[deploy] ERROR: wave-${slot} did not report Mongo migration completion" >&2
   return 1
 }
 
@@ -563,6 +642,11 @@ deploy_release() {
     exit 1
   fi
 
+  if ! verify_mongo_migration_completion "$TARGET_SLOT"; then
+    dc stop "wave-${TARGET_SLOT}" 2>/dev/null || true
+    exit 1
+  fi
+
   if ! sanity_check_slot "$TARGET_PORT"; then
     echo "[deploy] ERROR: ${TARGET_SLOT} sanity check failed"
     dc stop "wave-${TARGET_SLOT}" 2>/dev/null || true
@@ -617,6 +701,9 @@ rollback_release() {
     fi
     if ! wait_for_slot_health "$prev_port"; then
       echo "[deploy] ERROR: Previous slot health check failed"
+      exit 1
+    fi
+    if ! verify_mongo_migration_completion "$prev"; then
       exit 1
     fi
   fi

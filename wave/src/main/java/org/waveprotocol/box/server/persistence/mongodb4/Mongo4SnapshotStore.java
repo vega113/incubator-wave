@@ -22,8 +22,6 @@ package org.waveprotocol.box.server.persistence.mongodb4;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
-import com.mongodb.client.model.IndexOptions;
-import com.mongodb.client.model.Indexes;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Sorts;
 import org.bson.Document;
@@ -56,13 +54,6 @@ public class Mongo4SnapshotStore implements SnapshotStore {
 
   public Mongo4SnapshotStore(MongoDatabase database) {
     this.collection = database.getCollection(COLLECTION_NAME);
-    // Ensure compound index for fast lookups
-    collection.createIndex(
-        Indexes.compoundIndex(
-            Indexes.ascending(FIELD_WAVE_ID),
-            Indexes.ascending(FIELD_WAVELET_ID),
-            Indexes.descending(FIELD_VERSION)),
-        new IndexOptions().background(true));
   }
 
   @Override

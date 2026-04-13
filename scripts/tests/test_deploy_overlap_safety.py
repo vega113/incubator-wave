@@ -278,6 +278,10 @@ set -euo pipefail
 	cmd="$*"
 	{stop_fail_checks}
 	{ps_error_checks}
+if [[ "$cmd" == *"image inspect --format"* && "$cmd" == *"ghcr.io/example/wave:test"* ]]; then
+  printf 'true\\n'
+  exit 0
+fi
 	case "$cmd" in
   "compose version")
     exit 0
@@ -289,10 +293,34 @@ set -euo pipefail
     printf '{{"Service":"caddy","State":"running"}}\\n'
     exit 0
     ;;
+  *" ps -q wave-blue"*)
+    printf 'wave-blue-id\\n'
+    exit 0
+    ;;
+  *" ps -q wave-green"*)
+    printf 'wave-green-id\\n'
+    exit 0
+    ;;
   *" up -d wave-green"*)
     exit 0
     ;;
   *" up -d wave-blue"*)
+    exit 0
+    ;;
+  *"inspect --format "*wave-blue-id*)
+    printf '2026-04-13T11:00:00Z\\n'
+    exit 0
+    ;;
+  *"inspect --format "*wave-green-id*)
+    printf '2026-04-13T11:00:00Z\\n'
+    exit 0
+    ;;
+  *" logs --no-color "*wave-blue*)
+    printf 'Completed Mongock Mongo schema migrations\n'
+    exit 0
+    ;;
+  *" logs --no-color "*wave-green*)
+    printf 'Completed Mongock Mongo schema migrations\n'
     exit 0
     ;;
   *" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile"*)

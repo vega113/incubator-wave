@@ -84,6 +84,11 @@ Mandatory worktree constraints:
 - Respect private/sensitive data boundaries in logs and command output.
 - Keep verification proportional and relevant to changed behavior.
 
+## Mongo Migration Work
+- When a task changes Mongo collections, indexes, or startup convergence behavior, consult `docs/runbooks/mongo-migrations.md` before editing runtime stores.
+- Put compatible startup changes in Mongock change units under `wave/src/main/java/org/waveprotocol/box/server/persistence/migrations/changesets/`; do not hide new schema mutations in store constructors or ad hoc startup hooks.
+- Keep destructive or operator-reviewed repair work out of automatic startup migrations. Those belong in a manual runbook or one-off repair tool.
+
 ## Review Command
 - Use `claude-review` for required external review passes (plan and implementation review checkpoints).
 - Keep review evidence in the linked GitHub Issue: findings, resolutions, and rerun outcome when applicable.
