@@ -50,6 +50,7 @@ public class Mongo4DeltaStore implements DeltaStore {
 
   private static final java.util.logging.Logger LOG = java.util.logging.Logger.getLogger(Mongo4DeltaStore.class.getName());
   private static final int INDEX_OPTIONS_CONFLICT = 85;
+  private static final int INDEX_KEY_SPECS_CONFLICT = 86;
   private static final String APPLIED_AT_VERSION_INDEX_NAME =
       Mongo4DeltaStoreUtil.FIELD_WAVE_ID + "_1_" + Mongo4DeltaStoreUtil.FIELD_WAVELET_ID
           + "_1_" + Mongo4DeltaStoreUtil.FIELD_TRANSFORMED_APPLIEDATVERSION + "_1";
@@ -160,6 +161,7 @@ public class Mongo4DeltaStore implements DeltaStore {
 
   private boolean isIndexOptionsConflict(MongoException error) {
     return error.getCode() == INDEX_OPTIONS_CONFLICT
+        || error.getCode() == INDEX_KEY_SPECS_CONFLICT
         || error.getMessage().contains("already exists with different options");
   }
 
