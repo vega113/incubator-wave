@@ -129,15 +129,25 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(javaSource.contains("toolbar.setOverflowEnabled(false);"));
   }
 
-  public void testOverflowDisabledAppliesNowrapInlineStyle() throws Exception {
+  public void testOverflowDisabledDoesNotForceSingleRowOrHorizontalScroll() throws Exception {
     String javaSource = read(
         "wave/src/main/java/org/waveprotocol/wave/client/widget/toolbar/ToplevelToolbarWidget.java");
 
-    // When overflow is disabled, flex-wrap: nowrap must be set as an inline style on the
-    // toolbar element so that buttons cannot wrap to a second row and breach the 36px contract.
-    // The shared CSS keeps flex-wrap: wrap so OverflowPanelUpdater can detect wrapping via offsetTop.
-    assertTrue(javaSource.contains("setProperty(\"flexWrap\", \"nowrap\")"));
-    assertTrue(javaSource.contains("clearProperty(\"flexWrap\")"));
+    assertFalse(javaSource.contains("setProperty(\"flexWrap\", \"nowrap\")"));
+    assertFalse(javaSource.contains("setProperty(\"overflowX\", \"auto\")"));
+    assertFalse(javaSource.contains("setProperty(\"overflowY\", \"hidden\")"));
+  }
+
+  public void testSearchPanelTracksActualToolbarHeightWhenLayoutChanges() throws Exception {
+    String javaSource = read(
+        "wave/src/main/java/org/waveprotocol/box/webclient/search/SearchPanelWidget.java");
+
+    assertTrue(javaSource.contains("toolbar.getElement().getOffsetTop() + toolbar.getElement().getOffsetHeight()"));
+    assertTrue(javaSource.contains("waveCount.getStyle().setTop("));
+    assertTrue(javaSource.contains("list.getStyle().setTop("));
+    assertTrue(javaSource.contains("Scheduler.get().scheduleDeferred"));
+    assertTrue(javaSource.contains("Window.addResizeHandler"));
+    assertTrue(javaSource.contains("ResizeObserver"));
   }
 
   public void testWaveToolbarsDoNotDisableOverflowByDefault() throws Exception {
