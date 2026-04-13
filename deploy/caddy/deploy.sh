@@ -353,6 +353,8 @@ slot_requires_mongo_migration_verification() {
     | sed 's/[[:space:]]*#.*//' \
     | sed 's|\([^:]\) *//.*|\1|')"
 
+  # Accept both bare keys (inside a `core { }` block) and dotted-path form
+  # (e.g. `core.mongodb_driver = "v4"`) since both are valid HOCON.
   printf '%s\n' "$effective_config" \
     | grep -Eqi '(^|[[:space:],{])(core\.)?mongodb_driver[[:space:]]*[:=][[:space:]]*"?v4"?([[:space:]}]|,|$)' || return 1
   printf '%s\n' "$effective_config" \
