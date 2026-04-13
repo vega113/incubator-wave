@@ -19,6 +19,7 @@
 
 package org.waveprotocol.box.server.persistence.migrations.changesets;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -44,6 +45,21 @@ public final class BaselineMongoSchemaChangeUnitTest {
     changeUnit.execution();
 
     verify(contactMessages, times(2)).createIndex(org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  public void testExecutionDoesNotTouchRemovedAnalyticsCollection() {
+    MongoCollection<Document> databaseAnalytics = collection();
+    MongoDatabase database = mock(MongoDatabase.class);
+    when(database.getCollection("contact_messages")).thenReturn(collection());
+    when(database.getCollection("deltas")).thenReturn(collection());
+    when(database.getCollection("snapshots")).thenReturn(collection());
+    when(database.getCollection("analytics_hourly")).thenReturn(databaseAnalytics);
+
+    new BaselineMongoSchema_001(database, mongoContactMessageConfig()).execution();
+
+    verify(database, never()).getCollection("analytics_hourly");
+    verify(databaseAnalytics, never()).createIndex(org.mockito.ArgumentMatchers.any());
   }
 
   private static BaselineMongoSchema_001 changeUnit(MongoMigrationConfig config,

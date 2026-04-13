@@ -1,5 +1,6 @@
 package org.waveprotocol.box.server.persistence;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -29,7 +30,6 @@ public class MongoMigrationBaselineTest {
   private static final String DELTAS_COLLECTION = "deltas";
   private static final String SNAPSHOTS_COLLECTION = "snapshots";
   private static final String CONTACT_MESSAGES_COLLECTION = "contact_messages";
-  private static final String ANALYTICS_COLLECTION = "analytics_hourly";
   private static final String CHANGELOG_COLLECTION = "mongockChangeLog";
   private static final String LOCK_COLLECTION = "mongockLock";
   private static final String APPLIED_VERSION_INDEX_NAME =
@@ -66,13 +66,15 @@ public class MongoMigrationBaselineTest {
           new Document("createdAt", -1)));
       assertNotNull(findIndex(database.getCollection(CONTACT_MESSAGES_COLLECTION),
           new Document("status", 1)));
-      assertUniqueIndex(database.getCollection(ANALYTICS_COLLECTION), new Document("hour", 1));
+      List<String> collectionNames = database.listCollectionNames().into(new ArrayList<>());
+      assertFalse("analytics_hourly should not be recreated by the Mongo baseline migration",
+          collectionNames.contains("analytics_hourly"));
       assertTrue(
           "missing collection " + CHANGELOG_COLLECTION,
-          database.listCollectionNames().into(new ArrayList<>()).contains(CHANGELOG_COLLECTION));
+          collectionNames.contains(CHANGELOG_COLLECTION));
       assertTrue(
           "missing collection " + LOCK_COLLECTION,
-          database.listCollectionNames().into(new ArrayList<>()).contains(LOCK_COLLECTION));
+          collectionNames.contains(LOCK_COLLECTION));
     } finally {
       closeQuietly(module);
       stopQuietly(mongo);
@@ -140,7 +142,6 @@ public class MongoMigrationBaselineTest {
             + "  mongodb_port = " + mongo.getMappedPort(27017) + "\n"
             + "  mongodb_database = \"wiab_migration_it\"\n"
             + "  mongodb_driver = \"v4\"\n"
-            + "  analytics_counters_enabled = true\n"
             + "}\n");
   }
 
