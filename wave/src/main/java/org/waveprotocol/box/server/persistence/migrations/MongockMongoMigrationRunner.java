@@ -19,6 +19,7 @@
 
 package org.waveprotocol.box.server.persistence.migrations;
 
+import com.mongodb.MongoException;
 import com.mongodb.ReadPreference;
 import com.mongodb.client.MongoDatabase;
 import io.mongock.driver.mongodb.sync.v4.driver.MongoSync4Driver;
@@ -87,7 +88,14 @@ final class MongockMongoMigrationRunner implements MongoMigrationRunner {
   }
 
   static boolean shouldDisableTransactions(MongoDatabase database) {
-    Document topology = database.runCommand(new Document("isMaster", 1));
-    return !topology.containsKey("setName") && !"isdbgrid".equals(topology.getString("msg"));
+    try {
+      Document topology = database.runCommand(new Document("isMaster", 1));
+      return !topology.containsKey("setName") && !"isdbgrid".equals(topology.getString("msg"));
+    } catch (MongoException e) {
+      LOG.warning(
+          "Could not determine MongoDB topology for Mongock; disabling transactions. Cause: "
+              + e.getMessage());
+      return true;
+    }
   }
 }
