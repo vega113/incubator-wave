@@ -68,11 +68,10 @@ public final class ViewToolbar {
       + "<circle cx=\"12\" cy=\"12\" r=\"9\"></circle>"
       + "<path d=\"M12 7v5l-3 2\"></path></svg>";
 
-  /** Next Unread: bell with a small dot indicator. */
+  /** Next Unread: chevron with unread-accent dot for clearer directional meaning. */
   private static final String ICON_NEXT_UNREAD = SVG_OPEN
-      + "<path d=\"M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9\"></path>"
-      + "<path d=\"M13.73 21a2 2 0 0 1-3.46 0\"></path>"
-      + "<circle cx=\"18\" cy=\"5\" r=\"2.5\" fill=\"currentColor\" stroke=\"none\"></circle></svg>";
+      + "<path d=\"M9 7l6 5-6 5\"></path>"
+      + "<circle cx=\"18\" cy=\"12\" r=\"2.25\" fill=\"#00b4d8\" stroke=\"none\"></circle></svg>";
 
   /** Previous: chevron-up. */
   private static final String ICON_PREV = SVG_OPEN

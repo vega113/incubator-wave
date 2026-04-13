@@ -187,6 +187,21 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertFalse(javaSource.contains("<path d=\\\"M3.51 15a9 9 0 1 0 2.13-9.36L1 10\\\"></path></svg>"));
   }
 
+  public void testViewToolbarNextUnreadIconUsesChevronAndUnreadAccentDot() throws Exception {
+    String javaSource = read(
+        "wave/src/main/java/org/waveprotocol/wave/client/wavepanel/impl/toolbar/ViewToolbar.java");
+
+    assertTrue(javaSource.contains("private static final String ICON_NEXT_UNREAD = SVG_OPEN"));
+    assertTrue(javaSource.contains("<path d=\\\"M9 7l6 5-6 5\\\"></path>"));
+    assertTrue(javaSource.contains(
+        "<circle cx=\\\"18\\\" cy=\\\"12\\\" r=\\\"2.25\\\" fill=\\\"#00b4d8\\\" stroke=\\\"none\\\"></circle></svg>"));
+    assertFalse(javaSource.contains(
+        "<path d=\\\"M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9\\\"></path>"));
+    assertFalse(javaSource.contains("<path d=\\\"M13.73 21a2 2 0 0 1-3.46 0\\\"></path>"));
+    assertFalse(javaSource.contains(
+        "<circle cx=\\\"18\\\" cy=\\\"5\\\" r=\\\"2.5\\\" fill=\\\"currentColor\\\" stroke=\\\"none\\\"></circle></svg>"));
+  }
+
   public void testViewToolbarMentionDirectionIconsUseExplicitArrowGlyphs() throws Exception {
     String javaSource = read(
         "wave/src/main/java/org/waveprotocol/wave/client/wavepanel/impl/toolbar/ViewToolbar.java");
