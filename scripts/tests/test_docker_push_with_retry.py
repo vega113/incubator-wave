@@ -168,19 +168,21 @@ exit 1
       self.assertIn("failed after 3 attempts", f"{result.stdout}\n{result.stderr}")
 
   def test_build_mock_command_env_prepends_fake_bin_and_resolved_bash_dir(self):
-    fake_bin = Path("/tmp/fake-bin")
-    bash_path = "/tmp/custom-bash/bash"
+    with tempfile.TemporaryDirectory(prefix="docker-push-retry-env-") as tmp_dir:
+      temp_dir = Path(tmp_dir)
+      fake_bin = temp_dir / "fake-bin"
+      bash_path = str(temp_dir / "custom-bash" / "bash")
 
-    with patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}):
-      env = self._build_mock_command_env(
-          bash_path=bash_path,
-          fake_bin=fake_bin,
+      with patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}):
+        env = self._build_mock_command_env(
+            bash_path=bash_path,
+            fake_bin=fake_bin,
+        )
+
+      self.assertEqual(
+          f"{fake_bin}{os.pathsep}{Path(bash_path).parent}{os.pathsep}/usr/bin:/bin",
+          env["PATH"],
       )
-
-    self.assertEqual(
-        f"{fake_bin}{os.pathsep}{Path(bash_path).parent}{os.pathsep}/usr/bin:/bin",
-        env["PATH"],
-    )
 
   def test_rejects_invalid_retry_configuration(self):
     bash_path = self._bash_path()
