@@ -80,6 +80,25 @@ core {
     # Without Mongo gate the deploy reaches the sanity env-var guard.
     self.assertIn("SANITY_ADDRESS and SANITY_PASSWORD must both be set", combined)
 
+  def test_deploy_ignores_partial_value_matches_for_migration_gate(self):
+    """Regex must not match extended values like 'v42' or 'mongodbx'."""
+    result = self._run_deploy(
+        log_output="wave started without migration marker\n",
+        application_conf="""\
+core {
+  mongodb_driver = "v42"
+  account_store_type = "mongodbx"
+  delta_store_type = file
+}
+""",
+    )
+
+    # Gate should NOT have fired (values are not exact); deploy proceeds to
+    # sanity env-var check.
+    combined = f"{result.stdout}\n{result.stderr}"
+    self.assertNotIn("did not report Mongo migration completion", combined)
+    self.assertIn("SANITY_ADDRESS and SANITY_PASSWORD must both be set", combined)
+
   def test_deploy_ignores_stale_migration_marker_from_previous_startup(self):
     result = self._run_deploy(
         log_output="wave started without migration marker\n",
