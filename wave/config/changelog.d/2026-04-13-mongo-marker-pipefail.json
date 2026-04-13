@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-13-mongo-marker-pipefail",
+  "version": "PR #887",
+  "date": "2026-04-13",
+  "title": "Avoid false Mongo migration marker failures on SIGPIPE",
+  "summary": "Deploy verification now treats a matched Mongock completion marker as success even when the Docker logs pipeline exits with SIGPIPE after `grep -q` stops reading.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Deployment marker verification now captures recent container logs before searching for the Mongock completion message so `set -o pipefail` does not turn a successful match into a failure",
+        "Added regression coverage for the `docker compose logs --since ... | grep -q` SIGPIPE path that previously misreported completed migrations as missing"
+      ]
+    }
+  ]
+}
