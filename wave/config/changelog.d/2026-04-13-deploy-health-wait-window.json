@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-13-deploy-health-wait-window",
+  "version": "PR #883",
+  "date": "2026-04-13",
+  "title": "Restore deploy health wait window",
+  "summary": "Blue-green deploys now wait up to seven minutes for the target slot to report healthy, with the poll interval and timeout still configurable through environment variables.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Restored the default slot health wait window from the old 180-second cutoff to 420 seconds so slower Lucene-backed startups can finish before deploys abort",
+        "Kept the slot health polling interval and timeout configurable through deploy environment variables without requiring script edits"
+      ]
+    }
+  ]
+}
