@@ -315,8 +315,8 @@ wait_for_slot_health() {
     echo "[deploy] ERROR: WAVE_SLOT_HEALTH_INTERVAL_SECONDS must be a positive integer (got: '${interval_seconds}')" >&2
     return 1
   fi
-  if ! [[ "$timeout_seconds" =~ ^[0-9]+$ ]]; then
-    echo "[deploy] ERROR: WAVE_SLOT_HEALTH_TIMEOUT_SECONDS must be a non-negative integer (got: '${timeout_seconds}')" >&2
+  if ! [[ "$timeout_seconds" =~ ^(0|[1-9][0-9]*)$ ]]; then
+    echo "[deploy] ERROR: WAVE_SLOT_HEALTH_TIMEOUT_SECONDS must be a non-negative integer without leading zeros (got: '${timeout_seconds}')" >&2
     return 1
   fi
   local retries=1
