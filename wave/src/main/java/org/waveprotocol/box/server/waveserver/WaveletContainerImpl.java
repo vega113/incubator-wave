@@ -105,7 +105,7 @@ abstract class WaveletContainerImpl implements WaveletContainer {
   private final CountDownLatch loadLatch = new CountDownLatch(1);
   /** Is set at most once, before loadLatch is counted down. */
   private WaveletState waveletState;
-  private State state = State.LOADING;
+  private volatile State state = State.LOADING;
 
   /**
    * Constructs an empty WaveletContainer for a wavelet.

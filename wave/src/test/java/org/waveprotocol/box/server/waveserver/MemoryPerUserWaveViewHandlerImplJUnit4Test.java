@@ -21,11 +21,14 @@ package org.waveprotocol.box.server.waveserver;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
 /**
  * JUnit4 wrapper so sbt/junit-interface discovers the
  * {@link MemoryPerUserWaveViewHandlerImplTest} cases reliably.
  */
+@RunWith(JUnit4.class)
 public class MemoryPerUserWaveViewHandlerImplJUnit4Test
     extends MemoryPerUserWaveViewHandlerImplTest {
 
