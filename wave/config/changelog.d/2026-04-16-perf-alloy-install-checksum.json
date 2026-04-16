@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-16-perf-alloy-install-checksum",
+  "version": "PR #892",
+  "date": "2026-04-16",
+  "title": "Fix perf Alloy archive verification",
+  "summary": "The performance workflow now verifies and unpacks the same Grafana Alloy archive filename so checksum validation does not fail before the perf job starts.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Aligned the perf workflow's Alloy checksum verification and unzip steps on the same architecture-specific archive filename"
+      ]
+    }
+  ]
+}
