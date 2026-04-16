@@ -26,11 +26,30 @@
 FROM eclipse-temurin:17-jre
 LABEL org.waveprotocol.mongo-migration-marker-supported="true"
 ENV WAVE_HOME=/opt/wave
-RUN groupadd --system wave \
-    && apt-get update -qq \
-    && apt-get install -y -qq curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --gid wave --home-dir ${WAVE_HOME} --shell /usr/sbin/nologin wave
+# apt-get is wrapped in a retry loop because Ubuntu mirrors occasionally
+# serve stale index files during a mirror sync, causing hash-mismatch
+# errors ("File has unexpected size ... Mirror sync in progress?") that
+# fail the whole deploy. The retry loop with backoff rides out such
+# transient windows (typically a few minutes). Acquire::Retries handles
+# flaky connections within a single apt invocation; the outer loop
+# handles hash-mismatch errors across mirror sync windows.
+RUN set -eu; \
+    groupadd --system wave; \
+    apt_opts='-o Acquire::Retries=3 -o Acquire::http::Timeout=30'; \
+    attempt=1; max_attempts=5; \
+    until apt-get update -qq $apt_opts \
+          && apt-get install -y -qq --no-install-recommends $apt_opts curl; do \
+      if [ "$attempt" -ge "$max_attempts" ]; then \
+        echo "apt-get failed after $max_attempts attempts" >&2; \
+        exit 1; \
+      fi; \
+      delay=$((attempt * 10)); \
+      echo "apt-get failed on attempt $attempt/$max_attempts, retrying in ${delay}s..." >&2; \
+      sleep "$delay"; \
+      attempt=$((attempt + 1)); \
+    done; \
+    rm -rf /var/lib/apt/lists/*; \
+    useradd --system --gid wave --home-dir ${WAVE_HOME} --shell /usr/sbin/nologin wave
 WORKDIR ${WAVE_HOME}
 COPY --chown=wave:wave . ${WAVE_HOME}/
 RUN mkdir -p ${WAVE_HOME}/logs && chown wave:wave ${WAVE_HOME}/logs
