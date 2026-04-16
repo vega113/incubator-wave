@@ -81,14 +81,14 @@
   pointer-events: none;
 }
 
+.enabled:hover > .overlay {
+  background-color: rgba(0, 119, 182, 0.08);
+}
+
 .enabled.down > .overlay,
 .enabled:active > .overlay {
   background-color: rgba(0, 119, 182, 0.1);
   border: 1px solid rgba(0, 119, 182, 0.25);
-}
-
-.enabled:hover > .overlay {
-  background-color: rgba(0, 119, 182, 0.08);
 }
 
 .visualElement {
