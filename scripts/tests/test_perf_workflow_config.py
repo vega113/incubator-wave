@@ -65,6 +65,7 @@ class PerfWorkflowConfigTest(unittest.TestCase):
     install_step = self._step_window(workflow, "Install Grafana Alloy")
 
     self.assertIn('curl -fsSL -o "$RUNNER_TEMP/alloy-linux-amd64.zip" \\', install_step)
+    self.assertIn("grep 'alloy-linux-amd64.zip$' SHA256SUMS | sha256sum -c -", install_step)
     self.assertIn('unzip -q "$RUNNER_TEMP/alloy-linux-amd64.zip"', install_step)
 
   def test_perf_workflow_scopes_secrets_away_from_job_env(self):
