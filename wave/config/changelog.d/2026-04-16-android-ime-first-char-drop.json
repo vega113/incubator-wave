@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-16-android-ime-first-char-drop",
+  "version": "PR #891",
+  "date": "2026-04-16",
+  "title": "Preserve every word when typing into a blip on Android",
+  "summary": "Android Chrome and Brave were silently dropping the first character of every composed word (typing \"new blip\" produced \"ewlip\") because the editor's mutation handler was activating the typing extractor mid-composition. The IME composition flow now owns DOM character mutations between compositionstart and compositionend, so the typing extractor no longer stomps on the IME scratch container as it is torn down.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Android IME composition no longer drops the first character of each word when typing into a new or existing blip",
+        "DOM character mutations that arrive between compositionstart and compositionend are now handled exclusively by the composition flow, avoiding a stale typing-extractor state that survived compositionend"
+      ]
+    }
+  ]
+}

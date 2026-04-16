@@ -34,6 +34,7 @@ import org.waveprotocol.wave.client.common.util.SignalEvent.KeyModifier;
 import org.waveprotocol.wave.client.common.util.SignalEvent.KeySignalType;
 import org.waveprotocol.wave.client.common.util.SignalKeyLogic;
 import org.waveprotocol.wave.client.common.util.UserAgent;
+import org.waveprotocol.wave.client.editor.constants.BrowserEvents;
 import org.waveprotocol.wave.client.editor.content.ContentElement;
 import org.waveprotocol.wave.client.editor.content.ContentNode;
 import org.waveprotocol.wave.client.editor.content.ContentPoint;
@@ -1007,6 +1008,42 @@ public class EditorEventHandlerGwtTest
     assertEquals(EditorEventHandler.State.COMPOSITION, handler.getState());
     assertFalse(handler.handleEvent(mutation));
     assertEquals(EditorEventHandler.State.NORMAL, handler.getState());
+
+    interactor.checkExpectations();
+  }
+
+  /**
+   * Android Chrome fires the first DOMCharacterDataModified of a composed
+   * word while the selection is still collapsed, before the browser has
+   * promoted the composing word into a range. The composition flow owns
+   * text insertion in this state, so the typing extractor must not be
+   * started here. Previously it was, and the resulting TypingState
+   * survived compositionend, dereferenced the torn-down IME scratch
+   * container on the next forceFlush, and dropped the first character of
+   * every composed word (typing "new blip" produced "ewlip").
+   */
+  public void testDomCharacterMutationDuringCompositionSkipsTypingExtractor() {
+    FakeEditorEvent compositionStart = FakeEditorEvent.compositionSequence(0)[0];
+    FakeEditorEvent mutation = FakeEditorEvent.create(BrowserEvents.DOMCharacterDataModified);
+
+    Point<ContentNode> caret = Point.inText(
+        new ContentTextNode(Document.get().createTextNode("n"), null), 1);
+    FocusedContentRange collapsedSelection = new FocusedContentRange(caret);
+
+    FakeEditorInteractor interactor = setupFakeEditorInteractor(collapsedSelection);
+    FakeEditorEventsSubHandler subHandler = new FakeEditorEventsSubHandler();
+    subHandler.call(FakeEditorEventsSubHandler.HANDLE_DOM_MUTATION).anyOf();
+    interactor.call(FakeEditorInteractor.COMPOSITION_START).nOf(1).withArgs(caret);
+    // NOTIFYING_TYPING_EXTRACTOR is intentionally not declared — the mutation
+    // during composition must not activate the typing extractor.
+
+    EditorEventHandler handler = createEditorEventHandler(interactor, subHandler);
+
+    assertFalse(handler.handleEvent(compositionStart));
+    assertEquals(EditorEventHandler.State.COMPOSITION, handler.getState());
+
+    assertFalse(handler.handleEvent(mutation));
+    assertEquals(EditorEventHandler.State.COMPOSITION, handler.getState());
 
     interactor.checkExpectations();
   }
