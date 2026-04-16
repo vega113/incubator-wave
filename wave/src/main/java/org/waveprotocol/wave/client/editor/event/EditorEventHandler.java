@@ -310,7 +310,22 @@ public final class EditorEventHandler {
               return false;
             }
 
-            if (cachedSelection.isCollapsed()
+            if (state == State.COMPOSITION) {
+              // The IME composition flow owns DOM character mutations while
+              // we are between compositionstart and compositionend. On
+              // Android Chrome the first such mutation arrives while the
+              // selection is still collapsed (the browser has not yet
+              // promoted the composing word into a range), so the
+              // non-collapsed guard above does not short-circuit. If we
+              // started the typing extractor here its TypingState would
+              // survive compositionend, reference the IME scratch container
+              // that is about to be torn down, and the next forceFlush would
+              // drop the first character of every composed word (typing
+              // "new blip" would yield "ewlip").
+              logger.trace().logPlainText(
+                  "Ignoring DOM character mutation during IME composition; "
+                      + "composition flow owns this mutation");
+            } else if (cachedSelection.isCollapsed()
                 && delayedCompositionMutationGuard.shouldSkipDomCharacterMutation()) {
               logger.trace().logPlainText(
                   "Ignoring DOM character mutation immediately after IME composition end");
