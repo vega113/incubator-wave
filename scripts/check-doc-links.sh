@@ -11,6 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT_REAL="$(cd "$REPO_ROOT" && pwd -P)"
 DOCS_DIR="$REPO_ROOT/docs"
 
 # Directories excluded from link checking (frozen snapshots with
@@ -48,6 +49,16 @@ is_excluded() {
   return 1
 }
 
+canonicalize_existing_path() {
+  local candidate="$1"
+  local parent
+
+  [ -e "$candidate" ] || return 1
+
+  parent="$(cd "$(dirname "$candidate")" && pwd -P)" || return 1
+  printf '%s/%s\n' "$parent" "$(basename "$candidate")"
+}
+
 # extract_links FILE
 # Outputs: LINE_NUMBER<space>TARGET for each markdown link in FILE,
 # skipping URLs, mailto, and anchor-only references.
@@ -55,6 +66,10 @@ extract_links() {
   local file="$1"
   awk '
   BEGIN { in_fence = 0 }
+
+  function is_fence_line(value) {
+    return value ~ /^[[:space:]]*(```|~~~)/
+  }
 
   function trim(value) {
     sub(/^[[:space:]]+/, "", value)
@@ -85,10 +100,11 @@ extract_links() {
 
     return value
   }
-
-  /^[[:space:]]*```/ { in_fence = !in_fence; next }
-
   {
+    if (is_fence_line($0)) {
+      in_fence = !in_fence
+      next
+    }
     if (in_fence) next
     line = $0
     lnum = NR
@@ -126,8 +142,12 @@ while IFS= read -r md_file; do
 
     total=$((total + 1))
 
-    if [ ! -e "$resolved" ]; then
+    if ! canonical_resolved="$(canonicalize_existing_path "$resolved")"; then
       echo "[doc-links] FAIL: $rel_file:$line_num -> $target (file not found)"
+      broken=$((broken + 1))
+      failures="yes"
+    elif [[ "$canonical_resolved" != "$REPO_ROOT_REAL" && "$canonical_resolved" != "$REPO_ROOT_REAL/"* ]]; then
+      echo "[doc-links] FAIL: $rel_file:$line_num -> $target (outside repository root)"
       broken=$((broken + 1))
       failures="yes"
     fi

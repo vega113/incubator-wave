@@ -110,6 +110,41 @@ class DocGuardrailsScriptTest(unittest.TestCase):
     self.assertEqual(0, result.returncode)
     self.assertIn("[doc-links] 0 links checked, 0 broken", result.stdout)
 
+  def test_check_doc_links_ignores_fenced_code_blocks(self) -> None:
+    self._write("docs/real.md", "# Real\n")
+    self._write(
+        "docs/guide.md",
+        textwrap.dedent(
+            """
+            ```md
+            [Literal example](missing.md)
+            ```
+
+            [Real link](real.md)
+            """
+        ).strip()
+        + "\n",
+    )
+
+    result = self._run_script(CHECK_DOC_LINKS.name)
+
+    self.assertEqual(0, result.returncode)
+    self.assertIn("[doc-links] 1 links checked, 0 broken", result.stdout)
+
+  def test_check_doc_links_rejects_targets_outside_repo_root(self) -> None:
+    outside_doc = self.temp_dir / "outside.md"
+    outside_doc.write_text("# Outside\n", encoding="utf-8")
+    self._write("docs/guide.md", "[Escape](../../outside.md)\n")
+
+    result = self._run_script(CHECK_DOC_LINKS.name)
+
+    self.assertEqual(1, result.returncode)
+    self.assertIn(
+        "[doc-links] FAIL: docs/guide.md:1 -> ../../outside.md (outside repository root)",
+        result.stdout,
+    )
+    self.assertIn("[doc-links] 1 links checked, 1 broken", result.stdout)
+
   def test_check_doc_freshness_stops_after_covered_docs_section(self) -> None:
     self._write(
         "docs/DOC_REGISTRY.md",
