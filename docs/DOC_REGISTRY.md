@@ -9,7 +9,7 @@ registry and fails CI when any listed doc is missing or has incomplete metadata.
 Every covered doc must have these four fields within the first 10 lines of
 the file (before or after the opening `#` heading):
 
-```
+```text
 Status: <value>
 Owner: <value>
 Updated: <YYYY-MM-DD>

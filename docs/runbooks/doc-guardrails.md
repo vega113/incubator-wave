@@ -5,8 +5,8 @@ Review cadence: quarterly
 
 # Doc Guardrails
 
-Two shell scripts enforce documentation quality in CI. Both run on every
-PR targeting `main` and block merge on failure.
+Two shell scripts enforce documentation quality in CI. Both run on pushes
+and PRs targeting `main` and `master` and block merge on failure.
 
 ## What the checks do
 
@@ -47,7 +47,7 @@ bash scripts/check-doc-freshness.sh
 2. Add the four metadata fields within the first 10 lines of the new doc
    (before or after the opening `#` heading):
 
-   ```
+   ```text
    Status: Current
    Owner: Project Maintainers
    Updated: 2026-04-17
@@ -67,7 +67,7 @@ bash scripts/check-doc-freshness.sh
 
 ### Broken link failure
 
-```
+```text
 [doc-links] FAIL: docs/runbooks/README.md:19 -> ../DEV_SETUP_TYPO.md (file not found)
 ```
 
@@ -77,7 +77,7 @@ or create the missing file.
 
 ### Missing metadata failure
 
-```
+```text
 [doc-freshness] FAIL: docs/runbooks/browser-verification.md — missing: Owner:, Review cadence:
 ```
 
