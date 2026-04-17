@@ -55,7 +55,7 @@ Canonical/authoritative docs referenced by runbooks or marked Canonical:
 - docs/architecture/README.md
 - docs/deployment/README.md
 
-Total: 15 files.
+Total: 16 files.
 
 ## Check Algorithms
 
@@ -86,7 +86,7 @@ Output format:
 Output format:
 ```
 [doc-freshness] FAIL: docs/runbooks/browser-verification.md — missing: Owner, Updated, Review cadence
-[doc-freshness] OK: 15 covered docs checked, all complete
+[doc-freshness] OK: 16 covered docs checked, all complete
 ```
 
 ## CI Wiring
@@ -101,7 +101,7 @@ New `.github/workflows/doc-guardrails.yml`:
 1. `scripts/check-doc-links.sh`
 2. `scripts/check-doc-freshness.sh`
 3. `docs/DOC_REGISTRY.md`
-4. Metadata headers added to all 15 covered docs
+4. Metadata headers added to all 16 covered docs
 5. `.github/workflows/doc-guardrails.yml`
 6. `docs/runbooks/doc-guardrails.md`
 7. Updated `docs/DEV_SETUP.md` and `docs/runbooks/README.md`

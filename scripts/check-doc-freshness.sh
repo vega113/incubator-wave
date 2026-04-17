@@ -27,6 +27,9 @@ while IFS= read -r line; do
     in_section=1
     continue
   fi
+  if [[ "$in_section" -eq 1 && "$line" == "## "* ]]; then
+    break
+  fi
   [ "$in_section" -eq 0 ] && continue
 
   # Skip blanks, comments, and HTML comment lines

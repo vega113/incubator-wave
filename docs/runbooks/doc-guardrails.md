@@ -94,5 +94,5 @@ references in historical snapshots), add it to the `EXCLUDE_FILES` or
 ## CI wiring
 
 The checks run in `.github/workflows/doc-guardrails.yml` as blocking steps
-on PRs targeting `main`. Neither step uses `continue-on-error` — any
-failure blocks merge.
+on push to `main` or `master` and on PRs targeting either branch. Neither
+step uses `continue-on-error` — any failure blocks merge.
