@@ -54,6 +54,8 @@ is_excluded() {
 extract_links() {
   local file="$1"
   awk '
+  BEGIN { in_fence = 0 }
+
   function trim(value) {
     sub(/^[[:space:]]+/, "", value)
     sub(/[[:space:]]+$/, "", value)
@@ -84,7 +86,10 @@ extract_links() {
     return value
   }
 
+  /^[[:space:]]*```/ { in_fence = !in_fence; next }
+
   {
+    if (in_fence) next
     line = $0
     lnum = NR
     while (match(line, /\[[^\]]*\]\([^)]+\)/)) {
