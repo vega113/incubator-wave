@@ -100,6 +100,45 @@ extract_links() {
 
     return value
   }
+
+  function extract_next_target(text,   start, open_index, target_start, i, ch, depth) {
+    link_found = 0
+    link_complete = 0
+    link_match_end = 0
+
+    start = match(text, /\[[^][]*\]\(/)
+    if (!start) {
+      return ""
+    }
+
+    link_found = 1
+    open_index = start + RLENGTH - 1
+    target_start = open_index + 1
+    depth = 1
+
+    for (i = target_start; i <= length(text); i++) {
+      ch = substr(text, i, 1)
+
+      if (ch == "\\" && i < length(text)) {
+        i++
+        continue
+      }
+
+      if (ch == "(") {
+        depth++
+      } else if (ch == ")") {
+        depth--
+        if (depth == 0) {
+          link_complete = 1
+          link_match_end = i
+          return substr(text, target_start, i - target_start)
+        }
+      }
+    }
+
+    link_match_end = open_index
+    return ""
+  }
   {
     if (is_fence_line($0)) {
       in_fence = !in_fence
@@ -108,12 +147,13 @@ extract_links() {
     if (in_fence) next
     line = $0
     lnum = NR
-    while (match(line, /\[[^\]]*\]\([^)]+\)/)) {
-      full = substr(line, RSTART, RLENGTH)
-      paren = index(full, "(")
-      target = strip_markdown_title(substr(full, paren + 1, length(full) - paren - 1))
-      line = substr(line, RSTART + RLENGTH)
+    while (1) {
+      target = extract_next_target(line)
+      if (!link_found) break
+      line = substr(line, link_match_end + 1)
+      if (!link_complete) continue
       if (target == "") continue
+      target = strip_markdown_title(target)
       if (target ~ /^https?:\/\// || target ~ /^mailto:/) continue
       if (target ~ /^#/) continue
       print lnum " " target

@@ -145,6 +145,15 @@ class DocGuardrailsScriptTest(unittest.TestCase):
     )
     self.assertIn("[doc-links] 1 links checked, 1 broken", result.stdout)
 
+  def test_check_doc_links_accepts_balanced_parentheses_in_targets(self) -> None:
+    self._write("docs/foo(bar).md", "# API\n")
+    self._write("docs/guide.md", "[API](foo(bar).md)\n")
+
+    result = self._run_script(CHECK_DOC_LINKS.name)
+
+    self.assertEqual(0, result.returncode)
+    self.assertIn("[doc-links] 1 links checked, 0 broken", result.stdout)
+
   def test_check_doc_freshness_stops_after_covered_docs_section(self) -> None:
     self._write(
         "docs/DOC_REGISTRY.md",
