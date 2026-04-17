@@ -1,7 +1,9 @@
 # Runbooks Map
 
 Status: Canonical
+Owner: Project Maintainers
 Updated: 2026-04-10
+Review cadence: quarterly
 
 Use this map for procedures you are expected to follow step by step: local
 setup, smoke checks, deployment, and operational routines.

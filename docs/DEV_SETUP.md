@@ -1,3 +1,8 @@
+Status: Current
+Owner: Project Maintainers
+Updated: 2026-04-17
+Review cadence: quarterly
+
 # Developer Setup (JDK 17, SBT, Protobuf)
 
 This guide helps you build and run the Apache Wave server on JDK 17.
