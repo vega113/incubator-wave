@@ -45,6 +45,11 @@ setup, smoke checks, deployment, and operational routines.
 - [`../deployment/email-deliverability-supawave.md`](../deployment/email-deliverability-supawave.md)
 - [`../deployment/mongo-hardening.md`](../deployment/mongo-hardening.md)
 
+## CI Guardrails
+
+- [`doc-guardrails.md`](doc-guardrails.md)
+  - Blocking doc-link and owner/freshness checks enforced on every PR.
+
 ## Operational Procedures
 
 - [`../pr-monitor-lanes.md`](../pr-monitor-lanes.md)

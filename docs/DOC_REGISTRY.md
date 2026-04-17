@@ -36,6 +36,7 @@ docs/runbooks/change-type-verification-matrix.md
 docs/runbooks/mongo-migrations.md
 docs/runbooks/worktree-diagnostics.md
 docs/runbooks/worktree-lane-lifecycle.md
+docs/runbooks/doc-guardrails.md
 docs/README.md
 docs/DEV_SETUP.md
 docs/BUILDING-sbt.md

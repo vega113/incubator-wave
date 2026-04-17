@@ -36,6 +36,14 @@ Existing-worktree lane bootstrap
   initializes the gitignored local-verification record under
   `journal/local-verification/`.
 
+Doc guardrails
+- Two shell scripts enforce doc quality and run in CI on every PR:
+  - `bash scripts/check-doc-links.sh` — checks for broken markdown links under `docs/`.
+  - `bash scripts/check-doc-freshness.sh` — checks that covered docs listed in
+    `docs/DOC_REGISTRY.md` have required owner/freshness metadata.
+- Run both locally before pushing doc changes.
+- See [`docs/runbooks/doc-guardrails.md`](runbooks/doc-guardrails.md) for details.
+
 Troubleshooting
 - If SBT cannot find a suitable JDK, ensure JAVA_HOME is set to a JDK 17 and/or install via sdkman.
 - For protobuf errors, ensure you ran `sbt pst/assembly` before `sbt wave/compile` if building tasks individually.
