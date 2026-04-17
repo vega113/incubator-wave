@@ -78,6 +78,27 @@ class DocGuardrailsScriptTest(unittest.TestCase):
     )
     self.assertIn("[doc-links] 1 links checked, 1 broken", result.stdout)
 
+  def test_check_doc_links_ignores_fenced_code_block_links(self) -> None:
+    self._write("README.md", "# Root\n")
+    self._write(
+        "docs/guide.md",
+        textwrap.dedent(
+            """
+            [README](../README.md)
+
+            ```
+            [Broken](nonexistent.md)
+            ```
+            """
+        ).strip()
+        + "\n",
+    )
+
+    result = self._run_script(CHECK_DOC_LINKS.name)
+
+    self.assertEqual(0, result.returncode)
+    self.assertIn("[doc-links] 1 links checked, 0 broken", result.stdout)
+
   def test_check_doc_links_skips_excluded_directories(self) -> None:
     self._write(
         "docs/superpowers/plans/frozen.md",
@@ -158,6 +179,49 @@ class DocGuardrailsScriptTest(unittest.TestCase):
         result.stdout,
     )
     self.assertIn("[doc-freshness] 1 covered docs checked, 1 incomplete", result.stdout)
+
+  def test_check_doc_freshness_requires_markers_within_first_10_lines(self) -> None:
+    self._write(
+        "docs/DOC_REGISTRY.md",
+        textwrap.dedent(
+            """
+            ## Covered docs
+
+            docs/runbooks/example.md
+            """
+        ).strip()
+        + "\n",
+    )
+    self._write(
+        "docs/runbooks/example.md",
+        textwrap.dedent(
+            """
+            # Example Doc
+
+            Line three.
+            Line four.
+            Line five.
+            Line six.
+            Line seven.
+            Line eight.
+            Line nine.
+            Line ten.
+            Status: Current
+            Owner: Project Maintainers
+            Updated: 2026-04-17
+            Review cadence: quarterly
+            """
+        ).strip()
+        + "\n",
+    )
+
+    result = self._run_script(CHECK_DOC_FRESHNESS.name)
+
+    self.assertEqual(1, result.returncode)
+    self.assertIn(
+        "[doc-freshness] FAIL: docs/runbooks/example.md — missing: Status:, Owner:, Updated:, Review cadence:",
+        result.stdout,
+    )
 
   def _run_script(self, script_name: str) -> subprocess.CompletedProcess[str]:
     return run_command(
