@@ -525,10 +525,16 @@ public class ServerRpcProvider {
             // Static resources: resolve sub-directories for /static and /webclient
             Resource staticResource = null;
             Resource webclientResource = null;
+            Resource j2clSearchResource = null;
+            Resource j2clDebugResource = null;
+            Resource j2clResource = null;
             try {
                 if (baseResource != null) {
                     staticResource = baseResource.resolve("static/");
                     webclientResource = baseResource.resolve("webclient/");
+                    j2clSearchResource = baseResource.resolve("j2cl-search/");
+                    j2clDebugResource = baseResource.resolve("j2cl-debug/");
+                    j2clResource = baseResource.resolve("j2cl/");
                 }
             } catch (Exception ignore) {}
             if ((staticResource == null || !staticResource.exists()) && resourceBases != null) {
@@ -537,6 +543,10 @@ public class ServerRpcProvider {
             if ((webclientResource == null || !webclientResource.exists()) && resourceBases != null) {
                 webclientResource = resolveResource(ResourceFactory.of(context), "webclient");
             }
+            // J2CL sidecar resources are opt-in build artifacts: only serve them if they
+            // were explicitly built under war/j2cl-*.  No resolveResource fallback here —
+            // that fallback does relative-path resolution which would incorrectly match the
+            // j2cl/ Maven source directory at repo root when artifacts are absent.
 
             // Jetty 12 EE10: use ResourceServlet (not DefaultServlet) for non-root
             // path mappings.  DefaultServlet is reserved for the "/" mapping and will
@@ -595,6 +605,10 @@ public class ServerRpcProvider {
             }
             context.addServlet(webclientHolder, "/webclient/*");
 
+            addJ2clServlet(context, "jakarta-j2cl-search", j2clSearchResource, "/j2cl-search", "/j2cl-search/*");
+            addJ2clServlet(context, "jakarta-j2cl-debug", j2clDebugResource, "/j2cl-debug", "/j2cl-debug/*");
+            addJ2clServlet(context, "jakarta-j2cl", j2clResource, "/j2cl", "/j2cl/*");
+
             // Minimal Jakarta replacements for server-side GWT services
             addServlet("/webclient/remote_logging", org.waveprotocol.box.server.rpc.RemoteLoggingJakartaServlet.class);
             addServlet(org.waveprotocol.box.stat.StatService.STAT_URL, org.waveprotocol.box.server.stat.StatuszJakartaServlet.class);
@@ -615,6 +629,9 @@ public class ServerRpcProvider {
 
                 org.eclipse.jetty.ee10.servlet.FilterHolder cacheNo = new org.eclipse.jetty.ee10.servlet.FilterHolder(new NoCacheFilter());
                 context.addFilter(cacheNo, "/webclient/*", java.util.EnumSet.allOf(DispatcherType.class));
+                context.addFilter(cacheNo, "/j2cl-search/*", java.util.EnumSet.allOf(DispatcherType.class));
+                context.addFilter(cacheNo, "/j2cl-debug/*", java.util.EnumSet.allOf(DispatcherType.class));
+                context.addFilter(cacheNo, "/j2cl/*", java.util.EnumSet.allOf(DispatcherType.class));
 
                 // JWT session restoration: when the HTTP session is lost (e.g. after a deploy)
                 // but the browser still has a valid wave-session-jwt cookie, this filter
@@ -827,6 +844,38 @@ public class ServerRpcProvider {
 
     public ServletHolder addServlet(String urlPattern, Class<?> servlet) {
         return addServlet(urlPattern, servlet, null);
+    }
+
+    private static void addJ2clServlet(
+            ServletContextHandler context,
+            String holderName,
+            @Nullable Resource resource,
+            String displayPath,
+            String mapping) {
+        if (resource == null || !resource.exists()) {
+            // Return explicit 404 so requests to this path fail clearly rather than
+            // falling through to the root app and returning 200 HTML.
+            String msg = displayPath + " artifacts not built — run the sidecar build first";
+            ServletHolder notFound = new ServletHolder(holderName + "-404", new HttpServlet() {
+                @Override
+                protected void service(
+                        jakarta.servlet.http.HttpServletRequest req,
+                        jakarta.servlet.http.HttpServletResponse resp)
+                        throws java.io.IOException {
+                    resp.sendError(jakarta.servlet.http.HttpServletResponse.SC_NOT_FOUND, msg);
+                }
+            });
+            context.addServlet(notFound, mapping);
+            LOG.info(displayPath + " artifacts absent — serving 404 for " + mapping);
+            return;
+        }
+        ServletHolder holder = new ServletHolder(holderName, ResourceServlet.class);
+        holder.setInitParameter("etags", "true");
+        holder.setInitParameter("cacheControl", "no-cache, no-store, must-revalidate");
+        holder.setInitParameter("dirAllowed", "false");
+        holder.setInitParameter("baseResource", resource.getURI().toString());
+        context.addServlet(holder, mapping);
+        LOG.info("Serving " + displayPath + " from " + resource);
     }
 
     private void configureMultipartIfNeeded(ServletHolder holder, Class<? extends HttpServlet> servletClass) {
