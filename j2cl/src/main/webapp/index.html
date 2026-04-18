@@ -39,8 +39,12 @@
 
       function renderFallback(mode) {
         var summary = document.querySelector("[data-sidecar-summary]");
+        var detail = document.querySelector(".sidecar-detail");
         if (summary) {
-          summary.textContent = "Profile " + mode + " writes isolated assets without changing the root runtime bootstrap.";
+          summary.textContent = "Waiting for the generated " + mode + " sidecar bundle to mount.";
+        }
+        if (detail) {
+          detail.textContent = "If this placeholder remains visible, the J2CL bundle did not load and this page is not a valid sidecar verification result.";
         }
       }
 
@@ -51,6 +55,7 @@
           summary.style.color = "#c0392b";
         }
       }
+
 
       function mountWhenReady(attemptsRemaining) {
         if (window.WaveSandboxEntryPoint && window.WaveSandboxEntryPoint.mount) {
