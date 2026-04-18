@@ -839,11 +839,18 @@ def runCmd(log: Logger)(cmd: Seq[String], cwd: File): Unit = {
 def runJ2clWrapper(log: Logger, base: File, profile: String, goal: String): Unit = {
   val isWindows = scala.util.Properties.isWin
   val wrapper = if (isWindows) base / "j2cl" / "mvnw.cmd" else base / "j2cl" / "mvnw"
+  val pom = base / "j2cl" / "pom.xml"
+  if (!wrapper.exists() || !wrapper.isFile || (!isWindows && !wrapper.canExecute)) {
+    sys.error(s"[j2cl] missing or non-executable wrapper: ${wrapper.getAbsolutePath}")
+  }
+  if (!pom.exists() || !pom.isFile) {
+    sys.error(s"[j2cl] missing pom.xml: ${pom.getAbsolutePath}")
+  }
   val cmd =
     if (isWindows) {
-      Seq("cmd", "/c", wrapper.getAbsolutePath, "-f", (base / "j2cl" / "pom.xml").getAbsolutePath, s"-P$profile", "-q", goal)
+      Seq("cmd", "/c", wrapper.getAbsolutePath, "-f", pom.getAbsolutePath, s"-P$profile", "-q", goal)
     } else {
-      Seq(wrapper.getAbsolutePath, "-f", (base / "j2cl" / "pom.xml").getAbsolutePath, s"-P$profile", "-q", goal)
+      Seq(wrapper.getAbsolutePath, "-f", pom.getAbsolutePath, s"-P$profile", "-q", goal)
     }
   val code = Process(cmd, base).!(ProcessLogger(s => log.info(s), e => log.error(e)))
   if (code != 0) sys.error(s"[j2cl] ${profile}:${goal} failed with exit code $code")
