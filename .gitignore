@@ -46,6 +46,10 @@ war/org*
 wave/war/WEB-INF/
 wave/war/webclient/
 wave/war/org*
+### Build output — J2CL sidecar artifacts
+war/j2cl/
+war/j2cl-search/
+war/j2cl-debug/
 distributions/
 ### Reports
 reports/
