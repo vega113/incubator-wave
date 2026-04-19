@@ -3,6 +3,7 @@
 Status: Canonical
 Owner: Project Maintainers
 Updated: 2026-04-19
+Review cadence: quarterly
 
 This runbook covers the local verification path for the merged J2CL sidecar
 work. It is the right procedure when a change touches `j2cl/`, the sidecar
@@ -34,12 +35,21 @@ sbt -batch j2clSandboxBuild j2clSandboxTest
 sbt -batch j2clSearchBuild j2clSearchTest
 ```
 
+If the change touches generated transport/message families, also run:
+
+```bash
+sbt -batch generatePstMessages "testOnly org.waveprotocol.pst.PstCodegenContractTest"
+```
+
 Use these expectations:
 
 - `j2clSandboxBuild` / `j2clSandboxTest`
   - proves the base sidecar sandbox still packages and its smoke tests pass
 - `j2clSearchBuild` / `j2clSearchTest`
   - proves the merged J2CL search slice still packages and its unit tests pass
+- `generatePstMessages` + `PstCodegenContractTest`
+  - proves the sidecar-safe generated codec families still match the repo's
+    authoritative PST contract when transport/search schemas change
 
 For production-profile output only:
 
@@ -100,12 +110,13 @@ below.
 While the server is running:
 
 ```bash
-curl -sS -I http://localhost:9900/
-curl -sS -I http://localhost:9900/webclient/webclient.nocache.js
-curl -sS -I http://localhost:9900/j2cl-search/index.html
-curl -sS -I http://localhost:9900/j2cl/index.html
-# Optional — only present when j2clSandboxBuild was also run
-curl -sS -I http://localhost:9900/j2cl-debug/index.html
+curl -fsS -o /dev/null http://localhost:9900/
+curl -fsS -o /dev/null http://localhost:9900/webclient/webclient.nocache.js
+curl -fsS -o /dev/null http://localhost:9900/j2cl-search/index.html
+curl -fsS -o /dev/null http://localhost:9900/j2cl/index.html
+curl -fsS http://localhost:9900/j2cl-search/sidecar/j2cl-sidecar.js | grep -E "WaveSandboxEntryPoint|j2cl"
+# Optional — run this only when j2clSandboxBuild was also run
+curl -fsS -o /dev/null http://localhost:9900/j2cl-debug/index.html
 ```
 
 Expected result:
@@ -114,6 +125,7 @@ Expected result:
 - `/webclient/webclient.nocache.js` is present
 - `/j2cl-search/index.html` is present
 - `/j2cl/index.html` is present (production sidecar artifact from `Universal/stage`)
+- the J2CL search bundle itself is present and non-placeholder
 - `/j2cl-debug/index.html` is present only if `j2clSandboxBuild` was run; not required by the standard gate
 
 ## Manual Browser Verification
