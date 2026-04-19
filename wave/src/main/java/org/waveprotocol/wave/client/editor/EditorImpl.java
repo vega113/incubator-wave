@@ -1243,9 +1243,9 @@ public class EditorImpl extends LogicalPanel.Impl implements
       EditorStaticDeps.startIgnoreMutations();
       if (caret != null) {
         imeExtractor.activate(content.getContext(), caret);
+        annotationLogic.supplementAnnotations(mutable().getLocation(caret), currentSelectionBias,
+            ContentType.PLAIN_TEXT);
       }
-      annotationLogic.supplementAnnotations(mutable().getLocation(caret), currentSelectionBias,
-          ContentType.PLAIN_TEXT);
     }
 
     @Override

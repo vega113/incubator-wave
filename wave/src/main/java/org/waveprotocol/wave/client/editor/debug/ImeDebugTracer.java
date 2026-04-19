@@ -74,6 +74,7 @@ public final class ImeDebugTracer {
 
   private static final String FLAG_ON = "on";
   private static final int MAX_OVERLAY_LINES = 200;
+  private static final int MAX_FIELD_LEN = 120;
 
   private static boolean initialized = false;
   private static boolean enabled = false;
@@ -227,7 +228,13 @@ public final class ImeDebugTracer {
       if (value == null) {
         buf.append("null");
       } else {
-        buf.append('"').append(escape(value)).append('"');
+        boolean truncated = value.length() > MAX_FIELD_LEN;
+        String v = truncated ? value.substring(0, MAX_FIELD_LEN) : value;
+        buf.append('"').append(escape(v));
+        if (truncated) {
+          buf.append('\u2026');
+        }
+        buf.append('"');
       }
       return this;
     }
