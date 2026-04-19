@@ -256,6 +256,7 @@ public interface StageThree {
 
         @Override
         public void onReset() {
+          clearMobileChromePreferenceBridge();
         }
       });
       installMobileChromePreferenceBridge(stageTwo.getSupplement());
@@ -271,6 +272,10 @@ public interface StageThree {
       DraftModeController.install(panel, actions, edit);
       stageTwo.getDiffController().upgrade(edit);
     }
+
+    private static native void clearMobileChromePreferenceBridge() /*-{
+      $wnd.__waveMobileChromePrefs = null;
+    }-*/;
 
     private static native void installMobileChromePreferenceBridge(
         org.waveprotocol.wave.client.wave.LocalSupplementedWave supplement) /*-{

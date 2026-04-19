@@ -341,6 +341,15 @@ public final class ThreadNavigationPresenter {
       return;
     }
 
+    // Refresh pixel width on already-focused threads so resize/rotation is reflected.
+    if (!navigationStack.isEmpty()) {
+      NavigationEntry top = navigationStack.get(navigationStack.size() - 1);
+      Element topElement = Document.get().getElementById(top.getThreadId());
+      if (topElement != null) {
+        applyFocusedThreadStyles(topElement);
+      }
+    }
+
     String focusedBlipId =
         extractHistoryParam(History.getToken(), ThreadNavigationHistory.HISTORY_PARAM_FOCUS);
     if (focusedBlipId != null && !focusedBlipId.isEmpty()) {
