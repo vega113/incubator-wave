@@ -34,12 +34,21 @@ sbt -batch j2clSandboxBuild j2clSandboxTest
 sbt -batch j2clSearchBuild j2clSearchTest
 ```
 
+If the change touches generated transport/message families, also run:
+
+```bash
+sbt -batch generatePstMessages "testOnly org.waveprotocol.pst.PstCodegenContractTest"
+```
+
 Use these expectations:
 
 - `j2clSandboxBuild` / `j2clSandboxTest`
   - proves the base sidecar sandbox still packages and its smoke tests pass
 - `j2clSearchBuild` / `j2clSearchTest`
   - proves the merged J2CL search slice still packages and its unit tests pass
+- `generatePstMessages` + `PstCodegenContractTest`
+  - proves the sidecar-safe generated codec families still match the repo's
+    authoritative PST contract when transport/search schemas change
 
 For production-profile output only:
 

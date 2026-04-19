@@ -70,10 +70,12 @@ docs and tracker so future work starts from the real baseline.
 
 Deliverables:
 
-- refresh `#904` or replace it with a new post-`#901` tracker issue
+- refresh `#904` in place or replace it with a new post-`#901` tracker issue
 - update the stale J2CL inventory/decision/preparatory docs so they stop saying
   there is no `j2cl/` tree or no sidecar build
 - keep one canonical list of remaining migration slices
+- mark the completed `#899` / `#900` / `#903` / `#902` / `#898` / `#901`
+  sequence clearly so the tracker no longer reads like current pending work
 
 Exit criteria:
 
@@ -88,9 +90,11 @@ the J2CL sidecar, not a root cutover.
 Deliverables:
 
 - add a J2CL-owned content panel beside the search results
-- clicking a digest opens the selected wave in the sidecar route
+- clicking a digest opens the selected wave in the current sidecar session
 - reuse the sidecar transport stack to keep the selected wave live
 - keep the scope read-only: rendering, unread state, and updates, but no edit
+- keep selection in-memory only for this slice; durable URL/history state belongs
+  to the next slice
 
 Why this next:
 
@@ -103,6 +107,7 @@ Exit criteria:
 - `/j2cl-search/index.html` supports inbox/search + open selected wave
 - live updates still arrive on the opened wave
 - `/` remains GWT and still passes the normal compile/stage/smoke gates
+- reload/deep-link persistence is still explicitly out of scope here
 
 ### Slice 2: J2CL Split-View Shell And Route State
 
@@ -115,6 +120,7 @@ Deliverables:
 - support reload/deep-link behavior inside the J2CL route
 - preserve the existing root bootstrap and session reuse model
 - establish the sidecar shell layout that future slices will extend
+- do not widen this slice into editor/write-path work
 
 Exit criteria:
 
@@ -155,6 +161,8 @@ Deliverables:
 - feature flag or explicit opt-in route for J2CL root bootstrap
 - production-safe fallback to the legacy GWT bootstrap
 - one dual-run verification matrix for both bootstrap modes
+- keep GWT as the default bootstrap in this slice; default cutover belongs to the
+  next slice
 
 Exit criteria:
 
@@ -193,6 +201,8 @@ Deliverables:
 - retire `compileGwt` from the packaging-critical path
 - remove legacy module/deferred-binding paths that only existed for the old
   client
+- only start this slice after the J2CL root path has already been the proven
+  default route, not in parallel with the first cutover
 
 ## Suggested Next GitHub Issues
 
