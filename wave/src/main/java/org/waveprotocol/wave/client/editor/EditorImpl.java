@@ -1230,6 +1230,12 @@ public class EditorImpl extends LogicalPanel.Impl implements
 
     @Override
     public void compositionStart(Point<ContentNode> caret) {
+      if (org.waveprotocol.wave.client.editor.debug.ImeDebugTracer.isEnabled()) {
+        org.waveprotocol.wave.client.editor.debug.ImeDebugTracer
+            .start("EditorImpl.compositionStart")
+            .add("caretIsNull", caret == null)
+            .emit();
+      }
       // NOTE(danilatos): Is it safe to have the start & end ignore mutations in this
       // manner? Or should we ignore based on the event handler state? I guess it's
       // the same effect.
@@ -1454,6 +1460,13 @@ public class EditorImpl extends LogicalPanel.Impl implements
     this.keyBindings = bindings;
     this.settings = settings;
 
+    // Eagerly trigger ImeDebugTracer initialization so that, if the flag is
+    // enabled, the global capture-phase event listeners are installed before
+    // the first key event can fire. With lazy init (first `isEnabled()` call
+    // on a trace site) we would miss any keydown / beforeinput / composition
+    // event preceding the very first trace call.
+    org.waveprotocol.wave.client.editor.debug.ImeDebugTracer.isEnabled();
+
     eventHandler = new EditorEventHandler(
         new EditorInteractorImpl(), eventsSubHandler, NodeEventRouter.INSTANCE,
         settings.useWhitelistInEditor(), settings.useWebkitCompositionEvents());
@@ -1562,6 +1575,14 @@ public class EditorImpl extends LogicalPanel.Impl implements
       // composed word and the space between words — typing "new blip"
       // would otherwise commit as "ewlip". See ImeExtractor#captureGhostBaseline.
       String composition = imeExtractor.getEffectiveContent();
+      String rawScratchForTrace = imeExtractor.getContent();
+      if (org.waveprotocol.wave.client.editor.debug.ImeDebugTracer.isEnabled()) {
+        org.waveprotocol.wave.client.editor.debug.ImeDebugTracer
+            .start("EditorImpl.flushActiveImeComposition")
+            .add("rawScratch", rawScratchForTrace)
+            .add("effective", composition)
+            .emit();
+      }
       assert composition != null : "Composition should not be null with active IME extractor";
       Point<ContentNode> contentPoint = imeExtractor.deactivate(content.getAnnotatableContent());
       Point<ContentNode> caret = insertText(contentPoint, composition, true);
