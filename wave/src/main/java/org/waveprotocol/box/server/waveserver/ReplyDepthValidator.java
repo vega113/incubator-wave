@@ -106,7 +106,8 @@ public final class ReplyDepthValidator {
 
     Integer projectedMaxDepth = computeProjectedMaxDepth(snapshot, manifestOps);
     if (projectedMaxDepth == null) {
-      return null;
+      LOG.warning("Reply depth validation failed: could not simulate projected state; rejecting delta.");
+      return "Reply depth validation failed: could not verify thread depth. Delta rejected.";
     }
 
     if (projectedMaxDepth > maxDepth) {
