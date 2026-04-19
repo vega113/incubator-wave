@@ -615,14 +615,6 @@ public class WaveServerImpl implements WaveletProvider, ReadableWaveletDataProvi
             return;
           }
 
-          if (maxReplyDepth > 0) {
-            String depthError = ReplyDepthValidator.validate(
-                snapData, deserialized, maxReplyDepth);
-            if (depthError != null) {
-              resultListener.onFailure(FederationErrors.badRequest(depthError));
-              return;
-            }
-          }
         } catch (WaveletStateException e) {
           // Best-effort: if we can't read the snapshot, skip the checks and
           // let the submit proceed normally.

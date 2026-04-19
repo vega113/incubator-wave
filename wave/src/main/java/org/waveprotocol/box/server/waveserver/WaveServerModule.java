@@ -113,7 +113,9 @@ public class WaveServerModule extends AbstractModule {
   @Provides
   @SuppressWarnings("unused")
   private LocalWaveletContainer.Factory provideLocalWaveletContainerFactory(
-      final DeltaStore deltaStore, final SnapshotStore snapshotStore) {
+      final DeltaStore deltaStore, final SnapshotStore snapshotStore, final Config config) {
+    final int maxReplyDepth = config.hasPath("server.maxReplyDepth")
+        ? config.getInt("server.maxReplyDepth") : 0;
     return new LocalWaveletContainer.Factory() {
       @Override
       public LocalWaveletContainer create(WaveletNotificationSubscriber notifiee,
@@ -121,7 +123,7 @@ public class WaveServerModule extends AbstractModule {
         return new LocalWaveletContainerImpl(waveletName, notifiee, loadWaveletState(
             waveletLoadExecutor, deltaStore, snapshotStore, snapshotInterval,
             waveletName, waveletLoadExecutor), waveDomain,
-            storageContinuationExecutor);
+            storageContinuationExecutor, maxReplyDepth);
       }
     };
   }
