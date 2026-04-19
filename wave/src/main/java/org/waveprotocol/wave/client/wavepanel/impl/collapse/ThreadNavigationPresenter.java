@@ -1054,7 +1054,11 @@ public final class ThreadNavigationPresenter {
         return parts[parts.length - 1].substring(SLIDE_NAV_MARKER.length());
       }
       if (ThreadNavigationHistory.HISTORY_PARAM_FOCUS.equals(key)) {
-        return URL.decodeQueryString(parts[parts.length - 2]);
+        String rawSegment = parts[parts.length - 2];
+        if (rawSegment == null || rawSegment.isEmpty()) {
+          return null;
+        }
+        return URL.decodeQueryString(rawSegment);
       }
       return null;
     }
