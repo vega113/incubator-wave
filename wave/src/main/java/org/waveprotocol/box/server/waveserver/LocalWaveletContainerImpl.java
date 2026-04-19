@@ -35,6 +35,7 @@ import org.waveprotocol.wave.federation.Proto.ProtocolSignature;
 import org.waveprotocol.wave.federation.Proto.ProtocolSignedDelta;
 import org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta;
 import org.waveprotocol.wave.model.id.WaveletName;
+import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.operation.OperationException;
 import org.waveprotocol.wave.model.operation.wave.RemoveParticipant;
 import org.waveprotocol.wave.model.operation.wave.TransformedWaveletDelta;
@@ -54,6 +55,7 @@ import java.util.concurrent.Executor;
 class LocalWaveletContainerImpl extends WaveletContainerImpl implements LocalWaveletContainer {
 
   private static final Log LOG = Log.get(LocalWaveletContainerImpl.class);
+  private final int maxReplyDepth;
 
   private static final Function<RemoveParticipant, ParticipantId> PARTICIPANT_REMOVED_BY =
       new Function<RemoveParticipant, ParticipantId>() {
@@ -83,7 +85,14 @@ class LocalWaveletContainerImpl extends WaveletContainerImpl implements LocalWav
   public LocalWaveletContainerImpl(WaveletName waveletName, WaveletNotificationSubscriber notifiee,
       ListenableFuture<? extends WaveletState> waveletStateFuture, String waveDomain,
       Executor storageContinuationExecutor) {
+    this(waveletName, notifiee, waveletStateFuture, waveDomain, storageContinuationExecutor, 0);
+  }
+
+  public LocalWaveletContainerImpl(WaveletName waveletName, WaveletNotificationSubscriber notifiee,
+      ListenableFuture<? extends WaveletState> waveletStateFuture, String waveDomain,
+      Executor storageContinuationExecutor, int maxReplyDepth) {
     super(waveletName, notifiee, waveletStateFuture, waveDomain, storageContinuationExecutor);
+    this.maxReplyDepth = maxReplyDepth;
   }
 
   @Override
@@ -139,6 +148,13 @@ class LocalWaveletContainerImpl extends WaveletContainerImpl implements LocalWav
 
     WaveletDelta transformed = maybeTransformSubmittedDelta(
         CoreWaveletOperationSerializer.deserialize(protocolDelta));
+
+    if (maxReplyDepth > 0 && IdUtil.isConversationalId(getWaveletName().waveletId)) {
+      String depthError = ReplyDepthValidator.validate(accessSnapshot(), transformed, maxReplyDepth);
+      if (depthError != null) {
+        throw new OperationException(depthError);
+      }
+    }
 
     // TODO(ljvderijk): a Clock needs to be injected here (Issue 104)
     long applicationTimestamp = System.currentTimeMillis();
