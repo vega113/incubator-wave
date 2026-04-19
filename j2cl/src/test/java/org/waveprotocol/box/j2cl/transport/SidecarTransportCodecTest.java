@@ -78,29 +78,28 @@ public class SidecarTransportCodecTest {
   @Test
   public void extractSessionBootstrapRejectsMissingAddress() {
     String html = "<html><script>window.__session={\"id\":\"abc\"};</script></html>";
-
-    try {
-      SidecarSessionBootstrap.fromRootHtml(html);
-      Assert.fail("Expected missing address to be rejected");
-    } catch (IllegalArgumentException expected) {
-      Assert.assertTrue(expected.getMessage().contains("did not include an address"));
-    }
+    expectIllegalArgumentContains(
+        "did not include an address", () -> SidecarSessionBootstrap.fromRootHtml(html));
   }
 
   @Test
   public void parseJsonObjectRejectsInvalidUnicodeEscapeSequences() {
-    try {
-      SidecarTransportCodec.parseJsonObject("{\"1\":\"\\u12\"}");
-      Assert.fail("Expected truncated unicode escape to fail");
-    } catch (IllegalArgumentException expected) {
-      Assert.assertTrue(expected.getMessage().contains("unicode escape"));
-    }
+    expectIllegalArgumentContains(
+        "unicode escape",
+        () -> SidecarTransportCodec.parseJsonObject("{\"1\":\"\\u12\"}"));
+    expectIllegalArgumentContains(
+        "unicode escape",
+        () -> SidecarTransportCodec.parseJsonObject("{\"1\":\"\\u12xz\"}"));
+  }
 
+  private static void expectIllegalArgumentContains(String substring, Runnable action) {
     try {
-      SidecarTransportCodec.parseJsonObject("{\"1\":\"\\u12xz\"}");
-      Assert.fail("Expected non-hex unicode escape to fail");
+      action.run();
+      Assert.fail("Expected IllegalArgumentException containing: " + substring);
     } catch (IllegalArgumentException expected) {
-      Assert.assertTrue(expected.getMessage().contains("unicode escape"));
+      Assert.assertTrue(
+          "Expected message to contain \"" + substring + "\" but was: " + expected.getMessage(),
+          expected.getMessage().contains(substring));
     }
   }
 }
