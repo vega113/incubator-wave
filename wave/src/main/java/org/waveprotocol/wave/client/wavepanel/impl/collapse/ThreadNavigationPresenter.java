@@ -961,7 +961,11 @@ public final class ThreadNavigationPresenter {
     @SuppressWarnings("unchecked")
     TopConversationViewImpl<TopConversationDomImpl> waveUiImpl =
         (TopConversationViewImpl<TopConversationDomImpl>) waveUi;
-    return waveUiImpl.getIntrinsic().getThreadContainer();
+    TopConversationDomImpl intrinsic = waveUiImpl.getIntrinsic();
+    if (intrinsic == null) {
+      return null;
+    }
+    return intrinsic.getThreadContainer();
   }
 
   private static native Element findDeepestExpandedInlineThreadNative(Element root) /*-{
