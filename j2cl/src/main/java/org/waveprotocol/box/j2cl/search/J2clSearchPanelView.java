@@ -160,7 +160,7 @@ public final class J2clSearchPanelView implements J2clSearchPanelController.View
           ? "No waves matched this query."
           : model.getEmptyMessage();
     } else {
-      emptyState.hidden = true;
+      boolean hasRenderableDigest = false;
       for (J2clSearchDigestItem item : model.getDigestItems()) {
         if (item.getWaveId() == null) {
           continue;
@@ -175,6 +175,15 @@ public final class J2clSearchPanelView implements J2clSearchPanelController.View
                 });
         digestViews.put(item.getWaveId(), digestView);
         digestList.appendChild(digestView.element());
+        hasRenderableDigest = true;
+      }
+      if (hasRenderableDigest) {
+        emptyState.hidden = true;
+      } else {
+        emptyState.hidden = false;
+        emptyState.textContent = model.getEmptyMessage().isEmpty()
+            ? "No waves matched this query."
+            : model.getEmptyMessage();
       }
     }
 
