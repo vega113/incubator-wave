@@ -6,8 +6,9 @@ import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 
 public final class J2clSelectedWaveController {
   private static final int INITIAL_RECONNECT_DELAY_MS = 250;
-  private static final int MAX_RECONNECT_DELAY_MS = 1000;
-  private static final int MAX_RECONNECT_ATTEMPTS = 3;
+  // Keep retries bounded, but leave enough budget for a local WIAB restart on the same port.
+  private static final int MAX_RECONNECT_DELAY_MS = 2000;
+  private static final int MAX_RECONNECT_ATTEMPTS = 8;
 
   public interface Gateway {
     void fetchRootSessionBootstrap(
@@ -98,22 +99,35 @@ public final class J2clSelectedWaveController {
     selectedDigestItem = digestItem;
     lastUpdate = null;
     reconnectCount = 0;
-    currentModel = J2clSelectedWaveModel.loading(waveId, digestItem, reconnectCount);
-    view.render(currentModel);
+    fetchBootstrapAndOpenSelectedWave(generation, 0, false);
+  }
 
+  private void fetchBootstrapAndOpenSelectedWave(
+      int generation, int reconnectCount, boolean retryOnFailure) {
+    if (selectedWaveId == null) {
+      return;
+    }
+    this.reconnectCount = reconnectCount;
+    currentModel = J2clSelectedWaveModel.loading(selectedWaveId, selectedDigestItem, reconnectCount);
+    view.render(currentModel);
     gateway.fetchRootSessionBootstrap(
         bootstrap -> {
           if (!isCurrentGeneration(generation)) {
             return;
           }
           currentBootstrap = bootstrap;
-          openSelectedWave(generation, 0);
+          openSelectedWave(generation, reconnectCount, retryOnFailure);
         },
         error -> {
           if (!isCurrentGeneration(generation)) {
             return;
           }
           clearActiveSubscription();
+          currentBootstrap = null;
+          if (retryOnFailure) {
+            scheduleReconnectOrFail(generation, reconnectCount);
+            return;
+          }
           currentModel =
               J2clSelectedWaveModel.error(
                   selectedWaveId, selectedDigestItem, "Unable to open selected wave.", error);
@@ -121,13 +135,11 @@ public final class J2clSelectedWaveController {
         });
   }
 
-  private void openSelectedWave(int generation, int reconnectCount) {
+  private void openSelectedWave(int generation, int reconnectCount, boolean retryOnFailure) {
     if (selectedWaveId == null || currentBootstrap == null) {
       return;
     }
-    this.reconnectCount = reconnectCount;
-    currentModel = J2clSelectedWaveModel.loading(selectedWaveId, selectedDigestItem, reconnectCount);
-    view.render(currentModel);
+    final boolean[] terminalStateHandled = new boolean[] {false};
     currentSubscription =
         gateway.openSelectedWave(
             currentBootstrap,
@@ -146,7 +158,15 @@ public final class J2clSelectedWaveController {
               if (!isCurrentGeneration(generation)) {
                 return;
               }
+              if (terminalStateHandled[0]) {
+                return;
+              }
+              terminalStateHandled[0] = true;
               clearActiveSubscription();
+              if (retryOnFailure) {
+                scheduleReconnectOrFail(generation, reconnectCount);
+                return;
+              }
               currentModel =
                   J2clSelectedWaveModel.error(
                       selectedWaveId, selectedDigestItem, "Selected wave stream failed.", error);
@@ -156,29 +176,37 @@ public final class J2clSelectedWaveController {
               if (!isCurrentGeneration(generation) || selectedWaveId == null) {
                 return;
               }
-              clearActiveSubscription();
-              if (reconnectCount >= MAX_RECONNECT_ATTEMPTS) {
-                currentModel =
-                    J2clSelectedWaveModel.error(
-                        selectedWaveId,
-                        selectedDigestItem,
-                        "Selected wave disconnected.",
-                        "The selected-wave sidecar stopped retrying after "
-                            + MAX_RECONNECT_ATTEMPTS
-                            + " reconnect attempts.");
-                view.render(currentModel);
+              if (terminalStateHandled[0]) {
                 return;
               }
-              int nextReconnectCount = reconnectCount + 1;
-              retryScheduler.scheduleRetry(
-                  buildReconnectDelayMs(reconnectCount),
-                  () -> {
-                    if (!isCurrentGeneration(generation) || selectedWaveId == null) {
-                      return;
-                    }
-                    openSelectedWave(generation, nextReconnectCount);
-                  });
+              terminalStateHandled[0] = true;
+              clearActiveSubscription();
+              scheduleReconnectOrFail(generation, reconnectCount);
             });
+  }
+
+  private void scheduleReconnectOrFail(int generation, int reconnectCount) {
+    if (reconnectCount >= MAX_RECONNECT_ATTEMPTS) {
+      currentModel =
+          J2clSelectedWaveModel.error(
+              selectedWaveId,
+              selectedDigestItem,
+              "Selected wave disconnected.",
+              "The selected-wave sidecar stopped retrying after "
+                  + MAX_RECONNECT_ATTEMPTS
+                  + " reconnect attempts.");
+      view.render(currentModel);
+      return;
+    }
+    int nextReconnectCount = reconnectCount + 1;
+    retryScheduler.scheduleRetry(
+        buildReconnectDelayMs(reconnectCount),
+        () -> {
+          if (!isCurrentGeneration(generation) || selectedWaveId == null) {
+            return;
+          }
+          fetchBootstrapAndOpenSelectedWave(generation, nextReconnectCount, true);
+        });
   }
 
   private boolean isCurrentGeneration(int generation) {

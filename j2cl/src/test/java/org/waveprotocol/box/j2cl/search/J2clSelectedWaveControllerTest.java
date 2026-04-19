@@ -19,7 +19,7 @@ import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 @J2clTestInput(J2clSelectedWaveControllerTest.class)
 public class J2clSelectedWaveControllerTest {
   @Test
-  public void selectingWaveSchedulesBoundedReconnectInsteadOfImmediateLoop() throws Exception {
+  public void selectingWaveRetriesLongEnoughToRecoverAfterServerRestart() throws Exception {
     Harness harness = new Harness();
     Object controller = harness.createController(true);
 
@@ -32,21 +32,66 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertEquals(Arrays.asList(250), harness.scheduledDelays);
 
     harness.runScheduledRetry(0);
-    Assert.assertEquals(2, harness.openCount);
-    harness.fireDisconnect(1);
+    Assert.assertEquals(2, harness.bootstrapAttempts.size());
+    Assert.assertEquals(1, harness.openCount);
+    harness.rejectBootstrap(1, "Network failure for /");
     Assert.assertEquals(Arrays.asList(250, 500), harness.scheduledDelays);
 
     harness.runScheduledRetry(1);
-    Assert.assertEquals(3, harness.openCount);
-    harness.fireDisconnect(2);
+    Assert.assertEquals(3, harness.bootstrapAttempts.size());
+    Assert.assertEquals(1, harness.openCount);
+    harness.rejectBootstrap(2, "Network failure for /");
     Assert.assertEquals(Arrays.asList(250, 500, 1000), harness.scheduledDelays);
 
     harness.runScheduledRetry(2);
-    Assert.assertEquals(4, harness.openCount);
-    harness.fireDisconnect(3);
+    Assert.assertEquals(4, harness.bootstrapAttempts.size());
+    Assert.assertEquals(1, harness.openCount);
+    harness.rejectBootstrap(3, "Network failure for /");
+    Assert.assertEquals(Arrays.asList(250, 500, 1000, 2000), harness.scheduledDelays);
+
+    harness.runScheduledRetry(3);
+    Assert.assertEquals(5, harness.bootstrapAttempts.size());
+    Assert.assertEquals(1, harness.openCount);
+    harness.rejectBootstrap(4, "Network failure for /");
+    Assert.assertEquals(Arrays.asList(250, 500, 1000, 2000, 2000), harness.scheduledDelays);
+
+    harness.runScheduledRetry(4);
+    Assert.assertEquals(6, harness.bootstrapAttempts.size());
+    harness.resolveBootstrap(5);
+    Assert.assertEquals(2, harness.openCount);
+    harness.deliverUpdate(1, "Recovered after restart");
+
+    Assert.assertFalse((Boolean) harness.modelValue("isError"));
+    Assert.assertEquals("Live updates reconnected.", harness.modelValue("getStatusText"));
+    Assert.assertEquals(Arrays.asList("Recovered after restart"), harness.modelValue("getContentEntries"));
+  }
+
+  @Test
+  public void selectingWaveStillStopsAfterBoundedReconnectBudget() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(true);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello from the sidecar");
+
+    harness.fireDisconnect(0);
+
+    for (int attempt = 1; attempt <= 8; attempt++) {
+      Assert.assertFalse((Boolean) harness.modelValue("isError"));
+      harness.runScheduledRetry(attempt - 1);
+      Assert.assertEquals(attempt + 1, harness.bootstrapAttempts.size());
+      Assert.assertEquals(1, harness.openCount);
+      harness.rejectBootstrap(attempt, "Network failure for /");
+    }
+
     Assert.assertTrue((Boolean) harness.modelValue("isError"));
+    Assert.assertEquals(
+        Arrays.asList(250, 500, 1000, 2000, 2000, 2000, 2000, 2000), harness.scheduledDelays);
     Assert.assertTrue(
         String.valueOf(harness.modelValue("getStatusText")).contains("Selected wave disconnected"));
+    Assert.assertTrue(
+        String.valueOf(harness.modelValue("getDetailText")).contains("8 reconnect attempts"));
   }
 
   @Test
