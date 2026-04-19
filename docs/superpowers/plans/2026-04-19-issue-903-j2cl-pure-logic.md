@@ -271,7 +271,7 @@ Per repo runbooks and the user’s explicit requirement, do not open a PR until 
 If the lane needs existing local data to open a real wave, wire the shared file-store first:
 
 ```bash
-scripts/worktree-file-store.sh --source /Users/vega/devroot/incubator-wave
+scripts/worktree-file-store.sh --source "$REPO_ROOT"
 ```
 
 Then prepare the lane on a non-conflicting port:
@@ -323,7 +323,7 @@ This browser pass stays intentionally narrow. It is not a request for editor mig
 
 Keep the issue comment and PR summary aligned with `docs/github-issues.md`:
 
-- Worktree: `/Users/vega/devroot/worktrees/issue-903-j2cl-pure-logic`
+- Worktree: `<WORKTREE>`
 - Branch: `issue-903-j2cl-pure-logic`
 - Plan path: `docs/superpowers/plans/2026-04-19-issue-903-j2cl-pure-logic.md`
 - Record the exact import-gate commands, targeted `sbt testOnly` commands, compile gate, and worktree boot/browser verification commands with pass/fail results.
