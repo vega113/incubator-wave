@@ -67,6 +67,7 @@ public final class WavePanelThreadFocusContractTest extends TestCase {
     assertTrue(presenter.contains("collectAncestorThreadChain("));
     assertTrue(presenter.contains("if (isNavigated()) {"));
     assertTrue(presenter.contains("exitToRoot();"));
+    assertTrue(presenter.contains("!sibling.hasClassName(SLIDE_HIDDEN_CLASS)"));
   }
 
   public void testHistoryTokensPreserveWavePathForWebClientConsumers() throws Exception {

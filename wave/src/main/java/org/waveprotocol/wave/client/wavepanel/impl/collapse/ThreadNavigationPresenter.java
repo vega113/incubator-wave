@@ -1157,7 +1157,9 @@ public final class ThreadNavigationPresenter {
     while (child != null) {
       if (child.getNodeType() == Node.ELEMENT_NODE) {
         Element sibling = Element.as(child);
-        if (sibling != keep && !entry.getHiddenElements().contains(sibling)) {
+        if (sibling != keep
+            && !sibling.hasClassName(SLIDE_HIDDEN_CLASS)
+            && !entry.getHiddenElements().contains(sibling)) {
           entry.getHiddenElements().add(sibling);
           sibling.addClassName(SLIDE_HIDDEN_CLASS);
           sibling.getStyle().setDisplay(Style.Display.NONE);
