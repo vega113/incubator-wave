@@ -69,6 +69,11 @@ public class SandboxBuildSmokeTest {
   }
 
   @Test
+  public void encodedQueryDecodesPercentEscapes() {
+    Assert.assertEquals("with:@", SandboxEntryPoint.readRequestedQuery("?q=with%3A%40"));
+  }
+
+  @Test
   public void malformedCookieValueReturnsNull() {
     Assert.assertNull(
         SandboxEntryPoint.readCookieFromHeader("JSESSIONID=%; theme=dark", "JSESSIONID"));

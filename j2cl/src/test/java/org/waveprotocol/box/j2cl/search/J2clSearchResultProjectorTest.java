@@ -70,4 +70,30 @@ public class J2clSearchResultProjectorTest {
     Assert.assertEquals("No waves matched this query.", model.getEmptyMessage());
     Assert.assertFalse(model.isShowMoreVisible());
   }
+
+  @Test
+  public void projectReturnsEmptyWhenOnlyInvalidDigestsRemain() {
+    J2clSearchResultModel model =
+        J2clSearchResultProjector.project(
+            new SidecarSearchResponse(
+                "in:inbox",
+                2,
+                Arrays.asList(
+                    null,
+                    new SidecarSearchResponse.Digest(
+                        "Broken digest",
+                        "Snippet",
+                        null,
+                        111L,
+                        1,
+                        2,
+                        Collections.singletonList("teammate@example.com"),
+                        "author@example.com",
+                        false))),
+            30);
+
+    Assert.assertTrue(model.isEmpty());
+    Assert.assertEquals("No waves matched this query.", model.getEmptyMessage());
+    Assert.assertFalse(model.isShowMoreVisible());
+  }
 }
