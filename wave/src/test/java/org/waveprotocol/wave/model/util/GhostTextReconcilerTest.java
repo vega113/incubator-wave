@@ -126,11 +126,29 @@ public class GhostTextReconcilerTest extends TestCase {
     assertEquals("d", GhostTextReconciler.extractGhostSuffix("abc", "abcd"));
   }
 
+  public void testRestorePreviousSiblingOnlyRemovesRecognizedGhostSuffix() {
+    assertEquals("abc",
+        GhostTextReconciler.restorePreviousSiblingText("abc", "abcd"));
+    assertEquals("ab",
+        GhostTextReconciler.restorePreviousSiblingText("abc", "ab"));
+    assertEquals("xabc",
+        GhostTextReconciler.restorePreviousSiblingText("abc", "xabc"));
+  }
+
   public void testExtractGhostPrefixHandlesNulls() {
     assertEquals("", GhostTextReconciler.extractGhostPrefix(null, null));
     assertEquals("", GhostTextReconciler.extractGhostPrefix("", null));
     assertEquals("", GhostTextReconciler.extractGhostPrefix(null, ""));
     assertEquals("", GhostTextReconciler.extractGhostPrefix("abc", "abc"));
     assertEquals("z", GhostTextReconciler.extractGhostPrefix("abc", "zabc"));
+  }
+
+  public void testRestoreNextSiblingOnlyRemovesRecognizedGhostPrefix() {
+    assertEquals("abc",
+        GhostTextReconciler.restoreNextSiblingText("abc", "zabc"));
+    assertEquals("bc",
+        GhostTextReconciler.restoreNextSiblingText("abc", "bc"));
+    assertEquals("abcx",
+        GhostTextReconciler.restoreNextSiblingText("abc", "abcx"));
   }
 }

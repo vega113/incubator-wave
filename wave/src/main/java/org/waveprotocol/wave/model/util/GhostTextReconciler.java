@@ -120,4 +120,30 @@ public final class GhostTextReconciler {
     }
     return current.substring(0, current.length() - baseline.length());
   }
+
+  /**
+   * Restores the previous sibling text to its baseline only when the current
+   * value is a strict suffix extension of that baseline and therefore the
+   * extra trailing characters were positively identified as ghost text.
+   */
+  public static String restorePreviousSiblingText(String baseline,
+      String current) {
+    if (baseline == null || current == null) {
+      return current;
+    }
+    return extractGhostSuffix(baseline, current).isEmpty() ? current : baseline;
+  }
+
+  /**
+   * Restores the next sibling text to its baseline only when the current
+   * value is a strict prefix extension of that baseline and therefore the
+   * extra leading characters were positively identified as ghost text.
+   */
+  public static String restoreNextSiblingText(String baseline,
+      String current) {
+    if (baseline == null || current == null) {
+      return current;
+    }
+    return extractGhostPrefix(baseline, current).isEmpty() ? current : baseline;
+  }
 }

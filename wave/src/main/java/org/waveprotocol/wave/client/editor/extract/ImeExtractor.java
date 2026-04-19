@@ -228,24 +228,34 @@ public class ImeExtractor {
   }
 
   private void restoreGhostBaseline() {
-    restoreTextNode(ghostPreviousSibling, ghostPreviousSiblingBaseline);
-    restoreTextNode(ghostNextSibling, ghostNextSiblingBaseline);
+    restorePreviousTextNode(ghostPreviousSibling, ghostPreviousSiblingBaseline);
+    restoreNextTextNode(ghostNextSibling, ghostNextSiblingBaseline);
     ghostPreviousSibling = null;
     ghostPreviousSiblingBaseline = null;
     ghostNextSibling = null;
     ghostNextSiblingBaseline = null;
   }
 
-  private static void restoreTextNode(Node node, String baseline) {
-    if (node == null || baseline == null) {
+  private static void restorePreviousTextNode(Node node, String baseline) {
+    restoreTextNode(node, GhostTextReconciler.restorePreviousSiblingText(
+        baseline, readText(node)));
+  }
+
+  private static void restoreNextTextNode(Node node, String baseline) {
+    restoreTextNode(node, GhostTextReconciler.restoreNextSiblingText(
+        baseline, readText(node)));
+  }
+
+  private static void restoreTextNode(Node node, String restoredValue) {
+    if (node == null || restoredValue == null) {
       return;
     }
     if (node.getNodeType() != Node.TEXT_NODE) {
       return;
     }
     Text text = Text.as(node);
-    if (!baseline.equals(text.getData())) {
-      text.setData(baseline);
+    if (!restoredValue.equals(text.getData())) {
+      text.setData(restoredValue);
     }
   }
 
