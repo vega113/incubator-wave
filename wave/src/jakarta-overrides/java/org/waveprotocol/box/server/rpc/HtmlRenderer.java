@@ -3075,7 +3075,7 @@ public final class HtmlRenderer {
     sb.append("  }\n");
     sb.append("  refreshPinnedStateFromBridge();\n");
     sb.append("  document.addEventListener('focusin', function(e) {\n");
-    sb.append("    if (!isMobile()) return;\n");
+    sb.append("    if (!isMobile() || !body.classList.contains('mobile-wave-open')) return;\n");
     sb.append("    if (e.target.closest && e.target.closest(\"[contenteditable='true'], input, textarea\")) {\n");
     sb.append("      setWaveChromeHidden(true);\n");
     sb.append("      if (!tagsPinned) setTagsOpen(false);\n");

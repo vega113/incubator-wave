@@ -79,3 +79,10 @@ body.mobile-wave-chrome-hidden [data-mobile-role='wave-toolbar'] {
 body.mobile-wave-chrome-hidden [data-mobile-role='wave-thread'] {
   top: 0 !important;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  body.mobile-wave-open [data-mobile-role='wave-participants'],
+  body.mobile-wave-open [data-mobile-role='wave-toolbar'] {
+    transition: none;
+  }
+}

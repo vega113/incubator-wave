@@ -848,7 +848,7 @@ public final class ThreadNavigationPresenter {
   private int measureAvailableContentWidth(Element threadElement, TopConversationView waveUi) {
     Element threadContainer = hackExtractScrollElement(waveUi);
     if (threadContainer == null) {
-      return 0;
+      return Integer.MAX_VALUE;
     }
 
     int containerRight = threadContainer.getAbsoluteLeft() + threadContainer.getOffsetWidth();

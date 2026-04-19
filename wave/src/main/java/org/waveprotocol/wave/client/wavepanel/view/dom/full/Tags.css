@@ -244,3 +244,9 @@ body.mobile-tags-open [data-mobile-role='wave-tags'],
 body.mobile-tags-pinned [data-mobile-role='wave-tags'] {
   max-height: 40vh;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  body.mobile-wave-open [data-mobile-role='wave-tags'] {
+    transition: none;
+  }
+}

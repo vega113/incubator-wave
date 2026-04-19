@@ -544,11 +544,6 @@ public class SupplementedWaveImpl implements SupplementedWave {
         return id;
       }
     }
-    for (WaveletId id : wave.getWavelets()) {
-      if (IdUtil.isConversationalId(id)) {
-        return id;
-      }
-    }
     return null;
   }
 
