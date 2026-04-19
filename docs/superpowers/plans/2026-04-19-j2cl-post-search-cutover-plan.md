@@ -41,7 +41,9 @@ The current J2CL tree is still only a thin slice:
 - no sidecar route that opens and renders a selected wave in context
 - no read-only conversation view
 - no compose/reply/edit path
-- no feature-flagged root bootstrap that can swap between GWT and J2CL
+- no J2CL-owned root app shell yet
+- no feature-flagged root bootstrap that can swap between a real GWT shell and
+  a real J2CL shell
 - no production parity checklist that proves “J2CL can replace GWT” rather than
   “J2CL can coexist beside GWT”
 
@@ -106,6 +108,10 @@ Exit criteria:
 
 - `/j2cl-search/index.html` supports inbox/search + open selected wave
 - live updates still arrive on the opened wave
+- opening a selected wave proves unread/read-state behavior, not only static
+  rendering
+- one forced disconnect/recovery cycle proves the selected wave can resume the
+  live sidecar session without a full page reset
 - `/` remains GWT and still passes the normal compile/stage/smoke gates
 - reload/deep-link persistence is still explicitly out of scope here
 
@@ -137,6 +143,8 @@ Recommended scope:
 - create a new wave
 - reply with plain text
 - submit and observe the update in the opened wave
+- provide a user-reachable compose/reply affordance in the sidecar shell; this
+  slice must not rely on devtools-only triggers or hidden URLs
 
 Non-goals for this slice:
 
@@ -150,26 +158,54 @@ Exit criteria:
 - the J2CL sidecar can perform a simple end-to-end write flow against the live
   local server
 - the transport/update path stays coherent after write operations
+- the compose/reply path is reachable through the sidecar UI, not only through
+  a developer-only seam
 
-### Slice 4: Opt-In Root Bootstrap
+### Slice 4: J2CL Root App Shell
 
-Only after the sidecar supports a useful read/write flow should the repo add a
-root-bootstrap seam that can choose between GWT and J2CL.
+Only after the sidecar supports a useful read/write flow should the repo build a
+real J2CL-owned root shell. The bootstrap selector belongs to the next slice.
+
+Deliverables:
+
+- build a real J2CL-owned root shell for `/`, including the minimum app chrome
+  needed for later cutover work
+- make the shell capable of hosting the sidecar read/write workflows without
+  depending on the legacy GWT shell
+- include the signed-out login entry/redirect seam that the next bootstrap
+  slice will verify through the real J2CL root mode
+- do not make J2CL the default bootstrap in this slice
+
+Exit criteria:
+
+- there is a real J2CL root shell, not just the search sidecar remounted at `/`
+- local verification can intentionally boot the J2CL shell behind a non-default
+  seam
+- the legacy GWT bootstrap is still the default after this slice lands
+
+### Slice 5: Opt-In Root Bootstrap
+
+Only after the J2CL root shell exists should the repo add a bootstrap selector
+that can choose between the legacy GWT shell and the new J2CL shell.
 
 Deliverables:
 
 - feature flag or explicit opt-in route for J2CL root bootstrap
 - production-safe fallback to the legacy GWT bootstrap
-- one dual-run verification matrix for both bootstrap modes
-- keep GWT as the default bootstrap in this slice; default cutover belongs to the
-  next slice
+- one concrete dual-bootstrap verification matrix as a committed docs artifact
+- keep GWT as the default bootstrap in this slice; default cutover belongs to
+  the next slice
 
 Exit criteria:
 
-- selected users or local verification can boot a J2CL-owned root shell
+- local verification can boot the J2CL root shell intentionally through the
+  bootstrap seam
+- first-time signed-out login through the J2CL root mode is explicitly verified
 - switching back to GWT is still one configuration change, not a rollback patch
+- the verification matrix exists as a committed file or committed runbook
+  section, not only issue text
 
-### Slice 5: Default Cutover
+### Slice 6: Default Cutover
 
 This is the first slice that should actually “switch to J2CL.”
 
@@ -191,7 +227,7 @@ Required proof before this slice is approved:
 - reconnect/reload behavior
 - browser sanity on the real staged app
 
-### Slice 6: GWT Retirement
+### Slice 7: GWT Retirement
 
 Only after a stable default cutover should the repo remove the old GWT path.
 
@@ -203,15 +239,17 @@ Deliverables:
   client
 - only start this slice after the J2CL root path has already been the proven
   default route, not in parallel with the first cutover
+- explicitly account for the remaining browser-harness descendants before GWT
+  packaging/runtime pieces are removed; no suite is silently dropped
 
 ## Suggested Next GitHub Issues
 
 If the work continues in the same issue-driven sequence, the next issues are:
 
-1. [#919](https://github.com/vega113/supawave/issues/919) Refresh the J2CL tracker/docs after the merged search-sidecar slice
-2. [#920](https://github.com/vega113/supawave/issues/920) Add a read-only selected-wave panel to the J2CL search sidecar
-3. [#921](https://github.com/vega113/supawave/issues/921) Add sidecar route state and split-view navigation for the J2CL shell
-4. [#922](https://github.com/vega113/supawave/issues/922) Add the first J2CL write-path pilot for create/reply/plain-text submit
+1. [#920](https://github.com/vega113/supawave/issues/920) Add a read-only selected-wave panel to the J2CL search sidecar
+2. [#921](https://github.com/vega113/supawave/issues/921) Add sidecar route state and split-view navigation for the J2CL shell
+3. [#922](https://github.com/vega113/supawave/issues/922) Add the first J2CL write-path pilot for create/reply/plain-text submit
+4. [#928](https://github.com/vega113/supawave/issues/928) Build the first J2CL-owned root app shell
 5. [#923](https://github.com/vega113/supawave/issues/923) Add an opt-in root bootstrap flag for the J2CL client
 6. [#924](https://github.com/vega113/supawave/issues/924) Cut over the default root route from GWT to J2CL
 7. [#925](https://github.com/vega113/supawave/issues/925) Retire the legacy GWT client path and packaging steps
@@ -224,6 +262,7 @@ the J2CL path:
 - it boots from the root route, not only a sidecar route
 - it can search, open, and navigate waves without relying on the legacy shell
 - it can create a wave and enter text
+- it has already proven a signed-out login flow through the J2CL root mode
 - it survives reload/reconnect and preserves route state
 - the legacy fallback still exists until the J2CL root path passes staged
   rollout

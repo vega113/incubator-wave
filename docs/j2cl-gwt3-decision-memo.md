@@ -3,7 +3,7 @@
 Status: Current
 Updated: 2026-04-19
 Owner: Project Maintainers
-Task: `#919`
+Last refreshed by: `#919` (merged)
 
 ## Decision Summary
 
@@ -67,11 +67,12 @@ The next wave should still avoid trying to move the whole app.
 
 The narrowest viable sequence is now:
 
-1. refresh the stale tracker/docs to the post-`#901` baseline
+1. keep the tracker/docs refreshed to the post-`#901` baseline
 2. add a read-only selected-wave panel to the sidecar
 3. add route/history state for the J2CL sidecar shell
 4. prove the smallest write path on top of that shell
-5. add a reversible opt-in root bootstrap before any default cutover
+5. build a real J2CL root shell
+6. add a reversible opt-in root bootstrap before any default cutover
 
 Only after that should the project revisit a broader compiler/runtime switch.
 
@@ -80,10 +81,10 @@ Only after that should the project revisit a broader compiler/runtime switch.
 These are the current dependency-ordered follow-on issues:
 
 1. [#904](https://github.com/vega113/supawave/issues/904) Track the staged J2CL / GWT 3 migration from the merged sidecar/search baseline
-2. [#919](https://github.com/vega113/supawave/issues/919) Refresh the J2CL tracker/docs after the merged search-sidecar slice
-3. [#920](https://github.com/vega113/supawave/issues/920) Add a read-only selected-wave panel to the J2CL search sidecar
-4. [#921](https://github.com/vega113/supawave/issues/921) Add sidecar route state and split-view navigation for the J2CL shell
-5. [#922](https://github.com/vega113/supawave/issues/922) Add the first J2CL write-path pilot for create/reply/plain-text submit
+2. [#920](https://github.com/vega113/supawave/issues/920) Add a read-only selected-wave panel to the J2CL search sidecar
+3. [#921](https://github.com/vega113/supawave/issues/921) Add sidecar route state and split-view navigation for the J2CL shell
+4. [#922](https://github.com/vega113/supawave/issues/922) Add the first J2CL write-path pilot for create/reply/plain-text submit
+5. [#928](https://github.com/vega113/supawave/issues/928) Build the first J2CL-owned root app shell
 6. [#923](https://github.com/vega113/supawave/issues/923) Add an opt-in root bootstrap flag for the J2CL client
 7. [#924](https://github.com/vega113/supawave/issues/924) Cut over the default root route from GWT to J2CL
 8. [#925](https://github.com/vega113/supawave/issues/925) Retire the legacy GWT client path and packaging steps

@@ -113,6 +113,7 @@ curl -sS -I http://localhost:9900/
 curl -sS -I http://localhost:9900/webclient/webclient.nocache.js
 curl -sS -I http://localhost:9900/j2cl-search/index.html
 curl -sS -I http://localhost:9900/j2cl/index.html
+curl -fsS http://localhost:9900/j2cl-search/sidecar/j2cl-sidecar.js | rg "WaveSandboxEntryPoint|j2cl"
 # Optional — only present when j2clSandboxBuild was also run
 curl -sS -I http://localhost:9900/j2cl-debug/index.html
 ```
@@ -123,6 +124,7 @@ Expected result:
 - `/webclient/webclient.nocache.js` is present
 - `/j2cl-search/index.html` is present
 - `/j2cl/index.html` is present (production sidecar artifact from `Universal/stage`)
+- the J2CL search bundle itself is present and non-placeholder
 - `/j2cl-debug/index.html` is present only if `j2clSandboxBuild` was run; not required by the standard gate
 
 ## Manual Browser Verification
