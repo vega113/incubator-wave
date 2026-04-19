@@ -140,20 +140,32 @@ public class UrlParameters implements TypedSource {
     return sb.toString();
   }
 
-  private static String decodeComponent(String value) {
-    try {
-      return decodeComponentNative(value);
-    } catch (Error err) {
-      return decodeComponentJvm(value);
+  private static volatile Boolean nativeCodecAvailable = null;
+
+  private static boolean isNativeCodecAvailable() {
+    if (nativeCodecAvailable == null) {
+      try {
+        decodeComponentNative("test");
+        nativeCodecAvailable = Boolean.TRUE;
+      } catch (UnsatisfiedLinkError e) {
+        nativeCodecAvailable = Boolean.FALSE;
+      }
     }
+    return nativeCodecAvailable;
+  }
+
+  private static String decodeComponent(String value) {
+    if (isNativeCodecAvailable()) {
+      return decodeComponentNative(value);
+    }
+    return decodeComponentJvm(value);
   }
 
   private static String encodeComponent(String value) {
-    try {
+    if (isNativeCodecAvailable()) {
       return encodeComponentNative(value);
-    } catch (Error err) {
-      return encodeComponentJvm(value);
     }
+    return encodeComponentJvm(value);
   }
 
   private static native String decodeComponentNative(String value) /*-{
@@ -193,19 +205,40 @@ public class UrlParameters implements TypedSource {
       if ((b0 & 0x80) == 0) {
         codePoint = b0;
       } else if ((b0 & 0xE0) == 0xC0) {
-        int b1 = bytes.charAt(i++) & 0x3F;
-        codePoint = ((b0 & 0x1F) << 6) | b1;
+        if (i >= bytes.length()) {
+          throw new IllegalArgumentException("Truncated UTF-8 sequence in query string");
+        }
+        int b1 = bytes.charAt(i++);
+        if ((b1 & 0xC0) != 0x80) {
+          throw new IllegalArgumentException("Invalid UTF-8 continuation byte in query string");
+        }
+        codePoint = ((b0 & 0x1F) << 6) | (b1 & 0x3F);
       } else if ((b0 & 0xF0) == 0xE0) {
-        int b1 = bytes.charAt(i++) & 0x3F;
-        int b2 = bytes.charAt(i++) & 0x3F;
-        codePoint = ((b0 & 0x0F) << 12) | (b1 << 6) | b2;
+        if (i + 1 >= bytes.length()) {
+          throw new IllegalArgumentException("Truncated UTF-8 sequence in query string");
+        }
+        int b1 = bytes.charAt(i++);
+        int b2 = bytes.charAt(i++);
+        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80) {
+          throw new IllegalArgumentException("Invalid UTF-8 continuation byte in query string");
+        }
+        codePoint = ((b0 & 0x0F) << 12) | ((b1 & 0x3F) << 6) | (b2 & 0x3F);
       } else if ((b0 & 0xF8) == 0xF0) {
-        int b1 = bytes.charAt(i++) & 0x3F;
-        int b2 = bytes.charAt(i++) & 0x3F;
-        int b3 = bytes.charAt(i++) & 0x3F;
-        codePoint = ((b0 & 0x07) << 18) | (b1 << 12) | (b2 << 6) | b3;
+        if (i + 2 >= bytes.length()) {
+          throw new IllegalArgumentException("Truncated UTF-8 sequence in query string");
+        }
+        int b1 = bytes.charAt(i++);
+        int b2 = bytes.charAt(i++);
+        int b3 = bytes.charAt(i++);
+        if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80) {
+          throw new IllegalArgumentException("Invalid UTF-8 continuation byte in query string");
+        }
+        codePoint = ((b0 & 0x07) << 18) | ((b1 & 0x3F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F);
       } else {
         throw new IllegalArgumentException("Invalid UTF-8 lead byte in query string");
+      }
+      if (codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+        throw new IllegalArgumentException("Invalid Unicode code point in query string: " + codePoint);
       }
       appendCodePoint(out, codePoint);
     }
@@ -228,6 +261,7 @@ public class UrlParameters implements TypedSource {
     return out.toString();
   }
 
+  // Matches characters left unescaped by GWT's URL.encodeComponent (JavaScript encodeURIComponent).
   private static boolean isUnescapedQueryCodePoint(int codePoint) {
     return (codePoint >= 'A' && codePoint <= 'Z')
         || (codePoint >= 'a' && codePoint <= 'z')
@@ -235,7 +269,12 @@ public class UrlParameters implements TypedSource {
         || codePoint == '-'
         || codePoint == '_'
         || codePoint == '.'
-        || codePoint == '*';
+        || codePoint == '!'
+        || codePoint == '~'
+        || codePoint == '*'
+        || codePoint == '\''
+        || codePoint == '('
+        || codePoint == ')';
   }
 
   private static void appendUtf8PercentEncoded(StringBuilder out, int codePoint) {
