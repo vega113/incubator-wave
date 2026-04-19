@@ -1,7 +1,7 @@
 # J2CL / GWT 3 Preparatory Work
 
 Status: Current
-Updated: 2026-04-18
+Updated: 2026-04-19
 Parent: [j2cl-gwt3-decision-memo.md](./j2cl-gwt3-decision-memo.md)
 
 This document originally tracked the first two recommended follow-on tasks from
@@ -43,6 +43,18 @@ The repo is also past several earlier preparatory blockers:
 - the remaining blocker story is now centered on sidecar build, transport,
   browser interop, UiBinder, and legacy GWT-only tests
 
+### Explicit `GWTTestCase` split now committed
+
+Issue `#898` has now turned the stale test-harness blocker into an explicit
+map:
+
+- the direct `GWTTestCase` baseline was reconciled to `21` in the live
+  worktree
+- `DelayedJobRegistry` and `UrlParameters` moved to plain JVM tests in `#898`
+- the remaining direct surface is now `19`
+- the browser-only/editor-family home is documented in
+  [docs/j2cl-gwttestcase-verification-matrix.md](./j2cl-gwttestcase-verification-matrix.md)
+
 ## Preparatory Work Still Open
 
 The following items remain open after the landed cleanup:
@@ -51,7 +63,8 @@ The following items remain open after the landed cleanup:
 - no JsInterop / Elemental2 bridge seam yet
 - the transport / websocket / generated JSO message stack is still GWT-specific
 - UiBinder and `GWT.create(...)` are still widespread in the client UI
-- `GWTTestCase` debt still needs an explicit JVM/browser split
+- the remaining browser-facing `GWTTestCase` suites still need a real post-GWT
+  browser runner even though the JVM/browser split is now documented
 
 ## Current Follow-On Issue Chain
 

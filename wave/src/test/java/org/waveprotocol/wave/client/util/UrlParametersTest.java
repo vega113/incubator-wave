@@ -19,46 +19,38 @@
 
 package org.waveprotocol.wave.client.util;
 
-import com.google.gwt.junit.client.GWTTestCase;
+import junit.framework.TestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- */
-
-public class UrlParametersGwtTest extends GWTTestCase {
-
-  @Override
-  public String getModuleName() {
-    return "org.waveprotocol.wave.client.util.ClientFlags";
-  }
+public class UrlParametersTest extends TestCase {
 
   public void testSomeQueries() {
     UrlParameters u = new UrlParameters("?act=new");
-    assertEquals("test1", "new", u.getParameter("act"));
-    assertEquals("test2", null, u.getParameter("cnv"));
+    assertEquals("new", u.getParameter("act"));
+    assertNull(u.getParameter("cnv"));
 
     u = new UrlParameters("?act=new&cnv=123");
-    assertEquals("test3", "new", u.getParameter("act"));
-    assertEquals("test4", "123", u.getParameter("cnv"));
+    assertEquals("new", u.getParameter("act"));
+    assertEquals("123", u.getParameter("cnv"));
   }
 
   public void testNonExistentQuery() {
     UrlParameters u = new UrlParameters("?");
-    assertEquals("test5", null, u.getParameter("act"));
-    assertEquals("test6", null, u.getParameter("cnv"));
+    assertNull(u.getParameter("act"));
+    assertNull(u.getParameter("cnv"));
 
     u = new UrlParameters("");
-    assertEquals("test7", null, u.getParameter("nonexistent_key"));
+    assertNull(u.getParameter("nonexistent_key"));
   }
 
   public void testSafeGetters() {
     UrlParameters u = new UrlParameters("?booleanValue=true&stringValue=hello");
-    assertEquals(Boolean.valueOf(true), u.getBoolean("booleanValue"));
+    assertEquals(Boolean.TRUE, u.getBoolean("booleanValue"));
     assertEquals("hello", u.getString("stringValue"));
-    assertEquals(null, u.getDouble("booleanValue"));
+    assertNull(u.getDouble("booleanValue"));
   }
 
   public void testInvalidQueryStrings() {
@@ -67,7 +59,6 @@ public class UrlParametersGwtTest extends GWTTestCase {
 
     u = new UrlParameters("?act==&");
     assertEquals("", u.getParameter("act"));
-
 
     u = new UrlParameters("?act=&cnv=3");
     assertEquals("", u.getParameter("act"));
@@ -81,22 +72,17 @@ public class UrlParametersGwtTest extends GWTTestCase {
 
   public void testNonExistent() {
     UrlParameters u = new UrlParameters("?booleanValue=true&stringValue=hello");
-    assertEquals(null, u.getBoolean("nonexistent"));
+    assertNull(u.getBoolean("nonexistent"));
   }
 
   public void testBuildQueryString() {
-    // Test empty map
-    assertEquals("", UrlParameters.buildQueryString(Collections.<String, String> emptyMap()));
+    assertEquals("", UrlParameters.buildQueryString(Collections.<String, String>emptyMap()));
+    assertEquals("?item=1",
+        UrlParameters.buildQueryString(Collections.<String, String>singletonMap("item", "1")));
+    assertEquals("?one+one=one+two",
+        UrlParameters.buildQueryString(
+            Collections.<String, String>singletonMap("one one", "one two")));
 
-    // Test one item
-    assertEquals("?item=1", UrlParameters.buildQueryString(Collections
-        .<String, String> singletonMap("item", "1")));
-
-    // Test that characters are urlencoded
-    assertEquals("?one+one=one+two", UrlParameters.buildQueryString(Collections
-        .<String, String> singletonMap("one one", "one two")));
-
-    // Test multiple items
     Map<String, String> queryMap = new HashMap<String, String>();
     queryMap.put("a", "b");
     queryMap.put("c", "d");
@@ -107,5 +93,48 @@ public class UrlParametersGwtTest extends GWTTestCase {
     assertEquals("b", u.getParameter("a"));
     assertEquals("d", u.getParameter("c"));
     assertEquals("f", u.getParameter("e"));
+  }
+
+  public void testBuildQueryStringPreservesEncodeComponentSafeCharacters() {
+    assertEquals("?!~*'()=!~*'()",
+        UrlParameters.buildQueryString(
+            Collections.<String, String>singletonMap("!~*'()", "!~*'()")));
+  }
+
+  public void testUtf8RoundTripInJvmCodec() {
+    String queryString =
+        UrlParameters.buildQueryString(
+            Collections.<String, String>singletonMap("こんにちは", "世界"));
+
+    UrlParameters u = new UrlParameters(queryString);
+    assertEquals("世界", u.getParameter("こんにちは"));
+  }
+
+  public void testTruncatedUtf8SequenceRejected() {
+    try {
+      new UrlParameters("?bad=%E2%82");
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {
+      assertTrue(expected.getMessage().contains("UTF-8"));
+    }
+  }
+
+  public void testInvalidUtf8ContinuationRejected() {
+    try {
+      new UrlParameters("?bad=%E2%28%A1");
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {
+      assertTrue(expected.getMessage().contains("UTF-8"));
+    }
+  }
+
+  public void testLoneSurrogateInEncodeRejected() {
+    try {
+      UrlParameters.buildQueryString(
+          Collections.<String, String>singletonMap("k", "\uD800"));
+      fail("Expected IllegalArgumentException for lone surrogate");
+    } catch (IllegalArgumentException expected) {
+      assertTrue(expected.getMessage().contains("surrogate"));
+    }
   }
 }

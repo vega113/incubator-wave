@@ -19,7 +19,7 @@
 
 package org.waveprotocol.wave.client.scheduler;
 
-import com.google.gwt.junit.client.GWTTestCase;
+import junit.framework.TestCase;
 
 import org.waveprotocol.wave.client.scheduler.Scheduler.Priority;
 import org.waveprotocol.wave.client.scheduler.Scheduler.Schedulable;
@@ -29,8 +29,7 @@ import org.waveprotocol.wave.client.scheduler.Scheduler.Schedulable;
  *
  * @author danilatos@google.com (Daniel Danilatos)
  */
-
-public class DelayedJobRegistryGwtTest extends GWTTestCase {
+public class DelayedJobRegistryTest extends TestCase {
 
   public void testDelayedJobRegistry() {
     DelayedJobRegistry r = new DelayedJobRegistry();
@@ -49,17 +48,15 @@ public class DelayedJobRegistryGwtTest extends GWTTestCase {
 
     String id1 = info[0].id;
     String id2 = info[1].id;
-    String id3 = info[2].id;
 
     assertTrue(r.debugIsClear());
     assertFalse(r.has(id1));
     assertFalse(r.has(id2));
-    assertEquals(-1, r.getNextDueDelayedJobTime(), 0.001);
-    assertEquals(null, r.getDueDelayedJob(0));
-    assertEquals(null, r.getDueDelayedJob(10000));
-    assertEquals(null, r.getDueDelayedJob(Double.MAX_VALUE));
-    r.removeDelayedJob(id1); // just check doesn't throw exception when id not
-                            // found
+    assertEquals(-1.0, r.getNextDueDelayedJobTime(), 0.001);
+    assertNull(r.getDueDelayedJob(0));
+    assertNull(r.getDueDelayedJob(10000));
+    assertNull(r.getDueDelayedJob(Double.MAX_VALUE));
+    r.removeDelayedJob(id1);
     r.removeDelayedJob(id2);
 
     r.addDelayedJob(info[0]);
@@ -67,11 +64,10 @@ public class DelayedJobRegistryGwtTest extends GWTTestCase {
     assertTrue(r.has(id1));
     assertTrue(r.has(id2));
     Schedulable j0 = r.getDueDelayedJob(0);
-    Schedulable j1 = r.getDueDelayedJob(0); // because it will be scheduled
-                                            // slightly later than 0
+    Schedulable j1 = r.getDueDelayedJob(0);
     assertTrue(j0 != j1);
-    assertTrue(j0 == tasks[0]);
-    assertTrue(j1 == tasks[1]);
+    assertSame(tasks[0], j0);
+    assertSame(tasks[1], j1);
 
     assertFalse(r.has(id1));
     info[1].calculateNextExecuteTime(0);
@@ -83,26 +79,18 @@ public class DelayedJobRegistryGwtTest extends GWTTestCase {
     assertNull(r.getDueDelayedJob(19));
     checkTimeAdvance(r, info[1], 20);
     checkTimeAdvance(r, info[1], 50);
-    assertNull(r.getDueDelayedJob(50)); // Won't get scheduled more times if
-                                        // time runs out
+    assertNull(r.getDueDelayedJob(50));
     assertTrue(r.has(id2));
     r.removeDelayedJob(id2);
     assertTrue(r.debugIsClear());
     assertFalse(r.has(id2));
     assertNull(r.getDueDelayedJob(100));
-
-    // TODO(danilatos): More?
   }
 
   private void checkTimeAdvance(DelayedJobRegistry r, TaskInfo info, double time) {
-    assertEquals(info.job, r.getDueDelayedJob(time));
+    assertSame(info.job, r.getDueDelayedJob(time));
     info.calculateNextExecuteTime(time);
     r.addDelayedJob(info);
     assertNull(r.getDueDelayedJob(time));
-  }
-
-  @Override
-  public String getModuleName() {
-    return "org.waveprotocol.wave.client.scheduler.tests";
   }
 }
