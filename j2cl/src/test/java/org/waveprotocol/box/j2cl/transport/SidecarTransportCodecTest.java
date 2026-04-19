@@ -19,13 +19,17 @@ public class SidecarTransportCodecTest {
   @Test
   public void encodeOpenEnvelopeUsesGeneratedNumericFieldKeys() {
     SidecarOpenRequest request =
-        new SidecarOpenRequest("user@example.com", "example.com/w+abc123");
+        new SidecarOpenRequest(
+            "user@example.com",
+            "example.com/w+abc123",
+            java.util.Collections.singletonList("example.com!conv+root"));
 
     String json = SidecarTransportCodec.encodeOpenEnvelope(8, request);
 
     Assert.assertTrue(json.contains("\"messageType\":\"ProtocolOpenRequest\""));
     Assert.assertTrue(json.contains("\"1\":\"user@example.com\""));
     Assert.assertTrue(json.contains("\"2\":\"example.com/w+abc123\""));
+    Assert.assertTrue(json.contains("\"3\":[\"example.com!conv+root\"]"));
   }
 
   @Test
