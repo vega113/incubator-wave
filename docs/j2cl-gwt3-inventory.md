@@ -1,9 +1,9 @@
 # J2CL / GWT 3 Inventory
 
 Status: Current
-Updated: 2026-04-18
+Updated: 2026-04-19
 Owner: Project Maintainers
-Task: `#899`
+Task: `#898`
 
 This document records the current GWT-specific surface area in
 `incubator-wave` so future migration work starts from measured constraints
@@ -12,7 +12,7 @@ plan.
 
 ## Evidence Snapshot
 
-Re-verified on the `issue-899-j2cl-doc-refresh` worktree on 2026-04-18:
+Re-verified on the `issue-898-gwttest-split` worktree on 2026-04-19:
 
 - `.gwt.xml` files: `129`
 - `GWT.create(...)` callsites: `84`
@@ -20,7 +20,9 @@ Re-verified on the `issue-899-j2cl-doc-refresh` worktree on 2026-04-18:
 - `.ui.xml` templates: `23`
 - `JavaScriptObject` / JSNI-heavy files: `114`
 - JSNI native methods: `238`
-- `GWTTestCase` tests: `24`
+- remaining direct `GWTTestCase` Java files: `19`
+- reconciled pre-conversion direct `GWTTestCase` baseline for `#898`: `21`
+- inherited editor/test-base descendants still on the browser-era harness path: `11`
 - `<replace-with>` directives: `0`
 - custom `Generator` subclasses: `0`
 - JsInterop-annotated files: `0`
@@ -152,14 +154,22 @@ Blocker assessment:
 
 Measured surface:
 
-- `24` `GWTTestCase` tests
-- dedicated hosted/browser-era GWT validation paths still exist in the repo
+- `19` direct `GWTTestCase` Java files remain after the `#898` low-risk JVM
+  conversions
+- issue `#898` reconciled the actual starting direct baseline at `21`, not the
+  stale `24` previously copied forward in the docs
+- `11` editor/integration descendants still inherit the browser-era harness
+  through `EditorGwtTestCase`, `ContentTestBase`, `TestBase`, or
+  `ElementTestBase`
+- the canonical per-suite classification now lives in
+  [docs/j2cl-gwttestcase-verification-matrix.md](./j2cl-gwttestcase-verification-matrix.md)
 
 Implications:
 
 - the migration still requires a testing strategy, not just a source rewrite
-- some client tests can move to plain JVM tests
-- browser-semantics and widget tests still need an explicit post-GWT home
+- some client tests have now moved to plain JVM tests
+- browser-semantics and widget tests now have an explicit documented post-GWT
+  home even though they still need a future runner
 
 ## Dependency And Architecture Blockers
 

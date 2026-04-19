@@ -42,7 +42,7 @@ All numbers below were re-verified on 2026-04-02 in this worktree.
 | JSNI / `JavaScriptObject` files | 97 | Runtime surface across `wave/src/main/java/**` plus PST-generated `gen/messages/**/jso/**`; the earlier figure counted only the hand-maintained runtime subset, not the generated JSO surface that Phases 3-4 must replace |
 | JSNI native methods | 297 | Dominated by selection, DOM, gadget, generated JSON message accessors, and JSON helper code |
 | JsInterop / Elemental2 usage | 0 | No `@JsType`, `@JsMethod`, `@JsProperty`, or `elemental2` imports found |
-| `GWTTestCase` files | 27 | Includes model and concurrency-control wrappers plus editor/browser suites |
+| `GWTTestCase` files | 19 direct suites plus 11 inherited editor-family descendants | See `docs/j2cl-gwttestcase-verification-matrix.md`; issue `#898` moved the clearly low-risk suites to plain JVM tests and left the browser families explicit |
 
 Important `GWT.create(...)` split:
 
@@ -91,7 +91,7 @@ The binder/resource majority is mechanically replaceable. The late-bound runtime
 | `CssResource` / `ClientBundle` / `DataResource` | Common in search, popups, editor resources, attachments, gadgets | Replace with static CSS files, host-page styles, or build-time CSS extraction; images become normal assets referenced by URL | Medium |
 | Deferred binding (`<replace-with>`) | `Popup.gwt.xml`, `Util.gwt.xml`, `useragents.gwt.xml`, `Logger.gwt.xml`, plus harness/property modules | Replace with runtime feature detection and ordinary Java factories | Medium |
 | GWT WebSocket wrapper | `com/google/gwt/websockets/client/WebSocket.java` and `WaveSocketFactory.java` | Replace with `elemental2.dom.WebSocket` adapter | Medium |
-| `GWTTestCase` | 27 files, including `GenericGWTTestBase`, model wrappers, concurrency-control wrappers, editor/browser suites | Convert logic tests to plain JUnit first; use browser runner only for DOM semantics after slice migration | Medium |
+| `GWTTestCase` | 19 direct suites plus 11 inherited editor-family descendants; see `docs/j2cl-gwttestcase-verification-matrix.md` | Convert logic tests to plain JUnit first; use browser runner only for DOM semantics after slice migration | Medium |
 | `guava-gwt` | Still present in the isolated `Gwt` config and many `.gwt.xml` inherits | Replace narrow Guava surface, remove `com.google.common.base.Base` / `Collect` inherits, then drop dependency | Low |
 
 ## 3. What Gets Dropped
@@ -419,6 +419,12 @@ Do not replace the `webclient` output path until Phase 5.
 ## 7. Testing Strategy
 
 ### 7.1 Replace `GWTTestCase` By Category
+
+The current suite-by-suite classification lives in
+`docs/j2cl-gwttestcase-verification-matrix.md`. Issue `#898` reconciled the
+direct baseline to `21`, converted two low-risk suites to plain JVM tests, and
+left `19` direct `GWTTestCase` suites plus `11` inherited editor-family
+descendants as the remaining browser-facing surface.
 
 | Test category | Current state | Target state | Phase |
 |---|---|---|---|

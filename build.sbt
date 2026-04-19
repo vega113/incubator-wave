@@ -41,6 +41,12 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
   val p = f.getPath.replace('\\', '/')
   val underMain    = p.contains("/wave/src/main/java/")
   val underJakarta = p.contains("/wave/src/jakarta-overrides/java/")
+  val isConvertedJvmClientSource =
+    p.endsWith("/wave/src/main/java/org/waveprotocol/wave/client/scheduler/DelayedJobRegistry.java") ||
+    p.endsWith("/wave/src/main/java/org/waveprotocol/wave/client/scheduler/Scheduler.java") ||
+    p.endsWith("/wave/src/main/java/org/waveprotocol/wave/client/scheduler/TaskInfo.java") ||
+    p.endsWith("/wave/src/main/java/org/waveprotocol/wave/client/util/TypedSource.java") ||
+    p.endsWith("/wave/src/main/java/org/waveprotocol/wave/client/util/UrlParameters.java")
 
   // Same-path main/Jakarta duplicate classes were removed in issue #714.
   // Keep this empty set so build tooling and guard scripts can still parse the block.
@@ -84,6 +90,7 @@ Compile / unmanagedSources := (Compile / unmanagedSources).value.filterNot { f =
   val commonExcludes =
     (isSrc && p.contains("/org/waveprotocol/box/webclient/")) ||
     (isSrc && p.contains("/org/waveprotocol/wave/client/") &&
+      !isConvertedJvmClientSource &&
       !p.endsWith("/wave/client/state/BlipReadStateMonitor.java") &&
       !p.endsWith("/wave/client/state/ThreadReadStateMonitor.java") &&
       // SSR Phase 1: pure-model render interfaces needed by ServerHtmlRenderer (#216)
@@ -368,12 +375,15 @@ Test / unmanagedResourceDirectories += baseDirectory.value / "wave" / "src" / "t
 Test / unmanagedSources := (Test / unmanagedSources).value.filterNot { f =>
   val p = f.getPath.replace('\\', '/')
   val fn = f.getName
+  val isConvertedJvmClientTest =
+    p.endsWith("/wave/src/test/java/org/waveprotocol/wave/client/scheduler/DelayedJobRegistryTest.java") ||
+    p.endsWith("/wave/src/test/java/org/waveprotocol/wave/client/util/UrlParametersTest.java")
   // GWT test bases/cases
   fn.contains("GwtTest") || fn == "GwtTestCase.java" ||
   fn == "TestBase.java" || fn == "GenericGWTTestBase.java" ||
   fn == "ContentTestBase.java" || fn == "ContentTestCase.java" ||
   // Client and webclient trees
-  p.contains("/org/waveprotocol/wave/client/") ||
+  (p.contains("/org/waveprotocol/wave/client/") && !isConvertedJvmClientTest) ||
   p.contains("/org/waveprotocol/box/webclient/") ||
   // Legacy Jetty API tests that break on JDK17
   p.endsWith("/org/waveprotocol/box/server/rpc/FetchServletTest.java") ||

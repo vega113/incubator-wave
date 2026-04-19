@@ -1,9 +1,9 @@
 # J2CL / GWT 3 Decision Memo
 
 Status: Current
-Updated: 2026-04-18
+Updated: 2026-04-19
 Owner: Project Maintainers
-Task: `#899`
+Task: `#898`
 
 ## Decision Summary
 
@@ -14,7 +14,9 @@ Reason:
 - the current client still depends heavily on JSNI and `JavaScriptObject`
 - UiBinder and `GWT.create(...)` remain central to UI composition
 - the GWT client build is still an isolated legacy toolchain in `build.sbt`
-- the test harness still carries legacy `GWTTestCase` debt
+- the remaining browser-facing test harness still carries legacy
+  `GWTTestCase` debt even though `#898` now makes the JVM/browser split
+  explicit
 - there is still no existing JsInterop / Elemental2 bridge layer or J2CL sidecar
 
 The important update is not the decision itself; it is the baseline. The repo
@@ -34,12 +36,18 @@ Current short version:
 - `238` JSNI native methods
 - `27` UiBinder-related Java files
 - `23` `.ui.xml` templates
-- `24` `GWTTestCase` tests
+- `19` remaining direct `GWTTestCase` Java files after `#898`
+- `21` was the reconciled direct starting baseline for `#898`
+- `11` inherited editor/test-base descendants still need a browser-facing home
 - no JsInterop / Elemental2 bridge layer
 - no J2CL sidecar build yet
 - `guava-gwt` already removed
 - gadget/htmltemplate client cleanup already landed
 - `WaveContext` already uses the shared `BlipReadStateMonitor` contract
+
+See
+[docs/j2cl-gwttestcase-verification-matrix.md](./j2cl-gwttestcase-verification-matrix.md)
+for the suite-by-suite test-home map.
 
 ## Go / No-Go
 
