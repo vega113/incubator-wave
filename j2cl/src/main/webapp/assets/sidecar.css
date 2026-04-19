@@ -52,3 +52,62 @@ body {
   margin-top: 12px;
   color: #4f6480;
 }
+
+.sidecar-proof-label {
+  margin: 28px 0 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7f98;
+}
+
+.sidecar-proof-status,
+.sidecar-proof-meta {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.sidecar-proof-status {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #10233b;
+}
+
+.sidecar-proof-meta {
+  margin-top: 8px;
+  color: #4f6480;
+}
+
+.sidecar-proof-status-success {
+  color: #157347;
+}
+
+.sidecar-proof-meta-success {
+  color: #215f3f;
+}
+
+.sidecar-proof-status-error {
+  color: #b42318;
+}
+
+.sidecar-proof-meta-error {
+  color: #8f2d22;
+}
+
+.sidecar-proof-action {
+  margin-top: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #10233b;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 12px 18px;
+}
+
+.sidecar-proof-action:hover,
+.sidecar-proof-action:focus {
+  background: #173355;
+}

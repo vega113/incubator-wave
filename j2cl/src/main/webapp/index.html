@@ -56,10 +56,24 @@
         }
       }
 
+      function resolveEntryPoint() {
+        if (window.WaveSandboxEntryPoint && window.WaveSandboxEntryPoint.mount) {
+          return window.WaveSandboxEntryPoint;
+        }
+        if (window.goog && window.goog.module && window.goog.module.get) {
+          var entryPoint = window.goog.module.get("WaveSandboxEntryPoint");
+          if (entryPoint && entryPoint.mount) {
+            window.WaveSandboxEntryPoint = entryPoint;
+            return entryPoint;
+          }
+        }
+        return null;
+      }
 
       function mountWhenReady(attemptsRemaining) {
-        if (window.WaveSandboxEntryPoint && window.WaveSandboxEntryPoint.mount) {
-          window.WaveSandboxEntryPoint.mount("sidecar-root", detectMode(window.location.pathname));
+        var entryPoint = resolveEntryPoint();
+        if (entryPoint) {
+          entryPoint.mount("sidecar-root", detectMode(window.location.pathname));
           return;
         }
         if (attemptsRemaining > 0) {
