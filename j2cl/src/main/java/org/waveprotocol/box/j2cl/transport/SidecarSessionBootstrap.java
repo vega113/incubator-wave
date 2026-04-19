@@ -14,6 +14,9 @@ public final class SidecarSessionBootstrap {
   }
 
   public static SidecarSessionBootstrap fromRootHtml(String html) {
+    if (html == null) {
+      throw new IllegalArgumentException("Root HTML must not be null");
+    }
     int sessionMarker = html.indexOf("__session");
     if (sessionMarker < 0) {
       throw new IllegalArgumentException("Root page did not expose window.__session");
@@ -26,10 +29,10 @@ public final class SidecarSessionBootstrap {
     Map<String, Object> session =
         SidecarTransportCodec.parseJsonObject(html.substring(objectStart, objectEnd + 1));
     Object addressValue = session.get("address");
-    if (addressValue == null) {
+    if (!(addressValue instanceof String)) {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
-    String address = String.valueOf(addressValue);
+    String address = ((String) addressValue).trim();
     if (address.isEmpty()) {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
