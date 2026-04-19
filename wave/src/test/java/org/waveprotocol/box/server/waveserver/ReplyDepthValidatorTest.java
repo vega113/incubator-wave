@@ -86,6 +86,34 @@ public final class ReplyDepthValidatorTest extends TestCase {
     assertNotNull(ReplyDepthValidator.validate(snapshot, ops, 5));
   }
 
+  public void testRejectsDeltaWhenLaterThreadInsertExceedsMaxDepth() {
+    FakeSilentOperationSink<WaveletOperation> sink = new FakeSilentOperationSink<WaveletOperation>();
+    WaveletBasedConversation waveletConversation = createConversation(sink);
+    Conversation conversation = waveletConversation;
+
+    ConversationBlip root = conversation.getRootThread().appendBlip();
+    ConversationBlip current = root;
+    ConversationBlip depthFourBlip = null;
+    for (int depth = 1; depth <= 5; depth++) {
+      current = current.addReplyThread().appendBlip();
+      if (depth == 4) {
+        depthFourBlip = current;
+      }
+    }
+
+    assertNotNull(depthFourBlip);
+    ObservableWaveletData snapshot =
+        WaveletDataUtil.copyWavelet(waveletConversation.getWavelet().getWaveletData());
+    assertEquals(5, ReplyDepthValidator.computeManifestMaxDepth(snapshot));
+
+    sink.clear();
+    ConversationBlip siblingDepthFiveBlip = depthFourBlip.addReplyThread().appendBlip();
+    siblingDepthFiveBlip.addReplyThread().appendBlip();
+    List<WaveletOperation> ops = sink.getOps();
+
+    assertNotNull(ReplyDepthValidator.validate(snapshot, ops, 5));
+  }
+
   private static WaveletBasedConversation createConversation(
       FakeSilentOperationSink<WaveletOperation> sink) {
     IdGenerator idGenerator = FakeIdGenerator.create();

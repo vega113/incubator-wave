@@ -82,15 +82,14 @@ public final class ReplyDepthValidator {
       return null; // unlimited
     }
 
-    List<WaveletOperation> opList = new ArrayList<WaveletOperation>();
-
-    // Collect all ops and detect any manifest thread insertion.
+    // Check if any operation targets the manifest document and inserts thread elements.
     boolean hasManifestThreadInsert = false;
+    List<WaveletBlipOperation> manifestOps = new ArrayList<WaveletBlipOperation>();
     for (WaveletOperation op : ops) {
-      opList.add(op);
-      if (!hasManifestThreadInsert && op instanceof WaveletBlipOperation) {
+      if (op instanceof WaveletBlipOperation) {
         WaveletBlipOperation blipOp = (WaveletBlipOperation) op;
         if (MANIFEST_DOC_ID.equals(blipOp.getBlipId())) {
+          manifestOps.add(blipOp);
           if (blipOp.getBlipOp() instanceof BlipContentOperation) {
             DocOp docOp = ((BlipContentOperation) blipOp.getBlipOp()).getContentOp();
             if (docOpInsertsThread(docOp)) {
@@ -105,7 +104,7 @@ public final class ReplyDepthValidator {
       return null; // no thread creation, nothing to validate
     }
 
-    Integer projectedMaxDepth = computeProjectedMaxDepth(snapshot, opList);
+    Integer projectedMaxDepth = computeProjectedMaxDepth(snapshot, manifestOps);
     if (projectedMaxDepth == null) {
       return null;
     }
@@ -121,23 +120,48 @@ public final class ReplyDepthValidator {
   }
 
   private static Integer computeProjectedMaxDepth(ReadableWaveletData snapshot,
-      List<WaveletOperation> ops) {
+      List<WaveletBlipOperation> manifestOps) {
     if (snapshot == null) {
       return null;
     }
-    ObservableWaveletData projected = WaveletDataUtil.copyWavelet(snapshot);
+    ObservableWaveletData projected = createManifestProjection(snapshot);
+    if (projected == null) {
+      return null;
+    }
     try {
-      for (WaveletOperation op : ops) {
-        if (op instanceof WaveletBlipOperation
-            && MANIFEST_DOC_ID.equals(((WaveletBlipOperation) op).getBlipId())) {
-          op.apply(projected);
-        }
+      for (WaveletBlipOperation op : manifestOps) {
+        op.apply(projected);
       }
     } catch (OperationException e) {
       LOG.warning("Failed to simulate reply-depth validation state: " + e.getMessage());
       return null;
     }
     return computeManifestMaxDepth(projected);
+  }
+
+  private static ObservableWaveletData createManifestProjection(ReadableWaveletData snapshot) {
+    ObservableWaveletData projected = WaveletDataUtil.createEmptyWavelet(
+        WaveletDataUtil.waveletNameOf(snapshot),
+        snapshot.getCreator(),
+        snapshot.getHashedVersion(),
+        snapshot.getCreationTime());
+    ReadableBlipData manifestBlip = snapshot.getDocument(MANIFEST_DOC_ID);
+    if (manifestBlip == null) {
+      return projected;
+    }
+    try {
+      projected.createDocument(
+          manifestBlip.getId(),
+          manifestBlip.getAuthor(),
+          manifestBlip.getContributors(),
+          manifestBlip.getContent().asOperation(),
+          manifestBlip.getLastModifiedTime(),
+          manifestBlip.getLastModifiedVersion());
+    } catch (Throwable e) {
+      LOG.warning("Failed to copy manifest document for reply-depth validation: " + e.getMessage());
+      return null;
+    }
+    return projected;
   }
 
   /**
