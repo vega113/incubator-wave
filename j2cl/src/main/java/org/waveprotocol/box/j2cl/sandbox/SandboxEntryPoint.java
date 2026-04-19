@@ -232,21 +232,28 @@ public final class SandboxEntryPoint {
     }
 
     private void openSocket(SidecarSessionBootstrap bootstrap, SidecarSearchResponse.Digest digest) {
-      socket = new WebSocket(buildWebSocketUrl());
-      socket.onopen = event -> {
+      WebSocket ws = new WebSocket(buildWebSocketUrl());
+      socket = ws;
+      ws.onopen = event -> {
+        if (ws != socket) {
+          return;
+        }
         waitingForUpdate = true;
         String token = readCookie("JSESSIONID");
         if (token != null && !token.isEmpty()) {
-          socket.send(SidecarTransportCodec.encodeAuthenticateEnvelope(0, token));
+          ws.send(SidecarTransportCodec.encodeAuthenticateEnvelope(0, token));
         }
-        socket.send(
+        ws.send(
             SidecarTransportCodec.encodeOpenEnvelope(
-                1, new SidecarOpenRequest(bootstrap.getAddress(), digest.getWaveId())));
+                1, new SidecarOpenRequest(bootstrap.getAddress(), digest.getWaveId(), null)));
         setNeutral(
             "Awaiting ProtocolWaveletUpdate",
             "Socket connected; auth/open sent for " + digest.getWaveId() + ".");
       };
-      socket.onmessage = event -> {
+      ws.onmessage = event -> {
+        if (ws != socket) {
+          return;
+        }
         String payload = String.valueOf(event.data);
         SocketFrameResult frame = evaluateSocketFrame(payload);
         if (frame.isError()) {
@@ -272,10 +279,16 @@ public final class SandboxEntryPoint {
                 + ".");
         closeSocket();
       };
-      socket.onerror = event -> {
+      ws.onerror = event -> {
+        if (ws != socket) {
+          return;
+        }
         setError("Socket error", "The isolated sidecar failed while talking to /socket.");
       };
-      socket.onclose = event -> {
+      ws.onclose = event -> {
+        if (ws != socket) {
+          return;
+        }
         if (waitingForUpdate) {
           setError(
               "Socket closed early",

@@ -19,13 +19,23 @@ public final class SidecarTransportCodec {
   }
 
   public static String encodeOpenEnvelope(int sequenceNumber, SidecarOpenRequest request) {
-    return "{\"sequenceNumber\":"
-        + sequenceNumber
-        + ",\"messageType\":\"ProtocolOpenRequest\",\"message\":{\"1\":\""
-        + escapeJson(request.getParticipantId())
-        + "\",\"2\":\""
-        + escapeJson(request.getWaveId())
-        + "\"}}";
+    StringBuilder json = new StringBuilder(128);
+    json.append("{\"sequenceNumber\":")
+        .append(sequenceNumber)
+        .append(",\"messageType\":\"ProtocolOpenRequest\",\"message\":{\"1\":\"")
+        .append(escapeJson(request.getParticipantId()))
+        .append("\",\"2\":\"")
+        .append(escapeJson(request.getWaveId()))
+        .append("\",\"3\":[");
+    List<String> prefixes = request.getWaveletIdPrefixes();
+    for (int i = 0; i < prefixes.size(); i++) {
+      if (i > 0) {
+        json.append(',');
+      }
+      json.append('"').append(escapeJson(prefixes.get(i))).append('"');
+    }
+    json.append("]}}");
+    return json.toString();
   }
 
   public static SidecarSearchResponse decodeSearchResponse(String json) {
