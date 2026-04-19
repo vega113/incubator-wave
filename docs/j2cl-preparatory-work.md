@@ -59,27 +59,42 @@ map:
 
 The following items remain open after the landed cleanup:
 
-- no J2CL sidecar build or `j2cl/` subtree yet
-- no JsInterop / Elemental2 bridge seam yet
+- no broad JsInterop / Elemental2 bridge seam yet
 - the transport / websocket / generated JSO message stack is still GWT-specific
 - UiBinder and `GWT.create(...)` are still widespread in the client UI
 - the remaining browser-facing `GWTTestCase` suites still need a real post-GWT
   browser runner even though the JVM/browser split is now documented
+- the sidecar still needs selected-wave rendering, route state, and a write
+  path before root cutover is realistic
 
 ## Current Follow-On Issue Chain
 
-The active GitHub-native sequence is:
+The active GitHub-native sequence is now:
 
-1. [#904](https://github.com/vega113/supawave/issues/904) Track the staged GWT 2.x -> J2CL / GWT 3 migration after Phase 0
+Completed staged foundation:
+
+1. [#899](https://github.com/vega113/supawave/issues/899) Refresh the J2CL / GWT 3 baseline docs after the merged Phase 0 cleanup
 2. [#900](https://github.com/vega113/supawave/issues/900) Stand up the isolated J2CL sidecar build and SBT entrypoints
 3. [#903](https://github.com/vega113/supawave/issues/903) Make `wave/model` and `wave/concurrencycontrol` J2CL-safe pure logic
 4. [#902](https://github.com/vega113/supawave/issues/902) Replace the JSO transport stack and GWT WebSocket shim with J2CL-friendly codecs
 5. [#898](https://github.com/vega113/supawave/issues/898) Replace the remaining GWTTestCase debt with an explicit JVM/browser verification split
 6. [#901](https://github.com/vega113/supawave/issues/901) Migrate the search results panel as the first J2CL UI vertical slice
 
+Current pending sequence:
+
+1. [#904](https://github.com/vega113/supawave/issues/904) Track the staged J2CL / GWT 3 migration from the merged sidecar/search baseline
+2. [#919](https://github.com/vega113/supawave/issues/919) Refresh the J2CL tracker/docs after the merged search-sidecar slice
+3. [#920](https://github.com/vega113/supawave/issues/920) Add a read-only selected-wave panel to the J2CL search sidecar
+4. [#921](https://github.com/vega113/supawave/issues/921) Add sidecar route state and split-view navigation for the J2CL shell
+5. [#922](https://github.com/vega113/supawave/issues/922) Add the first J2CL write-path pilot for create/reply/plain-text submit
+6. [#923](https://github.com/vega113/supawave/issues/923) Add an opt-in root bootstrap flag for the J2CL client
+7. [#924](https://github.com/vega113/supawave/issues/924) Cut over the default root route from GWT to J2CL
+8. [#925](https://github.com/vega113/supawave/issues/925) Retire the legacy GWT client path and packaging steps
+
 ## Summary
 
-The preparatory phase should now be described as “partially completed and
-re-baselined,” not as if the repo were still waiting on `guava-gwt` removal or
-duplicate-module cleanup. The next execution work is issue-driven, not
+The preparatory phase should now be described as “completed enough to enable
+the first staged sidecar client, but not yet ready for root cutover,” not as if
+the repo were still waiting on `guava-gwt` removal, duplicate-module cleanup,
+or the first J2CL slice itself. The next execution work is issue-driven, not
 discovery-driven.

@@ -3,7 +3,7 @@
 Status: Current
 Updated: 2026-04-19
 Owner: Project Maintainers
-Task: `#898`
+Task: `#919`
 
 ## Decision Summary
 
@@ -17,7 +17,8 @@ Reason:
 - the remaining browser-facing test harness still carries legacy
   `GWTTestCase` debt even though `#898` now makes the JVM/browser split
   explicit
-- there is still no existing JsInterop / Elemental2 bridge layer or J2CL sidecar
+- there is still no broad existing JsInterop / Elemental2 bridge layer
+- the J2CL sidecar now exists, but it is still only a partial parallel client
 
 The important update is not the decision itself; it is the baseline. The repo
 is now better prepared than the March snapshot implied because several
@@ -39,8 +40,9 @@ Current short version:
 - `19` remaining direct `GWTTestCase` Java files after `#898`
 - `21` was the reconciled direct starting baseline for `#898`
 - `11` inherited editor/test-base descendants still need a browser-facing home
-- no JsInterop / Elemental2 bridge layer
-- no J2CL sidecar build yet
+- no broad JsInterop / Elemental2 bridge layer
+- the J2CL sidecar build now exists
+- the first J2CL UI slice now exists on `/j2cl-search/index.html`
 - `guava-gwt` already removed
 - gadget/htmltemplate client cleanup already landed
 - `WaveContext` already uses the shared `BlipReadStateMonitor` contract
@@ -52,10 +54,12 @@ for the suite-by-suite test-home map.
 ## Go / No-Go
 
 - Full-app migration now: `No-go`
-- Staged migration preparation: `Go`
-- Isolated J2CL build scaffold: `Go`
-- Narrow transport replacement path: `Go`
-- First UI vertical slice after scaffold and transport: `Go`
+- Staged migration continuation: `Go`
+- Isolated J2CL build scaffold: `Complete`
+- Narrow transport replacement path: `Complete`
+- First UI vertical slice after scaffold and transport: `Complete`
+- Read-only selected-wave sidecar slice: `Go`
+- Route-state / write-path / root-bootstrap follow-on work: `Go`
 
 ## Narrowest Viable Next Wave
 
@@ -63,10 +67,11 @@ The next wave should still avoid trying to move the whole app.
 
 The narrowest viable sequence is now:
 
-1. stand up the isolated J2CL sidecar build
-2. keep shrinking pure-logic and test debt
-3. replace one transport / websocket / JSON seam end-to-end
-4. prove one first UI vertical slice on top of that stack
+1. refresh the stale tracker/docs to the post-`#901` baseline
+2. add a read-only selected-wave panel to the sidecar
+3. add route/history state for the J2CL sidecar shell
+4. prove the smallest write path on top of that shell
+5. add a reversible opt-in root bootstrap before any default cutover
 
 Only after that should the project revisit a broader compiler/runtime switch.
 
@@ -74,12 +79,14 @@ Only after that should the project revisit a broader compiler/runtime switch.
 
 These are the current dependency-ordered follow-on issues:
 
-1. [#904](https://github.com/vega113/supawave/issues/904) Track the staged GWT 2.x -> J2CL / GWT 3 migration after Phase 0
-2. [#900](https://github.com/vega113/supawave/issues/900) Stand up the isolated J2CL sidecar build and SBT entrypoints
-3. [#903](https://github.com/vega113/supawave/issues/903) Make `wave/model` and `wave/concurrencycontrol` J2CL-safe pure logic
-4. [#902](https://github.com/vega113/supawave/issues/902) Replace the JSO transport stack and GWT WebSocket shim with J2CL-friendly codecs
-5. [#898](https://github.com/vega113/supawave/issues/898) Replace the remaining GWTTestCase debt with an explicit JVM/browser verification split
-6. [#901](https://github.com/vega113/supawave/issues/901) Migrate the search results panel as the first J2CL UI vertical slice
+1. [#904](https://github.com/vega113/supawave/issues/904) Track the staged J2CL / GWT 3 migration from the merged sidecar/search baseline
+2. [#919](https://github.com/vega113/supawave/issues/919) Refresh the J2CL tracker/docs after the merged search-sidecar slice
+3. [#920](https://github.com/vega113/supawave/issues/920) Add a read-only selected-wave panel to the J2CL search sidecar
+4. [#921](https://github.com/vega113/supawave/issues/921) Add sidecar route state and split-view navigation for the J2CL shell
+5. [#922](https://github.com/vega113/supawave/issues/922) Add the first J2CL write-path pilot for create/reply/plain-text submit
+6. [#923](https://github.com/vega113/supawave/issues/923) Add an opt-in root bootstrap flag for the J2CL client
+7. [#924](https://github.com/vega113/supawave/issues/924) Cut over the default root route from GWT to J2CL
+8. [#925](https://github.com/vega113/supawave/issues/925) Retire the legacy GWT client path and packaging steps
 
 ## Explicit Non-Starter Moves
 
@@ -97,12 +104,12 @@ These are still not recommended as the next step:
 
 The decision can be revisited after these conditions are met:
 
-- the J2CL sidecar build exists and produces a usable bundle
-- one JsInterop / Elemental2 seam exists in production code
-- the transport / websocket / generated-JSON stack has one successful
-  replacement path
-- the remaining GWT-only test debt has an explicit post-GWT home
-- one real UI slice has shipped behind the staged migration path
+- the sidecar can render a selected wave, not only a search list
+- sidecar route/history state is durable enough for real navigation
+- the first write path has shipped behind the staged migration path
+- an opt-in J2CL root bootstrap exists and is locally verified
+- the remaining GWT-only test debt keeps an explicit post-GWT home through the
+  cutover
 
 ## Recommended Status
 

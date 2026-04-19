@@ -3,7 +3,7 @@
 Status: Current
 Updated: 2026-04-19
 Owner: Project Maintainers
-Task: `#898`
+Task: `#919`
 
 This document records the current GWT-specific surface area in
 `incubator-wave` so future migration work starts from measured constraints
@@ -56,7 +56,11 @@ The client build is still explicitly GWT-centric in [build.sbt](../build.sbt):
 What changed since the earlier inventory:
 
 - `guava-gwt` is no longer present in `build.sbt`
-- the repo still has no `j2cl/` sidecar
+- the repo now has an isolated `j2cl/` sidecar subtree
+- `build.sbt` now exposes `j2clSandboxBuild`, `j2clSandboxTest`,
+  `j2clSearchBuild`, `j2clSearchTest`, and `j2clProductionBuild`
+- packaging now invokes `j2clProductionBuild` alongside the legacy
+  `compileGwt` path
 - the browser client still depends on the dedicated GWT compile/runtime path
 
 The current toolchain picture means a J2CL move is still not just a compiler
@@ -120,7 +124,7 @@ What changed since the earlier inventory:
 
 Blocker assessment:
 
-- the codebase still has no existing JsInterop / Elemental2 bridge seam
+- the codebase still has no broad existing JsInterop / Elemental2 bridge seam
 - browser interop is still embedded in the main runtime instead of isolated
   behind one thin compatibility layer
 - the transport / websocket / generated-JSON stack is now the clearest
@@ -194,14 +198,25 @@ closed rather than still open.
 
 ## Active Follow-On Issue Chain
 
-The current GitHub-native follow-on sequence is:
+Completed staged foundation:
 
-1. [#904](https://github.com/vega113/supawave/issues/904) Track the staged GWT 2.x -> J2CL / GWT 3 migration after Phase 0
+1. [#899](https://github.com/vega113/supawave/issues/899) Refresh the J2CL / GWT 3 baseline docs after the merged Phase 0 cleanup
 2. [#900](https://github.com/vega113/supawave/issues/900) Stand up the isolated J2CL sidecar build and SBT entrypoints
 3. [#903](https://github.com/vega113/supawave/issues/903) Make `wave/model` and `wave/concurrencycontrol` J2CL-safe pure logic
 4. [#902](https://github.com/vega113/supawave/issues/902) Replace the JSO transport stack and GWT WebSocket shim with J2CL-friendly codecs
 5. [#898](https://github.com/vega113/supawave/issues/898) Replace the remaining GWTTestCase debt with an explicit JVM/browser verification split
 6. [#901](https://github.com/vega113/supawave/issues/901) Migrate the search results panel as the first J2CL UI vertical slice
+
+Current pending sequence:
+
+1. [#904](https://github.com/vega113/supawave/issues/904) Track the staged J2CL / GWT 3 migration from the merged sidecar/search baseline
+2. [#919](https://github.com/vega113/supawave/issues/919) Refresh the J2CL tracker/docs after the merged search-sidecar slice
+3. [#920](https://github.com/vega113/supawave/issues/920) Add a read-only selected-wave panel to the J2CL search sidecar
+4. [#921](https://github.com/vega113/supawave/issues/921) Add sidecar route state and split-view navigation for the J2CL shell
+5. [#922](https://github.com/vega113/supawave/issues/922) Add the first J2CL write-path pilot for create/reply/plain-text submit
+6. [#923](https://github.com/vega113/supawave/issues/923) Add an opt-in root bootstrap flag for the J2CL client
+7. [#924](https://github.com/vega113/supawave/issues/924) Cut over the default root route from GWT to J2CL
+8. [#925](https://github.com/vega113/supawave/issues/925) Retire the legacy GWT client path and packaging steps
 
 ## Bottom Line
 
@@ -212,8 +227,10 @@ The measured blocker pattern is now:
 - too much JSNI / browser interop concentrated in transport and editor helpers
 - too much UiBinder / GWT widget composition still in the live UI
 - too much legacy GWT-only test infrastructure
-- no existing modern browser-interop seam or J2CL sidecar build
+- no broad modern browser-interop seam yet
+- no J2CL-selected-wave flow or J2CL-owned root shell yet
 
 That does not rule out a future J2CL path. It means the repo should now be
-described as “post-prerequisite cleanup but pre-sidecar / pre-transport
-replacement,” not as if it were still at the original pre-cleanup baseline.
+described as “post-sidecar / post-first-slice, but still pre-selected-wave and
+pre-root-cutover,” not as if it were still at the original pre-cleanup
+baseline.
