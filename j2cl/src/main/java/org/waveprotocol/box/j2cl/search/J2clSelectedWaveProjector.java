@@ -100,6 +100,8 @@ public final class J2clSelectedWaveProjector {
   }
 
   private static String resolveUnreadText(J2clSearchDigestItem digestItem) {
+    // #920 does not add a dedicated read-state transport field. The selected-wave panel can only
+    // surface unread status from the latest search digest metadata that selected this wave.
     if (digestItem == null) {
       return "";
     }

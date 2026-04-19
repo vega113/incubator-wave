@@ -1,9 +1,14 @@
 package org.waveprotocol.box.j2cl.search;
 
+import elemental2.dom.DomGlobal;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 
 public final class J2clSelectedWaveController {
+  private static final int INITIAL_RECONNECT_DELAY_MS = 250;
+  private static final int MAX_RECONNECT_DELAY_MS = 1000;
+  private static final int MAX_RECONNECT_ATTEMPTS = 3;
+
   public interface Gateway {
     void fetchRootSessionBootstrap(
         J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> onSuccess,
@@ -21,12 +26,17 @@ public final class J2clSelectedWaveController {
     void render(J2clSelectedWaveModel model);
   }
 
+  public interface RetryScheduler {
+    void scheduleRetry(int delayMs, Runnable action);
+  }
+
   public interface Subscription {
     void close();
   }
 
   private final Gateway gateway;
   private final View view;
+  private final RetryScheduler retryScheduler;
   private Subscription currentSubscription;
   private SidecarSessionBootstrap currentBootstrap;
   private SidecarSelectedWaveUpdate lastUpdate;
@@ -37,8 +47,16 @@ public final class J2clSelectedWaveController {
   private int requestGeneration;
 
   public J2clSelectedWaveController(Gateway gateway, View view) {
+    this(
+        gateway,
+        view,
+        (delayMs, action) -> DomGlobal.setTimeout(ignored -> action.run(), delayMs));
+  }
+
+  public J2clSelectedWaveController(Gateway gateway, View view, RetryScheduler retryScheduler) {
     this.gateway = gateway;
     this.view = view;
+    this.retryScheduler = retryScheduler;
     this.currentModel = J2clSelectedWaveModel.empty();
     this.view.render(currentModel);
   }
@@ -95,6 +113,7 @@ public final class J2clSelectedWaveController {
           if (!isCurrentGeneration(generation)) {
             return;
           }
+          clearActiveSubscription();
           currentModel =
               J2clSelectedWaveModel.error(
                   selectedWaveId, selectedDigestItem, "Unable to open selected wave.", error);
@@ -127,6 +146,7 @@ public final class J2clSelectedWaveController {
               if (!isCurrentGeneration(generation)) {
                 return;
               }
+              clearActiveSubscription();
               currentModel =
                   J2clSelectedWaveModel.error(
                       selectedWaveId, selectedDigestItem, "Selected wave stream failed.", error);
@@ -136,7 +156,28 @@ public final class J2clSelectedWaveController {
               if (!isCurrentGeneration(generation) || selectedWaveId == null) {
                 return;
               }
-              openSelectedWave(generation, reconnectCount + 1);
+              clearActiveSubscription();
+              if (reconnectCount >= MAX_RECONNECT_ATTEMPTS) {
+                currentModel =
+                    J2clSelectedWaveModel.error(
+                        selectedWaveId,
+                        selectedDigestItem,
+                        "Selected wave disconnected.",
+                        "The selected-wave sidecar stopped retrying after "
+                            + MAX_RECONNECT_ATTEMPTS
+                            + " reconnect attempts.");
+                view.render(currentModel);
+                return;
+              }
+              int nextReconnectCount = reconnectCount + 1;
+              retryScheduler.scheduleRetry(
+                  buildReconnectDelayMs(reconnectCount),
+                  () -> {
+                    if (!isCurrentGeneration(generation) || selectedWaveId == null) {
+                      return;
+                    }
+                    openSelectedWave(generation, nextReconnectCount);
+                  });
             });
   }
 
@@ -144,9 +185,12 @@ public final class J2clSelectedWaveController {
     return generation == requestGeneration;
   }
 
-  private static boolean isChannelEstablishmentUpdate(SidecarSelectedWaveUpdate update) {
+  static boolean isChannelEstablishmentUpdate(SidecarSelectedWaveUpdate update) {
     String waveletName = update.getWaveletName();
-    return waveletName != null && waveletName.contains("/~/dummy+root");
+    // The socket open handshake reuses ProtocolWaveletUpdate to deliver the initial channel id
+    // before any real wavelet data is streamed. Those synthetic frames target ~/dummy+root and
+    // must not overwrite the selected-wave panel or they would flash a fake wavelet into view.
+    return waveletName != null && waveletName.endsWith("/~/dummy+root");
   }
 
   private void closeSubscription() {
@@ -154,5 +198,14 @@ public final class J2clSelectedWaveController {
       currentSubscription.close();
       currentSubscription = null;
     }
+  }
+
+  private void clearActiveSubscription() {
+    currentSubscription = null;
+  }
+
+  private static int buildReconnectDelayMs(int reconnectCount) {
+    int delayMs = INITIAL_RECONNECT_DELAY_MS << reconnectCount;
+    return Math.min(delayMs, MAX_RECONNECT_DELAY_MS);
   }
 }
