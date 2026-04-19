@@ -63,6 +63,7 @@ public final class J2clSearchPanelView implements J2clSearchPanelController.View
     queryInput.className = "sidecar-search-input";
     queryInput.type = "search";
     queryInput.placeholder = "Search waves";
+    queryInput.setAttribute("aria-label", "Search waves");
     queryInput.autocomplete = "off";
     form.appendChild(queryInput);
 

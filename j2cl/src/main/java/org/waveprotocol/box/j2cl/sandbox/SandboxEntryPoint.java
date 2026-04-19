@@ -129,7 +129,14 @@ public final class SandboxEntryPoint {
     for (String part : parts) {
       if (part.startsWith("q=")) {
         String value = part.substring(2);
-        return value.isEmpty() ? DEFAULT_QUERY : decodeUriComponent(value);
+        if (value.isEmpty()) {
+          return DEFAULT_QUERY;
+        }
+        try {
+          return decodeUriComponent(value);
+        } catch (RuntimeException e) {
+          return DEFAULT_QUERY;
+        }
       }
     }
     return DEFAULT_QUERY;
@@ -445,7 +452,11 @@ public final class SandboxEntryPoint {
       String trimmed = cookie.trim();
       String prefix = name + "=";
       if (trimmed.startsWith(prefix)) {
-        return decodeUriComponent(trimmed.substring(prefix.length()));
+        try {
+          return decodeUriComponent(trimmed.substring(prefix.length()));
+        } catch (RuntimeException e) {
+          return null;
+        }
       }
     }
     return null;

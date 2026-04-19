@@ -93,8 +93,7 @@ public final class J2clSearchPanelController implements J2clSearchViewListener {
   public void onQuerySubmitted(String query) {
     currentQuery = J2clSearchResultProjector.normalizeQuery(query);
     currentPageSize = pageIncrement;
-    selectedWaveId = null;
-    view.setSelectedWaveId(null);
+    clearSelection();
     requestSearch();
   }
 
@@ -130,7 +129,7 @@ public final class J2clSearchPanelController implements J2clSearchViewListener {
           }
           lastModel = J2clSearchResultProjector.project(response, numResults);
           if (selectedWaveId != null && !lastModel.containsWave(selectedWaveId)) {
-            selectedWaveId = null;
+            clearSelection();
           }
           view.render(lastModel);
           view.setSelectedWaveId(selectedWaveId);
@@ -141,13 +140,21 @@ public final class J2clSearchPanelController implements J2clSearchViewListener {
           if (generation != requestGeneration) {
             return;
           }
-          selectedWaveId = null;
+          clearSelection();
           lastModel = J2clSearchResultModel.empty("Unable to load search results.");
           view.render(lastModel);
           view.setSelectedWaveId(null);
           view.setStatus("Search request failed: " + error, true);
           view.setLoading(false);
         });
+  }
+
+  private void clearSelection() {
+    selectedWaveId = null;
+    view.setSelectedWaveId(null);
+    if (selectionHandler != null) {
+      selectionHandler.onWaveSelected(null);
+    }
   }
 
   private static String buildStatusText(String query, J2clSearchResultModel model) {
