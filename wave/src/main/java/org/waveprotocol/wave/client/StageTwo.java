@@ -26,6 +26,7 @@ import com.google.gwt.dom.client.Element;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.Event;
+import com.google.gwt.user.client.Window;
 import org.waveprotocol.wave.client.debug.FragmentsDebugIndicator;
 
 import org.waveprotocol.wave.client.account.ProfileManager;
@@ -687,6 +688,13 @@ public interface StageTwo {
                 if (MobileDetector.isMobile()) {
                     Document.get().getBody().addClassName("compact-inline-blips-mobile");
                 }
+                Window.addResizeHandler(event -> {
+                    if (MobileDetector.isMobile()) {
+                        Document.get().getBody().addClassName("compact-inline-blips-mobile");
+                    } else {
+                        Document.get().getBody().removeClassName("compact-inline-blips-mobile");
+                    }
+                });
             }
 
             // Install new blip indicator pill (feature-flagged via server-side flags).
