@@ -25,8 +25,12 @@ public final class SidecarSessionBootstrap {
     int objectEnd = findMatchingBrace(html, objectStart);
     Map<String, Object> session =
         SidecarTransportCodec.parseJsonObject(html.substring(objectStart, objectEnd + 1));
-    String address = String.valueOf(session.get("address"));
-    if (address == null || "null".equals(address) || address.isEmpty()) {
+    Object addressValue = session.get("address");
+    if (addressValue == null) {
+      throw new IllegalArgumentException("Session bootstrap did not include an address");
+    }
+    String address = String.valueOf(addressValue);
+    if (address.isEmpty()) {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
     return new SidecarSessionBootstrap(address);

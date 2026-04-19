@@ -1,5 +1,6 @@
 package org.waveprotocol.box.j2cl.search;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -31,7 +32,9 @@ public final class SidecarSearchResponse {
       this.lastModified = lastModified;
       this.unreadCount = unreadCount;
       this.blipCount = blipCount;
-      this.participants = participants;
+      this.participants = participants == null
+          ? Collections.<String>emptyList()
+          : Collections.unmodifiableList(new ArrayList<>(participants));
       this.author = author;
       this.pinned = pinned;
     }
@@ -80,7 +83,9 @@ public final class SidecarSearchResponse {
   public SidecarSearchResponse(String query, int totalResults, List<Digest> digests) {
     this.query = query;
     this.totalResults = totalResults;
-    this.digests = Collections.unmodifiableList(digests);
+    this.digests = digests == null
+        ? Collections.<Digest>emptyList()
+        : Collections.unmodifiableList(new ArrayList<>(digests));
   }
 
   public String getQuery() {

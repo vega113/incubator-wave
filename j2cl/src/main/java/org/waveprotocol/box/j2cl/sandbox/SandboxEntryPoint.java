@@ -187,25 +187,34 @@ public final class SandboxEntryPoint {
       };
       socket.onmessage = event -> {
         String payload = String.valueOf(event.data);
-        String messageType = SidecarTransportCodec.decodeMessageType(payload);
-        if (!"ProtocolWaveletUpdate".equals(messageType)) {
-          setNeutral(
-              "Socket active",
-              "Received " + messageType + " while waiting for the first sidecar update.");
-          return;
+        try {
+          String messageType = SidecarTransportCodec.decodeMessageType(payload);
+          if (!"ProtocolWaveletUpdate".equals(messageType)) {
+            setNeutral(
+                "Socket active",
+                "Received " + messageType + " while waiting for the first sidecar update.");
+            return;
+          }
+          SidecarWaveletUpdateSummary summary = SidecarTransportCodec.decodeWaveletUpdate(payload);
+          waitingForUpdate = false;
+          setSuccess(
+              "Sidecar transport proof passed",
+              "Wavelet "
+                  + summary.getWaveletName()
+                  + " delivered "
+                  + summary.getAppliedDeltaCount()
+                  + " delta payload(s)"
+                  + (summary.getChannelId() == null ? "" : " on " + summary.getChannelId())
+                  + ".");
+          closeSocket();
+        } catch (RuntimeException e) {
+          waitingForUpdate = false;
+          setError(
+              "Malformed sidecar message",
+              "The isolated sidecar sent an unexpected or invalid socket frame: "
+                  + e.getMessage());
+          closeSocket();
         }
-        SidecarWaveletUpdateSummary summary = SidecarTransportCodec.decodeWaveletUpdate(payload);
-        waitingForUpdate = false;
-        setSuccess(
-            "Sidecar transport proof passed",
-            "Wavelet "
-                + summary.getWaveletName()
-                + " delivered "
-                + summary.getAppliedDeltaCount()
-                + " delta payload(s)"
-                + (summary.getChannelId() == null ? "" : " on " + summary.getChannelId())
-                + ".");
-        closeSocket();
       };
       socket.onerror = event -> {
         setError("Socket error", "The isolated sidecar failed while talking to /socket.");

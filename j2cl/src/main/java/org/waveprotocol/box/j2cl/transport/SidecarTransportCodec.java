@@ -301,6 +301,9 @@ public final class SidecarTransportCodec {
             value.append('\t');
             break;
           case 'u':
+            if (index + 4 > json.length()) {
+              throw new IllegalArgumentException("Incomplete unicode escape at index " + (index - 2));
+            }
             value.append((char) Integer.parseInt(json.substring(index, index + 4), 16));
             index += 4;
             break;
