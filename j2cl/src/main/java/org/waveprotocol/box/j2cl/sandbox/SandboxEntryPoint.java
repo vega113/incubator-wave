@@ -132,7 +132,7 @@ public final class SandboxEntryPoint {
         if (value.isEmpty()) {
           return DEFAULT_QUERY;
         }
-        return safeDecodeUriComponent(value, DEFAULT_QUERY);
+        return safeDecodeUriComponent(value.replace("+", " "), DEFAULT_QUERY);
       }
     }
     return DEFAULT_QUERY;
