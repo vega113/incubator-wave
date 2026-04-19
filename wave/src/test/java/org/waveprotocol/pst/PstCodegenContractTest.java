@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertTrue;
@@ -42,6 +44,25 @@ public class PstCodegenContractTest {
         "Expected at least one generated Java file under " + outDir.toAbsolutePath() +
             ", but found none.",
         javaCount.get() > 0);
+  }
+
+  @Test
+  public void transportFamiliesExposeImplAndGsonOutputs() {
+    Path root = Paths.get("gen", "messages");
+    List<String> families = Arrays.asList(
+        "org/waveprotocol/box/common/comms",
+        "org/waveprotocol/wave/federation",
+        "org/waveprotocol/wave/concurrencycontrol",
+        "org/waveprotocol/box/search");
+
+    for (String family : families) {
+      Path familyRoot = root.resolve(family);
+      assertTrue("Expected generated family root: " + familyRoot, Files.isDirectory(familyRoot));
+      assertTrue("Expected impl output for " + familyRoot, Files.isDirectory(familyRoot.resolve("impl")));
+      assertTrue("Expected gson output for " + familyRoot, Files.isDirectory(familyRoot.resolve("gson")));
+      assertTrue("Expected jso output for " + familyRoot, Files.isDirectory(familyRoot.resolve("jso")));
+      assertTrue("Expected proto output for " + familyRoot, Files.isDirectory(familyRoot.resolve("proto")));
+    }
   }
 
   private static Path resolveGeneratedSourcesDirectory() {

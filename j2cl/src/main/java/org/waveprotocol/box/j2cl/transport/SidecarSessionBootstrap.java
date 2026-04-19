@@ -1,0 +1,67 @@
+package org.waveprotocol.box.j2cl.transport;
+
+import java.util.Map;
+
+public final class SidecarSessionBootstrap {
+  private final String address;
+
+  public SidecarSessionBootstrap(String address) {
+    this.address = address;
+  }
+
+  public String getAddress() {
+    return address;
+  }
+
+  public static SidecarSessionBootstrap fromRootHtml(String html) {
+    int sessionMarker = html.indexOf("__session");
+    if (sessionMarker < 0) {
+      throw new IllegalArgumentException("Root page did not expose window.__session");
+    }
+    int objectStart = html.indexOf('{', sessionMarker);
+    if (objectStart < 0) {
+      throw new IllegalArgumentException("Unable to locate __session JSON object");
+    }
+    int objectEnd = findMatchingBrace(html, objectStart);
+    Map<String, Object> session =
+        SidecarTransportCodec.parseJsonObject(html.substring(objectStart, objectEnd + 1));
+    String address = String.valueOf(session.get("address"));
+    if (address == null || "null".equals(address) || address.isEmpty()) {
+      throw new IllegalArgumentException("Session bootstrap did not include an address");
+    }
+    return new SidecarSessionBootstrap(address);
+  }
+
+  private static int findMatchingBrace(String html, int objectStart) {
+    boolean inString = false;
+    boolean escaped = false;
+    int depth = 0;
+    for (int i = objectStart; i < html.length(); i++) {
+      char c = html.charAt(i);
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (c == '\\') {
+        escaped = true;
+        continue;
+      }
+      if (c == '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) {
+        continue;
+      }
+      if (c == '{') {
+        depth++;
+      } else if (c == '}') {
+        depth--;
+        if (depth == 0) {
+          return i;
+        }
+      }
+    }
+    throw new IllegalArgumentException("Unterminated __session JSON object");
+  }
+}

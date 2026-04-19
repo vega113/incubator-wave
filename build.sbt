@@ -820,6 +820,7 @@ lazy val j2clSandboxBuild = taskKey[Unit]("Build the isolated J2CL sandbox sidec
 lazy val j2clSandboxTest = taskKey[Unit]("Run the isolated J2CL sandbox sidecar smoke test via the Maven wrapper")
 lazy val j2clSearchBuild = taskKey[Unit]("Build the isolated J2CL search-sidecar scaffold into war/j2cl-search via the Maven wrapper")
 lazy val j2clSearchTest = taskKey[Unit]("Run the isolated J2CL search-sidecar smoke test via the Maven wrapper")
+lazy val j2clProductionBuild = taskKey[Unit]("Build the production J2CL sidecar into war/j2cl via the Maven wrapper")
 lazy val dataMigrate = inputKey[Unit]("Run DataMigrationTool: dataMigrate <sourceOpts> <targetOpts>")
 lazy val dataPrepare = inputKey[Unit]("Run DataPreparationTool: dataPrepare <waveId> [<options>]")
 
@@ -910,6 +911,12 @@ ThisBuild / j2clSearchTest := {
   val log = streams.value.log
   val base = baseDirectory.value
   runJ2clWrapper(log, base, "search-sidecar", "test")
+}
+
+ThisBuild / j2clProductionBuild := {
+  val log = streams.value.log
+  val base = baseDirectory.value
+  runJ2clWrapper(log, base, "production", "package")
 }
 
 // sbt-protoc: use embedded protoc to generate Java directly into proto_src
@@ -1024,6 +1031,7 @@ ThisBuild / generatePstMessages := {
     runCmd(log)(cmd, base)
   }
 }
+ThisBuild / generatePstMessages := (ThisBuild / generatePstMessages).dependsOn(Compile / PB.generate).value
 
 // GXP removed — replaced by HtmlRenderer.java (see PR #42)
 
@@ -1348,8 +1356,8 @@ compileGwtDev := (compileGwtDev).dependsOn(Compile / compile).value
 // ⚠️  DO NOT REMOVE these lines. They ensure GWT compilation runs before
 //     staging or packaging. Without them, distributions ship without the
 //     web client and users see a blank wave list after login.
-Universal / stage := (Universal / stage).dependsOn(compileGwt, verifyGwtAssets).value
-Universal / packageBin := (Universal / packageBin).dependsOn(compileGwt, verifyGwtAssets).value
+Universal / stage := (Universal / stage).dependsOn(compileGwt, verifyGwtAssets, j2clProductionBuild).value
+Universal / packageBin := (Universal / packageBin).dependsOn(compileGwt, verifyGwtAssets, j2clProductionBuild).value
 
 cleanFiles += baseDirectory.value / "war" / "webclient"
 cleanFiles += baseDirectory.value / "war" / "org"
