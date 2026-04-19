@@ -234,6 +234,10 @@ public class UrlParameters implements TypedSource {
     StringBuilder out = new StringBuilder();
     for (int i = 0; i < value.length();) {
       int codePoint = Character.codePointAt(value, i);
+      if (codePoint >= 0xD800 && codePoint <= 0xDFFF) {
+        throw new IllegalArgumentException(
+            "Lone surrogate in query string at index " + i + ": U+" + Integer.toHexString(codePoint).toUpperCase());
+      }
       if (isUnescapedQueryCodePoint(codePoint)) {
         appendCodePoint(out, codePoint);
       } else if (codePoint == ' ') {

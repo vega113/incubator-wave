@@ -127,4 +127,14 @@ public class UrlParametersTest extends TestCase {
       assertTrue(expected.getMessage().contains("UTF-8"));
     }
   }
+
+  public void testLoneSurrogateInEncodeRejected() {
+    try {
+      UrlParameters.buildQueryString(
+          Collections.<String, String>singletonMap("k", "\uD800"));
+      fail("Expected IllegalArgumentException for lone surrogate");
+    } catch (IllegalArgumentException expected) {
+      assertTrue(expected.getMessage().contains("surrogate"));
+    }
+  }
 }
