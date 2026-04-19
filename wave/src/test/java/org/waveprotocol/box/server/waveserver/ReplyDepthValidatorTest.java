@@ -114,6 +114,25 @@ public final class ReplyDepthValidatorTest extends TestCase {
     assertNotNull(ReplyDepthValidator.validate(snapshot, ops, 5));
   }
 
+  public void testRejectsWhenProjectedStateSimulationCannotRun() {
+    FakeSilentOperationSink<WaveletOperation> sink = new FakeSilentOperationSink<WaveletOperation>();
+    WaveletBasedConversation waveletConversation = createConversation(sink);
+    Conversation conversation = waveletConversation;
+
+    ConversationBlip root = conversation.getRootThread().appendBlip();
+    ObservableWaveletData staleSnapshot =
+        WaveletDataUtil.copyWavelet(waveletConversation.getWavelet().getWaveletData());
+
+    ConversationBlip missingInSnapshot = root.addReplyThread().appendBlip();
+    sink.clear();
+    missingInSnapshot.addReplyThread().appendBlip();
+    List<WaveletOperation> ops = sink.getOps();
+
+    String error = ReplyDepthValidator.validate(staleSnapshot, ops, 5);
+    assertNotNull(error);
+    assertTrue(error.contains("Reply depth validation failed"));
+  }
+
   private static WaveletBasedConversation createConversation(
       FakeSilentOperationSink<WaveletOperation> sink) {
     IdGenerator idGenerator = FakeIdGenerator.create();
