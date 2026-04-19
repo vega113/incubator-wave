@@ -22,9 +22,8 @@ package org.waveprotocol.box.server.util;
 import junit.framework.TestCase;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 public final class CompactInlineBlipCssContractTest extends TestCase {
 
@@ -72,11 +71,49 @@ public final class CompactInlineBlipCssContractTest extends TestCase {
             + "\\s*\\}.*");
   }
 
+  public void testDepth3PlusResetRestoresBaselineLayout() throws Exception {
+    String css = readBlipCss();
+
+    assertMatches(css,
+        "(?s).*\\.compact-inline-blips \\[data-depth\\]:not\\(\\[data-depth=\"0\"\\]\\)"
+            + ":not\\(\\[data-depth=\"1\"\\]\\):not\\(\\[data-depth=\"2\"\\]\\) \\.meta \\{"
+            + "\\s*display: block;"
+            + "\\s*padding-left: 3\\.75em;"
+            + "\\s*\\}.*");
+    assertMatches(css,
+        "(?s).*\\.compact-inline-blips \\[data-depth\\]:not\\(\\[data-depth=\"0\"\\]\\)"
+            + ":not\\(\\[data-depth=\"1\"\\]\\):not\\(\\[data-depth=\"2\"\\]\\) \\.avatar \\{"
+            + "\\s*float: left;"
+            + "\\s*width: 28px;"
+            + "\\s*height: 28px;"
+            + "\\s*margin-left: -3em;"
+            + "\\s*margin-bottom: 0;"
+            + "\\s*align-self: auto;"
+            + "\\s*\\}.*");
+    assertMatches(css,
+        "(?s).*\\.compact-inline-blips-mobile \\[data-depth\\]:not\\(\\[data-depth=\"0\"\\]\\)"
+            + ":not\\(\\[data-depth=\"1\"\\]\\):not\\(\\[data-depth=\"2\"\\]\\) \\.meta \\{"
+            + "\\s*display: block;"
+            + "\\s*padding-left: 3\\.75em;"
+            + "\\s*\\}.*");
+    assertMatches(css,
+        "(?s).*\\.compact-inline-blips-mobile \\[data-depth\\]:not\\(\\[data-depth=\"0\"\\]\\)"
+            + ":not\\(\\[data-depth=\"1\"\\]\\):not\\(\\[data-depth=\"2\"\\]\\) \\.avatar \\{"
+            + "\\s*float: left;"
+            + "\\s*width: 28px;"
+            + "\\s*height: 28px;"
+            + "\\s*margin-left: -3em;"
+            + "\\s*margin-bottom: 0;"
+            + "\\s*align-self: auto;"
+            + "\\s*\\}.*");
+  }
+
   private String readBlipCss() throws IOException {
-    return Files.readString(
-        Path.of(
-            "wave/src/main/resources/org/waveprotocol/wave/client/wavepanel/view/dom/full/Blip.css"),
-        StandardCharsets.UTF_8);
+    String resourcePath = "org/waveprotocol/wave/client/wavepanel/view/dom/full/Blip.css";
+    try (InputStream in = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+      assertNotNull("Missing resource: " + resourcePath, in);
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    }
   }
 
   private static void assertMatches(String text, String regex) {
