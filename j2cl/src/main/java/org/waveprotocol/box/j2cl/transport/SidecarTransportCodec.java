@@ -301,17 +301,30 @@ public final class SidecarTransportCodec {
             value.append('\t');
             break;
           case 'u':
-            if (index + 4 > json.length()) {
-              throw new IllegalArgumentException("Incomplete unicode escape at index " + (index - 2));
-            }
-            value.append((char) Integer.parseInt(json.substring(index, index + 4), 16));
-            index += 4;
+            value.append(parseUnicodeEscape());
             break;
           default:
             throw new IllegalArgumentException("Unsupported escape: \\" + escaped);
         }
       }
       throw new IllegalArgumentException("Unterminated string");
+    }
+
+    private char parseUnicodeEscape() {
+      int escapeStart = index - 2;
+      if (index + 4 > json.length()) {
+        throw new IllegalArgumentException("Invalid unicode escape at index " + escapeStart);
+      }
+      int unicode = 0;
+      for (int i = 0; i < 4; i++) {
+        int digit = Character.digit(json.charAt(index + i), 16);
+        if (digit < 0) {
+          throw new IllegalArgumentException("Invalid unicode escape at index " + escapeStart);
+        }
+        unicode = (unicode << 4) + digit;
+      }
+      index += 4;
+      return (char) unicode;
     }
 
     private Boolean parseBooleanValue() {

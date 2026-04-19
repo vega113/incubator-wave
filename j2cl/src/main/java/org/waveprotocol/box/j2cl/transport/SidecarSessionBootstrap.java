@@ -33,7 +33,7 @@ public final class SidecarSessionBootstrap {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
     String address = ((String) addressValue).trim();
-    if (address.isEmpty()) {
+    if ("null".equals(address) || address.isEmpty()) {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
     return new SidecarSessionBootstrap(address);

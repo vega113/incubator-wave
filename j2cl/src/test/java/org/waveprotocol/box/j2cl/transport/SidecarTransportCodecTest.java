@@ -71,4 +71,33 @@ public class SidecarTransportCodecTest {
 
     Assert.assertEquals("user@example.com", bootstrap.getAddress());
   }
+
+  @Test
+  public void extractSessionBootstrapRejectsMissingAddress() {
+    String html = "<html><script>window.__session={\"id\":\"abc\"};</script></html>";
+
+    try {
+      SidecarSessionBootstrap.fromRootHtml(html);
+      Assert.fail("Expected missing address to be rejected");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("did not include an address"));
+    }
+  }
+
+  @Test
+  public void parseJsonObjectRejectsInvalidUnicodeEscapeSequences() {
+    try {
+      SidecarTransportCodec.parseJsonObject("{\"1\":\"\\u12\"}");
+      Assert.fail("Expected truncated unicode escape to fail");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("unicode escape"));
+    }
+
+    try {
+      SidecarTransportCodec.parseJsonObject("{\"1\":\"\\u12xz\"}");
+      Assert.fail("Expected non-hex unicode escape to fail");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("unicode escape"));
+    }
+  }
 }

@@ -16,4 +16,29 @@ public class SandboxBuildSmokeTest {
         "Profile sidecar writes isolated assets without changing the root runtime bootstrap.",
         SandboxEntryPoint.renderSummary("  "));
   }
+
+  @Test
+  public void evaluateSocketFrameReportsMalformedMessages() {
+    SandboxEntryPoint.SocketFrameResult result =
+        SandboxEntryPoint.evaluateSocketFrame(
+            "{\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{");
+
+    Assert.assertTrue(result.isError());
+    Assert.assertTrue(result.getErrorDetail().contains("unexpected or invalid socket frame"));
+    Assert.assertNull(result.getSummary());
+  }
+
+  @Test
+  public void evaluateSocketFrameDecodesWaveletUpdates() {
+    SandboxEntryPoint.SocketFrameResult result =
+        SandboxEntryPoint.evaluateSocketFrame(
+            "{\"sequenceNumber\":11,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+                + "\"1\":\"example.com!conv+root/example.com!conv+root\","
+                + "\"2\":[{\"1\":\"delta\"}],\"6\":true,\"7\":\"chan-1\"}}");
+
+    Assert.assertFalse(result.isError());
+    Assert.assertEquals("ProtocolWaveletUpdate", result.getMessageType());
+    Assert.assertEquals(
+        "example.com!conv+root/example.com!conv+root", result.getSummary().getWaveletName());
+  }
 }

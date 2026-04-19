@@ -109,6 +109,47 @@ public final class SandboxEntryPoint {
     void accept(String error);
   }
 
+  static final class SocketFrameResult {
+    private final String messageType;
+    private final SidecarWaveletUpdateSummary summary;
+    private final String errorDetail;
+
+    private SocketFrameResult(
+        String messageType, SidecarWaveletUpdateSummary summary, String errorDetail) {
+      this.messageType = messageType;
+      this.summary = summary;
+      this.errorDetail = errorDetail;
+    }
+
+    static SocketFrameResult messageType(String messageType) {
+      return new SocketFrameResult(messageType, null, null);
+    }
+
+    static SocketFrameResult update(SidecarWaveletUpdateSummary summary) {
+      return new SocketFrameResult("ProtocolWaveletUpdate", summary, null);
+    }
+
+    static SocketFrameResult error(String errorDetail) {
+      return new SocketFrameResult(null, null, errorDetail);
+    }
+
+    boolean isError() {
+      return errorDetail != null;
+    }
+
+    String getMessageType() {
+      return messageType;
+    }
+
+    SidecarWaveletUpdateSummary getSummary() {
+      return summary;
+    }
+
+    String getErrorDetail() {
+      return errorDetail;
+    }
+  }
+
   private static final class SidecarProofRunner {
     private final String mode;
     private final HTMLElement status;
@@ -187,34 +228,29 @@ public final class SandboxEntryPoint {
       };
       socket.onmessage = event -> {
         String payload = String.valueOf(event.data);
-        try {
-          String messageType = SidecarTransportCodec.decodeMessageType(payload);
-          if (!"ProtocolWaveletUpdate".equals(messageType)) {
-            setNeutral(
-                "Socket active",
-                "Received " + messageType + " while waiting for the first sidecar update.");
-            return;
-          }
-          SidecarWaveletUpdateSummary summary = SidecarTransportCodec.decodeWaveletUpdate(payload);
-          waitingForUpdate = false;
-          setSuccess(
-              "Sidecar transport proof passed",
-              "Wavelet "
-                  + summary.getWaveletName()
-                  + " delivered "
-                  + summary.getAppliedDeltaCount()
-                  + " delta payload(s)"
-                  + (summary.getChannelId() == null ? "" : " on " + summary.getChannelId())
-                  + ".");
-          closeSocket();
-        } catch (RuntimeException e) {
-          waitingForUpdate = false;
-          setError(
-              "Malformed sidecar message",
-              "The isolated sidecar sent an unexpected or invalid socket frame: "
-                  + e.getMessage());
-          closeSocket();
+        SocketFrameResult frame = evaluateSocketFrame(payload);
+        if (frame.isError()) {
+          setError("Malformed sidecar message", frame.getErrorDetail());
+          return;
         }
+        if (!"ProtocolWaveletUpdate".equals(frame.getMessageType())) {
+          setNeutral(
+              "Socket active",
+              "Received " + frame.getMessageType() + " while waiting for the first sidecar update.");
+          return;
+        }
+        SidecarWaveletUpdateSummary summary = frame.getSummary();
+        waitingForUpdate = false;
+        setSuccess(
+            "Sidecar transport proof passed",
+            "Wavelet "
+                + summary.getWaveletName()
+                + " delivered "
+                + summary.getAppliedDeltaCount()
+                + " delta payload(s)"
+                + (summary.getChannelId() == null ? "" : " on " + summary.getChannelId())
+                + ".");
+        closeSocket();
       };
       socket.onerror = event -> {
         setError("Socket error", "The isolated sidecar failed while talking to /socket.");
@@ -282,6 +318,23 @@ public final class SandboxEntryPoint {
     private String buildWebSocketUrl() {
       String protocol = "https:".equals(DomGlobal.location.protocol) ? "wss://" : "ws://";
       return protocol + DomGlobal.location.host + "/socket";
+    }
+  }
+
+  static SocketFrameResult evaluateSocketFrame(String payload) {
+    try {
+      String messageType = SidecarTransportCodec.decodeMessageType(payload);
+      if (!"ProtocolWaveletUpdate".equals(messageType)) {
+        return SocketFrameResult.messageType(messageType);
+      }
+      return SocketFrameResult.update(SidecarTransportCodec.decodeWaveletUpdate(payload));
+    } catch (RuntimeException e) {
+      String detail = e.getMessage();
+      if (detail == null || detail.isEmpty()) {
+        detail = e.getClass().getSimpleName();
+      }
+      return SocketFrameResult.error(
+          "The isolated sidecar sent an unexpected or invalid socket frame: " + detail);
     }
   }
 
