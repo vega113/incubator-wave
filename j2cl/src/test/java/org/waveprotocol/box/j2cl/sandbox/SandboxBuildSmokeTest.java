@@ -52,4 +52,14 @@ public class SandboxBuildSmokeTest {
     Assert.assertFalse(result.isError());
     Assert.assertTrue(SandboxEntryPoint.isChannelEstablishmentUpdate(result.getSummary()));
   }
+
+  @Test
+  public void buildWebSocketUrlUsesPresentedAddress() {
+    Assert.assertEquals(
+        "wss://socket.example.test:7443/socket",
+        SandboxEntryPoint.buildWebSocketUrl("https:", "socket.example.test:7443"));
+    Assert.assertEquals(
+        "ws://socket.example.test/socket",
+        SandboxEntryPoint.buildWebSocketUrl("http:", "socket.example.test"));
+  }
 }

@@ -121,6 +121,16 @@ public final class SidecarTransportCodec {
     return result;
   }
 
+  public static String parseJsonString(String json) {
+    JsonParser parser = new JsonParser(json);
+    Object value = parser.parseValue();
+    parser.ensureFullyConsumed();
+    if (!(value instanceof String)) {
+      throw new IllegalArgumentException("Expected string but got " + value);
+    }
+    return (String) value;
+  }
+
   private static Map<String, Object> asObject(Object value) {
     if (!(value instanceof Map)) {
       throw new IllegalArgumentException("Expected object but got " + value);

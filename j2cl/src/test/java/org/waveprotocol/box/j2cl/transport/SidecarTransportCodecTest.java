@@ -68,11 +68,13 @@ public class SidecarTransportCodecTest {
   public void extractSessionBootstrapAddressFromRootHtml() {
     String html =
         "<html><script>window.__session={\"address\":\"user@example.com\",\"id\":\"abc\"};"
+            + "window.__websocket_address=\"socket.example.test:7443\";"
             + "</script></html>";
 
     SidecarSessionBootstrap bootstrap = SidecarSessionBootstrap.fromRootHtml(html);
 
     Assert.assertEquals("user@example.com", bootstrap.getAddress());
+    Assert.assertEquals("socket.example.test:7443", bootstrap.getWebSocketAddress());
   }
 
   @Test

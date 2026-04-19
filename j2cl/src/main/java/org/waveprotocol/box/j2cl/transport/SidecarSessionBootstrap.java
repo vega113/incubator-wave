@@ -4,13 +4,19 @@ import java.util.Map;
 
 public final class SidecarSessionBootstrap {
   private final String address;
+  private final String websocketAddress;
 
-  public SidecarSessionBootstrap(String address) {
+  public SidecarSessionBootstrap(String address, String websocketAddress) {
     this.address = address;
+    this.websocketAddress = websocketAddress;
   }
 
   public String getAddress() {
     return address;
+  }
+
+  public String getWebSocketAddress() {
+    return websocketAddress;
   }
 
   public static SidecarSessionBootstrap fromRootHtml(String html) {
@@ -47,7 +53,36 @@ public final class SidecarSessionBootstrap {
     if ("null".equals(address) || address.isEmpty()) {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
-    return new SidecarSessionBootstrap(address);
+    String websocketAddress = parseWebSocketAddress(html);
+    return new SidecarSessionBootstrap(address, websocketAddress);
+  }
+
+  private static String parseWebSocketAddress(String html) {
+    int marker = html.indexOf("__websocket_address");
+    if (marker < 0) {
+      throw new IllegalArgumentException("Root page did not expose window.__websocket_address");
+    }
+    int assignIdx = marker + "__websocket_address".length();
+    while (assignIdx < html.length() && Character.isWhitespace(html.charAt(assignIdx))) {
+      assignIdx++;
+    }
+    if (assignIdx >= html.length() || html.charAt(assignIdx) != '=') {
+      throw new IllegalArgumentException("Unable to locate __websocket_address assignment operator");
+    }
+    assignIdx++;
+    while (assignIdx < html.length() && Character.isWhitespace(html.charAt(assignIdx))) {
+      assignIdx++;
+    }
+    if (assignIdx >= html.length() || html.charAt(assignIdx) != '"') {
+      throw new IllegalArgumentException("Root page did not expose a websocket address string");
+    }
+    int stringEnd = findMatchingStringQuote(html, assignIdx);
+    String websocketAddress =
+        SidecarTransportCodec.parseJsonString(html.substring(assignIdx, stringEnd + 1)).trim();
+    if ("null".equals(websocketAddress) || websocketAddress.isEmpty()) {
+      throw new IllegalArgumentException("Root page did not expose a websocket address");
+    }
+    return websocketAddress;
   }
 
   private static int findMatchingBrace(String html, int objectStart) {
@@ -81,5 +116,24 @@ public final class SidecarSessionBootstrap {
       }
     }
     throw new IllegalArgumentException("Unterminated __session JSON object");
+  }
+
+  private static int findMatchingStringQuote(String html, int stringStart) {
+    boolean escaped = false;
+    for (int i = stringStart + 1; i < html.length(); i++) {
+      char c = html.charAt(i);
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (c == '\\') {
+        escaped = true;
+        continue;
+      }
+      if (c == '"') {
+        return i;
+      }
+    }
+    throw new IllegalArgumentException("Unterminated __websocket_address string");
   }
 }

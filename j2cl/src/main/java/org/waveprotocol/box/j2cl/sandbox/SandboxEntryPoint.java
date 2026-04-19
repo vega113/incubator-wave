@@ -235,7 +235,8 @@ public final class SandboxEntryPoint {
 
     private void openSocket(
         SidecarSessionBootstrap bootstrap, SidecarSearchResponse.Digest digest, int generation) {
-      WebSocket ws = new WebSocket(buildWebSocketUrl());
+      WebSocket ws =
+          new WebSocket(buildWebSocketUrl(DomGlobal.location.protocol, bootstrap.getWebSocketAddress()));
       socket = ws;
       ws.onopen = event -> {
         if (!shouldHandleSocketCallback(generation, runGeneration, ws == socket)) {
@@ -361,10 +362,11 @@ public final class SandboxEntryPoint {
       return DEFAULT_QUERY;
     }
 
-    private String buildWebSocketUrl() {
-      String protocol = "https:".equals(DomGlobal.location.protocol) ? "wss://" : "ws://";
-      return protocol + DomGlobal.location.host + "/socket";
-    }
+  }
+
+  static String buildWebSocketUrl(String locationProtocol, String websocketAddress) {
+    String protocol = "https:".equals(locationProtocol) ? "wss://" : "ws://";
+    return protocol + websocketAddress + "/socket";
   }
 
   static SocketFrameResult evaluateSocketFrame(String payload) {
