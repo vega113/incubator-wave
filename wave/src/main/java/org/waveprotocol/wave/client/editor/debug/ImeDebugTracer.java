@@ -72,9 +72,7 @@ public final class ImeDebugTracer {
     // Utility.
   }
 
-  private static final String LOCAL_STORAGE_KEY = "ime_debug";
   private static final String FLAG_ON = "on";
-  private static final String FLAG_OFF = "off";
   private static final int MAX_OVERLAY_LINES = 200;
 
   private static boolean initialized = false;
@@ -364,12 +362,9 @@ public final class ImeDebugTracer {
     for (var i = 0; i < types.length; i++) {
       try {
         w.addEventListener(types[i], handler, true);
-        if ($doc && $doc.addEventListener) {
-          $doc.addEventListener(types[i], handler, true);
-        }
       } catch (e) {
-      // swallow
-    }
+        // swallow
+      }
     }
   }-*/;
 

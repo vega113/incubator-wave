@@ -75,6 +75,7 @@ import org.waveprotocol.wave.client.editor.content.misc.StyleAnnotationHandler;
 import org.waveprotocol.wave.client.editor.content.paragraph.Line;
 import org.waveprotocol.wave.client.editor.content.paragraph.Paragraph;
 import org.waveprotocol.wave.client.editor.debug.DebugPopupFactory;
+import org.waveprotocol.wave.client.editor.debug.ImeDebugTracer;
 import org.waveprotocol.wave.client.editor.event.EditorEvent;
 import org.waveprotocol.wave.client.editor.event.EditorEventHandler;
 import org.waveprotocol.wave.client.editor.event.EditorEventImpl;
@@ -1230,8 +1231,8 @@ public class EditorImpl extends LogicalPanel.Impl implements
 
     @Override
     public void compositionStart(Point<ContentNode> caret) {
-      if (org.waveprotocol.wave.client.editor.debug.ImeDebugTracer.isEnabled()) {
-        org.waveprotocol.wave.client.editor.debug.ImeDebugTracer
+      if (ImeDebugTracer.isEnabled()) {
+        ImeDebugTracer
             .start("EditorImpl.compositionStart")
             .add("caretIsNull", caret == null)
             .emit();
@@ -1465,7 +1466,7 @@ public class EditorImpl extends LogicalPanel.Impl implements
     // the first key event can fire. With lazy init (first `isEnabled()` call
     // on a trace site) we would miss any keydown / beforeinput / composition
     // event preceding the very first trace call.
-    org.waveprotocol.wave.client.editor.debug.ImeDebugTracer.isEnabled();
+    ImeDebugTracer.isEnabled();
 
     eventHandler = new EditorEventHandler(
         new EditorInteractorImpl(), eventsSubHandler, NodeEventRouter.INSTANCE,
@@ -1575,9 +1576,9 @@ public class EditorImpl extends LogicalPanel.Impl implements
       // composed word and the space between words — typing "new blip"
       // would otherwise commit as "ewlip". See ImeExtractor#captureGhostBaseline.
       String composition = imeExtractor.getEffectiveContent();
-      String rawScratchForTrace = imeExtractor.getContent();
-      if (org.waveprotocol.wave.client.editor.debug.ImeDebugTracer.isEnabled()) {
-        org.waveprotocol.wave.client.editor.debug.ImeDebugTracer
+      if (ImeDebugTracer.isEnabled()) {
+        String rawScratchForTrace = imeExtractor.getContent();
+        ImeDebugTracer
             .start("EditorImpl.flushActiveImeComposition")
             .add("rawScratch", rawScratchForTrace)
             .add("effective", composition)
