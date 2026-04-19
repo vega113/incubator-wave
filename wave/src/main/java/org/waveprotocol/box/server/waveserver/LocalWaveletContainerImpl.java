@@ -149,13 +149,6 @@ class LocalWaveletContainerImpl extends WaveletContainerImpl implements LocalWav
     WaveletDelta transformed = maybeTransformSubmittedDelta(
         CoreWaveletOperationSerializer.deserialize(protocolDelta));
 
-    if (maxReplyDepth > 0 && IdUtil.isConversationalId(getWaveletName().waveletId)) {
-      String depthError = ReplyDepthValidator.validate(accessSnapshot(), transformed, maxReplyDepth);
-      if (depthError != null) {
-        throw new OperationException(depthError);
-      }
-    }
-
     // TODO(ljvderijk): a Clock needs to be injected here (Issue 104)
     long applicationTimestamp = System.currentTimeMillis();
 
@@ -195,6 +188,13 @@ class LocalWaveletContainerImpl extends WaveletContainerImpl implements LocalWav
           transformed, dupDelta);
 
       return new WaveletDeltaRecord(transformed.getTargetVersion(), existingDeltaBytes, dupDelta);
+    }
+
+    if (maxReplyDepth > 0 && IdUtil.isConversationalId(getWaveletName().waveletId)) {
+      String depthError = ReplyDepthValidator.validate(accessSnapshot(), transformed, maxReplyDepth);
+      if (depthError != null) {
+        throw new OperationException(depthError);
+      }
     }
 
     // Build the applied delta to commit
