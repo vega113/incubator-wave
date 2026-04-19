@@ -34,6 +34,9 @@ public final class J2clSearchResultProjector {
     List<J2clSearchDigestItem> items = new ArrayList<J2clSearchDigestItem>();
     int unreadWaveCount = 0;
     for (SidecarSearchResponse.Digest digest : response.getDigests()) {
+      if (digest.getWaveId() == null) {
+        continue;
+      }
       if (digest.getUnreadCount() > 0) {
         unreadWaveCount++;
       }
@@ -47,6 +50,10 @@ public final class J2clSearchResultProjector {
               digest.getBlipCount(),
               digest.getLastModified(),
               digest.isPinned()));
+    }
+
+    if (items.isEmpty()) {
+      return J2clSearchResultModel.empty("No waves matched this query.");
     }
 
     int total = response.getTotalResults();
