@@ -34,7 +34,7 @@ public final class J2clSearchResultProjector {
     List<J2clSearchDigestItem> items = new ArrayList<J2clSearchDigestItem>();
     int unreadWaveCount = 0;
     for (SidecarSearchResponse.Digest digest : response.getDigests()) {
-      if (digest.getWaveId() == null) {
+      if (digest == null || digest.getWaveId() == null) {
         continue;
       }
       if (digest.getUnreadCount() > 0) {
