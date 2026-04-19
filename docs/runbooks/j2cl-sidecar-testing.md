@@ -62,8 +62,8 @@ python3 scripts/assemble-changelog.py
 python3 scripts/validate-changelog.py --changelog wave/config/changelog.json
 ```
 
-`wave/config/changelog.json` is gitignored — do not commit it. Only commit
-changelog fragments under `wave/config/changelog.d/`.
+`wave/config/changelog.json` is generated and gitignored. Do not commit it;
+commit only changelog fragments under `wave/config/changelog.d/`.
 
 ### 2. Run The Cross-Path Build Gate
 
@@ -92,12 +92,8 @@ PORT=9900 JAVA_OPTS='-Djava.util.logging.config.file=... -Djava.security.auth.lo
 PORT=9900 bash scripts/wave-smoke.sh check
 ```
 
-Keep the server running through steps 4 and manual browser verification, then
-stop it when done:
-
-```bash
-PORT=9900 bash scripts/wave-smoke.sh stop
-```
+Keep the server running through the route checks and browser verification
+below.
 
 ### 4. Route Presence Checks
 
@@ -150,6 +146,13 @@ For stronger manual proof:
 - create extra waves from the normal app first
 - refresh `/j2cl-search/index.html`
 - confirm the wave count and `Show more waves` behavior change coherently
+
+When the route checks and browser verification are finished, stop the local
+server:
+
+```bash
+PORT=9900 bash scripts/wave-smoke.sh stop
+```
 
 ## When To Use Direct Maven Instead Of SBT
 
