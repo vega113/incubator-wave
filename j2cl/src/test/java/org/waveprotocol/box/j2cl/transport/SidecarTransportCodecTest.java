@@ -132,6 +132,37 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void encodeSubmitEnvelopeUsesProtocolSubmitRequestShape() {
+    SidecarSubmitRequest request =
+        new SidecarSubmitRequest(
+            "example.com/w+abc123/~/conv+root",
+            "{\"1\":{\"1\":44,\"2\":\"\"},\"2\":\"user@example.com\",\"3\":[{\"1\":\"user@example.com\"}]}",
+            "chan-9");
+
+    String json = SidecarTransportCodec.encodeSubmitEnvelope(15, request);
+
+    Assert.assertTrue(json.contains("\"sequenceNumber\":15"));
+    Assert.assertTrue(json.contains("\"messageType\":\"ProtocolSubmitRequest\""));
+    Assert.assertTrue(json.contains("\"1\":\"example.com/w+abc123/~/conv+root\""));
+    Assert.assertTrue(json.contains("\"2\":{\"1\":{\"1\":44,\"2\":\"\"},\"2\":\"user@example.com\""));
+    Assert.assertTrue(json.contains("\"3\":\"chan-9\""));
+  }
+
+  @Test
+  public void decodeSubmitResponseReadsOperationsErrorAndVersion() {
+    String json =
+        "{\"sequenceNumber\":16,\"messageType\":\"ProtocolSubmitResponse\",\"message\":{"
+            + "\"1\":2,\"2\":\"submit boom\",\"3\":{\"1\":46,\"2\":\"\"}}}";
+
+    SidecarSubmitResponse response =
+        SidecarTransportCodec.decodeSubmitResponse(SidecarTransportCodec.parseJsonObject(json));
+
+    Assert.assertEquals(2, response.getOperationsApplied());
+    Assert.assertEquals("submit boom", response.getErrorMessage());
+    Assert.assertEquals(46L, response.getResultingVersion());
+  }
+
+  @Test
   public void extractSessionBootstrapAddressFromRootHtml() {
     String html =
         "<html><script>window.__session={\"address\":\"user@example.com\",\"id\":\"abc\"};"

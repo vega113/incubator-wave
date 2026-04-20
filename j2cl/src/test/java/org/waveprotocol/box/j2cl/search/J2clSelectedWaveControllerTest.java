@@ -260,6 +260,25 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertFalse((Boolean) harness.modelValue("isLoading"));
   }
 
+  @Test
+  public void selectedWaveUpdatePromotesWriteSessionMetadata() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello from the sidecar");
+
+    J2clSidecarWriteSession writeSession =
+        (J2clSidecarWriteSession) harness.modelValue("getWriteSession");
+
+    Assert.assertNotNull(writeSession);
+    Assert.assertEquals("example.com/w+1", writeSession.getSelectedWaveId());
+    Assert.assertEquals("chan-1", writeSession.getChannelId());
+    Assert.assertEquals(44L, writeSession.getBaseVersion());
+    Assert.assertEquals("b+root", writeSession.getReplyTargetBlipId());
+  }
+
   private static J2clSearchDigestItem digest(String title, String snippet, int unreadCount) {
     return new J2clSearchDigestItem(
         "example.com/w+1", title, snippet, "user@example.com", unreadCount, 2, 1234L, false);

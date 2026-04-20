@@ -38,6 +38,21 @@ public final class SidecarTransportCodec {
     return json.toString();
   }
 
+  public static String encodeSubmitEnvelope(int sequenceNumber, SidecarSubmitRequest request) {
+    StringBuilder json = new StringBuilder(request.getDeltaJson().length() + 96);
+    json.append("{\"sequenceNumber\":")
+        .append(sequenceNumber)
+        .append(",\"messageType\":\"ProtocolSubmitRequest\",\"message\":{\"1\":\"")
+        .append(escapeJson(request.getWaveletName()))
+        .append("\",\"2\":")
+        .append(request.getDeltaJson());
+    if (request.getChannelId() != null) {
+      json.append(",\"3\":\"").append(escapeJson(request.getChannelId())).append('"');
+    }
+    json.append("}}");
+    return json.toString();
+  }
+
   public static SidecarSearchResponse decodeSearchResponse(String json) {
     Map<String, Object> root = parseJsonObject(json);
     List<SidecarSearchResponse.Digest> digests = new ArrayList<>();
@@ -146,6 +161,14 @@ public final class SidecarTransportCodec {
     return errorText == null || errorText.isEmpty() ? fallback : errorText;
   }
 
+  public static SidecarSubmitResponse decodeSubmitResponse(Map<String, Object> envelope) {
+    Map<String, Object> payload = asObject(envelope.get("message"));
+    Map<String, Object> hashedVersion = getOptionalObject(payload, "3");
+    long resultingVersion = hashedVersion.isEmpty() ? -1L : getLong(hashedVersion, "1");
+    return new SidecarSubmitResponse(
+        getInt(payload, "1"), getString(payload, "2"), resultingVersion);
+  }
+
   private static String escapeJson(String value) {
     StringBuilder escaped = new StringBuilder(value.length() + 8);
     for (int i = 0; i < value.length(); i++) {
@@ -247,6 +270,9 @@ public final class SidecarTransportCodec {
     Object value = object.get(key);
     if (value == null) {
       return 0L;
+    }
+    if (value instanceof Number) {
+      return ((Number) value).longValue();
     }
     List<Object> words = asList(value);
     int lowWord = ((Number) words.get(0)).intValue();

@@ -83,6 +83,12 @@ public final class J2clSidecarRouteController {
     selectedWaveController.onWaveSelected(nextState.getSelectedWaveId(), digestItem);
   }
 
+  public void selectWave(String waveId) {
+    String query =
+        currentState == null ? J2clSearchResultProjector.DEFAULT_QUERY : currentState.getQuery();
+    onRouteStateChanged(new J2clSidecarRouteState(query, waveId), null, true);
+  }
+
   private void handlePopState() {
     currentState = J2clSidecarRouteCodec.parse(history.getSearch());
     searchController.restoreRoute(currentState.getQuery(), currentState.getSelectedWaveId());
