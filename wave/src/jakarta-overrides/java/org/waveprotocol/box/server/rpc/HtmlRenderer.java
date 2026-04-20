@@ -3218,12 +3218,12 @@ public final class HtmlRenderer {
     String address = sessionJson == null ? "" : sessionJson.optString(SessionConstants.ADDRESS, "");
     boolean signedIn = address != null && !address.isEmpty();
     String resolvedReturnTarget = normalizeLocalReturnTarget(rootShellReturnTarget);
-    String safeResolvedReturnTarget = escapeHtml(resolvedReturnTarget);
+    String safeResolvedReturnTarget = StringEscapeUtils.escapeHtml4(resolvedReturnTarget);
     String safeEncodedReturnTarget =
         StringEscapeUtils.escapeHtml4(encodeLocalReturnTarget(resolvedReturnTarget));
     int queryStart = resolvedReturnTarget.indexOf('?');
     String resolvedBasePath = queryStart >= 0 ? resolvedReturnTarget.substring(0, queryStart) : resolvedReturnTarget;
-    String safeResolvedBasePath = escapeHtml(resolvedBasePath);
+    String safeResolvedBasePath = StringEscapeUtils.escapeHtml4(resolvedBasePath);
 
     StringBuilder sb = new StringBuilder(2048);
     sb.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
