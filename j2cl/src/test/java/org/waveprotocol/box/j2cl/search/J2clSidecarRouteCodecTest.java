@@ -50,6 +50,13 @@ public class J2clSidecarRouteCodecTest {
   }
 
   @Test
+  public void waveParameterPreservesLiteralPlusInWaveId() {
+    Assert.assertEquals(
+        "example.com/w+abc123",
+        J2clSidecarRouteCodec.parse("?wave=example.com/w+abc123").getSelectedWaveId());
+  }
+
+  @Test
   public void queryDecodingTreatsPlusAsSpace() {
     Assert.assertEquals(
         "mentions:me unread:true",
