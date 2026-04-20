@@ -171,6 +171,7 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertEquals(1, harness.openCount);
 
     harness.selectWave(controller, "example.com/w+b", null);
+    Assert.assertEquals(1, harness.closedCount);
     harness.resolveBootstrap(1);
     Assert.assertEquals(2, harness.openCount);
 
