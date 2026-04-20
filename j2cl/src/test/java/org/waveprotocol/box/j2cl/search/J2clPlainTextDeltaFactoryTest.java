@@ -62,6 +62,8 @@ public class J2clPlainTextDeltaFactoryTest {
     Assert.assertTrue(request.getDeltaJson().contains(textFragment));
   }
 
+  // ASCII-only: mirrors production encodeHex which treats each char as a single byte.
+  // Test fixtures use ASCII wave URIs only; non-ASCII inputs are not supported.
   private static String encodeHex(String value) {
     StringBuilder encoded = new StringBuilder(value.length() * 2);
     for (int i = 0; i < value.length(); i++) {

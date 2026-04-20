@@ -6,6 +6,12 @@ public final class SidecarSubmitRequest {
   private final String channelId;
 
   public SidecarSubmitRequest(String waveletName, String deltaJson, String channelId) {
+    if (waveletName == null || waveletName.isEmpty()) {
+      throw new IllegalArgumentException("waveletName must not be null or empty");
+    }
+    if (deltaJson == null || deltaJson.isEmpty()) {
+      throw new IllegalArgumentException("deltaJson must not be null or empty");
+    }
     this.waveletName = waveletName;
     this.deltaJson = deltaJson;
     this.channelId = channelId == null || channelId.isEmpty() ? null : channelId;
