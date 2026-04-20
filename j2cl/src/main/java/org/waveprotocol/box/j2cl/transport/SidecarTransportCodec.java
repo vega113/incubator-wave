@@ -72,6 +72,80 @@ public final class SidecarTransportCodec {
         getString(payload, "7"));
   }
 
+  public static SidecarSelectedWaveUpdate decodeSelectedWaveUpdate(String json) {
+    return decodeSelectedWaveUpdate(parseJsonObject(json));
+  }
+
+  public static SidecarSelectedWaveUpdate decodeSelectedWaveUpdate(Map<String, Object> envelope) {
+    Map<String, Object> payload = asObject(envelope.get("message"));
+    Map<String, Object> snapshot = getOptionalObject(payload, "5");
+    List<String> participantIds = getStringList(snapshot, "2");
+    List<SidecarSelectedWaveDocument> documents = new ArrayList<SidecarSelectedWaveDocument>();
+    Object rawDocuments = snapshot.get("3");
+    if (rawDocuments != null) {
+      for (Object rawDocument : asList(rawDocuments)) {
+        Map<String, Object> document = asObject(rawDocument);
+        documents.add(
+            new SidecarSelectedWaveDocument(
+                getString(document, "1"),
+                getString(document, "3"),
+                getLong(document, "5"),
+                getLong(document, "6"),
+                extractDocumentText(getOptionalObject(document, "2"))));
+      }
+    }
+
+    Map<String, Object> fragments = getOptionalObject(payload, "8");
+    List<SidecarSelectedWaveFragmentRange> ranges =
+        new ArrayList<SidecarSelectedWaveFragmentRange>();
+    Object rawRanges = fragments.get("4");
+    if (rawRanges != null) {
+      for (Object rawRange : asList(rawRanges)) {
+        Map<String, Object> range = asObject(rawRange);
+        ranges.add(
+            new SidecarSelectedWaveFragmentRange(
+                getString(range, "1"), getLong(range, "2"), getLong(range, "3")));
+      }
+    }
+
+    List<SidecarSelectedWaveFragment> entries =
+        new ArrayList<SidecarSelectedWaveFragment>();
+    Object rawEntries = fragments.get("5");
+    if (rawEntries != null) {
+      for (Object rawEntry : asList(rawEntries)) {
+        Map<String, Object> entry = asObject(rawEntry);
+        Map<String, Object> entrySnapshot = getOptionalObject(entry, "2");
+        entries.add(
+            new SidecarSelectedWaveFragment(
+                getString(entry, "1"),
+                getString(entrySnapshot, "1"),
+                getArrayLength(entry.get("3")),
+                getArrayLength(entry.get("4"))));
+      }
+    }
+
+    return new SidecarSelectedWaveUpdate(
+        getInt(envelope, "sequenceNumber"),
+        getString(payload, "1"),
+        getBoolean(payload, "6"),
+        getString(payload, "7"),
+        participantIds,
+        documents,
+        new SidecarSelectedWaveFragments(
+            getLong(fragments, "1"), getLong(fragments, "2"), getLong(fragments, "3"), ranges, entries));
+  }
+
+  public static boolean decodeRpcFinishedFailed(Map<String, Object> envelope) {
+    Map<String, Object> payload = asObject(envelope.get("message"));
+    return getBoolean(payload, "1");
+  }
+
+  public static String decodeRpcFinishedErrorText(Map<String, Object> envelope, String fallback) {
+    Map<String, Object> payload = asObject(envelope.get("message"));
+    String errorText = getString(payload, "2");
+    return errorText == null || errorText.isEmpty() ? fallback : errorText;
+  }
+
   private static String escapeJson(String value) {
     StringBuilder escaped = new StringBuilder(value.length() + 8);
     for (int i = 0; i < value.length(); i++) {
@@ -154,6 +228,11 @@ public final class SidecarTransportCodec {
     return value == null ? null : String.valueOf(value);
   }
 
+  private static Map<String, Object> getOptionalObject(Map<String, Object> object, String key) {
+    Object value = object.get(key);
+    return value == null ? new LinkedHashMap<String, Object>() : asObject(value);
+  }
+
   private static int getInt(Map<String, Object> object, String key) {
     Object value = object.get(key);
     return value == null ? 0 : ((Number) value).intValue();
@@ -192,6 +271,29 @@ public final class SidecarTransportCodec {
       return 0;
     }
     return asList(value).size();
+  }
+
+  private static String extractDocumentText(Map<String, Object> documentOperation) {
+    Object rawComponents = documentOperation.get("1");
+    if (rawComponents == null) {
+      return "";
+    }
+    StringBuilder text = new StringBuilder();
+    for (Object rawComponent : asList(rawComponents)) {
+      Map<String, Object> component = asObject(rawComponent);
+      if (component.containsKey("2")) {
+        text.append(getString(component, "2"));
+        continue;
+      }
+      if (component.containsKey("3")) {
+        Map<String, Object> elementStart = getOptionalObject(component, "3");
+        String type = getString(elementStart, "1");
+        if ("line".equals(type) && text.length() > 0 && text.charAt(text.length() - 1) != '\n') {
+          text.append('\n');
+        }
+      }
+    }
+    return text.toString();
   }
 
   private static long toLong(int highWord, int lowWord) {

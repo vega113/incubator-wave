@@ -65,6 +65,73 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void decodeSelectedWaveUpdateReadsSnapshotAndFragmentsForSidecarProjection() {
+    String json =
+        "{\"sequenceNumber\":12,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"example.com!w+abc123/example.com!conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\",\"teammate@example.com\"],"
+            + "\"3\":[{\"1\":\"b+root\",\"3\":\"user@example.com\",\"5\":[33,0],\"6\":[44,0]}]},"
+            + "\"6\":true,\"7\":\"chan-2\","
+            + "\"8\":{\"1\":[44,0],\"2\":[40,0],\"3\":[44,0],"
+            + "\"4\":[{\"1\":\"manifest\",\"2\":[40,0],\"3\":[44,0]},"
+            + "{\"1\":\"blip:b+root\",\"2\":[41,0],\"3\":[44,0]}],"
+            + "\"5\":[{\"1\":\"manifest\",\"2\":{\"1\":\"conversation: Inbox wave\"}},"
+            + "{\"1\":\"blip:b+root\",\"2\":{\"1\":\"Hello from the sidecar\"},\"3\":[],\"4\":[]}]}}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    Assert.assertEquals("example.com!w+abc123/example.com!conv+root", update.getWaveletName());
+    Assert.assertEquals("chan-2", update.getChannelId());
+    Assert.assertTrue(update.hasMarker());
+    Assert.assertEquals(2, update.getParticipantIds().size());
+    Assert.assertEquals(1, update.getDocuments().size());
+    Assert.assertEquals("b+root", update.getDocuments().get(0).getDocumentId());
+
+    SidecarSelectedWaveFragments fragments = update.getFragments();
+    Assert.assertEquals(44L, fragments.getSnapshotVersion());
+    Assert.assertEquals(2, fragments.getRanges().size());
+    SidecarSelectedWaveFragment fragment = fragments.getEntries().get(1);
+    Assert.assertEquals("blip:b+root", fragment.getSegment());
+    Assert.assertEquals("Hello from the sidecar", fragment.getRawSnapshot());
+  }
+
+  @Test
+  public void decodeSelectedWaveUpdateReadsSnapshotDocumentTextWhenFragmentsAreAbsent() {
+    String json =
+        "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"b+abc123\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"body\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"line\",\"2\":[]}},"
+            + "{\"2\":\"  Welcome to SupaWave  \"},"
+            + "{\"4\":true},{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[1,0],\"6\":[2,0]}]},"
+            + "\"6\":true,\"7\":\"ch3\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    Assert.assertEquals(1, update.getDocuments().size());
+    Assert.assertEquals("b+abc123", update.getDocuments().get(0).getDocumentId());
+    Assert.assertEquals("  Welcome to SupaWave  ", update.getDocuments().get(0).getTextContent());
+    Assert.assertEquals(0, update.getFragments().getEntries().size());
+  }
+
+  @Test
+  public void decodeRpcFinishedFailureReadsFailedFlagAndErrorText() {
+    String json =
+        "{\"sequenceNumber\":14,\"messageType\":\"RpcFinished\",\"message\":{\"1\":true,\"2\":\"boom\"}}";
+
+    java.util.Map<String, Object> envelope = SidecarTransportCodec.parseJsonObject(json);
+
+    Assert.assertTrue(SidecarTransportCodec.decodeRpcFinishedFailed(envelope));
+    Assert.assertEquals(
+        "boom",
+        SidecarTransportCodec.decodeRpcFinishedErrorText(
+            envelope, "The selected wave request failed."));
+  }
+
+  @Test
   public void extractSessionBootstrapAddressFromRootHtml() {
     String html =
         "<html><script>window.__session={\"address\":\"user@example.com\",\"id\":\"abc\"};"
