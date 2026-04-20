@@ -195,7 +195,9 @@ Expected result:
 ### Mode B: J2CL Root Bootstrap Is Enabled Server-Side
 
 ```bash
-cp wave/config/reference.conf /tmp/j2cl-root-bootstrap.application.conf
+bash scripts/worktree-boot.sh --port 9914
+RUNTIME_CONFIG="$(find journal/runtime-config -name '*-port-9914.application.conf' | head -1)"
+cp "$RUNTIME_CONFIG" /tmp/j2cl-root-bootstrap.application.conf
 printf '\nui.j2cl_root_bootstrap_enabled=true\n' >> /tmp/j2cl-root-bootstrap.application.conf
 PORT=9914 bash scripts/wave-smoke.sh stop
 PORT=9914 JAVA_OPTS="-Djava.util.logging.config.file=$PWD/wave/config/wiab-logging.conf -Djava.security.auth.login.config=$PWD/wave/config/jaas.config -Dwave.server.config=/tmp/j2cl-root-bootstrap.application.conf" bash scripts/wave-smoke.sh start
@@ -209,7 +211,7 @@ Expected result:
 - plain `/` serves the J2CL root shell when the server flag is on
 - the direct diagnostic route still serves the same shell
 - turning the config back to `false` restores the legacy GWT root without a code rollback
-- this server honors `-Dwave.server.config`, so the mode switch can be driven by a temp overlay built from the port-specific runtime config without editing the staged install directory directly
+- the mode switch is driven by a temp overlay built from the port-specific runtime config that `worktree-boot.sh` generated for the same smoke port, so the server and the probe port stay aligned
 
 ## When To Use Direct Maven Instead Of SBT
 
