@@ -252,6 +252,9 @@ public class J2clSidecarComposeControllerTest {
     }
 
     private void resolveBootstrap() {
+      if (pendingBootstrapSuccess == null) {
+        throw new IllegalStateException("No pending bootstrap to resolve");
+      }
       J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> success =
           pendingBootstrapSuccess;
       pendingBootstrapSuccess = null;

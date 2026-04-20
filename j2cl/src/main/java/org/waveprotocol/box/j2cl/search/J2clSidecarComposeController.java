@@ -120,6 +120,8 @@ public final class J2clSidecarComposeController {
 
   public void onCreateDraftChanged(String draft) {
     createDraft = normalizeDraft(draft);
+    createErrorText = "";
+    render();
   }
 
   public void onCreateSubmitted(String draft) {
@@ -129,6 +131,8 @@ public final class J2clSidecarComposeController {
 
   public void onReplyDraftChanged(String draft) {
     replyDraft = normalizeDraft(draft);
+    replyErrorText = "";
+    render();
   }
 
   public void onReplySubmitted(String draft) {
