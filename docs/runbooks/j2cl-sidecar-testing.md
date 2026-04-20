@@ -177,7 +177,7 @@ Run from the repo root unless the command says otherwise.
 ### Mode A: Legacy GWT Root Remains The Default
 
 ```bash
-sbt -batch "testOnly org.waveprotocol.box.server.persistence.FeatureFlagSeederJ2clBootstrapTest org.waveprotocol.box.server.rpc.WaveClientServletJ2clBootstrapTest"
+sbt -batch "testOnly org.waveprotocol.box.server.persistence.memory.FeatureFlagSeederJ2clBootstrapTest org.waveprotocol.box.server.rpc.WaveClientServletJ2clBootstrapTest"
 sbt -batch compileGwt Universal/stage
 bash scripts/worktree-boot.sh --port 9914
 PORT=9914 bash scripts/wave-smoke.sh start
