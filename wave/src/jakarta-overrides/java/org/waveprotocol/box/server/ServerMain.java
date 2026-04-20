@@ -13,6 +13,7 @@ import com.google.inject.Module;
 import com.google.inject.name.Names;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigParseOptions;
 import org.waveprotocol.box.server.authentication.AccountStoreHolder;
 import org.waveprotocol.box.server.executor.ExecutorsModule;
 import org.waveprotocol.box.server.frontend.ClientFrontend;
@@ -89,10 +90,7 @@ public class ServerMain {
 
       Module coreSettings = new AbstractModule() {
         @Override protected void configure() {
-          Config config = ConfigFactory.defaultOverrides()
-              .withFallback(ConfigFactory.parseFile(new File("config/application.conf")))
-              .withFallback(ConfigFactory.parseFile(new File("config/reference.conf")))
-              .resolve();
+          Config config = loadCoreConfig();
           bind(Config.class).toInstance(config);
           bind(Key.get(String.class, Names.named(CoreSettingsNames.WAVE_SERVER_DOMAIN)))
               .toInstance(config.getString("core.wave_server_domain"));
@@ -151,6 +149,48 @@ public class ServerMain {
     server.startWebSocketServer(injector);
   }
 
+  static Config loadCoreConfig() {
+    File applicationConfig = resolveApplicationConfigFile();
+    boolean hasExplicitOverride = hasExplicitConfigOverride();
+    ConfigParseOptions parseOptions =
+        hasExplicitOverride
+            ? ConfigParseOptions.defaults().setAllowMissing(false)
+            : ConfigParseOptions.defaults();
+
+    return ConfigFactory.defaultOverrides()
+        .withFallback(ConfigFactory.parseFile(applicationConfig, parseOptions))
+        .withFallback(ConfigFactory.parseFile(new File("config/reference.conf")))
+        .resolve();
+  }
+
+  static Config loadApplicationOverrideConfig() {
+    File applicationConfig = resolveApplicationConfigFile();
+    boolean hasExplicitOverride = hasExplicitConfigOverride();
+    ConfigParseOptions parseOptions =
+        hasExplicitOverride
+            ? ConfigParseOptions.defaults().setAllowMissing(false)
+            : ConfigParseOptions.defaults();
+    return ConfigFactory.parseFile(applicationConfig, parseOptions);
+  }
+
+  private static boolean hasExplicitConfigOverride() {
+    String serverConfigPath = System.getProperty("wave.server.config");
+    return serverConfigPath != null && !serverConfigPath.isBlank();
+  }
+
+  private static File resolveApplicationConfigFile() {
+    String serverConfigPath = System.getProperty("wave.server.config");
+    if (serverConfigPath != null && !serverConfigPath.isBlank()) {
+      File applicationConfig = new File(serverConfigPath);
+      if (!applicationConfig.exists() || !applicationConfig.isFile()) {
+        throw new IllegalArgumentException(
+            "wave.server.config does not point to a readable config file: " + serverConfigPath);
+      }
+      return applicationConfig;
+    }
+    return new File("config/application.conf");
+  }
+
   private static Module buildFederationModule(Injector settingsInjector) {
     return settingsInjector.getInstance(NoOpFederationModule.class);
   }
@@ -178,12 +218,16 @@ public class ServerMain {
   private static void initializeFeatureFlags(Injector injector) {
     try {
       Config config = injector.getInstance(Config.class);
+      Config applicationOverrideConfig = loadApplicationOverrideConfig();
       FeatureFlagStore featureFlagStore = injector.getInstance(FeatureFlagStore.class);
       FeatureFlagSeeder.seedSearchFeatureFlags(featureFlagStore, config);
+      FeatureFlagSeeder.seedJ2clRootBootstrapFeatureFlags(featureFlagStore, config);
+      FeatureFlagSeeder.reconcileJ2clRootBootstrapFeatureFlag(
+          featureFlagStore, applicationOverrideConfig);
       injector.getInstance(FeatureFlagService.class).refreshCache();
     } catch (PersistenceException e) {
       LOG.log(java.util.logging.Level.WARNING,
-          "Failed to seed ot-search feature flag; search updates stay off", e);
+          "Failed to seed feature flags; rollout defaults stay unchanged", e);
     }
   }
 

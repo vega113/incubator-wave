@@ -130,8 +130,11 @@ public class WaveClientServlet extends HttpServlet {
     WebSession session = WebSessions.from(request, false);
     ParticipantId id = sessionManager.getLoggedInUser(session);
     String requestedView = resolveRequestedView(request);
+    boolean j2clRootBootstrapEnabled =
+        featureFlagService.isEnabled("j2cl-root-bootstrap", id != null ? id.getAddress() : null);
 
-    if (VIEW_J2CL_ROOT.equals(requestedView)) {
+    if (VIEW_J2CL_ROOT.equals(requestedView)
+        || (StringUtils.isEmpty(requestedView) && j2clRootBootstrapEnabled)) {
       String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
       response.setContentType("text/html");
       response.setCharacterEncoding("UTF-8");
