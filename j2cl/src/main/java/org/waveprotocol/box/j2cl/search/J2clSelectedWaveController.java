@@ -163,14 +163,7 @@ public final class J2clSelectedWaveController {
               }
               terminalStateHandled[0] = true;
               clearActiveSubscription();
-              if (retryOnFailure) {
-                scheduleReconnectOrFail(generation, reconnectCount);
-                return;
-              }
-              currentModel =
-                  J2clSelectedWaveModel.error(
-                      selectedWaveId, selectedDigestItem, "Selected wave stream failed.", error);
-              view.render(currentModel);
+              scheduleReconnectOrFail(generation, reconnectCount);
             },
             () -> {
               if (!isCurrentGeneration(generation) || selectedWaveId == null) {

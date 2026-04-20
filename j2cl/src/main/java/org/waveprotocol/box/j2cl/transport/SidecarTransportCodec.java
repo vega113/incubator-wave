@@ -73,7 +73,10 @@ public final class SidecarTransportCodec {
   }
 
   public static SidecarSelectedWaveUpdate decodeSelectedWaveUpdate(String json) {
-    Map<String, Object> envelope = parseJsonObject(json);
+    return decodeSelectedWaveUpdate(parseJsonObject(json));
+  }
+
+  public static SidecarSelectedWaveUpdate decodeSelectedWaveUpdate(Map<String, Object> envelope) {
     Map<String, Object> payload = asObject(envelope.get("message"));
     Map<String, Object> snapshot = getOptionalObject(payload, "5");
     List<String> participantIds = getStringList(snapshot, "2");

@@ -86,7 +86,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       contentList.appendChild(block);
     }
 
-    emptyState.hidden = model.hasSelection() && !model.getContentEntries().isEmpty();
+    emptyState.hidden = model.isError() || (model.hasSelection() && !model.getContentEntries().isEmpty());
     emptyState.textContent =
         model.hasSelection()
             ? (model.isLoading()

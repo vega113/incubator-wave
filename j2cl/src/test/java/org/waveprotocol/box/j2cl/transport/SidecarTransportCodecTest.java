@@ -1,7 +1,6 @@
 package org.waveprotocol.box.j2cl.transport;
 
 import com.google.j2cl.junit.apt.J2clTestInput;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
@@ -66,8 +65,7 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
-  public void decodeSelectedWaveUpdateReadsSnapshotAndFragmentsForSidecarProjection()
-      throws Exception {
+  public void decodeSelectedWaveUpdateReadsSnapshotAndFragmentsForSidecarProjection() {
     String json =
         "{\"sequenceNumber\":12,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
             + "\"1\":\"example.com!w+abc123/example.com!conv+root\","
@@ -80,37 +78,25 @@ public class SidecarTransportCodecTest {
             + "\"5\":[{\"1\":\"manifest\",\"2\":{\"1\":\"conversation: Inbox wave\"}},"
             + "{\"1\":\"blip:b+root\",\"2\":{\"1\":\"Hello from the sidecar\"},\"3\":[],\"4\":[]}]}}}";
 
-    Method decoder =
-        SidecarTransportCodec.class.getMethod("decodeSelectedWaveUpdate", String.class);
-    Object update = decoder.invoke(null, json);
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
 
-    Assert.assertEquals(
-        "example.com!w+abc123/example.com!conv+root",
-        update.getClass().getMethod("getWaveletName").invoke(update));
-    Assert.assertEquals("chan-2", update.getClass().getMethod("getChannelId").invoke(update));
-    Assert.assertEquals(Boolean.TRUE, update.getClass().getMethod("hasMarker").invoke(update));
+    Assert.assertEquals("example.com!w+abc123/example.com!conv+root", update.getWaveletName());
+    Assert.assertEquals("chan-2", update.getChannelId());
+    Assert.assertTrue(update.hasMarker());
+    Assert.assertEquals(2, update.getParticipantIds().size());
+    Assert.assertEquals(1, update.getDocuments().size());
+    Assert.assertEquals("b+root", update.getDocuments().get(0).getDocumentId());
 
-    Object participants = update.getClass().getMethod("getParticipantIds").invoke(update);
-    Assert.assertEquals(2, ((java.util.List<?>) participants).size());
-
-    Object documents = update.getClass().getMethod("getDocuments").invoke(update);
-    Assert.assertEquals(1, ((java.util.List<?>) documents).size());
-    Object document = ((java.util.List<?>) documents).get(0);
-    Assert.assertEquals("b+root", document.getClass().getMethod("getDocumentId").invoke(document));
-
-    Object fragments = update.getClass().getMethod("getFragments").invoke(update);
-    Assert.assertEquals(44L, fragments.getClass().getMethod("getSnapshotVersion").invoke(fragments));
-    Assert.assertEquals(2, ((java.util.List<?>) fragments.getClass().getMethod("getRanges").invoke(fragments)).size());
-    Object fragment = ((java.util.List<?>) fragments.getClass().getMethod("getEntries").invoke(fragments)).get(1);
-    Assert.assertEquals("blip:b+root", fragment.getClass().getMethod("getSegment").invoke(fragment));
-    Assert.assertEquals(
-        "Hello from the sidecar",
-        fragment.getClass().getMethod("getRawSnapshot").invoke(fragment));
+    SidecarSelectedWaveFragments fragments = update.getFragments();
+    Assert.assertEquals(44L, fragments.getSnapshotVersion());
+    Assert.assertEquals(2, fragments.getRanges().size());
+    SidecarSelectedWaveFragment fragment = fragments.getEntries().get(1);
+    Assert.assertEquals("blip:b+root", fragment.getSegment());
+    Assert.assertEquals("Hello from the sidecar", fragment.getRawSnapshot());
   }
 
   @Test
-  public void decodeSelectedWaveUpdateReadsSnapshotDocumentTextWhenFragmentsAreAbsent()
-      throws Exception {
+  public void decodeSelectedWaveUpdateReadsSnapshotDocumentTextWhenFragmentsAreAbsent() {
     String json =
         "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
             + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","

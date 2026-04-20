@@ -3,6 +3,7 @@ package org.waveprotocol.box.j2cl.search;
 import elemental2.dom.DomGlobal;
 import elemental2.dom.WebSocket;
 import elemental2.dom.XMLHttpRequest;
+import java.util.Map;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsPackage;
 import org.waveprotocol.box.j2cl.transport.SidecarOpenRequest;
@@ -64,10 +65,11 @@ public final class J2clSearchGateway
           }
           try {
             String payload = String.valueOf(event.data);
-            if (!"ProtocolWaveletUpdate".equals(SidecarTransportCodec.decodeMessageType(payload))) {
+            Map<String, Object> envelope = SidecarTransportCodec.parseJsonObject(payload);
+            if (!"ProtocolWaveletUpdate".equals(envelope.get("messageType"))) {
               return;
             }
-            onUpdate.accept(SidecarTransportCodec.decodeSelectedWaveUpdate(payload));
+            onUpdate.accept(SidecarTransportCodec.decodeSelectedWaveUpdate(envelope));
           } catch (RuntimeException e) {
             onError.accept(messageOrDefault(e, "Unable to decode the selected wave update."));
           }
