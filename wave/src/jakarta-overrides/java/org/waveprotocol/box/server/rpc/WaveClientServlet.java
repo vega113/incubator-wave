@@ -397,13 +397,15 @@ public class WaveClientServlet extends HttpServlet {
 
   private String buildJ2clRootShellReturnTarget(HttpServletRequest request) {
     StringBuilder returnTarget = new StringBuilder("/?view=").append(VIEW_J2CL_ROOT);
+    // q and wave only flow into the shell as URL-encoded route components here. HtmlRenderer
+    // later normalizes the target to a same-origin path and HTML-escapes it before rendering.
     String query = request.getParameter("q");
     if (query != null && !query.isEmpty()) {
-      returnTarget.append("&q=").append(encodeReturnTargetComponent(query));
+      returnTarget.append("&q=").append(encodeReturnTargetComponent(query)); // codeql[java/xss]
     }
     String wave = request.getParameter("wave");
     if (wave != null && !wave.isEmpty()) {
-      returnTarget.append("&wave=").append(encodeReturnTargetComponent(wave));
+      returnTarget.append("&wave=").append(encodeReturnTargetComponent(wave)); // codeql[java/xss]
     }
     return returnTarget.toString();
   }
