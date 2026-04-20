@@ -57,9 +57,42 @@ public class J2clSidecarRouteCodecTest {
   }
 
   @Test
+  public void fullWaveRefParameterKeepsOnlyWaveIdPrefix() {
+    Assert.assertEquals(
+        "example.com/w+abc123",
+        J2clSidecarRouteCodec.parse(
+                "?wave=example.com/w+abc123/~/conv+root/b+1234")
+            .getSelectedWaveId());
+  }
+
+  @Test
   public void queryDecodingTreatsPlusAsSpace() {
     Assert.assertEquals(
         "mentions:me unread:true",
         J2clSidecarRouteCodec.parse("?q=mentions%3Ame+unread%3Atrue").getQuery());
+  }
+
+  @Test
+  public void legacyHashPlainWaveIdIsAccepted() {
+    Assert.assertEquals(
+        "example.com/w+abc123",
+        J2clSidecarRouteCodec.parse("", "#example.com/w+abc123").getSelectedWaveId());
+  }
+
+  @Test
+  public void legacyHashFullWaveRefTokenIsStrippedToWaveId() {
+    // Full WaveRef tokens from /waveref/* include conversation and blip segments;
+    // only the "domain/w+id" prefix should be returned.
+    Assert.assertEquals(
+        "example.com/w+abc123",
+        J2clSidecarRouteCodec.parse("", "#example.com/w+abc123/~/conv+root/b+1234")
+            .getSelectedWaveId());
+  }
+
+  @Test
+  public void legacyHashMissingOrInvalidIsNull() {
+    Assert.assertNull(J2clSidecarRouteCodec.parse("", null).getSelectedWaveId());
+    Assert.assertNull(J2clSidecarRouteCodec.parse("", "").getSelectedWaveId());
+    Assert.assertNull(J2clSidecarRouteCodec.parse("", "#not-a-wave").getSelectedWaveId());
   }
 }

@@ -76,6 +76,7 @@ public final class J2clSidecarRouteCodec {
     }
     try {
       String decoded = decodeUriComponentSafe(value);
+      decoded = trimWaveRefSuffix(decoded);
       return isValidWaveId(decoded) ? decoded : null;
     } catch (RuntimeException e) {
       return null;
@@ -105,10 +106,23 @@ public final class J2clSidecarRouteCodec {
       while (decoded.startsWith("/")) {
         decoded = decoded.substring(1);
       }
+      decoded = trimWaveRefSuffix(decoded);
       return isValidWaveId(decoded) ? decoded : null;
     } catch (RuntimeException e) {
       return null;
     }
+  }
+
+  // Full WaveRef tokens (e.g. "domain/w+id/~/conv+root/b+1234") contain only one "/w+"
+  // and therefore pass isValidWaveId.  This helper trims any trailing path segments so
+  // callers receive just the "domain/w+id" wave-ID portion.
+  private static String trimWaveRefSuffix(String decoded) {
+    int waveMarker = decoded.indexOf("/w+");
+    if (waveMarker < 0) {
+      return decoded;
+    }
+    int nextSlash = decoded.indexOf('/', waveMarker + 3);
+    return nextSlash >= 0 ? decoded.substring(0, nextSlash) : decoded;
   }
 
   private static boolean isValidWaveId(String waveId) {
