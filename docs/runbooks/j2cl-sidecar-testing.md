@@ -204,17 +204,19 @@ cp "$RUNTIME_CONFIG" /tmp/j2cl-root-bootstrap.application.conf
 printf '\nui.j2cl_root_bootstrap_enabled=false\n' >> /tmp/j2cl-root-bootstrap.application.conf
 PORT=9914 bash scripts/wave-smoke.sh stop
 PORT=9914 JAVA_OPTS="-Djava.util.logging.config.file=$PWD/wave/config/wiab-logging.conf -Djava.security.auth.login.config=$PWD/wave/config/jaas.config -Dwave.server.config=/tmp/j2cl-root-bootstrap.application.conf" bash scripts/wave-smoke.sh start
-curl -fsS http://localhost:9914/ | grep -F 'SupaWave - Real-time Collaborative Communication'
+curl -fsS http://localhost:9914/ | grep -F 'nav-link-signin'
+! curl -fsS http://localhost:9914/ | grep -F 'data-j2cl-root-shell'
 curl -fsS http://localhost:9914/?view=j2cl-root | grep -F 'data-j2cl-root-shell'
-curl -fsS http://localhost:9914/?view=landing | grep -F 'SupaWave - Real-time Collaborative Communication'
+curl -fsS http://localhost:9914/?view=landing | grep -F 'nav-link-signin'
+! curl -fsS http://localhost:9914/?view=landing | grep -F 'data-j2cl-root-shell'
 PORT=9914 bash scripts/wave-smoke.sh stop
 ```
 
 Expected result:
 
-- plain `/` falls back to the legacy landing/GWT root when the server flag is rolled back to `false`
+- plain `/` renders legacy markers and does not include `data-j2cl-root-shell` when rolled back to `false`
 - the direct diagnostic route still serves the J2CL root shell
-- `?view=landing` remains the explicit legacy landing-page escape hatch
+- `/?view=landing` renders legacy markers and does not include `data-j2cl-root-shell`
 - turning the config back to `true` restores the J2CL default without a code rollback
 - the mode switch is driven by a temp overlay built from the port-specific runtime config that `worktree-boot.sh` generated for the same smoke port, so the server and the probe port stay aligned
 
