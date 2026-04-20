@@ -146,6 +146,9 @@ public final class J2clSidecarComposeController {
       replySubmitting = false;
       replyStatusText = "";
       replyErrorText = "";
+      if (selectedWaveChanged(nextWriteSession)) {
+        replyDraft = "";
+      }
     }
     writeSession = nextWriteSession;
     render();
@@ -327,6 +330,12 @@ public final class J2clSidecarComposeController {
         || writeSession.getBaseVersion() != nextWriteSession.getBaseVersion()
         || !safeEquals(writeSession.getHistoryHash(), nextWriteSession.getHistoryHash())
         || !safeEquals(writeSession.getReplyTargetBlipId(), nextWriteSession.getReplyTargetBlipId());
+  }
+
+  private boolean selectedWaveChanged(J2clSidecarWriteSession nextWriteSession) {
+    String currentWaveId = writeSession == null ? null : writeSession.getSelectedWaveId();
+    String nextWaveId = nextWriteSession == null ? null : nextWriteSession.getSelectedWaveId();
+    return !safeEquals(currentWaveId, nextWaveId);
   }
 
   private static String normalizeDraft(String draft) {

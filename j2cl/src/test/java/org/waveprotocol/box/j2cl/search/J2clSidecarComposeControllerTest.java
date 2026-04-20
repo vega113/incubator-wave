@@ -215,6 +215,48 @@ public class J2clSidecarComposeControllerTest {
     Assert.assertEquals("", view.model.getReplyStatusText());
   }
 
+  @Test
+  public void writeSessionChangeClearsReplyDraftForDifferentWave() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clSidecarComposeController controller =
+        new J2clSidecarComposeController(
+            gateway,
+            view,
+            new FakeFactory(),
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplyDraftChanged("Draft for wave one");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 45L, "BCDE", "b+root"));
+
+    Assert.assertEquals("", view.model.getReplyDraft());
+  }
+
+  @Test
+  public void writeSessionBasisChangeKeepsReplyDraftForSameWave() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clSidecarComposeController controller =
+        new J2clSidecarComposeController(
+            gateway,
+            view,
+            new FakeFactory(),
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplyDraftChanged("Draft for wave one");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+
+    Assert.assertEquals("Draft for wave one", view.model.getReplyDraft());
+  }
+
   private static final class FakeGateway implements J2clSidecarComposeController.Gateway {
     private int fetchBootstrapCalls;
     private int submitCalls;
