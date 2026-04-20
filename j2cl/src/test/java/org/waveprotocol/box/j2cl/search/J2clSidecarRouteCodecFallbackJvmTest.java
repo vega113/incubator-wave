@@ -25,6 +25,9 @@ public class J2clSidecarRouteCodecFallbackJvmTest {
     Assert.assertEquals(
         "!*'()~",
         invokePrivateStringMethod("encodeUriComponentFallback", "!*'()~"));
+    Assert.assertEquals(
+        "!%20*'()",
+        invokePrivateStringMethod("encodeUriComponentFallback", "! *'()"));
   }
 
   private static String invokePrivateStringMethod(String methodName, String value) throws Exception {
