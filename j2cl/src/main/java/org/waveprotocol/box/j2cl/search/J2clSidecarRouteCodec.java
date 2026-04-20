@@ -114,6 +114,18 @@ public final class J2clSidecarRouteCodec {
         appendEncodedByte(encoded, 0x80 | (ch & 0x3F));
         continue;
       }
+      if (ch >= 0xD800 && ch <= 0xDBFF && index + 1 < value.length()) {
+        char low = value.charAt(index + 1);
+        if (low >= 0xDC00 && low <= 0xDFFF) {
+          int codePoint = 0x10000 + ((ch - 0xD800) << 10) + (low - 0xDC00);
+          appendEncodedByte(encoded, 0xF0 | (codePoint >> 18));
+          appendEncodedByte(encoded, 0x80 | ((codePoint >> 12) & 0x3F));
+          appendEncodedByte(encoded, 0x80 | ((codePoint >> 6) & 0x3F));
+          appendEncodedByte(encoded, 0x80 | (codePoint & 0x3F));
+          index++;
+          continue;
+        }
+      }
       appendEncodedByte(encoded, 0xE0 | (ch >> 12));
       appendEncodedByte(encoded, 0x80 | ((ch >> 6) & 0x3F));
       appendEncodedByte(encoded, 0x80 | (ch & 0x3F));
@@ -164,21 +176,55 @@ public final class J2clSidecarRouteCodec {
         continue;
       }
       if ((first & 0xE0) == 0xC0 && index + 1 < byteCount) {
-        int second = bytes[index + 1] & 0x3F;
-        decoded.append((char) (((first & 0x1F) << 6) | second));
+        int second = requireContinuationByte(bytes[index + 1]);
+        int codePoint = ((first & 0x1F) << 6) | second;
+        if (codePoint < 0x80) {
+          throw malformedUtf8Sequence();
+        }
+        decoded.append((char) codePoint);
         index += 2;
         continue;
       }
       if ((first & 0xF0) == 0xE0 && index + 2 < byteCount) {
-        int second = bytes[index + 1] & 0x3F;
-        int third = bytes[index + 2] & 0x3F;
-        decoded.append((char) (((first & 0x0F) << 12) | (second << 6) | third));
+        int second = requireContinuationByte(bytes[index + 1]);
+        int third = requireContinuationByte(bytes[index + 2]);
+        int codePoint = ((first & 0x0F) << 12) | (second << 6) | third;
+        if (codePoint < 0x800 || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+          throw malformedUtf8Sequence();
+        }
+        decoded.append((char) codePoint);
         index += 3;
         continue;
       }
-      throw new RuntimeException("Malformed UTF-8 sequence.");
+      if ((first & 0xF8) == 0xF0 && index + 3 < byteCount) {
+        int second = requireContinuationByte(bytes[index + 1]);
+        int third = requireContinuationByte(bytes[index + 2]);
+        int fourth = requireContinuationByte(bytes[index + 3]);
+        int codePoint = ((first & 0x07) << 18) | (second << 12) | (third << 6) | fourth;
+        if (codePoint < 0x10000 || codePoint > 0x10FFFF) {
+          throw malformedUtf8Sequence();
+        }
+        codePoint -= 0x10000;
+        decoded.append((char) (0xD800 | (codePoint >> 10)));
+        decoded.append((char) (0xDC00 | (codePoint & 0x3FF)));
+        index += 4;
+        continue;
+      }
+      throw malformedUtf8Sequence();
     }
     return decoded.toString();
+  }
+
+  private static int requireContinuationByte(byte value) {
+    int intValue = value & 0xFF;
+    if ((intValue & 0xC0) != 0x80) {
+      throw malformedUtf8Sequence();
+    }
+    return intValue & 0x3F;
+  }
+
+  private static RuntimeException malformedUtf8Sequence() {
+    return new RuntimeException("Malformed UTF-8 sequence.");
   }
 
   private static int decodeHexDigit(char ch) {
