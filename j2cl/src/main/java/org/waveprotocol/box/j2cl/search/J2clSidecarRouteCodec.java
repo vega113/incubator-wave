@@ -235,7 +235,15 @@ public final class J2clSidecarRouteCodec {
     if (ch >= '0' && ch <= '9') {
       return true;
     }
-    return ch == '-' || ch == '_' || ch == '.' || ch == '~';
+    return ch == '-'
+        || ch == '_'
+        || ch == '.'
+        || ch == '!'
+        || ch == '~'
+        || ch == '*'
+        || ch == '\''
+        || ch == '('
+        || ch == ')';
   }
 
   private static boolean isHighSurrogate(char ch) {

@@ -20,6 +20,13 @@ public class J2clSidecarRouteCodecFallbackJvmTest {
         invokePrivateStringMethod("decodeUriComponentFallback", "%F0%9F%9A%80"));
   }
 
+  @Test
+  public void fallbackEncoderMatchesEncodeUriComponentAllowList() throws Exception {
+    Assert.assertEquals(
+        "!*'()~",
+        invokePrivateStringMethod("encodeUriComponentFallback", "!*'()~"));
+  }
+
   private static String invokePrivateStringMethod(String methodName, String value) throws Exception {
     Method method = J2clSidecarRouteCodec.class.getDeclaredMethod(methodName, String.class);
     method.setAccessible(true);
