@@ -57,7 +57,7 @@ public final class J2clSidecarRouteCodec {
       return null;
     }
     try {
-      String decoded = decodeUriComponentSafe(value.replace('+', ' '));
+      String decoded = decodeUriComponentSafe(value);
       return isValidWaveId(decoded) ? decoded : null;
     } catch (RuntimeException e) {
       return null;
@@ -81,7 +81,7 @@ public final class J2clSidecarRouteCodec {
   private static String decodeUriComponentSafe(String value) {
     try {
       return decodeUriComponentNative(value);
-    } catch (Error err) {
+    } catch (RuntimeException | Error err) {
       return decodeUriComponentFallback(value);
     }
   }
@@ -89,7 +89,7 @@ public final class J2clSidecarRouteCodec {
   private static String encodeUriComponentSafe(String value) {
     try {
       return encodeUriComponent(value);
-    } catch (Error err) {
+    } catch (RuntimeException | Error err) {
       return encodeUriComponentFallback(value);
     }
   }
