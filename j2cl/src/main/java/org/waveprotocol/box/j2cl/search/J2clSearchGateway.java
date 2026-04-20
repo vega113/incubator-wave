@@ -66,7 +66,21 @@ public final class J2clSearchGateway
           try {
             String payload = String.valueOf(event.data);
             Map<String, Object> envelope = SidecarTransportCodec.parseJsonObject(payload);
-            if (!"ProtocolWaveletUpdate".equals(envelope.get("messageType"))) {
+            String messageType = (String) envelope.get("messageType");
+            if ("RpcFinished".equals(messageType)) {
+              @SuppressWarnings("unchecked")
+              Map<String, Object> msg = (Map<String, Object>) envelope.get("message");
+              if (msg != null && Boolean.TRUE.equals(msg.get("1"))) {
+                Object errorText = msg.get("2");
+                closeSocket(socket, closedByClient);
+                onError.accept(
+                    errorText != null && !String.valueOf(errorText).isEmpty()
+                        ? String.valueOf(errorText)
+                        : "The selected wave request failed.");
+              }
+              return;
+            }
+            if (!"ProtocolWaveletUpdate".equals(messageType)) {
               return;
             }
             onUpdate.accept(SidecarTransportCodec.decodeSelectedWaveUpdate(envelope));
