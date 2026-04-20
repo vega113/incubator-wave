@@ -146,6 +146,27 @@ public class J2clSelectedWaveControllerTest {
   }
 
   @Test
+  public void recoveredStreamResetsReconnectBudgetForNextOutage() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(true);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello from the sidecar");
+
+    harness.fireDisconnect(0);
+    Assert.assertEquals(Arrays.asList(250), harness.scheduledDelays);
+
+    harness.runScheduledRetry(0);
+    harness.resolveBootstrap(1);
+    harness.deliverUpdate(1, "Recovered after restart");
+    Assert.assertEquals("Live updates reconnected.", harness.modelValue("getStatusText"));
+
+    harness.fireDisconnect(1);
+    Assert.assertEquals(Arrays.asList(250, 250), harness.scheduledDelays);
+  }
+
+  @Test
   public void staleBootstrapSuccessIsIgnoredAfterRapidReselection() throws Exception {
     Harness harness = new Harness();
     Object controller = harness.createController(false);

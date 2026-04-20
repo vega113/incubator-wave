@@ -148,10 +148,16 @@ public final class J2clSelectedWaveController {
               if (!isCurrentGeneration(generation) || isChannelEstablishmentUpdate(update)) {
                 return;
               }
+              int displayReconnectCount = reconnectCount;
               lastUpdate = update;
+              this.reconnectCount = 0;
               currentModel =
                   J2clSelectedWaveProjector.project(
-                      selectedWaveId, selectedDigestItem, update, currentModel, reconnectCount);
+                      selectedWaveId,
+                      selectedDigestItem,
+                      update,
+                      currentModel,
+                      displayReconnectCount);
               view.render(currentModel);
             },
             error -> {
@@ -164,7 +170,7 @@ public final class J2clSelectedWaveController {
               terminalStateHandled[0] = true;
               closeSubscription();
               if (retryOnFailure || lastUpdate != null) {
-                scheduleReconnectOrFail(generation, reconnectCount);
+                scheduleReconnectOrFail(generation, this.reconnectCount);
                 return;
               }
               currentModel =
@@ -181,7 +187,7 @@ public final class J2clSelectedWaveController {
               }
               terminalStateHandled[0] = true;
               clearActiveSubscription();
-              scheduleReconnectOrFail(generation, reconnectCount);
+              scheduleReconnectOrFail(generation, this.reconnectCount);
             });
   }
 
