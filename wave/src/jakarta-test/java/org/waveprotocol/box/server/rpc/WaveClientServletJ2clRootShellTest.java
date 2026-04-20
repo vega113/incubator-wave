@@ -124,6 +124,9 @@ public final class WaveClientServletJ2clRootShellTest {
     assertTrue(
         html.contains(
             "/auth/signout?r=/%3Fview%3Dj2cl-root%26q%3Dwith%253A%2540%26wave%3Dexample.com%252Fw%252B1"));
+    assertTrue(html.contains("id=\"j2cl-root-brand-link\""));
+    assertTrue(html.contains("data-j2cl-root-signout=\"true\""));
+    assertTrue(html.contains("id=\"j2cl-root-return-target-text\""));
     assertTrue(html.contains("Signed in as"));
     assertTrue(html.contains("data-j2cl-root-shell"));
     assertTrue(html.contains("/j2cl/assets/sidecar.css"));

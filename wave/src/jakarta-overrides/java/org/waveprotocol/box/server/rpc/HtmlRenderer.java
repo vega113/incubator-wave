@@ -3216,11 +3216,7 @@ public final class HtmlRenderer {
       String rootShellReturnTarget) {
     String address = sessionJson == null ? "" : sessionJson.optString(SessionConstants.ADDRESS, "");
     boolean signedIn = address != null && !address.isEmpty();
-    String resolvedReturnTarget =
-        rootShellReturnTarget == null || rootShellReturnTarget.isEmpty()
-            || !rootShellReturnTarget.startsWith("/")
-            ? J2CL_ROOT_RETURN_TARGET
-            : rootShellReturnTarget;
+    String resolvedReturnTarget = normalizeLocalReturnTarget(rootShellReturnTarget);
     String safeResolvedReturnTarget = escapeHtml(resolvedReturnTarget);
     String safeEncodedReturnTarget =
         escapeHtml(encodeLocalReturnTarget(resolvedReturnTarget));
@@ -3263,17 +3259,23 @@ public final class HtmlRenderer {
         .append(safeResolvedReturnTarget)
         .append("\">\n");
     sb.append("  <header class=\"j2cl-root-shell-banner\">\n");
-    sb.append("    <a class=\"j2cl-root-brand\" href=\"").append(safeResolvedReturnTarget).append("\" aria-label=\"J2CL root shell\">\n");
+    sb.append("    <a id=\"j2cl-root-brand-link\" class=\"j2cl-root-brand\" href=\"")
+        .append(safeResolvedReturnTarget)
+        .append("\" aria-label=\"J2CL root shell\">\n");
     sb.append("      <span class=\"j2cl-root-brand-badge\">J2</span>\n");
     sb.append("      <span>SupaWave J2CL Root Shell</span>\n");
     sb.append("    </a>\n");
     sb.append("    <nav class=\"j2cl-root-shell-nav\" aria-label=\"Session controls\">\n");
     if (signedIn) {
       sb.append("      <span class=\"j2cl-root-shell-pill\">Signed in as ").append(escapeHtml(address)).append("</span>\n");
-      sb.append("      <a class=\"j2cl-root-shell-link secondary\" href=\"/auth/signout?r=").append(safeEncodedReturnTarget).append("\">Sign out</a>\n");
+      sb.append("      <a data-j2cl-root-signout=\"true\" class=\"j2cl-root-shell-link secondary\" href=\"/auth/signout?r=")
+          .append(safeEncodedReturnTarget)
+          .append("\">Sign out</a>\n");
     } else {
       sb.append("      <span class=\"j2cl-root-shell-pill\">Signed out</span>\n");
-      sb.append("      <a class=\"j2cl-root-shell-link\" href=\"/auth/signin?r=").append(safeEncodedReturnTarget).append("\">Sign in</a>\n");
+      sb.append("      <a data-j2cl-root-signin=\"true\" class=\"j2cl-root-shell-link\" href=\"/auth/signin?r=")
+          .append(safeEncodedReturnTarget)
+          .append("\">Sign in</a>\n");
     }
     sb.append("    </nav>\n");
     sb.append("  </header>\n");
@@ -3286,9 +3288,13 @@ public final class HtmlRenderer {
     sb.append("</p>\n");
     sb.append("    <div class=\"j2cl-root-shell-session\">\n");
     if (signedIn) {
-      sb.append("      <span class=\"j2cl-root-shell-pill\">Return target: ").append(safeResolvedReturnTarget).append("</span>\n");
+      sb.append("      <span id=\"j2cl-root-return-target-text\" class=\"j2cl-root-shell-pill\">Return target: ")
+          .append(safeResolvedReturnTarget)
+          .append("</span>\n");
     } else {
-      sb.append("      <a class=\"j2cl-root-shell-link secondary\" href=\"/auth/signin?r=").append(safeEncodedReturnTarget).append("\">Continue to sign in</a>\n");
+      sb.append("      <a data-j2cl-root-signin=\"true\" class=\"j2cl-root-shell-link secondary\" href=\"/auth/signin?r=")
+          .append(safeEncodedReturnTarget)
+          .append("\">Continue to sign in</a>\n");
     }
     sb.append("    </div>\n");
     sb.append("  </section>\n");
@@ -3303,6 +3309,43 @@ public final class HtmlRenderer {
       sb.append("<script src=\"/j2cl-search/sidecar/j2cl-sidecar.js\"></script>\n");
       sb.append("<script>\n");
       sb.append("(function(){\n");
+      sb.append("function encodeLocalReturnTargetForQuery(target){\n");
+      sb.append("  if(!target){return '';}\n");
+      sb.append("  if(target.charAt(0)==='/'){return '/' + encodeURIComponent(target.substring(1));}\n");
+      sb.append("  return encodeURIComponent(target);\n");
+      sb.append("}\n");
+      sb.append("function currentReturnTarget(){\n");
+      sb.append("  var fallback='").append(safeResolvedReturnTarget).append("';\n");
+      sb.append("  var pathname=window.location.pathname||'/';\n");
+      sb.append("  if(pathname.indexOf('/')!==0){pathname='/' + pathname;}\n");
+      sb.append("  var search=window.location.search||'';\n");
+      sb.append("  if(search.indexOf('view=j2cl-root')===-1){return fallback;}\n");
+      sb.append("  return pathname + search;\n");
+      sb.append("}\n");
+      sb.append("function syncReturnTargetUi(){\n");
+      sb.append("  var target=currentReturnTarget();\n");
+      sb.append("  var encoded=encodeLocalReturnTargetForQuery(target);\n");
+      sb.append("  var shell=document.querySelector('[data-j2cl-root-shell]');\n");
+      sb.append("  if(shell){shell.setAttribute('data-j2cl-root-return-target', target);}\n");
+      sb.append("  var brand=document.getElementById('j2cl-root-brand-link');\n");
+      sb.append("  if(brand){brand.href=target;}\n");
+      sb.append("  var targetText=document.getElementById('j2cl-root-return-target-text');\n");
+      sb.append("  if(targetText){targetText.textContent='Return target: ' + target;}\n");
+      sb.append("  document.querySelectorAll('[data-j2cl-root-signin]').forEach(function(anchor){anchor.href='/auth/signin?r=' + encoded;});\n");
+      sb.append("  document.querySelectorAll('[data-j2cl-root-signout]').forEach(function(anchor){anchor.href='/auth/signout?r=' + encoded;});\n");
+      sb.append("}\n");
+      sb.append("function hookHistory(){\n");
+      sb.append("  ['pushState','replaceState'].forEach(function(method){\n");
+      sb.append("    var original=window.history[method];\n");
+      sb.append("    if(typeof original!=='function'){return;}\n");
+      sb.append("    window.history[method]=function(){\n");
+      sb.append("      var result=original.apply(this, arguments);\n");
+      sb.append("      syncReturnTargetUi();\n");
+      sb.append("      return result;\n");
+      sb.append("    };\n");
+      sb.append("  });\n");
+      sb.append("  window.addEventListener('popstate', syncReturnTargetUi);\n");
+      sb.append("}\n");
       sb.append("function resolveEntryPoint(){\n");
       sb.append("  if(window.WaveSandboxEntryPoint&&window.WaveSandboxEntryPoint.mount){return window.WaveSandboxEntryPoint;}\n");
       sb.append("  if(window.goog&&window.goog.module&&window.goog.module.get){\n");
@@ -3320,7 +3363,9 @@ public final class HtmlRenderer {
       sb.append("  if(entryPoint){entryPoint.mount('j2cl-root-shell-workflow','root-shell');return;}\n");
       sb.append("  if(attemptsRemaining>0){window.setTimeout(function(){mountWhenReady(attemptsRemaining-1);},50);}else{renderLoadError();}\n");
       sb.append("}\n");
-      sb.append("if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){mountWhenReady(80);});}else{mountWhenReady(80);}\n");
+      sb.append("hookHistory();\n");
+      sb.append("syncReturnTargetUi();\n");
+      sb.append("if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){syncReturnTargetUi();mountWhenReady(80);});}else{mountWhenReady(80);}\n");
       sb.append("})();\n");
       sb.append("</script>\n");
     }
@@ -4152,14 +4197,22 @@ public final class HtmlRenderer {
     return sb.toString();
   }
 
-  private static String encodeLocalReturnTarget(String returnTarget) {
+  private static String normalizeLocalReturnTarget(String returnTarget) {
     if (returnTarget == null || returnTarget.isEmpty()) {
-      return "";
+      return J2CL_ROOT_RETURN_TARGET;
     }
-    if (returnTarget.startsWith("/")) {
-      return "/" + URLEncoder.encode(returnTarget.substring(1), StandardCharsets.UTF_8);
+    if (!returnTarget.startsWith("/") || returnTarget.startsWith("//")) {
+      return J2CL_ROOT_RETURN_TARGET;
     }
-    return URLEncoder.encode(returnTarget, StandardCharsets.UTF_8);
+    return returnTarget;
+  }
+
+  private static String encodeLocalReturnTarget(String returnTarget) {
+    String normalizedReturnTarget = normalizeLocalReturnTarget(returnTarget);
+    if (normalizedReturnTarget.startsWith("/")) {
+      return "/" + URLEncoder.encode(normalizedReturnTarget.substring(1), StandardCharsets.UTF_8);
+    }
+    return URLEncoder.encode(normalizedReturnTarget, StandardCharsets.UTF_8);
   }
 
   /**
