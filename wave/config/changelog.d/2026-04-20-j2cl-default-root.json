@@ -10,7 +10,7 @@
       "items": [
         "Seeded the j2cl-root-bootstrap feature flag from ui.j2cl_root_bootstrap_enabled with a fresh-deploy default of true",
         "The root `/` route now boots the J2CL shell when the bootstrap flag is enabled, including for signed-out visitors",
-        "The legacy landing page still remains available through `?view=landing`, and rollback to the legacy root stays config-driven"
+        "The legacy landing page still remains available through `/?view=landing`, and rollback to the legacy root stays config-driven"
       ]
     }
   ]

@@ -21,10 +21,11 @@ As of 2026-04-19, the current J2CL browser surfaces are:
 - `/j2cl/index.html`
   - production-profile J2CL bundle used by packaging
 
-The root `/` route still defaults to the legacy GWT application. Issue #923
-adds a server-controlled bootstrap seam that can intentionally switch `/` to
-the J2CL root shell, but the J2CL path does not replace the obligation to keep
-the legacy path green.
+The root `/` route now boots the J2CL root shell by default (issue #924).
+Issue #923 added the server-controlled bootstrap seam; issue #924 flipped its
+default to enabled for fresh deployments. The legacy GWT root path remains
+reachable through the rollback config and the `/?view=landing` escape hatch,
+but the J2CL path is now the production default.
 
 ## Fast J2CL-Only Checks
 
@@ -190,7 +191,7 @@ PORT=9914 bash scripts/wave-smoke.sh stop
 Expected result:
 
 - `/` serves the J2CL root shell when the bootstrap flag defaults on
-- `?view=landing` still reaches the explicit legacy landing page
+- `/?view=landing` still reaches the explicit legacy landing page
 - `/?view=j2cl-root` still serves the same J2CL root shell as the direct diagnostic route
 - `compileGwt` and `Universal/stage` stay green
 

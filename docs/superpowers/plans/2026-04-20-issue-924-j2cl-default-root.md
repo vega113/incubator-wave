@@ -30,7 +30,7 @@ The remaining issue is that the root dispatch still short-circuits through the l
 
 - Update `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WaveClientServlet.java` so the root-bootstrap decision is made before the legacy signed-out landing-page branch.
 - Keep `/?view=j2cl-root` as the explicit diagnostic route, but make `/` follow the J2CL default when the bootstrap flag is enabled.
-- Preserve `?view=landing` as the explicit landing-page escape hatch so the current public landing page is still reachable without being the default root.
+- Preserve `/?view=landing` as the explicit landing-page escape hatch so the current public landing page is still reachable without being the default root.
 - Ensure the signed-out root path can still render the J2CL shell login entry instead of falling through to the landing page when J2CL is the default.
 
 ### Bootstrap control plane
