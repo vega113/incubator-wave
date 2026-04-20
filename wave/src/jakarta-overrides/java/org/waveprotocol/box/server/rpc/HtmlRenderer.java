@@ -60,7 +60,6 @@ public final class HtmlRenderer {
   private static final String WAVE_FONT =
       "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif";
   private static final String J2CL_ROOT_RETURN_TARGET = "/?view=j2cl-root";
-  private static final String J2CL_ROOT_RETURN_TARGET_ENCODED = "/%3Fview%3Dj2cl-root";
 
   // =========================================================================
   // User-menu CSS shared by the wave-client page and the standalone topbar
@@ -3295,7 +3294,7 @@ public final class HtmlRenderer {
     sb.append("  <section id=\"j2cl-root-shell-workflow\" class=\"j2cl-root-shell-workflow\" data-j2cl-root-shell-workflow=\"true\">\n");
     sb.append("    <div class=\"j2cl-root-shell-workflow-empty\">");
     sb.append(signedIn
-        ? "The hosted J2CL workflow will mount here in the next slice."
+        ? "The hosted J2CL workflow is loading and will mount here shortly."
         : "After sign-in, the hosted J2CL workflow will mount here without leaving the shell.");
     sb.append("</div>\n");
     sb.append("  </section>\n");

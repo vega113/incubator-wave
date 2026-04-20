@@ -28,6 +28,8 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -461,16 +463,20 @@ public class WaveClientServlet extends HttpServlet {
   }
 
   private String buildJ2clRootShellReturnTarget(HttpServletRequest request) {
-    String returnTarget = "/?view=" + VIEW_J2CL_ROOT;
+    StringBuilder returnTarget = new StringBuilder("/?view=").append(VIEW_J2CL_ROOT);
     String query = request.getParameter("q");
     if (query != null && !query.isEmpty()) {
-      returnTarget = UrlParameters.addParameter(returnTarget, "q", query);
+      returnTarget.append("&q=").append(encodeReturnTargetComponent(query));
     }
     String wave = request.getParameter("wave");
     if (wave != null && !wave.isEmpty()) {
-      returnTarget = UrlParameters.addParameter(returnTarget, "wave", wave);
+      returnTarget.append("&wave=").append(encodeReturnTargetComponent(wave));
     }
-    return returnTarget;
+    return returnTarget.toString();
+  }
+
+  private static String encodeReturnTargetComponent(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
   }
 
   private String resolveRequestedView(HttpServletRequest request) {
