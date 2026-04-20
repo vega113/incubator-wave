@@ -5,6 +5,9 @@ import jsinterop.annotations.JsPackage;
 
 public final class J2clSidecarRouteCodec {
   private static final String CANONICAL_PATH = "/j2cl-search/index.html";
+  private static final char[] HEX_DIGITS = {
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+  };
 
   private J2clSidecarRouteCodec() {
   }
@@ -291,9 +294,8 @@ public final class J2clSidecarRouteCodec {
   }
 
   private static void appendEncodedByte(StringBuilder encoded, int value) {
-    final char[] digits = "0123456789ABCDEF".toCharArray();
     encoded.append('%');
-    encoded.append(digits[(value >> 4) & 0x0F]);
-    encoded.append(digits[value & 0x0F]);
+    encoded.append(HEX_DIGITS[(value >> 4) & 0x0F]);
+    encoded.append(HEX_DIGITS[value & 0x0F]);
   }
 }
