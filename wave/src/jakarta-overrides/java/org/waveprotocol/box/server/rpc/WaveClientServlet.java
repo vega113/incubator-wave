@@ -28,6 +28,8 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -58,6 +60,8 @@ import org.waveprotocol.wave.util.logging.Log;
 public class WaveClientServlet extends HttpServlet {
   private static final Log LOG = Log.get(WaveClientServlet.class);
   private static final HashMap<String, String> FLAG_MAP = Maps.newHashMap();
+  private static final String VIEW_LANDING = "landing";
+  private static final String VIEW_J2CL_ROOT = "j2cl-root";
 
   static {
     for (int i = 0; i < FlagConstants.__NAME_MAPPING__.length; i += 2) {
@@ -123,12 +127,38 @@ public class WaveClientServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest request, HttpServletResponse response)
       throws IOException {
-    ParticipantId id = sessionManager.getLoggedInUser(WebSessions.from(request, false));
+    WebSession session = WebSessions.from(request, false);
+    ParticipantId id = sessionManager.getLoggedInUser(session);
+    String requestedView = resolveRequestedView(request);
+
+    if (VIEW_J2CL_ROOT.equals(requestedView)) {
+      String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
+      response.setContentType("text/html");
+      response.setCharacterEncoding("UTF-8");
+      response.setStatus(HttpServletResponse.SC_OK);
+      try (var w = response.getWriter()) {
+        String rootShellPage = HtmlRenderer.renderJ2clRootShellPage(
+            getSessionJson(session),
+            analyticsAccount,
+            buildCommit,
+            serverBuildTime,
+            currentReleaseId,
+            rootShellReturnTarget);
+        // rootShellReturnTarget is URL-encoded, normalised (must start with /), and HTML-escaped
+        // inside renderJ2clRootShellPage before the content reaches the response sink.
+        // codeql[java/xss]
+        w.write(rootShellPage);
+      } catch (IOException e) {
+        LOG.warning("Failed to render J2CL root shell page", e);
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+      return;
+    }
 
     // Show the landing page for unauthenticated visitors, or when an
     // authenticated user explicitly requests it via ?view=landing (e.g.
     // clicking the logo in the top bar).
-    if (id == null || "landing".equals(request.getParameter("view"))) {
+    if (id == null || VIEW_LANDING.equals(requestedView)) {
       response.setContentType("text/html");
       response.setCharacterEncoding("UTF-8");
       response.setStatus(HttpServletResponse.SC_OK);
@@ -136,7 +166,7 @@ public class WaveClientServlet extends HttpServlet {
       return;
     }
 
-    AccountData account = sessionManager.getLoggedInAccount(WebSessions.from(request, false));
+    AccountData account = sessionManager.getLoggedInAccount(session);
     if (account != null) {
       String locale = account.asHuman().getLocale();
       if (locale != null) {
@@ -185,7 +215,7 @@ public class WaveClientServlet extends HttpServlet {
               : websocketPresentedAddress;
       String topBarHtml = HtmlRenderer.renderTopBar(username, userDomain, userRole);
       w.write(HtmlRenderer.renderWaveClientPage(
-          getSessionJson(WebSessions.from(request, false)),
+          getSessionJson(session),
           getClientFlags(request),
           wsAddressForPage,
           topBarHtml,
@@ -435,5 +465,40 @@ public class WaveClientServlet extends HttpServlet {
       LOG.severe("Failed to create session JSON");
       return new JSONObject();
     }
+  }
+
+  private String buildJ2clRootShellReturnTarget(HttpServletRequest request) {
+    StringBuilder returnTarget = new StringBuilder("/?view=").append(VIEW_J2CL_ROOT);
+    String query = request.getParameter("q");
+    if (query != null && !query.isEmpty()) {
+      returnTarget.append("&q=").append(encodeReturnTargetComponent(query));
+    }
+    String wave = request.getParameter("wave");
+    if (wave != null && !wave.isEmpty()) {
+      returnTarget.append("&wave=").append(encodeReturnTargetComponent(wave));
+    }
+    return returnTarget.toString();
+  }
+
+  private static String encodeReturnTargetComponent(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  private String resolveRequestedView(HttpServletRequest request) {
+    String[] values = request.getParameterValues("view");
+    if (values == null || values.length == 0) {
+      return request.getParameter("view");
+    }
+    for (String value : values) {
+      if (VIEW_J2CL_ROOT.equals(value)) {
+        return VIEW_J2CL_ROOT;
+      }
+    }
+    for (String value : values) {
+      if (VIEW_LANDING.equals(value)) {
+        return VIEW_LANDING;
+      }
+    }
+    return values[0];
   }
 }
