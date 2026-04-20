@@ -15,7 +15,7 @@ public final class J2clRootShellView {
 
     HTMLElement root = (HTMLElement) DomGlobal.document.createElement("section");
     root.className = "j2cl-root-shell-runtime";
-    root.setAttribute("data-j2cl-root-shell", "true");
+    root.setAttribute("data-j2cl-root-shell-runtime", "true");
     host.appendChild(root);
 
     HTMLElement eyebrow = (HTMLElement) DomGlobal.document.createElement("p");

@@ -189,6 +189,7 @@ public class J2clSidecarRouteControllerTest {
         Arrays.asList("start:with:@:example.com/w+1", "restore:in:inbox:null"),
         searchController.events);
     Assert.assertEquals(1, history.replacedUrls.size());
+    Assert.assertTrue(history.pushedUrls.isEmpty());
     Assert.assertEquals(
         Arrays.asList("example.com/w+1:null", "null:null"),
         selectedWaveController.events);
