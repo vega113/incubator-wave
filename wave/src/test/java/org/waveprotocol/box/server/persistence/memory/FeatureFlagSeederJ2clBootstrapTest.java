@@ -80,7 +80,8 @@ public final class FeatureFlagSeederJ2clBootstrapTest {
   }
 
   @Test
-  public void reconcilesJ2clRootBootstrapFlagFromStartupConfig() throws Exception {
+  public void reconcilePreservesExistingJ2clRootBootstrapFlagWhenOverrideConfigOmitsValue()
+      throws Exception {
     MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
     Map<String, Boolean> allowedUsers = new LinkedHashMap<>();
     allowedUsers.put("admin@example.com", true);
@@ -88,8 +89,28 @@ public final class FeatureFlagSeederJ2clBootstrapTest {
         new FeatureFlag(
             "j2cl-root-bootstrap",
             "Bootstrap the J2CL root shell on /",
-            false,
+            true,
             allowedUsers));
+
+    FeatureFlagSeeder.reconcileJ2clRootBootstrapFeatureFlag(
+        store, ConfigFactory.parseString("core.http_frontend_addresses=[\"127.0.0.1:9898\"]"));
+
+    FeatureFlag flag = store.get("j2cl-root-bootstrap");
+
+    assertTrue(flag.isEnabled());
+    assertTrue(flag.getAllowedUsers().containsKey("admin@example.com"));
+    assertTrue(flag.getAllowedUsers().get("admin@example.com"));
+  }
+
+  @Test
+  public void reconcileAppliesExplicitJ2clRootBootstrapOverride() throws Exception {
+    MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
+    store.save(
+        new FeatureFlag(
+            "j2cl-root-bootstrap",
+            "Bootstrap the J2CL root shell on /",
+            false,
+            new LinkedHashMap<>()));
 
     FeatureFlagSeeder.reconcileJ2clRootBootstrapFeatureFlag(
         store, ConfigFactory.parseString("ui.j2cl_root_bootstrap_enabled = true"));
@@ -97,7 +118,5 @@ public final class FeatureFlagSeederJ2clBootstrapTest {
     FeatureFlag flag = store.get("j2cl-root-bootstrap");
 
     assertTrue(flag.isEnabled());
-    assertTrue(flag.getAllowedUsers().containsKey("admin@example.com"));
-    assertTrue(flag.getAllowedUsers().get("admin@example.com"));
   }
 }

@@ -19,6 +19,7 @@
 package org.waveprotocol.box.server;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.typesafe.config.Config;
 import java.nio.charset.StandardCharsets;
@@ -51,12 +52,20 @@ public final class ServerMainConfigOverrideTest {
     }
   }
 
-  @Test(expected = IllegalArgumentException.class)
-  public void loadCoreConfigFailsFastWhenWaveServerConfigIsMissing() {
+  @Test
+  public void loadCoreConfigRejectsMissingWaveServerConfigOverride() {
+    Path missingConfig =
+        Path.of(System.getProperty("java.io.tmpdir"), "missing-server-main-config-" + System.nanoTime());
+
     String previousConfigPath = System.getProperty("wave.server.config");
-    System.setProperty("wave.server.config", "/tmp/does-not-exist-issue-923.application.conf");
+    System.setProperty("wave.server.config", missingConfig.toString());
     try {
-      ServerMain.loadCoreConfig();
+      try {
+        ServerMain.loadCoreConfig();
+        fail("Expected loadCoreConfig to reject a missing override file");
+      } catch (RuntimeException e) {
+        assertTrue(e.getMessage().contains(missingConfig.toString()));
+      }
     } finally {
       if (previousConfigPath == null) {
         System.clearProperty("wave.server.config");
