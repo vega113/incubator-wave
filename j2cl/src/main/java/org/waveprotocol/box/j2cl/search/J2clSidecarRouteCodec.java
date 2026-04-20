@@ -105,30 +105,17 @@ public final class J2clSidecarRouteCodec {
         encoded.append(ch);
         continue;
       }
-      if (ch <= 0x7F) {
-        appendEncodedByte(encoded, ch);
-        continue;
-      }
-      if (ch <= 0x7FF) {
-        appendEncodedByte(encoded, 0xC0 | (ch >> 6));
-        appendEncodedByte(encoded, 0x80 | (ch & 0x3F));
-        continue;
-      }
-      if (ch >= 0xD800 && ch <= 0xDBFF && index + 1 < value.length()) {
-        char low = value.charAt(index + 1);
-        if (low >= 0xDC00 && low <= 0xDFFF) {
-          int codePoint = 0x10000 + ((ch - 0xD800) << 10) + (low - 0xDC00);
-          appendEncodedByte(encoded, 0xF0 | (codePoint >> 18));
-          appendEncodedByte(encoded, 0x80 | ((codePoint >> 12) & 0x3F));
-          appendEncodedByte(encoded, 0x80 | ((codePoint >> 6) & 0x3F));
-          appendEncodedByte(encoded, 0x80 | (codePoint & 0x3F));
-          index++;
-          continue;
+      int codePoint = ch;
+      if (isHighSurrogate(ch)) {
+        if (index + 1 >= value.length() || !isLowSurrogate(value.charAt(index + 1))) {
+          throw new RuntimeException("Malformed UTF-16 surrogate pair.");
         }
+        codePoint = toCodePoint(ch, value.charAt(index + 1));
+        index++;
+      } else if (isLowSurrogate(ch)) {
+        throw new RuntimeException("Malformed UTF-16 surrogate pair.");
       }
-      appendEncodedByte(encoded, 0xE0 | (ch >> 12));
-      appendEncodedByte(encoded, 0x80 | ((ch >> 6) & 0x3F));
-      appendEncodedByte(encoded, 0x80 | (ch & 0x3F));
+      appendUtf8CodePoint(encoded, codePoint);
     }
     return encoded.toString();
   }
@@ -189,7 +176,7 @@ public final class J2clSidecarRouteCodec {
         int second = requireContinuationByte(bytes[index + 1]);
         int third = requireContinuationByte(bytes[index + 2]);
         int codePoint = ((first & 0x0F) << 12) | (second << 6) | third;
-        if (codePoint < 0x800 || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+        if (codePoint < 0x800 || isSurrogate((char) codePoint)) {
           throw malformedUtf8Sequence();
         }
         decoded.append((char) codePoint);
@@ -204,9 +191,7 @@ public final class J2clSidecarRouteCodec {
         if (codePoint < 0x10000 || codePoint > 0x10FFFF) {
           throw malformedUtf8Sequence();
         }
-        codePoint -= 0x10000;
-        decoded.append((char) (0xD800 | (codePoint >> 10)));
-        decoded.append((char) (0xDC00 | (codePoint & 0x3FF)));
+        appendCodePoint(decoded, codePoint);
         index += 4;
         continue;
       }
@@ -251,6 +236,50 @@ public final class J2clSidecarRouteCodec {
       return true;
     }
     return ch == '-' || ch == '_' || ch == '.' || ch == '~';
+  }
+
+  private static boolean isHighSurrogate(char ch) {
+    return ch >= 0xD800 && ch <= 0xDBFF;
+  }
+
+  private static boolean isLowSurrogate(char ch) {
+    return ch >= 0xDC00 && ch <= 0xDFFF;
+  }
+
+  private static boolean isSurrogate(char ch) {
+    return isHighSurrogate(ch) || isLowSurrogate(ch);
+  }
+
+  private static int toCodePoint(char high, char low) {
+    return 0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00);
+  }
+
+  private static void appendUtf8CodePoint(StringBuilder encoded, int codePoint) {
+    if (codePoint <= 0x7F) {
+      appendEncodedByte(encoded, codePoint);
+      return;
+    }
+    if (codePoint <= 0x7FF) {
+      appendEncodedByte(encoded, 0xC0 | (codePoint >> 6));
+      appendEncodedByte(encoded, 0x80 | (codePoint & 0x3F));
+      return;
+    }
+    if (codePoint <= 0xFFFF) {
+      appendEncodedByte(encoded, 0xE0 | (codePoint >> 12));
+      appendEncodedByte(encoded, 0x80 | ((codePoint >> 6) & 0x3F));
+      appendEncodedByte(encoded, 0x80 | (codePoint & 0x3F));
+      return;
+    }
+    appendEncodedByte(encoded, 0xF0 | (codePoint >> 18));
+    appendEncodedByte(encoded, 0x80 | ((codePoint >> 12) & 0x3F));
+    appendEncodedByte(encoded, 0x80 | ((codePoint >> 6) & 0x3F));
+    appendEncodedByte(encoded, 0x80 | (codePoint & 0x3F));
+  }
+
+  private static void appendCodePoint(StringBuilder decoded, int codePoint) {
+    int adjusted = codePoint - 0x10000;
+    decoded.append((char) (0xD800 | (adjusted >> 10)));
+    decoded.append((char) (0xDC00 | (adjusted & 0x3FF)));
   }
 
   private static void appendEncodedByte(StringBuilder encoded, int value) {
