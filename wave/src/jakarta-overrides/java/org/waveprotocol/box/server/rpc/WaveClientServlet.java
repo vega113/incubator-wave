@@ -137,15 +137,17 @@ public class WaveClientServlet extends HttpServlet {
       response.setCharacterEncoding("UTF-8");
       response.setStatus(HttpServletResponse.SC_OK);
       try (var w = response.getWriter()) {
-        // rootShellReturnTarget is URL-encoded, normalised (must start with /), then HTML-escaped
-        // inside renderJ2clRootShellPage – the taint is fully sanitised before reaching output.
-        w.write(HtmlRenderer.renderJ2clRootShellPage(
+        String rootShellPage = HtmlRenderer.renderJ2clRootShellPage(
             getSessionJson(session),
             analyticsAccount,
             buildCommit,
             serverBuildTime,
             currentReleaseId,
-            rootShellReturnTarget)); // lgtm[java/xss]
+            rootShellReturnTarget);
+        // rootShellReturnTarget is URL-encoded, normalised (must start with /), and HTML-escaped
+        // inside renderJ2clRootShellPage before the content reaches the response sink.
+        // codeql[java/xss]
+        w.write(rootShellPage);
       } catch (IOException e) {
         LOG.warning("Failed to render J2CL root shell page", e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
