@@ -4198,7 +4198,6 @@ public final class HtmlRenderer {
     return sb.toString();
   }
 
-  private static String normalizeLocalReturnTarget(String returnTarget) {
   private static String encodeLocalReturnTarget(String returnTarget) {
     String normalizedReturnTarget = normalizeLocalReturnTarget(returnTarget);
     if (normalizedReturnTarget.startsWith("/")) {
