@@ -71,6 +71,8 @@ public final class J2clSearchGateway
             }
             onUpdate.accept(SidecarTransportCodec.decodeSelectedWaveUpdate(envelope));
           } catch (RuntimeException e) {
+            closedByClient[0] = true;
+            socket.close();
             onError.accept(messageOrDefault(e, "Unable to decode the selected wave update."));
           }
         };

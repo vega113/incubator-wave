@@ -162,7 +162,7 @@ public final class J2clSelectedWaveController {
                 return;
               }
               terminalStateHandled[0] = true;
-              clearActiveSubscription();
+              closeSubscription();
               scheduleReconnectOrFail(generation, reconnectCount);
             },
             () -> {

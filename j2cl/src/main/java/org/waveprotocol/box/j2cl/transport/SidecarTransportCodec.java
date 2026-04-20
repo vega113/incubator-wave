@@ -282,7 +282,7 @@ public final class SidecarTransportCodec {
         }
       }
     }
-    return text.toString().trim();
+    return text.toString();
   }
 
   private static long toLong(int highWord, int lowWord) {
