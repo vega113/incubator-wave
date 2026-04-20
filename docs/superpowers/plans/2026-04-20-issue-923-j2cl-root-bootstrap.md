@@ -42,7 +42,7 @@ The intended control plane is:
 
 ### Tests
 
-- Modify or add: `wave/src/jakarta-test/java/org/waveprotocol/box/server/persistence/FeatureFlagSeederJ2clBootstrapTest.java`
+- Modify or add: `wave/src/test/java/org/waveprotocol/box/server/persistence/memory/FeatureFlagSeederJ2clBootstrapTest.java`
 - Modify or add: `wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletJ2clBootstrapTest.java`
 - Extend if needed: `wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletJ2clRootShellTest.java`
 
@@ -111,7 +111,7 @@ The intended control plane is:
 ### Task 3: Cover the control plane with focused tests
 
 **Files:**
-- Modify or add: `wave/src/jakarta-test/java/org/waveprotocol/box/server/persistence/FeatureFlagSeederJ2clBootstrapTest.java`
+- Modify or add: `wave/src/test/java/org/waveprotocol/box/server/persistence/memory/FeatureFlagSeederJ2clBootstrapTest.java`
 - Modify or add: `wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletJ2clBootstrapTest.java`
 - Extend if needed: `wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/WaveClientServletJ2clRootShellTest.java`
 
@@ -138,7 +138,7 @@ The intended control plane is:
 Run from `/Users/vega/devroot/worktrees/issue-923-j2cl-root-bootstrap`:
 
 ```bash
-sbt -batch "testOnly org.waveprotocol.box.server.persistence.FeatureFlagSeederJ2clBootstrapTest org.waveprotocol.box.server.rpc.WaveClientServletJ2clBootstrapTest"
+sbt -batch "testOnly org.waveprotocol.box.server.persistence.memory.FeatureFlagSeederJ2clBootstrapTest org.waveprotocol.box.server.rpc.WaveClientServletJ2clBootstrapTest"
 sbt -batch compileGwt Universal/stage
 bash scripts/worktree-boot.sh --port 9914
 PORT=9914 bash scripts/wave-smoke.sh start
