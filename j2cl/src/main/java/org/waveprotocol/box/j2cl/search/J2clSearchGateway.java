@@ -68,15 +68,11 @@ public final class J2clSearchGateway
             Map<String, Object> envelope = SidecarTransportCodec.parseJsonObject(payload);
             String messageType = (String) envelope.get("messageType");
             if ("RpcFinished".equals(messageType)) {
-              @SuppressWarnings("unchecked")
-              Map<String, Object> msg = (Map<String, Object>) envelope.get("message");
-              if (msg != null && Boolean.TRUE.equals(msg.get("1"))) {
-                Object errorText = msg.get("2");
+              if (SidecarTransportCodec.decodeRpcFinishedFailed(envelope)) {
                 closeSocket(socket, closedByClient);
                 onError.accept(
-                    errorText != null && !String.valueOf(errorText).isEmpty()
-                        ? String.valueOf(errorText)
-                        : "The selected wave request failed.");
+                    SidecarTransportCodec.decodeRpcFinishedErrorText(
+                        envelope, "The selected wave request failed."));
               }
               return;
             }

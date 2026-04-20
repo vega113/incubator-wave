@@ -118,6 +118,20 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void decodeRpcFinishedFailureReadsFailedFlagAndErrorText() {
+    String json =
+        "{\"sequenceNumber\":14,\"messageType\":\"RpcFinished\",\"message\":{\"1\":true,\"2\":\"boom\"}}";
+
+    java.util.Map<String, Object> envelope = SidecarTransportCodec.parseJsonObject(json);
+
+    Assert.assertTrue(SidecarTransportCodec.decodeRpcFinishedFailed(envelope));
+    Assert.assertEquals(
+        "boom",
+        SidecarTransportCodec.decodeRpcFinishedErrorText(
+            envelope, "The selected wave request failed."));
+  }
+
+  @Test
   public void extractSessionBootstrapAddressFromRootHtml() {
     String html =
         "<html><script>window.__session={\"address\":\"user@example.com\",\"id\":\"abc\"};"

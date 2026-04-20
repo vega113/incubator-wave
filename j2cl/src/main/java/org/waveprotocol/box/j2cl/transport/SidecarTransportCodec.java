@@ -135,6 +135,17 @@ public final class SidecarTransportCodec {
             getLong(fragments, "1"), getLong(fragments, "2"), getLong(fragments, "3"), ranges, entries));
   }
 
+  public static boolean decodeRpcFinishedFailed(Map<String, Object> envelope) {
+    Map<String, Object> payload = asObject(envelope.get("message"));
+    return getBoolean(payload, "1");
+  }
+
+  public static String decodeRpcFinishedErrorText(Map<String, Object> envelope, String fallback) {
+    Map<String, Object> payload = asObject(envelope.get("message"));
+    String errorText = getString(payload, "2");
+    return errorText == null || errorText.isEmpty() ? fallback : errorText;
+  }
+
   private static String escapeJson(String value) {
     StringBuilder escaped = new StringBuilder(value.length() + 8);
     for (int i = 0; i < value.length(); i++) {
