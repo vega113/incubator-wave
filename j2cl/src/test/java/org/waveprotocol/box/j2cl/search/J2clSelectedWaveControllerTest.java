@@ -322,6 +322,45 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertEquals("b+root", writeSession.getReplyTargetBlipId());
   }
 
+  @Test
+  public void versionZeroSelectedWaveUpdateStillBuildsWriteSession() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(
+        0,
+        new SidecarSelectedWaveUpdate(
+            1,
+            "example.com!w+1/~/conv+root",
+            true,
+            "chan-1",
+            0L,
+            "ZERO",
+            Arrays.asList("user@example.com"),
+            Arrays.asList(
+                new SidecarSelectedWaveDocument(
+                    "b+root", "user@example.com", 0L, 1L, "Hello from version zero")),
+            new SidecarSelectedWaveFragments(
+                0L,
+                0L,
+                0L,
+                Arrays.asList(
+                    new SidecarSelectedWaveFragmentRange("manifest", 0L, 0L),
+                    new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 0L)),
+                Arrays.asList(
+                    new SidecarSelectedWaveFragment("manifest", "conversation: Inbox wave", 0, 0),
+                    new SidecarSelectedWaveFragment("blip:b+root", "Hello from version zero", 0, 0)))));
+
+    J2clSidecarWriteSession writeSession =
+        (J2clSidecarWriteSession) harness.modelValue("getWriteSession");
+
+    Assert.assertNotNull(writeSession);
+    Assert.assertEquals(0L, writeSession.getBaseVersion());
+    Assert.assertEquals("ZERO", writeSession.getHistoryHash());
+  }
+
   private static J2clSearchDigestItem digest(String title, String snippet, int unreadCount) {
     return new J2clSearchDigestItem(
         "example.com/w+1", title, snippet, "user@example.com", unreadCount, 2, 1234L, false);

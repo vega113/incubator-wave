@@ -147,18 +147,94 @@ public class J2clSidecarComposeControllerTest {
     Assert.assertEquals("socket boom", view.model.getReplyErrorText());
   }
 
+  @Test
+  public void createSubmissionUsesDraftSnapshotFromSubmitTime() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeFactory factory = new FakeFactory();
+    FakeView view = new FakeView();
+    J2clSidecarComposeController controller =
+        new J2clSidecarComposeController(
+            gateway,
+            view,
+            factory,
+            waveId -> { });
+
+    controller.start();
+    controller.onCreateSubmitted("Original");
+    controller.onCreateDraftChanged("Edited");
+    gateway.resolveBootstrap();
+
+    Assert.assertEquals("Original", factory.lastCreateText);
+  }
+
+  @Test
+  public void replySubmissionUsesDraftSnapshotFromSubmitTime() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeFactory factory = new FakeFactory();
+    FakeView view = new FakeView();
+    J2clSidecarComposeController controller =
+        new J2clSidecarComposeController(
+            gateway,
+            view,
+            factory,
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Original");
+    controller.onReplyDraftChanged("Edited");
+    gateway.resolveBootstrap();
+
+    Assert.assertEquals("Original", factory.lastReplyText);
+  }
+
+  @Test
+  public void sameWaveBasisChangeInvalidatesPendingReplySubmission() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clSidecarComposeController controller =
+        new J2clSidecarComposeController(
+            gateway,
+            view,
+            new FakeFactory(),
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Reply");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    gateway.resolveBootstrap();
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertEquals("", view.model.getReplyStatusText());
+  }
+
   private static final class FakeGateway implements J2clSidecarComposeController.Gateway {
     private int fetchBootstrapCalls;
     private int submitCalls;
+    private boolean autoResolveBootstrap = true;
     private String submitError;
     private SidecarSubmitResponse submitResponse = new SidecarSubmitResponse(1, "", 45L);
+    private J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> pendingBootstrapSuccess;
+    private J2clSearchPanelController.ErrorCallback pendingBootstrapError;
 
     @Override
     public void fetchRootSessionBootstrap(
         J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> onSuccess,
         J2clSearchPanelController.ErrorCallback onError) {
       fetchBootstrapCalls++;
-      onSuccess.accept(new SidecarSessionBootstrap("user@example.com", "socket.example.test"));
+      if (autoResolveBootstrap) {
+        onSuccess.accept(new SidecarSessionBootstrap("user@example.com", "socket.example.test"));
+        return;
+      }
+      pendingBootstrapSuccess = onSuccess;
+      pendingBootstrapError = onError;
     }
 
     @Override
@@ -173,6 +249,14 @@ public class J2clSidecarComposeControllerTest {
         return;
       }
       onSuccess.accept(submitResponse);
+    }
+
+    private void resolveBootstrap() {
+      J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> success =
+          pendingBootstrapSuccess;
+      pendingBootstrapSuccess = null;
+      pendingBootstrapError = null;
+      success.accept(new SidecarSessionBootstrap("user@example.com", "socket.example.test"));
     }
   }
 
@@ -190,12 +274,16 @@ public class J2clSidecarComposeControllerTest {
   }
 
   private static final class FakeFactory extends J2clPlainTextDeltaFactory {
+    private String lastCreateText;
+    private String lastReplyText;
+
     private FakeFactory() {
       super("seed");
     }
 
     @Override
     public CreateWaveRequest createWaveRequest(String address, String text) {
+      lastCreateText = text;
       return new CreateWaveRequest(
           "example.com/w+new",
           new SidecarSubmitRequest("example.com/w+new/~/conv+root", "{\"create\":true}", null));
@@ -204,6 +292,7 @@ public class J2clSidecarComposeControllerTest {
     @Override
     public SidecarSubmitRequest createReplyRequest(
         String address, J2clSidecarWriteSession session, String text) {
+      lastReplyText = text;
       return new SidecarSubmitRequest("example.com/w+1/~/conv+root", "{\"reply\":true}", "chan-1");
     }
   }

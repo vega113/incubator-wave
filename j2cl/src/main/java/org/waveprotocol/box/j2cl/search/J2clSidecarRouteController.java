@@ -17,6 +17,8 @@ public final class J2clSidecarRouteController {
     void start(String initialQuery, String initialSelectedWaveId);
 
     void restoreRoute(String query, String selectedWaveId);
+
+    void syncSelection(String selectedWaveId);
   }
 
   public interface SelectedWaveController {
@@ -86,6 +88,7 @@ public final class J2clSidecarRouteController {
   public void selectWave(String waveId) {
     String query =
         currentState == null ? J2clSearchResultProjector.DEFAULT_QUERY : currentState.getQuery();
+    searchController.syncSelection(waveId);
     onRouteStateChanged(new J2clSidecarRouteState(query, waveId), null, true);
   }
 

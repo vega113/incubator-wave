@@ -140,7 +140,7 @@ public final class J2clSelectedWaveProjector {
       return update.getResultingVersion();
     }
     SidecarSelectedWaveFragments fragments = update.getFragments();
-    if (fragments != null && fragments.getSnapshotVersion() > 0) {
+    if (fragments != null && fragments.getSnapshotVersion() >= 0) {
       return fragments.getSnapshotVersion();
     }
     long maxDocumentVersion = 0L;

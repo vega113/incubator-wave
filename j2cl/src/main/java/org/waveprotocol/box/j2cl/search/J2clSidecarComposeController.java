@@ -160,6 +160,7 @@ public final class J2clSidecarComposeController {
     createSubmitting = true;
     createStatusText = "Bootstrapping the sidecar submit session.";
     createErrorText = "";
+    final String submittedDraft = createDraft;
     final int generation = ++createGeneration;
     render();
     gateway.fetchRootSessionBootstrap(
@@ -169,7 +170,7 @@ public final class J2clSidecarComposeController {
           }
           J2clPlainTextDeltaFactory.CreateWaveRequest request;
           try {
-            request = deltaFactory.createWaveRequest(bootstrap.getAddress(), createDraft);
+            request = deltaFactory.createWaveRequest(bootstrap.getAddress(), submittedDraft);
           } catch (RuntimeException e) {
             handleCreateFailure(generation, messageOrDefault(e, "Unable to build the create request."));
             return;
@@ -235,6 +236,7 @@ public final class J2clSidecarComposeController {
     replySubmitting = true;
     replyStatusText = "Bootstrapping the sidecar submit session.";
     replyErrorText = "";
+    final String submittedDraft = replyDraft;
     final int generation = ++replyGeneration;
     final J2clSidecarWriteSession submitSession = writeSession;
     render();
@@ -245,7 +247,8 @@ public final class J2clSidecarComposeController {
           }
           SidecarSubmitRequest request;
           try {
-            request = deltaFactory.createReplyRequest(bootstrap.getAddress(), submitSession, replyDraft);
+            request =
+                deltaFactory.createReplyRequest(bootstrap.getAddress(), submitSession, submittedDraft);
           } catch (RuntimeException e) {
             handleReplyFailure(generation, messageOrDefault(e, "Unable to build the reply request."));
             return;
@@ -312,13 +315,14 @@ public final class J2clSidecarComposeController {
   }
 
   private boolean sessionChanged(J2clSidecarWriteSession nextWriteSession) {
-    if (writeSession == null) {
-      return nextWriteSession != null;
+    if (writeSession == null || nextWriteSession == null) {
+      return writeSession != nextWriteSession;
     }
-    if (nextWriteSession == null) {
-      return true;
-    }
-    return !safeEquals(writeSession.getSelectedWaveId(), nextWriteSession.getSelectedWaveId());
+    return !safeEquals(writeSession.getSelectedWaveId(), nextWriteSession.getSelectedWaveId())
+        || !safeEquals(writeSession.getChannelId(), nextWriteSession.getChannelId())
+        || writeSession.getBaseVersion() != nextWriteSession.getBaseVersion()
+        || !safeEquals(writeSession.getHistoryHash(), nextWriteSession.getHistoryHash())
+        || !safeEquals(writeSession.getReplyTargetBlipId(), nextWriteSession.getReplyTargetBlipId());
   }
 
   private static String normalizeDraft(String draft) {

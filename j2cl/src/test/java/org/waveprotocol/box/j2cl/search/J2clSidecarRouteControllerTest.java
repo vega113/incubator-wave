@@ -121,6 +121,9 @@ public class J2clSidecarRouteControllerTest {
         Arrays.asList("?q=with%3A%40&wave=example.com%2Fw%2B2"),
         history.pushedUrls);
     Assert.assertEquals(
+        Arrays.asList("sync:example.com/w+2"),
+        searchController.tailEvents(1));
+    Assert.assertEquals(
         Arrays.asList("example.com/w+2:null"),
         selectedWaveController.tailEvents(1));
   }
@@ -182,6 +185,15 @@ public class J2clSidecarRouteControllerTest {
     @Override
     public void restoreRoute(String query, String selectedWaveId) {
       events.add("restore:" + query + ":" + selectedWaveId);
+    }
+
+    @Override
+    public void syncSelection(String selectedWaveId) {
+      events.add("sync:" + selectedWaveId);
+    }
+
+    private List<String> tailEvents(int count) {
+      return events.subList(events.size() - count, events.size());
     }
   }
 
