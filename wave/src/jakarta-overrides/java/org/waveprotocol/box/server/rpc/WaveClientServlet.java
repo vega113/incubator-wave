@@ -144,7 +144,8 @@ public class WaveClientServlet extends HttpServlet {
       String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
       // rootShellReturnTarget is URL-encoded, normalised (must start with /), and HTML-escaped
       // inside renderJ2clRootShellPage before the content reaches the response sink.
-      w.write(HtmlRenderer.renderJ2clRootShellPage( // codeql[java/xss]
+      // codeql[java/xss]
+      w.write(HtmlRenderer.renderJ2clRootShellPage(
           getSessionJson(session),
           analyticsAccount,
           buildCommit,
