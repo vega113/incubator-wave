@@ -89,10 +89,7 @@ public class ServerMain {
 
       Module coreSettings = new AbstractModule() {
         @Override protected void configure() {
-          Config config = ConfigFactory.defaultOverrides()
-              .withFallback(ConfigFactory.parseFile(new File("config/application.conf")))
-              .withFallback(ConfigFactory.parseFile(new File("config/reference.conf")))
-              .resolve();
+          Config config = loadCoreConfig();
           bind(Config.class).toInstance(config);
           bind(Key.get(String.class, Names.named(CoreSettingsNames.WAVE_SERVER_DOMAIN)))
               .toInstance(config.getString("core.wave_server_domain"));
@@ -151,6 +148,19 @@ public class ServerMain {
     server.startWebSocketServer(injector);
   }
 
+  static Config loadCoreConfig() {
+    String serverConfigPath = System.getProperty("wave.server.config");
+    File applicationConfig =
+        (serverConfigPath != null && !serverConfigPath.isBlank())
+            ? new File(serverConfigPath)
+            : new File("config/application.conf");
+
+    return ConfigFactory.defaultOverrides()
+        .withFallback(ConfigFactory.parseFile(applicationConfig))
+        .withFallback(ConfigFactory.parseFile(new File("config/reference.conf")))
+        .resolve();
+  }
+
   private static Module buildFederationModule(Injector settingsInjector) {
     return settingsInjector.getInstance(NoOpFederationModule.class);
   }
@@ -180,10 +190,12 @@ public class ServerMain {
       Config config = injector.getInstance(Config.class);
       FeatureFlagStore featureFlagStore = injector.getInstance(FeatureFlagStore.class);
       FeatureFlagSeeder.seedSearchFeatureFlags(featureFlagStore, config);
+      FeatureFlagSeeder.seedJ2clRootBootstrapFeatureFlags(featureFlagStore, config);
+      FeatureFlagSeeder.reconcileJ2clRootBootstrapFeatureFlag(featureFlagStore, config);
       injector.getInstance(FeatureFlagService.class).refreshCache();
     } catch (PersistenceException e) {
       LOG.log(java.util.logging.Level.WARNING,
-          "Failed to seed ot-search feature flag; search updates stay off", e);
+          "Failed to seed feature flags; rollout defaults stay unchanged", e);
     }
   }
 

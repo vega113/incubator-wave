@@ -1,0 +1,17 @@
+{
+  "releaseId": "2026-04-20-j2cl-root-bootstrap",
+  "version": "Unreleased",
+  "date": "2026-04-20",
+  "title": "Allow the J2CL root shell to bootstrap from a server feature flag",
+  "summary": "The root / route can now opt into the J2CL shell through a server-side feature flag while legacy GWT remains the default fallback and the explicit /?view=j2cl-root diagnostic route stays available.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Added the j2cl-root-bootstrap known feature flag and seeded it from ui.j2cl_root_bootstrap_enabled",
+        "The / route now checks the server feature flag before choosing the J2CL root shell, while /?view=j2cl-root remains a direct diagnostic route",
+        "Fresh deployments keep legacy GWT as the default unless the bootstrap flag is explicitly enabled"
+      ]
+    }
+  ]
+}
