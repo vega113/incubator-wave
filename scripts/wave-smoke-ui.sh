@@ -3,8 +3,8 @@ set -euo pipefail
 
 # wave-smoke-ui.sh — build (if needed), run briefly, and probe UI endpoints
 # - Starts :wave:run in background
-# - Waits for HTTP 200 from root, verifies the J2CL shell marker, and checks both
-#   maintained J2CL assets and the rollback-ready /webclient asset
+# - Waits for HTTP 200 from root, verifies the default legacy GWT bootstrap, and
+#   checks both maintained J2CL assets and the rollback-ready /webclient asset
 # - Tails logs on failure; always cleans up the background process
 
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -46,7 +46,7 @@ j2cl_index_status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:$PO
 sidecar_status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:$PORT/j2cl-search/sidecar/j2cl-sidecar.js || true)
 legacy_status=$(curl -sS -o /dev/null -w "%{http_code}" http://127.0.0.1:$PORT/webclient/webclient.nocache.js || true)
 
-echo "ROOT=$root_status ROOT_SHELL=$([[ "$root_body" == *'data-j2cl-root-shell'* ]] && echo present || echo missing) LANDING=$landing_status J2CL_ROOT=$j2cl_root_status J2CL_ROOT_SHELL=$([[ "$j2cl_root_body" == *'data-j2cl-root-shell'* ]] && echo present || echo missing) J2CL_INDEX=$j2cl_index_status SIDECAR=$sidecar_status WEBCLIENT=$legacy_status"
+echo "ROOT=$root_status ROOT_GWT=$([[ "$root_body" == *'webclient/webclient.nocache.js'* ]] && echo present || echo missing) LANDING=$landing_status J2CL_ROOT=$j2cl_root_status J2CL_ROOT_SHELL=$([[ "$j2cl_root_body" == *'data-j2cl-root-shell'* ]] && echo present || echo missing) J2CL_INDEX=$j2cl_index_status SIDECAR=$sidecar_status WEBCLIENT=$legacy_status"
 
 if [[ "${root_status}" == "000" ]]; then
   echo "Server did not start or port not reachable" >&2
@@ -54,21 +54,22 @@ if [[ "${root_status}" == "000" ]]; then
   exit 1
 fi
 
-# Require the J2CL root shell body on both the default root and explicit diagnostic route.
+# Require the legacy GWT bootstrap on the default root and the J2CL root shell on
+# the explicit diagnostic route.
 if [[ "$root_status" -ne 200 ]]; then
   echo "Unexpected root status: $root_status" >&2
   tail -n 200 "$RUN_OUT" || true
   exit 1
 fi
 
-if [[ "$root_body" != *'data-j2cl-root-shell'* ]]; then
-  echo "Root page did not render the J2CL shell marker" >&2
+if [[ "$root_body" != *'webclient/webclient.nocache.js'* ]]; then
+  echo "Root page did not render the legacy GWT bootstrap asset" >&2
   tail -n 200 "$RUN_OUT" || true
   exit 1
 fi
 
-if [[ "$root_body" == *'webclient/webclient.nocache.js'* ]]; then
-  echo "Root page unexpectedly referenced the legacy bootstrap asset in default J2CL mode" >&2
+if [[ "$root_body" == *'data-j2cl-root-shell'* ]]; then
+  echo "Root page unexpectedly rendered the J2CL shell in default GWT mode" >&2
   tail -n 200 "$RUN_OUT" || true
   exit 1
 fi

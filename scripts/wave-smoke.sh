@@ -185,20 +185,20 @@ check() {
   root_body=$(cat "$root_body_file" 2>/dev/null || true)
   rm -f "$root_body_file"
   echo "ROOT_STATUS=${root_status:-000}"
-  echo "ROOT_SHELL=$([[ "$root_body" == *'data-j2cl-root-shell'* ]] && echo present || echo missing)"
+  echo "ROOT_GWT=$([[ "$root_body" == *'webclient/webclient.nocache.js'* ]] && echo present || echo missing)"
 
   if [[ "${root_status}" -ne 200 ]]; then
     echo "Unexpected root status: ${root_status}" >&2
     return 1
   fi
 
-  if ! grep -Fq 'data-j2cl-root-shell' <<<"$root_body"; then
-    echo "Root page did not render the J2CL shell marker: data-j2cl-root-shell" >&2
+  if ! grep -Fq 'webclient/webclient.nocache.js' <<<"$root_body"; then
+    echo "Root page did not render the legacy GWT bootstrap asset" >&2
     return 1
   fi
 
-  if grep -Fq 'webclient/webclient.nocache.js' <<<"$root_body"; then
-    echo "Root page unexpectedly referenced the legacy bootstrap asset in default J2CL mode" >&2
+  if grep -Fq 'data-j2cl-root-shell' <<<"$root_body"; then
+    echo "Root page unexpectedly rendered the J2CL shell in default GWT mode" >&2
     return 1
   fi
 
