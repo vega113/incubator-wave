@@ -174,6 +174,39 @@ public final class WaveClientServletJ2clRootShellTest {
   }
 
   @Test
+  public void j2clRootShellRejectsInvalidHostHeaderAndFallsBackToConfig() throws Exception {
+    WaveClientServlet servlet = createServlet(ParticipantId.ofUnsafe("alice@example.com"));
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    StringWriter body = new StringWriter();
+    when(request.getParameter("view")).thenReturn("j2cl-root");
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
+    when(request.getHeader("Host")).thenReturn("<script>alert(1)</script>");
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    servlet.doGet(request, response);
+
+    String html = body.toString();
+    assertFalse(html.contains("<script>alert(1)</script>"));
+    assertTrue(html.contains("\"127.0.0.1:9898\""));
+  }
+
+  @Test
+  public void isValidHostHeaderAcceptsAndRejectsCorrectly() {
+    assertTrue(WaveClientServlet.isValidHostHeader("wave.example.com"));
+    assertTrue(WaveClientServlet.isValidHostHeader("localhost:9898"));
+    assertTrue(WaveClientServlet.isValidHostHeader("127.0.0.1:8080"));
+    assertTrue(WaveClientServlet.isValidHostHeader("example.com"));
+    assertFalse(WaveClientServlet.isValidHostHeader(null));
+    assertFalse(WaveClientServlet.isValidHostHeader(""));
+    assertFalse(WaveClientServlet.isValidHostHeader("<script>alert(1)</script>"));
+    assertFalse(WaveClientServlet.isValidHostHeader("evil.com/path"));
+    assertFalse(WaveClientServlet.isValidHostHeader("host name with spaces"));
+    assertFalse(WaveClientServlet.isValidHostHeader("host\"injection"));
+  }
+
+  @Test
   public void renderJ2clRootShellPageRejectsNonLocalReturnTargets() {
     String html =
         HtmlRenderer.renderJ2clRootShellPage(

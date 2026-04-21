@@ -144,12 +144,12 @@ public class WaveClientServlet extends HttpServlet {
       String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
       String hostHeader = request.getHeader("Host");
       String wsAddressForPage =
-          (!hasExplicitWebsocketPresentedAddress && hostHeader != null && !hostHeader.isEmpty())
+          (!hasExplicitWebsocketPresentedAddress && isValidHostHeader(hostHeader))
               ? hostHeader
               : websocketPresentedAddress;
       // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
       // StringEscapeUtils.escapeHtml4 before threading it into the shell HTML.
-      w.write(HtmlRenderer.renderJ2clRootShellPage( // codeql[java/xss]
+      w.write(HtmlRenderer.renderJ2clRootShellPage(
           getSessionJson(session),
           analyticsAccount,
           buildCommit,
@@ -417,6 +417,15 @@ public class WaveClientServlet extends HttpServlet {
 
   private static String encodeReturnTargetComponent(String value) {
     return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  // Allow only hostname[:port] to prevent Host-header injection into the JS global.
+  private static final java.util.regex.Pattern VALID_HOST_PATTERN =
+      java.util.regex.Pattern.compile("[a-zA-Z0-9][a-zA-Z0-9.\\-]*(:[0-9]{1,5})?");
+
+  static boolean isValidHostHeader(String host) {
+    if (host == null || host.isEmpty()) return false;
+    return VALID_HOST_PATTERN.matcher(host).matches();
   }
 
   private String resolveRequestedView(HttpServletRequest request) {
