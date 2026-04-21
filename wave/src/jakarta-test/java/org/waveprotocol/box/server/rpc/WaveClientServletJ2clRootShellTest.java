@@ -159,6 +159,7 @@ public final class WaveClientServletJ2clRootShellTest {
     String html = renderSignedInJ2clRootShellWithRole(HumanAccountData.ROLE_USER);
 
     assertFalse(html.contains("data-j2cl-root-admin-link=\"true\""));
+    assertFalse(html.contains("href=\"/admin\""));
   }
 
   @Test
