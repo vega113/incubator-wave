@@ -176,7 +176,7 @@ public class WaveClientServlet extends HttpServlet {
       if (locale != null) {
         String requestLocale = UrlParameters.getParameters(request.getQueryString()).get("locale");
         if (requestLocale == null) {
-          String redirectUrl = request.getRequestURL().toString();
+          String redirectUrl = request.getRequestURI();
           if (request.getQueryString() != null && !request.getQueryString().isEmpty()) {
             redirectUrl += "?" + request.getQueryString();
           }
