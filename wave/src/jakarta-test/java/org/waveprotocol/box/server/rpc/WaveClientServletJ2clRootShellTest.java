@@ -139,19 +139,12 @@ public final class WaveClientServletJ2clRootShellTest {
   }
 
   @Test
-  public void signedInAdminJ2clRootShellShowsAdminLink() throws Exception {
-    String html = renderSignedInJ2clRootShellWithRole(HumanAccountData.ROLE_ADMIN);
-
-    assertTrue(html.contains("data-j2cl-root-admin-link=\"true\""));
-    assertTrue(html.contains("href=\"/admin\""));
-  }
-
-  @Test
-  public void signedInOwnerJ2clRootShellShowsAdminLink() throws Exception {
-    String html = renderSignedInJ2clRootShellWithRole(HumanAccountData.ROLE_OWNER);
-
-    assertTrue(html.contains("data-j2cl-root-admin-link=\"true\""));
-    assertTrue(html.contains("href=\"/admin\""));
+  public void signedInAdminRolesJ2clRootShellShowsAdminLink() throws Exception {
+    for (String role : new String[]{HumanAccountData.ROLE_ADMIN, HumanAccountData.ROLE_OWNER}) {
+      String html = renderSignedInJ2clRootShellWithRole(role);
+      assertTrue("Expected admin marker for role " + role, html.contains("data-j2cl-root-admin-link=\"true\""));
+      assertTrue("Expected /admin href for role " + role, html.contains("href=\"/admin\""));
+    }
   }
 
   @Test
