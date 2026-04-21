@@ -33,9 +33,10 @@ public final class J2clBuildStageContractTest extends TestCase {
 
     assertTrue(buildSbt.contains("lazy val j2clRuntimeBuild = taskKey[Unit]"));
     assertTrue(buildSbt.contains("ThisBuild / j2clRuntimeBuild := Def.sequential("));
-    assertTrue(buildSbt.contains("Compile / run := (Compile / run).dependsOn(prepareServerConfig, j2clRuntimeBuild).evaluated"));
-    assertTrue(buildSbt.contains("Universal / stage := (Universal / stage).dependsOn(j2clRuntimeBuild).value"));
-    assertTrue(buildSbt.contains("Universal / packageBin := (Universal / packageBin).dependsOn(j2clRuntimeBuild).value"));
+    assertTrue(buildSbt.contains("Compile / run := (Compile / run).dependsOn(prepareServerConfig, j2clRuntimeBuild, compileGwt).evaluated"));
+    assertTrue(buildSbt.contains("compileGwt := (compileGwt).dependsOn(Compile / compile).value"));
+    assertTrue(buildSbt.contains("Universal / stage := (Universal / stage).dependsOn(j2clRuntimeBuild, compileGwt, verifyGwtAssets).value"));
+    assertTrue(buildSbt.contains("Universal / packageBin := (Universal / packageBin).dependsOn(j2clRuntimeBuild, compileGwt, verifyGwtAssets).value"));
   }
 
   public void testDockerfileCopiesJ2clTreeAndUsesUniversalStageOnly() throws Exception {
