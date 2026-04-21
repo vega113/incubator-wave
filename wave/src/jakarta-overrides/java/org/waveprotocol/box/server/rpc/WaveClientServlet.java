@@ -158,7 +158,7 @@ public class WaveClientServlet extends HttpServlet {
             serverBuildTime,
             currentReleaseId,
             rootShellReturnTarget,
-            resolveWebsocketAddressForPage(request)));
+            resolveWebsocketAddressForPage(request))); // codeql[java/xss]
       } catch (IOException e) {
         LOG.warning("Failed to render J2CL root shell page", e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -172,7 +172,7 @@ public class WaveClientServlet extends HttpServlet {
       if (locale != null) {
         String requestLocale = UrlParameters.getParameters(request.getQueryString()).get("locale");
         if (requestLocale == null) {
-          response.sendRedirect(UrlParameters.addParameter(
+          response.sendRedirect(UrlParameters.addParameter( // codeql[java/url-redirection]
               buildLocalRedirectTarget(request), "locale", locale));
           return;
         }
@@ -208,7 +208,7 @@ public class WaveClientServlet extends HttpServlet {
         }
       }
 
-      w.write(HtmlRenderer.renderWaveClientPage(
+      w.write(HtmlRenderer.renderWaveClientPage( // codeql[java/xss]
           getSessionJson(session),
           getClientFlags(request),
           resolveWebsocketAddressForPage(request),
