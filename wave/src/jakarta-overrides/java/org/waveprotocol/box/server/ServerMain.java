@@ -170,7 +170,8 @@ public class ServerMain {
         hasExplicitOverride
             ? ConfigParseOptions.defaults().setAllowMissing(false)
             : ConfigParseOptions.defaults();
-    return ConfigFactory.parseFile(applicationConfig, parseOptions);
+    return ConfigFactory.defaultOverrides()
+        .withFallback(ConfigFactory.parseFile(applicationConfig, parseOptions));
   }
 
   private static boolean hasExplicitConfigOverride() {
@@ -218,8 +219,12 @@ public class ServerMain {
   private static void initializeFeatureFlags(Injector injector) {
     try {
       Config config = injector.getInstance(Config.class);
+      Config applicationOverrideConfig = loadApplicationOverrideConfig();
       FeatureFlagStore featureFlagStore = injector.getInstance(FeatureFlagStore.class);
       FeatureFlagSeeder.seedSearchFeatureFlags(featureFlagStore, config);
+      FeatureFlagSeeder.seedJ2clRootBootstrapFeatureFlags(featureFlagStore, config);
+      FeatureFlagSeeder.reconcileJ2clRootBootstrapFeatureFlag(
+          featureFlagStore, applicationOverrideConfig);
       injector.getInstance(FeatureFlagService.class).refreshCache();
     } catch (PersistenceException e) {
       LOG.log(java.util.logging.Level.WARNING,

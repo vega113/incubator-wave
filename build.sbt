@@ -505,17 +505,14 @@ JakartaIT / unmanagedSourceDirectories := Seq(
 JakartaIT / unmanagedResourceDirectories := Seq(
   baseDirectory.value / "wave" / "src" / "jakarta-test" / "resources"
 )
-// Exclude the same files as JakartaTest from compilation
-JakartaIT / unmanagedSources := (JakartaIT / unmanagedSources).value.filterNot { f =>
+// Compile only the server-side Jakarta IT tree in this config. Client-side Jakarta
+// tests live in the same source root but are not part of the JakartaIT allowlist.
+JakartaIT / unmanagedSources := (JakartaIT / unmanagedSources).value.filter { f =>
   val p = f.getPath.replace('\\', '/')
-  p.endsWith("/WaveWebSocketEndpointInitGuardTest.java") ||
-  p.endsWith("/DataApiOAuthServletJakartaIT.java") ||
-  // Tests that depend on GWT client/webclient classes excluded from SBT compilation
-  p.endsWith("/WaveWebSocketClientTest.java") ||
-  p.endsWith("/RemoteWaveViewServiceEmptyUserDataSnapshotTest.java") ||
-  p.endsWith("/FocusBlipSelectorTest.java") ||
-  // Constructor signature changed; exclude until test is updated
-  p.endsWith("/WaveClientServletFragmentDefaultsTest.java")
+  p.contains("/org/waveprotocol/box/server/jakarta/")
+}.filterNot { f =>
+  val p = f.getPath.replace('\\', '/')
+  p.endsWith("/WaveWebSocketEndpointInitGuardTest.java")
 }
 // Only run the explicit IT allowlist (Gradle lines 1047-1058)
 JakartaIT / testOptions += Tests.Filter { name =>
@@ -668,9 +665,7 @@ Universal / mappings ++= {
   }
   // war/ -> war/
   val warDir = base / "war"
-  val warFiles = (warDir ** "*").get.filter(_.isFile).filterNot { f =>
-    IO.relativize(warDir, f).exists(_.startsWith("webclient/"))
-  }.map { f =>
+  val warFiles = (warDir ** "*").get.filter(_.isFile).map { f =>
     f -> ("war/" + IO.relativize(warDir, f).get)
   }
   // Root docs
@@ -1170,9 +1165,9 @@ Compile / compile := (Compile / compile)
   // generateGxp removed — GXP replaced by HtmlRenderer
   .value
 
-// Ensure `run` has a config in place and both maintained J2CL assets are
-// rebuilt before launching the server.
-Compile / run := (Compile / run).dependsOn(prepareServerConfig, j2clRuntimeBuild).evaluated
+// Ensure `run` has a config in place and both browser runtimes are rebuilt
+// before launching the server.
+Compile / run := (Compile / run).dependsOn(prepareServerConfig, j2clRuntimeBuild, compileGwt).evaluated
 
 // =============================================================================
 // Phase 6: GWT Compilation Bridge
@@ -1383,8 +1378,8 @@ compileGwt := (compileGwt).dependsOn(Compile / compile).value
 devCompile := (Compile / compile).value
 compileGwtDev := (compileGwtDev).dependsOn(Compile / compile).value
 
-Universal / stage := (Universal / stage).dependsOn(j2clRuntimeBuild).value
-Universal / packageBin := (Universal / packageBin).dependsOn(j2clRuntimeBuild).value
+Universal / stage := (Universal / stage).dependsOn(j2clRuntimeBuild, compileGwt, verifyGwtAssets).value
+Universal / packageBin := (Universal / packageBin).dependsOn(j2clRuntimeBuild, compileGwt, verifyGwtAssets).value
 
 cleanFiles += baseDirectory.value / "war" / "webclient"
 cleanFiles += baseDirectory.value / "war" / "org"

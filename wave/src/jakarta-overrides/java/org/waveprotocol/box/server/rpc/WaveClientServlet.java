@@ -128,7 +128,11 @@ public class WaveClientServlet extends HttpServlet {
   protected void doGet(HttpServletRequest request, HttpServletResponse response)
       throws IOException {
     WebSession session = WebSessions.from(request, false);
+    ParticipantId id = sessionManager.getLoggedInUser(session);
     String requestedView = resolveRequestedView(request);
+    boolean j2clRootBootstrapEnabled =
+        featureFlagService.isEnabled("j2cl-root-bootstrap", id != null ? id.getAddress() : null);
+
     if (VIEW_LANDING.equals(requestedView)) {
       response.setContentType("text/html");
       response.setCharacterEncoding("UTF-8");
@@ -137,28 +141,77 @@ public class WaveClientServlet extends HttpServlet {
       return;
     }
 
+    if (VIEW_J2CL_ROOT.equals(requestedView)
+        || (StringUtils.isEmpty(requestedView) && j2clRootBootstrapEnabled)) {
+      String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
+      response.setContentType("text/html");
+      response.setCharacterEncoding("UTF-8");
+      response.setStatus(HttpServletResponse.SC_OK);
+      try (var w = response.getWriter()) {
+        // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
+        // StringEscapeUtils.escapeHtml4 before threading it into the shell HTML.
+        w.write(HtmlRenderer.renderJ2clRootShellPage(
+            getSessionJson(session),
+            analyticsAccount,
+            buildCommit,
+            serverBuildTime,
+            currentReleaseId,
+            rootShellReturnTarget,
+            resolveWebsocketAddressForPage(request))); // codeql[java/xss]
+      } catch (IOException e) {
+        LOG.warning("Failed to render J2CL root shell page", e);
+        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+      }
+      return;
+    }
+
+    AccountData account = id != null ? sessionManager.getLoggedInAccount(session) : null;
+    if (account != null && account.isHuman()) {
+      String locale = account.asHuman().getLocale();
+      if (locale != null) {
+        String requestLocale = UrlParameters.getParameters(request.getQueryString()).get("locale");
+        if (requestLocale == null) {
+          response.sendRedirect(UrlParameters.addParameter(
+              buildLocalRedirectTarget(request), "locale", locale)); // codeql[java/unvalidated-url-redirection]
+          return;
+        }
+      }
+    }
+
     response.setContentType("text/html");
     response.setCharacterEncoding("UTF-8");
     response.setStatus(HttpServletResponse.SC_OK);
     try (var w = response.getWriter()) {
-      String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
-      String hostHeader = request.getHeader("Host");
-      String wsAddressForPage =
-          (!hasExplicitWebsocketPresentedAddress && hostHeader != null && !hostHeader.isEmpty())
-              ? hostHeader
-              : websocketPresentedAddress;
-      // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
-      // StringEscapeUtils.escapeHtml4 before threading it into the shell HTML.
-      w.write(HtmlRenderer.renderJ2clRootShellPage( // codeql[java/xss]
+      String topBarHtml = "";
+      if (id != null) {
+        String username = id.getAddress().split("@")[0];
+        String userDomain = id.getDomain();
+        String userRole = HumanAccountData.ROLE_USER;
+        try {
+          AccountData acctData = accountStore.getAccount(id);
+          if (acctData != null && acctData.isHuman()) {
+            userRole = acctData.asHuman().getRole();
+          }
+        } catch (Exception e) {
+          LOG.warning("Failed to look up role for " + id.getAddress(), e);
+        }
+        topBarHtml = HtmlRenderer.renderTopBar(username, userDomain, userRole);
+      }
+
+      // Keep the legacy rollback path on the existing skeleton load until the
+      // server-side pre-rendered fragment has an explicit sanitization boundary.
+      w.write(HtmlRenderer.renderWaveClientPage(
           getSessionJson(session),
+          getClientFlags(request),
+          resolveWebsocketAddressForPage(request),
+          topBarHtml,
           analyticsAccount,
           buildCommit,
           serverBuildTime,
           currentReleaseId,
-          rootShellReturnTarget,
-          wsAddressForPage));
+          null)); // codeql[java/xss]
     } catch (IOException e) {
-      LOG.warning("Failed to render J2CL root shell page", e);
+      LOG.warning("Failed to render WaveClient page", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -419,6 +472,23 @@ public class WaveClientServlet extends HttpServlet {
 
   private static String encodeReturnTargetComponent(String value) {
     return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  private String buildLocalRedirectTarget(HttpServletRequest request) {
+    String requestUri = request.getRequestURI();
+    String safeRequestUri =
+        requestUri != null && requestUri.startsWith("/") && !requestUri.startsWith("//")
+            ? requestUri
+            : "/";
+    String queryString = request.getQueryString();
+    if (queryString == null || queryString.isEmpty()) {
+      return safeRequestUri;
+    }
+    return safeRequestUri + "?" + queryString;
+  }
+
+  private String resolveWebsocketAddressForPage(HttpServletRequest request) {
+    return websocketPresentedAddress;
   }
 
   private String resolveRequestedView(HttpServletRequest request) {
