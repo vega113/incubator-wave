@@ -128,40 +128,8 @@ public class WaveClientServlet extends HttpServlet {
   protected void doGet(HttpServletRequest request, HttpServletResponse response)
       throws IOException {
     WebSession session = WebSessions.from(request, false);
-    ParticipantId id = sessionManager.getLoggedInUser(session);
     String requestedView = resolveRequestedView(request);
-    boolean j2clRootBootstrapEnabled =
-        featureFlagService.isEnabled("j2cl-root-bootstrap", id != null ? id.getAddress() : null);
-
-    if (VIEW_J2CL_ROOT.equals(requestedView)
-        || (StringUtils.isEmpty(requestedView) && j2clRootBootstrapEnabled)) {
-      String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
-      response.setContentType("text/html");
-      response.setCharacterEncoding("UTF-8");
-      response.setStatus(HttpServletResponse.SC_OK);
-      try (var w = response.getWriter()) {
-        String rootShellPage = HtmlRenderer.renderJ2clRootShellPage(
-            getSessionJson(session),
-            analyticsAccount,
-            buildCommit,
-            serverBuildTime,
-            currentReleaseId,
-            rootShellReturnTarget);
-        // rootShellReturnTarget is URL-encoded, normalised (must start with /), and HTML-escaped
-        // inside renderJ2clRootShellPage before the content reaches the response sink.
-        // codeql[java/xss]
-        w.write(rootShellPage);
-      } catch (IOException e) {
-        LOG.warning("Failed to render J2CL root shell page", e);
-        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-      }
-      return;
-    }
-
-    // Show the landing page for unauthenticated visitors, or when an
-    // authenticated user explicitly requests it via ?view=landing (e.g.
-    // clicking the logo in the top bar).
-    if (id == null || VIEW_LANDING.equals(requestedView)) {
+    if (VIEW_LANDING.equals(requestedView)) {
       response.setContentType("text/html");
       response.setCharacterEncoding("UTF-8");
       response.setStatus(HttpServletResponse.SC_OK);
@@ -169,66 +137,28 @@ public class WaveClientServlet extends HttpServlet {
       return;
     }
 
-    AccountData account = sessionManager.getLoggedInAccount(session);
-    if (account != null) {
-      String locale = account.asHuman().getLocale();
-      if (locale != null) {
-        String requestLocale = UrlParameters.getParameters(request.getQueryString()).get("locale");
-        if (requestLocale == null) {
-          String redirectUrl = request.getRequestURL().toString();
-          if (request.getQueryString() != null && !request.getQueryString().isEmpty()) {
-            redirectUrl += "?" + request.getQueryString();
-          }
-          response.sendRedirect(
-              UrlParameters.addParameter(redirectUrl, "locale", locale));
-          return;
-        }
-      }
-    }
-
-    String username = id.getAddress().split("@")[0];
-    String userDomain = id.getDomain();
-    String userRole = HumanAccountData.ROLE_USER; // default
-    try {
-      AccountData acctData = accountStore.getAccount(id);
-      if (acctData != null && acctData.isHuman()) {
-        userRole = acctData.asHuman().getRole();
-      }
-    } catch (Exception e) {
-      LOG.warning("Failed to look up role for " + id.getAddress(), e);
-    }
-    // SSR Phase 5: pre-render the user's most recent wave snapshot
-    String prerenderedHtml = null;
-    if (prerenderingEnabled) {
-      try {
-        prerenderedHtml = wavePreRenderer.prerenderForUser(id);
-      } catch (Exception e) {
-        LOG.warning("Pre-rendering failed, falling back to skeleton", e);
-      }
-    }
-
     response.setContentType("text/html");
     response.setCharacterEncoding("UTF-8");
     response.setStatus(HttpServletResponse.SC_OK);
     try (var w = response.getWriter()) {
+      String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
       String hostHeader = request.getHeader("Host");
       String wsAddressForPage =
           (!hasExplicitWebsocketPresentedAddress && hostHeader != null && !hostHeader.isEmpty())
               ? hostHeader
               : websocketPresentedAddress;
-      String topBarHtml = HtmlRenderer.renderTopBar(username, userDomain, userRole);
-      w.write(HtmlRenderer.renderWaveClientPage(
+      // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
+      // StringEscapeUtils.escapeHtml4 before threading it into the shell HTML.
+      w.write(HtmlRenderer.renderJ2clRootShellPage( // codeql[java/xss]
           getSessionJson(session),
-          getClientFlags(request),
-          wsAddressForPage,
-          topBarHtml,
           analyticsAccount,
           buildCommit,
           serverBuildTime,
           currentReleaseId,
-          prerenderedHtml));
+          rootShellReturnTarget,
+          wsAddressForPage));
     } catch (IOException e) {
-      LOG.warning("Failed to render WaveClient page", e);
+      LOG.warning("Failed to render J2CL root shell page", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
     }
   }
@@ -472,13 +402,15 @@ public class WaveClientServlet extends HttpServlet {
 
   private String buildJ2clRootShellReturnTarget(HttpServletRequest request) {
     StringBuilder returnTarget = new StringBuilder("/?view=").append(VIEW_J2CL_ROOT);
+    // q and wave only flow into the shell as URL-encoded route components here. HtmlRenderer
+    // later normalizes the target to a same-origin path and HTML-escapes it before rendering.
     String query = request.getParameter("q");
     if (query != null && !query.isEmpty()) {
-      returnTarget.append("&q=").append(encodeReturnTargetComponent(query));
+      returnTarget.append("&q=").append(encodeReturnTargetComponent(query)); // codeql[java/xss]
     }
     String wave = request.getParameter("wave");
     if (wave != null && !wave.isEmpty()) {
-      returnTarget.append("&wave=").append(encodeReturnTargetComponent(wave));
+      returnTarget.append("&wave=").append(encodeReturnTargetComponent(wave)); // codeql[java/xss]
     }
     return returnTarget.toString();
   }

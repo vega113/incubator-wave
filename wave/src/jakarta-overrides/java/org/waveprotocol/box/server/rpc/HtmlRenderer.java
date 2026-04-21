@@ -3214,13 +3214,17 @@ public final class HtmlRenderer {
 
   public static String renderJ2clRootShellPage(JSONObject sessionJson, String analyticsAccount,
       String buildCommit, long serverBuildTime, String currentReleaseId,
-      String rootShellReturnTarget) {
-    String address = sessionJson == null ? "" : sessionJson.optString(SessionConstants.ADDRESS, "");
+      String rootShellReturnTarget, String websocketAddress) {
+    JSONObject resolvedSessionJson = sessionJson == null ? new JSONObject() : sessionJson;
+    String address = resolvedSessionJson.optString(SessionConstants.ADDRESS, "");
     boolean signedIn = address != null && !address.isEmpty();
     String resolvedReturnTarget = normalizeLocalReturnTarget(rootShellReturnTarget);
-    String safeResolvedReturnTarget = escapeHtml(resolvedReturnTarget);
+    String safeResolvedReturnTarget = StringEscapeUtils.escapeHtml4(resolvedReturnTarget);
     String safeEncodedReturnTarget =
         StringEscapeUtils.escapeHtml4(encodeLocalReturnTarget(resolvedReturnTarget));
+    int queryStart = resolvedReturnTarget.indexOf('?');
+    String resolvedBasePath = queryStart >= 0 ? resolvedReturnTarget.substring(0, queryStart) : resolvedReturnTarget;
+    String safeResolvedBasePath = StringEscapeUtils.escapeHtml4(resolvedBasePath);
 
     StringBuilder sb = new StringBuilder(2048);
     sb.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
@@ -3229,6 +3233,12 @@ public final class HtmlRenderer {
     sb.append("<title>SupaWave J2CL Root Shell</title>\n");
     sb.append("<link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\">\n");
     sb.append("<link rel=\"alternate icon\" href=\"/static/favicon.ico\">\n");
+    sb.append("<script type=\"text/javascript\">\n");
+    sb.append("var __session = ").append(resolvedSessionJson.toString()).append(";\n");
+    sb.append("var __websocket_address = ")
+        .append(escapeJsonString(websocketAddress == null ? "" : websocketAddress))
+        .append(";\n");
+    sb.append("</script>\n");
     sb.append("<meta name=\"build-commit\" content=\"").append(escapeHtml(buildCommit == null ? "" : buildCommit)).append("\">\n");
     sb.append("<meta name=\"server-build-time\" content=\"").append(serverBuildTime).append("\">\n");
     sb.append("<meta name=\"current-release-id\" content=\"").append(escapeHtml(currentReleaseId == null ? "" : currentReleaseId)).append("\">\n");
@@ -3326,6 +3336,19 @@ public final class HtmlRenderer {
       sb.append("  if(search.indexOf('view=j2cl-root')===-1){return fallback;}\n");
       sb.append("  return normalizeLocalReturnTargetForUi(pathname + search, fallback);\n");
       sb.append("}\n");
+      sb.append("function waveIdFromLegacyHash(hash){\n");
+      sb.append("  if(!hash){return null;}\n");
+      sb.append("  var trimmed=hash.charAt(0)==='#'?hash.substring(1):hash;\n");
+      sb.append("  if(!trimmed){return null;}\n");
+      sb.append("  var token=trimmed.split('&')[0];\n");
+      sb.append("  return token.indexOf('/')>=0 ? token : null;\n");
+      sb.append("}\n");
+      sb.append("function normalizeLegacyHashDeepLink(){\n");
+      sb.append("  var waveId=waveIdFromLegacyHash(window.location.hash);\n");
+      sb.append("  if(!waveId){return;}\n");
+      sb.append("  var nextUrl='").append(safeResolvedBasePath).append("?view=j2cl-root&wave=' + encodeURIComponent(waveId);\n");
+      sb.append("  window.history.replaceState(null, '', nextUrl);\n");
+      sb.append("}\n");
       sb.append("function syncReturnTargetUi(){\n");
       sb.append("  var fallback='").append(safeResolvedReturnTarget).append("';\n");
       sb.append("  var target=currentReturnTarget();\n");
@@ -3368,6 +3391,7 @@ public final class HtmlRenderer {
       sb.append("  if(entryPoint){entryPoint.mount('j2cl-root-shell-workflow','root-shell');return;}\n");
       sb.append("  if(attemptsRemaining>0){window.setTimeout(function(){mountWhenReady(attemptsRemaining-1);},50);}else{renderLoadError();}\n");
       sb.append("}\n");
+      sb.append("normalizeLegacyHashDeepLink();\n");
       sb.append("hookHistory();\n");
       sb.append("syncReturnTargetUi();\n");
       sb.append("if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',function(){syncReturnTargetUi();mountWhenReady(80);});}else{mountWhenReady(80);}\n");

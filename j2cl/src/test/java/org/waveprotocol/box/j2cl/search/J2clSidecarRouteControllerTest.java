@@ -223,6 +223,50 @@ public class J2clSidecarRouteControllerTest {
         routeUrlObserver.urls);
   }
 
+  @Test
+  public void rootShellStartNormalizesLegacyHashWaveIntoQueryRoute() {
+    FakeHistoryAdapter history = new FakeHistoryAdapter("", "#example.com/w+1");
+    FakeSearchPanelController searchController = new FakeSearchPanelController();
+    FakeSelectedWaveController selectedWaveController = new FakeSelectedWaveController();
+    J2clSidecarRouteController controller =
+        new J2clSidecarRouteController(
+            history, searchController, selectedWaveController, "view=j2cl-root");
+
+    controller.start();
+
+    Assert.assertEquals(
+        Arrays.asList("?view=j2cl-root&q=in%3Ainbox&wave=example.com%2Fw%2B1"),
+        history.replacedUrls);
+    Assert.assertEquals(
+        Arrays.asList("start:in:inbox:example.com/w+1"),
+        searchController.events);
+    Assert.assertEquals(
+        Arrays.asList("example.com/w+1:null"),
+        selectedWaveController.events);
+  }
+
+  @Test
+  public void explicitWaveQueryTakesPrecedenceOverLegacyHashRoute() {
+    FakeHistoryAdapter history =
+        new FakeHistoryAdapter(
+            "?view=j2cl-root&q=with%3A%40&wave=example.com%2Fw%2B1",
+            "#example.com/w+2");
+    FakeSearchPanelController searchController = new FakeSearchPanelController();
+    FakeSelectedWaveController selectedWaveController = new FakeSelectedWaveController();
+    J2clSidecarRouteController controller =
+        new J2clSidecarRouteController(
+            history, searchController, selectedWaveController, "view=j2cl-root");
+
+    controller.start();
+
+    Assert.assertEquals(
+        Arrays.asList("start:with:@:example.com/w+1"),
+        searchController.events);
+    Assert.assertEquals(
+        Arrays.asList("example.com/w+1:null"),
+        selectedWaveController.events);
+  }
+
   private static J2clSearchDigestItem digest(String waveId) {
     return new J2clSearchDigestItem(
         waveId, "Wave", "Snippet", "user@example.com", 1, 2, 3L, false);
@@ -233,15 +277,26 @@ public class J2clSidecarRouteControllerTest {
     private final List<String> pushedUrls = new ArrayList<String>();
     private final List<String> replacedUrls = new ArrayList<String>();
     private String search;
+    private String hash;
     private Runnable popStateListener;
 
     private FakeHistoryAdapter(String search) {
+      this(search, "");
+    }
+
+    private FakeHistoryAdapter(String search, String hash) {
       this.search = search;
+      this.hash = hash;
     }
 
     @Override
     public String getSearch() {
       return search;
+    }
+
+    @Override
+    public String getHash() {
+      return hash;
     }
 
     @Override
@@ -261,6 +316,10 @@ public class J2clSidecarRouteControllerTest {
 
     private void setSearch(String search) {
       this.search = search;
+    }
+
+    private void setHash(String hash) {
+      this.hash = hash;
     }
 
     private void firePopState() {

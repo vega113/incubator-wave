@@ -10,6 +10,10 @@ public final class J2clSidecarRouteController {
   public interface HistoryAdapter {
     String getSearch();
 
+    default String getHash() {
+      return "";
+    }
+
     void pushUrl(String url);
 
     void replaceUrl(String url);
@@ -33,6 +37,11 @@ public final class J2clSidecarRouteController {
     @Override
     public String getSearch() {
       return DomGlobal.location.search;
+    }
+
+    @Override
+    public String getHash() {
+      return DomGlobal.location.hash;
     }
 
     @Override
@@ -91,7 +100,7 @@ public final class J2clSidecarRouteController {
   }
 
   public void start() {
-    currentState = J2clSidecarRouteCodec.parse(history.getSearch());
+    currentState = J2clSidecarRouteCodec.parse(history.getSearch(), history.getHash());
     String normalizedUrl = J2clSidecarRouteCodec.toUrl(currentState, fixedQueryString);
     history.replaceUrl(normalizedUrl);
     emitUrlChanged(normalizedUrl);
@@ -122,7 +131,7 @@ public final class J2clSidecarRouteController {
   }
 
   private void handlePopState() {
-    currentState = J2clSidecarRouteCodec.parse(history.getSearch());
+    currentState = J2clSidecarRouteCodec.parse(history.getSearch(), history.getHash());
     emitUrlChanged(J2clSidecarRouteCodec.toUrl(currentState, fixedQueryString));
     searchController.restoreRoute(currentState.getQuery(), currentState.getSelectedWaveId());
     selectedWaveController.onWaveSelected(currentState.getSelectedWaveId(), null);

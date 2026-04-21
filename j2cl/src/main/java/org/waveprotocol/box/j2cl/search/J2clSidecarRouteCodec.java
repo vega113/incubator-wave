@@ -12,6 +12,10 @@ public final class J2clSidecarRouteCodec {
   }
 
   public static J2clSidecarRouteState parse(String search) {
+    return parse(search, null);
+  }
+
+  public static J2clSidecarRouteState parse(String search, String hash) {
     String query = null;
     String selectedWaveId = null;
     if (search != null && !search.isEmpty()) {
@@ -29,6 +33,9 @@ public final class J2clSidecarRouteCodec {
           }
         }
       }
+    }
+    if (selectedWaveId == null) {
+      selectedWaveId = decodeLegacyHashWaveValue(hash);
     }
     return new J2clSidecarRouteState(query, selectedWaveId);
   }
@@ -69,10 +76,57 @@ public final class J2clSidecarRouteCodec {
     }
     try {
       String decoded = decodeUriComponentSafe(value);
+      decoded = trimWaveRefSuffix(decoded);
       return isValidWaveId(decoded) ? decoded : null;
     } catch (RuntimeException e) {
       return null;
     }
+  }
+
+  private static String decodeLegacyHashWaveValue(String hash) {
+    if (hash == null || hash.isEmpty()) {
+      return null;
+    }
+    String trimmed = hash.charAt(0) == '#' ? hash.substring(1) : hash;
+    while (trimmed.startsWith("/")) {
+      trimmed = trimmed.substring(1);
+    }
+    if (trimmed.isEmpty()) {
+      return null;
+    }
+    int queryStart = trimmed.indexOf('?');
+    if (queryStart >= 0) {
+      trimmed = trimmed.substring(0, queryStart);
+    }
+    int metadataStart = trimmed.indexOf('&');
+    if (metadataStart >= 0) {
+      trimmed = trimmed.substring(0, metadataStart);
+    }
+    if (trimmed.isEmpty()) {
+      return null;
+    }
+    try {
+      String decoded = decodeUriComponentSafe(trimmed);
+      while (decoded.startsWith("/")) {
+        decoded = decoded.substring(1);
+      }
+      decoded = trimWaveRefSuffix(decoded);
+      return isValidWaveId(decoded) ? decoded : null;
+    } catch (RuntimeException e) {
+      return null;
+    }
+  }
+
+  // Full WaveRef tokens (e.g. "domain/w+id/~/conv+root/b+1234") contain only one "/w+"
+  // and therefore pass isValidWaveId.  This helper trims any trailing path segments so
+  // callers receive just the "domain/w+id" wave-ID portion.
+  private static String trimWaveRefSuffix(String decoded) {
+    int waveMarker = decoded.indexOf("/w+");
+    if (waveMarker < 0) {
+      return decoded;
+    }
+    int nextSlash = decoded.indexOf('/', waveMarker + 3);
+    return nextSlash >= 0 ? decoded.substring(0, nextSlash) : decoded;
   }
 
   private static boolean isValidWaveId(String waveId) {

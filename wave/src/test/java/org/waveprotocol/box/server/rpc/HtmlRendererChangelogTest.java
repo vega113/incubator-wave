@@ -42,14 +42,43 @@ public final class HtmlRendererChangelogTest {
     assertTrue(html.contains("var currentBuildCommit = \"abc123build\";"));
     assertTrue(html.contains("var currentReleaseId = \"2026-03-27-unread-only-search-filter\";"));
     assertTrue(html.contains("fetch('/version?since=' + encodeURIComponent(currentReleaseId || '')"));
+    assertTrue(html.contains("showUpgradeBanner(data.releaseNotesStatus, data.releaseNotes || []);"));
     assertTrue(html.contains("data.releaseNotesStatus"));
     assertTrue(html.contains("data.releaseNotes || []"));
-    assertTrue(!html.contains("data.changelog || null"));
-    assertTrue(html.contains("'/changelog#release-' + encodeURIComponent(releaseNotes[0].releaseId)"));
-    assertTrue(html.contains("What's New"));
-    assertTrue(
-        html.contains(
-            "whatsNew.href = '/changelog#release-' + encodeURIComponent(releaseNotes[0].releaseId);"));
+    assertTrue(html.contains("whatsNew.href = '/changelog#release-' + encodeURIComponent(releaseNotes[0].releaseId);"));
+    assertTrue(html.contains("What's New \\u2192"));
+    assertTrue(html.contains("upgrade-banner"));
+  }
+
+  @Test
+  public void j2clRootShellNormalizesLegacyHashDeepLinksBeforeMount() {
+    String html = HtmlRenderer.renderJ2clRootShellPage(
+        new JSONObject("{\"address\":\"alice@example.com\"}"),
+        "",
+        "abc123build",
+        1700000000000L,
+        "2026-03-27-unread-only-search-filter",
+        "/?view=j2cl-root",
+        "localhost:9898");
+
+    assertTrue(html.contains("function waveIdFromLegacyHash(hash){"));
+    assertTrue(html.contains("function normalizeLegacyHashDeepLink(){"));
+    assertTrue(html.contains("var nextUrl='/?view=j2cl-root&wave=' + encodeURIComponent(waveId);"));
+    assertTrue(html.contains("normalizeLegacyHashDeepLink();"));
+  }
+
+  @Test
+  public void j2clRootShellLegacyHashDeepLinkUsesConfiguredBasePath() {
+    String html = HtmlRenderer.renderJ2clRootShellPage(
+        new JSONObject("{\"address\":\"alice@example.com\"}"),
+        "",
+        "abc123build",
+        1700000000000L,
+        "2026-03-27-unread-only-search-filter",
+        "/wave/?view=j2cl-root",
+        "localhost:9898");
+
+    assertTrue(html.contains("var nextUrl='/wave/?view=j2cl-root&wave=' + encodeURIComponent(waveId);"));
   }
 
   @Test
