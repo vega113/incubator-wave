@@ -141,8 +141,6 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
       controller.setFailed(e.getMessage());
       return;
     }
-    IdFilter waveletIdFilter =
-        IdFilter.of(Collections.<WaveletId>emptySet(), request.getWaveletIdPrefixList());
 
     ParticipantId loggedInUser = asBoxController(controller).getLoggedInUser();
     MDC.put("waveId", waveId.serialise());
@@ -154,6 +152,8 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
       if (!validateSearchOpenRequest(controller, loggedInUser, waveId, searchQuery)) {
         return;
       }
+      IdFilter waveletIdFilter =
+          normalizeOpenWaveletIdFilter(request, loggedInUser, searchQuery);
       frontend.openRequest(
           loggedInUser,
           waveId,
@@ -315,6 +315,21 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
         + "' expected " + expectedSearchWaveletName.waveId);
     controller.setFailed("Invalid search query for target wave");
     return false;
+  }
+
+  private IdFilter normalizeOpenWaveletIdFilter(
+      ProtocolOpenRequest request,
+      @Nullable ParticipantId loggedInUser,
+      @Nullable String searchQuery) {
+    if (searchQuery == null || searchQuery.isEmpty() || searchWaveletManager == null
+        || loggedInUser == null) {
+      return IdFilter.of(Collections.<WaveletId>emptySet(), request.getWaveletIdPrefixList());
+    }
+    WaveletName expectedSearchWaveletName =
+        searchWaveletManager.computeWaveletName(loggedInUser, searchQuery);
+    return IdFilter.of(
+        Collections.singleton(expectedSearchWaveletName.waveletId),
+        Collections.<String>emptySet());
   }
 
   /** Returns true if the wavelet id represents a synthetic open/marker wavelet. */
