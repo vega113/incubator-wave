@@ -6,32 +6,34 @@ from scripts.tests.deploy_harness import find_bash, run_deploy_script
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_SCRIPT = REPO_ROOT / "deploy" / "caddy" / "deploy.sh"
+CONTABO_DEPLOY_SCRIPT = REPO_ROOT / "deploy" / "contabo" / "deploy.sh"
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy-contabo.yml"
 
 
 class DeploySanityGateTest(unittest.TestCase):
   def test_deploy_script_allows_longer_search_warmup_window(self):
-    deploy_script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+    for script_path in (DEPLOY_SCRIPT, CONTABO_DEPLOY_SCRIPT):
+      deploy_script = script_path.read_text(encoding="utf-8")
 
-    self.assertIn(
-        'local sanity_search_deadline_seconds="${SANITY_SEARCH_DEADLINE_SECONDS:-120}"',
-        deploy_script,
-    )
-    self.assertIn(
-        'local sanity_search_request_timeout_seconds="${SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS:-15}"',
-        deploy_script,
-    )
+      self.assertIn(
+          'local sanity_search_deadline_seconds="${SANITY_SEARCH_DEADLINE_SECONDS:-120}"',
+          deploy_script,
+      )
+      self.assertIn(
+          'local sanity_search_request_timeout_seconds="${SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS:-15}"',
+          deploy_script,
+      )
 
-    contabo_script = (REPO_ROOT / "deploy" / "contabo" / "deploy.sh").read_text(encoding="utf-8")
+  def test_deploy_script_caps_search_requests_to_remaining_deadline(self):
+    for script_path in (DEPLOY_SCRIPT, CONTABO_DEPLOY_SCRIPT):
+      deploy_script = script_path.read_text(encoding="utf-8")
 
-    self.assertIn(
-        'local sanity_search_deadline_seconds="${SANITY_SEARCH_DEADLINE_SECONDS:-120}"',
-        contabo_script,
-    )
-    self.assertIn(
-        'local sanity_search_request_timeout_seconds="${SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS:-15}"',
-        contabo_script,
-    )
+      self.assertIn('remaining_time=$(( DEADLINE - $(date +%s) ))', deploy_script)
+      self.assertIn('if [ "$remaining_time" -le 0 ]; then', deploy_script)
+      self.assertIn('request_timeout="$SEARCH_REQUEST_TIMEOUT_SECONDS"', deploy_script)
+      self.assertIn('if [ "$request_timeout" -gt "$remaining_time" ]; then', deploy_script)
+      self.assertIn('request_timeout="$remaining_time"', deploy_script)
+      self.assertIn('--max-time "$request_timeout"', deploy_script)
 
   def test_deploy_fails_when_sanity_credentials_are_missing(self):
     bash_path = find_bash()

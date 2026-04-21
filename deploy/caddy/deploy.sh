@@ -505,12 +505,15 @@ sanity_check() {
     DEADLINE=$(( $(date +%s) + SEARCH_DEADLINE_SECONDS ))
     WAVE_ID=""
     while true; do
-      NOW=$(date +%s)
-      if [ "$NOW" -ge "$DEADLINE" ]; then break; fi
-      REMAINING=$(( DEADLINE - NOW ))
-      REQUEST_TIMEOUT="$SEARCH_REQUEST_TIMEOUT_SECONDS"
-      if [ "$REQUEST_TIMEOUT" -gt "$REMAINING" ]; then REQUEST_TIMEOUT="$REMAINING"; fi
-      if ! RESP=$(curl -sS -b "$COOKIE" --max-time "$REQUEST_TIMEOUT" \
+      remaining_time=$(( DEADLINE - $(date +%s) ))
+      if [ "$remaining_time" -le 0 ]; then
+        break
+      fi
+      request_timeout="$SEARCH_REQUEST_TIMEOUT_SECONDS"
+      if [ "$request_timeout" -gt "$remaining_time" ]; then
+        request_timeout="$remaining_time"
+      fi
+      if ! RESP=$(curl -sS -b "$COOKIE" --max-time "$request_timeout" \
         "$BASE/search/?query=in:inbox&index=0&numResults=1" 2>&1); then
         sleep 2
         continue
