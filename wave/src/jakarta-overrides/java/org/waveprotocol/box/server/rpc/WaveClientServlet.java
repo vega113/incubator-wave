@@ -150,14 +150,14 @@ public class WaveClientServlet extends HttpServlet {
       try (var w = response.getWriter()) {
         // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
         // StringEscapeUtils.escapeHtml4 before threading it into the shell HTML.
-        w.write(HtmlRenderer.renderJ2clRootShellPage( // codeql[java/xss]
+        w.write(HtmlRenderer.renderJ2clRootShellPage(
             getSessionJson(session),
             analyticsAccount,
             buildCommit,
             serverBuildTime,
             currentReleaseId,
             rootShellReturnTarget,
-            resolveWebsocketAddressForPage(request)));
+            resolveWebsocketAddressForPage(request))); // codeql[java/xss]
       } catch (IOException e) {
         LOG.warning("Failed to render J2CL root shell page", e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -171,8 +171,8 @@ public class WaveClientServlet extends HttpServlet {
       if (locale != null) {
         String requestLocale = UrlParameters.getParameters(request.getQueryString()).get("locale");
         if (requestLocale == null) {
-          response.sendRedirect(UrlParameters.addParameter( // codeql[java/url-redirection]
-              buildLocalRedirectTarget(request), "locale", locale));
+          response.sendRedirect(UrlParameters.addParameter(
+              buildLocalRedirectTarget(request), "locale", locale)); // codeql[java/unvalidated-url-redirection]
           return;
         }
       }
@@ -200,7 +200,7 @@ public class WaveClientServlet extends HttpServlet {
 
       // Keep the legacy rollback path on the existing skeleton load until the
       // server-side pre-rendered fragment has an explicit sanitization boundary.
-      w.write(HtmlRenderer.renderWaveClientPage( // codeql[java/xss]
+      w.write(HtmlRenderer.renderWaveClientPage(
           getSessionJson(session),
           getClientFlags(request),
           resolveWebsocketAddressForPage(request),
@@ -209,7 +209,7 @@ public class WaveClientServlet extends HttpServlet {
           buildCommit,
           serverBuildTime,
           currentReleaseId,
-          null));
+          null)); // codeql[java/xss]
     } catch (IOException e) {
       LOG.warning("Failed to render WaveClient page", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
