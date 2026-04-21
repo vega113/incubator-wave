@@ -432,8 +432,22 @@ sanity_check() {
   local addr="${SANITY_ADDRESS:-}"
   local pass="${SANITY_PASSWORD:-}"
   local port="${SANITY_PORT:-9898}"
+  local sanity_search_deadline_seconds="${SANITY_SEARCH_DEADLINE_SECONDS:-120}"
+  local sanity_search_request_timeout_seconds="${SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS:-15}"
   if [[ -z "$addr" || -z "$pass" ]]; then
     echo "[deploy] ERROR: SANITY_ADDRESS and SANITY_PASSWORD must both be set" >&2
+    return 1
+  fi
+  if ! [[ "$sanity_search_deadline_seconds" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[deploy] ERROR: SANITY_SEARCH_DEADLINE_SECONDS must be a positive integer (got: '${sanity_search_deadline_seconds}')" >&2
+    return 1
+  fi
+  if ! [[ "$sanity_search_request_timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
+    echo "[deploy] ERROR: SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS must be a positive integer (got: '${sanity_search_request_timeout_seconds}')" >&2
+    return 1
+  fi
+  if (( sanity_search_request_timeout_seconds > sanity_search_deadline_seconds )); then
+    echo "[deploy] ERROR: SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS must be less than or equal to SANITY_SEARCH_DEADLINE_SECONDS (got: '${sanity_search_request_timeout_seconds}' > '${sanity_search_deadline_seconds}')" >&2
     return 1
   fi
 
@@ -442,11 +456,15 @@ sanity_check() {
   export INTERNAL_PORT="${port}"
   export SANITY_ADDR="${addr}"
   export SANITY_PASS="${pass}"
+  export SANITY_SEARCH_DEADLINE_SECONDS="${sanity_search_deadline_seconds}"
+  export SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS="${sanity_search_request_timeout_seconds}"
   # Use host network so we can reach the specific slot's host-mapped port
   docker run --rm --network host \
     -e INTERNAL_PORT \
     -e SANITY_ADDR \
     -e SANITY_PASS \
+    -e SANITY_SEARCH_DEADLINE_SECONDS \
+    -e SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS \
     "$sanity_image" sh -c '
     set -e
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
@@ -464,6 +482,8 @@ sanity_check() {
     BASE="http://localhost:${INTERNAL_PORT}"
     ADDR="$SANITY_ADDR"
     PASS="$SANITY_PASS"
+    SEARCH_DEADLINE_SECONDS="$SANITY_SEARCH_DEADLINE_SECONDS"
+    SEARCH_REQUEST_TIMEOUT_SECONDS="$SANITY_SEARCH_REQUEST_TIMEOUT_SECONDS"
     COOKIE=/tmp/c.txt
 
     # --- Step 1: Login ---------------------------------------------------
@@ -481,11 +501,19 @@ sanity_check() {
     fi
     echo "[sanity] login OK"
 
-    # --- Step 2: Poll search (60 s) --------------------------------------
-    DEADLINE=$(( $(date +%s) + 60 ))
+    # --- Step 2: Poll search until the cold slot finishes inbox warmup ----
+    DEADLINE=$(( $(date +%s) + SEARCH_DEADLINE_SECONDS ))
     WAVE_ID=""
-    while [ "$(date +%s)" -lt "$DEADLINE" ]; do
-      if ! RESP=$(curl -sS -b "$COOKIE" --max-time 10 \
+    while true; do
+      remaining_time=$(( DEADLINE - $(date +%s) ))
+      if [ "$remaining_time" -le 0 ]; then
+        break
+      fi
+      request_timeout="$SEARCH_REQUEST_TIMEOUT_SECONDS"
+      if [ "$request_timeout" -gt "$remaining_time" ]; then
+        request_timeout="$remaining_time"
+      fi
+      if ! RESP=$(curl -sS -b "$COOKIE" --max-time "$request_timeout" \
         "$BASE/search/?query=in:inbox&index=0&numResults=1" 2>&1); then
         sleep 2
         continue
@@ -495,7 +523,7 @@ sanity_check() {
       sleep 2
     done
     if [ -z "$WAVE_ID" ]; then
-      echo "[sanity] FAIL: search returned no waves within 60 s"
+      echo "[sanity] FAIL: search returned no waves within ${SEARCH_DEADLINE_SECONDS} s"
       exit 1
     fi
     echo "[sanity] search OK — found wave: $WAVE_ID"
