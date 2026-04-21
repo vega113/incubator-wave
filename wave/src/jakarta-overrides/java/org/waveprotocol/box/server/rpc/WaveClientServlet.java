@@ -142,6 +142,11 @@ public class WaveClientServlet extends HttpServlet {
     response.setStatus(HttpServletResponse.SC_OK);
     try (var w = response.getWriter()) {
       String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
+      String hostHeader = request.getHeader("Host");
+      String wsAddressForPage =
+          (!hasExplicitWebsocketPresentedAddress && hostHeader != null && !hostHeader.isEmpty())
+              ? hostHeader
+              : websocketPresentedAddress;
       // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
       // StringEscapeUtils.escapeHtml4 before threading it into the shell HTML.
       w.write(HtmlRenderer.renderJ2clRootShellPage( // codeql[java/xss]
@@ -151,7 +156,7 @@ public class WaveClientServlet extends HttpServlet {
           serverBuildTime,
           currentReleaseId,
           rootShellReturnTarget,
-          websocketPresentedAddress));
+          wsAddressForPage));
     } catch (IOException e) {
       LOG.warning("Failed to render J2CL root shell page", e);
       response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);

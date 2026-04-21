@@ -157,6 +157,23 @@ public final class WaveClientServletJ2clRootShellTest {
   }
 
   @Test
+  public void j2clRootShellUsesHostHeaderWhenNoPresentedAddressConfigured() throws Exception {
+    WaveClientServlet servlet = createServlet(ParticipantId.ofUnsafe("alice@example.com"));
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    StringWriter body = new StringWriter();
+    when(request.getParameter("view")).thenReturn("j2cl-root");
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
+    when(request.getHeader("Host")).thenReturn("wave.example.com");
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    servlet.doGet(request, response);
+
+    assertTrue(body.toString().contains("\"wave.example.com\""));
+  }
+
+  @Test
   public void renderJ2clRootShellPageRejectsNonLocalReturnTargets() {
     String html =
         HtmlRenderer.renderJ2clRootShellPage(

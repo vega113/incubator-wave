@@ -90,6 +90,16 @@ public class J2clSidecarRouteCodecTest {
   }
 
   @Test
+  public void legacyHashAmpersandMetadataIsStripped() {
+    // Legacy Wave history tokens can append focus/depth state with '&'; only the wave-id portion
+    // should be returned.
+    Assert.assertEquals(
+        "example.com/w+abc123",
+        J2clSidecarRouteCodec.parse("", "#example.com/w+abc123&focus=blip1")
+            .getSelectedWaveId());
+  }
+
+  @Test
   public void legacyHashMissingOrInvalidIsNull() {
     Assert.assertNull(J2clSidecarRouteCodec.parse("", null).getSelectedWaveId());
     Assert.assertNull(J2clSidecarRouteCodec.parse("", "").getSelectedWaveId());

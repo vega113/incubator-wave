@@ -98,6 +98,10 @@ public final class J2clSidecarRouteCodec {
     if (queryStart >= 0) {
       trimmed = trimmed.substring(0, queryStart);
     }
+    int metadataStart = trimmed.indexOf('&');
+    if (metadataStart >= 0) {
+      trimmed = trimmed.substring(0, metadataStart);
+    }
     if (trimmed.isEmpty()) {
       return null;
     }
