@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-21-j2cl-root-shell-admin-access",
+  "version": "Unreleased",
+  "date": "2026-04-21",
+  "title": "Admin and owner sessions can reach the existing admin controls from the J2CL root shell",
+  "summary": "The active J2CL root shell now exposes a server-rendered Admin link for admin and owner sessions so they can reach the existing `/admin` page and Feature Flags controls without falling back to the legacy shell.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Added a role-gated Admin link to the signed-in J2CL root-shell navigation for `admin` and `owner` sessions",
+        "Kept the existing `/admin` page as the feature-flags entry point instead of introducing a separate J2CL-native admin surface"
+      ]
+    }
+  ]
+}

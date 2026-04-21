@@ -3217,7 +3217,10 @@ public final class HtmlRenderer {
       String rootShellReturnTarget, String websocketAddress) {
     JSONObject resolvedSessionJson = sessionJson == null ? new JSONObject() : sessionJson;
     String address = resolvedSessionJson.optString(SessionConstants.ADDRESS, "");
+    String role = resolvedSessionJson.optString(SessionConstants.ROLE, HumanAccountData.ROLE_USER);
     boolean signedIn = address != null && !address.isEmpty();
+    boolean isAdminOrOwner =
+        HumanAccountData.ROLE_ADMIN.equals(role) || HumanAccountData.ROLE_OWNER.equals(role);
     String resolvedReturnTarget = normalizeLocalReturnTarget(rootShellReturnTarget);
     String safeResolvedReturnTarget = StringEscapeUtils.escapeHtml4(resolvedReturnTarget);
     String safeEncodedReturnTarget =
@@ -3279,6 +3282,9 @@ public final class HtmlRenderer {
     sb.append("    <nav class=\"j2cl-root-shell-nav\" aria-label=\"Session controls\">\n");
     if (signedIn) {
       sb.append("      <span class=\"j2cl-root-shell-pill\">Signed in as ").append(escapeHtml(address)).append("</span>\n");
+      if (isAdminOrOwner) {
+        sb.append("      <a data-j2cl-root-admin-link=\"true\" class=\"j2cl-root-shell-link secondary\" href=\"/admin\">Admin</a>\n");
+      }
       sb.append("      <a data-j2cl-root-signout=\"true\" class=\"j2cl-root-shell-link secondary\" href=\"/auth/signout?r=")
           .append(safeEncodedReturnTarget)
           .append("\">Sign out</a>\n");
