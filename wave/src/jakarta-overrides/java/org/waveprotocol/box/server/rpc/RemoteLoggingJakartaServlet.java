@@ -1,12 +1,16 @@
 package org.waveprotocol.box.server.rpc;
 
+import com.google.inject.Inject;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.waveprotocol.wave.util.logging.Log;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import org.waveprotocol.box.server.authentication.SessionManager;
+import org.waveprotocol.box.server.authentication.WebSession;
+import org.waveprotocol.box.server.authentication.WebSessions;
+import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.util.logging.Log;
 
 /**
  * Minimal Jakarta-compatible remote logging endpoint. Accepts POST bodies
@@ -15,9 +19,22 @@ import java.nio.charset.StandardCharsets;
  */
 public class RemoteLoggingJakartaServlet extends HttpServlet {
   private static final Log LOG = Log.get(RemoteLoggingJakartaServlet.class);
+  private final SessionManager sessionManager;
+
+  @Inject
+  public RemoteLoggingJakartaServlet(SessionManager sessionManager) {
+    this.sessionManager = sessionManager;
+  }
 
   @Override
   protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    WebSession session = WebSessions.from(req, false);
+    ParticipantId loggedInUser = sessionManager.getLoggedInUser(session);
+    if (loggedInUser == null) {
+      resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Authentication required");
+      return;
+    }
+
     // Read body upto 32 KiB to avoid unbounded growth
     final int max = 32 * 1024; // 32 KiB hard cap
     int cl = req.getContentLength();

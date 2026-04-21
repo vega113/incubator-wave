@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import javax.inject.Singleton;
 import org.apache.commons.lang3.StringUtils;
 import org.json.JSONException;
@@ -148,11 +149,6 @@ public class WaveClientServlet extends HttpServlet {
       response.setCharacterEncoding("UTF-8");
       response.setStatus(HttpServletResponse.SC_OK);
       try (var w = response.getWriter()) {
-        String hostHeader = request.getHeader("Host");
-        String wsAddressForPage =
-            (!hasExplicitWebsocketPresentedAddress && hostHeader != null && !hostHeader.isEmpty())
-                ? hostHeader
-                : websocketPresentedAddress;
         // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
         // StringEscapeUtils.escapeHtml4 before threading it into the shell HTML.
         w.write(HtmlRenderer.renderJ2clRootShellPage( // codeql[java/xss]
@@ -162,7 +158,7 @@ public class WaveClientServlet extends HttpServlet {
             serverBuildTime,
             currentReleaseId,
             rootShellReturnTarget,
-            wsAddressForPage));
+            resolveWebsocketAddressForPage(request)));
       } catch (IOException e) {
         LOG.warning("Failed to render J2CL root shell page", e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -176,11 +172,8 @@ public class WaveClientServlet extends HttpServlet {
       if (locale != null) {
         String requestLocale = UrlParameters.getParameters(request.getQueryString()).get("locale");
         if (requestLocale == null) {
-          String redirectUrl = request.getRequestURI();
-          if (request.getQueryString() != null && !request.getQueryString().isEmpty()) {
-            redirectUrl += "?" + request.getQueryString();
-          }
-          response.sendRedirect(UrlParameters.addParameter(redirectUrl, "locale", locale));
+          response.sendRedirect(UrlParameters.addParameter(
+              buildLocalRedirectTarget(request), "locale", locale));
           return;
         }
       }
@@ -190,11 +183,6 @@ public class WaveClientServlet extends HttpServlet {
     response.setCharacterEncoding("UTF-8");
     response.setStatus(HttpServletResponse.SC_OK);
     try (var w = response.getWriter()) {
-      String hostHeader = request.getHeader("Host");
-      String wsAddressForPage =
-          (!hasExplicitWebsocketPresentedAddress && hostHeader != null && !hostHeader.isEmpty())
-              ? hostHeader
-              : websocketPresentedAddress;
       String topBarHtml = "";
       if (id != null) {
         String username = id.getAddress().split("@")[0];
@@ -223,7 +211,7 @@ public class WaveClientServlet extends HttpServlet {
       w.write(HtmlRenderer.renderWaveClientPage(
           getSessionJson(session),
           getClientFlags(request),
-          wsAddressForPage,
+          resolveWebsocketAddressForPage(request),
           topBarHtml,
           analyticsAccount,
           buildCommit,
@@ -492,6 +480,72 @@ public class WaveClientServlet extends HttpServlet {
 
   private static String encodeReturnTargetComponent(String value) {
     return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+  }
+
+  private String buildLocalRedirectTarget(HttpServletRequest request) {
+    String requestUri = request.getRequestURI();
+    String safeRequestUri =
+        requestUri != null && requestUri.startsWith("/") && !requestUri.startsWith("//")
+            ? requestUri
+            : "/";
+    String queryString = request.getQueryString();
+    if (queryString == null || queryString.isEmpty()) {
+      return safeRequestUri;
+    }
+    return safeRequestUri + "?" + queryString;
+  }
+
+  private String resolveWebsocketAddressForPage(HttpServletRequest request) {
+    if (hasExplicitWebsocketPresentedAddress) {
+      return websocketPresentedAddress;
+    }
+
+    String hostHeader = firstHeaderValue(request.getHeader("Host"));
+    if (isTrustedWebsocketHost(hostHeader)) {
+      return hostHeader;
+    }
+
+    return websocketPresentedAddress;
+  }
+
+  private boolean isTrustedWebsocketHost(String host) {
+    if (host == null || host.isEmpty()) {
+      return false;
+    }
+    String normalizedHost = normalizeHostName(host);
+    return normalizedHost.equalsIgnoreCase(domain)
+        || "localhost".equalsIgnoreCase(normalizedHost)
+        || "127.0.0.1".equals(normalizedHost)
+        || "::1".equals(normalizedHost);
+  }
+
+  private static String firstHeaderValue(String headerValue) {
+    if (headerValue == null || headerValue.isEmpty()) {
+      return "";
+    }
+    int commaIndex = headerValue.indexOf(',');
+    String singleValue = commaIndex >= 0 ? headerValue.substring(0, commaIndex) : headerValue;
+    return singleValue.trim();
+  }
+
+  private static String normalizeHostName(String host) {
+    String normalizedHost = host.trim().toLowerCase(Locale.ROOT);
+    if (normalizedHost.startsWith("[")) {
+      int closingBracket = normalizedHost.indexOf(']');
+      if (closingBracket > 0
+          && (closingBracket == normalizedHost.length() - 1
+              || normalizedHost.charAt(closingBracket + 1) == ':')) {
+        return normalizedHost.substring(1, closingBracket);
+      }
+      return normalizedHost;
+    }
+
+    int portSeparator = normalizedHost.indexOf(':');
+    if (portSeparator >= 0 && normalizedHost.indexOf(':', portSeparator + 1) < 0) {
+      return normalizedHost.substring(0, portSeparator);
+    }
+
+    return normalizedHost;
   }
 
   private String resolveRequestedView(HttpServletRequest request) {

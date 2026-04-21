@@ -250,7 +250,7 @@ check() {
   legacy_status=$(curl -sS --max-time 10 -o /dev/null -w "%{http_code}" "http://localhost:$PORT/webclient/webclient.nocache.js" || true)
   echo "WEBCLIENT_STATUS=${legacy_status:-000}"
   if [[ "${legacy_status}" -ne 200 ]]; then
-    echo "Missing coexistence asset: /webclient/webclient.nocache.js" >&2
+    echo "Missing coexistence asset: /webclient/webclient.nocache.js (status=${legacy_status})" >&2
     return 1
   fi
 }

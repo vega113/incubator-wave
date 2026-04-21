@@ -22,6 +22,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.typesafe.config.Config;
@@ -34,6 +35,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.junit.After;
 import org.junit.Test;
+import org.waveprotocol.box.server.account.AccountData;
+import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.persistence.AccountStore;
@@ -125,6 +128,53 @@ public final class WaveClientServletJ2clBootstrapTest {
   }
 
   @Test
+  public void j2clRootFallsBackToConfiguredWebsocketAddressWhenHostHeaderIsUntrusted()
+      throws Exception {
+    WaveClientServlet servlet = createServlet(null, true);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    StringWriter body = new StringWriter();
+    when(request.getSession(false)).thenReturn(null);
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getHeader("Host")).thenReturn("evil.example.com\"><script>alert(1)</script>");
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    servlet.doGet(request, response);
+
+    String html = body.toString();
+    assertTrue(html.contains("127.0.0.1:9898"));
+    assertFalse(html.contains("evil.example.com"));
+  }
+
+  @Test
+  public void humanLocaleRedirectUsesRequestUriInsteadOfAbsoluteRequestUrl() throws Exception {
+    ParticipantId user = ParticipantId.ofUnsafe("alice@example.com");
+    SessionManager sessionManager = mock(SessionManager.class);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(user);
+    when(sessionManager.getLoggedInUser((WebSession) null)).thenReturn(user);
+
+    AccountData account = mock(AccountData.class);
+    HumanAccountData human = mock(HumanAccountData.class);
+    when(account.isHuman()).thenReturn(true);
+    when(account.asHuman()).thenReturn(human);
+    when(human.getLocale()).thenReturn("fr");
+    when(sessionManager.getLoggedInAccount(any(WebSession.class))).thenReturn(account);
+
+    WaveClientServlet servlet = createServlet(false, sessionManager, mock(AccountStore.class));
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getRequestURI()).thenReturn("/wave");
+    when(request.getRequestURL()).thenReturn(new StringBuffer("https://evil.example.com/wave"));
+    when(request.getQueryString()).thenReturn("foo=bar");
+
+    servlet.doGet(request, response);
+
+    verify(response).sendRedirect("/wave?foo=bar&locale=fr");
+  }
+
+  @Test
   public void explicitLandingRouteStillUsesLandingPage() throws Exception {
     WaveClientServlet servlet = createServlet(ParticipantId.ofUnsafe("alice@example.com"), false);
     HttpServletRequest request = mock(HttpServletRequest.class);
@@ -166,15 +216,21 @@ public final class WaveClientServletJ2clBootstrapTest {
 
   private WaveClientServlet createServlet(ParticipantId user, boolean bootstrapEnabled)
       throws Exception {
+    SessionManager sessionManager = mock(SessionManager.class);
+    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(user);
+    when(sessionManager.getLoggedInUser((WebSession) null)).thenReturn(user);
+    return createServlet(bootstrapEnabled, sessionManager, mock(AccountStore.class));
+  }
+
+  private WaveClientServlet createServlet(
+      boolean bootstrapEnabled, SessionManager sessionManager, AccountStore accountStore)
+      throws Exception {
     Config config = ConfigFactory.parseString(
         "core.http_frontend_addresses=[\"127.0.0.1:9898\"]\n"
             + "core.http_websocket_public_address=\"\"\n"
             + "core.http_websocket_presented_address=\"\"\n"
             + "core.search_type=\"memory\"\n"
             + "administration.analytics_account=\"\"\n");
-    SessionManager sessionManager = mock(SessionManager.class);
-    when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(user);
-    when(sessionManager.getLoggedInUser((WebSession) null)).thenReturn(user);
     MemoryFeatureFlagStore featureFlagStore = new MemoryFeatureFlagStore();
     featureFlagStore.save(
         new FeatureFlag(
@@ -188,7 +244,7 @@ public final class WaveClientServletJ2clBootstrapTest {
         "example.com",
         config,
         sessionManager,
-        mock(AccountStore.class),
+        accountStore,
         new VersionServlet("test", 0L),
         mock(WavePreRenderer.class),
         featureFlagService);
