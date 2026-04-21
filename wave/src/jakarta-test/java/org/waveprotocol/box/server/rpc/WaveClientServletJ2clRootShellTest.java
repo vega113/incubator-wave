@@ -35,6 +35,8 @@ import jakarta.servlet.http.HttpSession;
 import org.junit.Test;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
+import org.waveprotocol.box.server.account.AccountData;
+import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.FeatureFlagService;
 import org.waveprotocol.box.server.persistence.FeatureFlagStore;
@@ -137,6 +139,29 @@ public final class WaveClientServletJ2clRootShellTest {
   }
 
   @Test
+  public void signedInAdminJ2clRootShellShowsAdminLink() throws Exception {
+    String html = renderSignedInJ2clRootShellWithRole(HumanAccountData.ROLE_ADMIN);
+
+    assertTrue(html.contains("data-j2cl-root-admin-link=\"true\""));
+    assertTrue(html.contains("href=\"/admin\""));
+  }
+
+  @Test
+  public void signedInOwnerJ2clRootShellShowsAdminLink() throws Exception {
+    String html = renderSignedInJ2clRootShellWithRole(HumanAccountData.ROLE_OWNER);
+
+    assertTrue(html.contains("data-j2cl-root-admin-link=\"true\""));
+    assertTrue(html.contains("href=\"/admin\""));
+  }
+
+  @Test
+  public void signedInUserJ2clRootShellDoesNotShowAdminLink() throws Exception {
+    String html = renderSignedInJ2clRootShellWithRole(HumanAccountData.ROLE_USER);
+
+    assertFalse(html.contains("data-j2cl-root-admin-link=\"true\""));
+  }
+
+  @Test
   public void signedInJ2clRootShellStillExposesLegacyBootstrapGlobals() throws Exception {
     WaveClientServlet servlet = createServlet(ParticipantId.ofUnsafe("alice@example.com"));
     HttpServletRequest request = mock(HttpServletRequest.class);
@@ -191,6 +216,10 @@ public final class WaveClientServletJ2clRootShellTest {
   }
 
   private static WaveClientServlet createServlet(ParticipantId user) throws Exception {
+    return createServlet(user, HumanAccountData.ROLE_USER);
+  }
+
+  private static WaveClientServlet createServlet(ParticipantId user, String role) throws Exception {
     Config config = ConfigFactory.parseString(
         "core.http_frontend_addresses=[\"127.0.0.1:9898\"]\n"
             + "core.http_websocket_public_address=\"\"\n"
@@ -198,16 +227,40 @@ public final class WaveClientServletJ2clRootShellTest {
             + "core.search_type=\"memory\"\n"
             + "administration.analytics_account=\"\"\n");
     SessionManager sessionManager = mock(SessionManager.class);
+    AccountStore accountStore = mock(AccountStore.class);
     when(sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(user);
     when(sessionManager.getLoggedInUser((WebSession) null)).thenReturn(user);
+    if (user != null) {
+      AccountData accountData = mock(AccountData.class);
+      HumanAccountData humanAccountData = mock(HumanAccountData.class);
+      when(accountData.isHuman()).thenReturn(true);
+      when(accountData.asHuman()).thenReturn(humanAccountData);
+      when(humanAccountData.getRole()).thenReturn(role);
+      when(accountStore.getAccount(user)).thenReturn(accountData);
+    }
     return new WaveClientServlet(
         "example.com",
         config,
         sessionManager,
-        mock(AccountStore.class),
+        accountStore,
         new VersionServlet("test", 0L),
         mock(WavePreRenderer.class),
         new FeatureFlagService(featureFlagStore()));
+  }
+
+  private static String renderSignedInJ2clRootShellWithRole(String role) throws Exception {
+    WaveClientServlet servlet =
+        createServlet(ParticipantId.ofUnsafe("alice@example.com"), role);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    StringWriter body = new StringWriter();
+    when(request.getParameter("view")).thenReturn("j2cl-root");
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    servlet.doGet(request, response);
+    return body.toString();
   }
 
   private static FeatureFlagStore featureFlagStore() throws Exception {
