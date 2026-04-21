@@ -80,6 +80,7 @@ public final class WaveClientServletJ2clBootstrapTest {
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
+    when(request.getContextPath()).thenReturn("");
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(request.getSession(false)).thenReturn(mock(HttpSession.class));
     when(response.getWriter()).thenReturn(new PrintWriter(body));
@@ -93,11 +94,13 @@ public final class WaveClientServletJ2clBootstrapTest {
   }
 
   @Test
-  public void signedOutRootFallsBackToLegacyBootstrapWhenBootstrapFlagIsOff() throws Exception {
+  public void signedOutPlainRootFallsBackToLegacyBootstrapWhenBootstrapFlagIsOff()
+      throws Exception {
     WaveClientServlet servlet = createServlet(null, false);
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
+    when(request.getContextPath()).thenReturn("");
     when(request.getSession(false)).thenReturn(null);
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(response.getWriter()).thenReturn(new PrintWriter(body));
@@ -110,11 +113,12 @@ public final class WaveClientServletJ2clBootstrapTest {
   }
 
   @Test
-  public void signedOutRootBootsIntoJ2clShellWhenBootstrapFlagIsOn() throws Exception {
+  public void signedOutPlainRootBootsIntoJ2clShellWhenBootstrapFlagIsOn() throws Exception {
     WaveClientServlet servlet = createServlet(null, true);
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
+    when(request.getContextPath()).thenReturn("");
     when(request.getSession(false)).thenReturn(null);
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(response.getWriter()).thenReturn(new PrintWriter(body));
@@ -201,6 +205,7 @@ public final class WaveClientServletJ2clBootstrapTest {
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
+    when(request.getContextPath()).thenReturn("");
     when(request.getParameter("view")).thenReturn("j2cl-root");
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(request.getSession(false)).thenReturn(null);
