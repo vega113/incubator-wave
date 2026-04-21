@@ -3341,6 +3341,7 @@ public final class HtmlRenderer {
       sb.append("  var trimmed=hash.charAt(0)==='#'?hash.substring(1):hash;\n");
       sb.append("  if(!trimmed){return null;}\n");
       sb.append("  var token=trimmed.split('&')[0];\n");
+      sb.append("  token=token.split('?')[0];\n");
       sb.append("  return token.indexOf('/')>=0 ? token : null;\n");
       sb.append("}\n");
       sb.append("function normalizeLegacyHashDeepLink(){\n");

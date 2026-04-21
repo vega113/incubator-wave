@@ -62,6 +62,7 @@ public final class HtmlRendererChangelogTest {
         "localhost:9898");
 
     assertTrue(html.contains("function waveIdFromLegacyHash(hash){"));
+    assertTrue(html.contains("token=token.split('?')[0];"));
     assertTrue(html.contains("function normalizeLegacyHashDeepLink(){"));
     assertTrue(html.contains("var nextUrl='/?view=j2cl-root&wave=' + encodeURIComponent(waveId);"));
     assertTrue(html.contains("normalizeLegacyHashDeepLink();"));
