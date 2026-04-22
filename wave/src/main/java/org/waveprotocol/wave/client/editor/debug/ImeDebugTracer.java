@@ -93,7 +93,7 @@ public final class ImeDebugTracer {
   public static boolean isEnabled() {
     if (!initialized) {
       initialize();
-    } else if (!enabled && shouldRetryRefresh()) {
+    } else if ((!enabled || !remoteUploadEnabled) && shouldRetryRefresh()) {
       refreshEnabledState();
     }
     return enabled;
@@ -110,19 +110,24 @@ public final class ImeDebugTracer {
   }
 
   private static void refreshEnabledState() {
-    if (enabled) {
+    if (enabled && remoteUploadEnabled) {
       return;
     }
     boolean sessionEnabled = isSessionFlagEnabled();
-    if (!sessionEnabled && !FLAG_ON.equals(readFlagJsni())) {
-      return;
+    if (!enabled) {
+      if (!sessionEnabled && !FLAG_ON.equals(readFlagJsni())) {
+        return;
+      }
+      enabled = true;
+      nextRefreshAttemptMs = 0.0;
+      baselineMs = nowMsJsni();
+      installGlobalEventListenersJsni(baselineMs);
+      ensureOverlayJsni();
     }
-    enabled = true;
-    remoteUploadEnabled = sessionEnabled;
-    nextRefreshAttemptMs = 0.0;
-    baselineMs = nowMsJsni();
-    installGlobalEventListenersJsni(baselineMs);
-    ensureOverlayJsni();
+    if (sessionEnabled) {
+      remoteUploadEnabled = true;
+      nextRefreshAttemptMs = 0.0;
+    }
   }
 
   private static boolean shouldRetryRefresh() {
