@@ -203,7 +203,7 @@ enumerates; any other rich-edit affordances remain deferred per Section 10.
 | R-4.4 | `#931` |
 | R-4.8 | `#936` |
 | R-4.1, R-4.3 | `#933` for HttpOnly-compatible auth |
-| R-5.* | R-3.* and R-4.* reaching gate state for the same slice |
+| R-5.\* | R-3.\* and R-4.\* reaching gate state for the same slice |
 | R-6.1, R-6.3 | R-4.2, R-6.2 |
 
 These are behavior dependencies, not scheduling claims. The issue map owns the
