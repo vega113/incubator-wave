@@ -3,6 +3,7 @@
 Status: Proposed  
 Updated: 2026-04-22  
 Owner: Project Maintainers  
+Review cadence: on-change
 Parent tracker: [#904](https://github.com/vega113/supawave/issues/904)  
 Task issue: [#954](https://github.com/vega113/supawave/issues/954)
 
