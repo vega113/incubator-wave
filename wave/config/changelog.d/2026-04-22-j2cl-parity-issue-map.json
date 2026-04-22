@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-22-j2cl-parity-issue-map",
+  "version": "Issue #960",
+  "date": "2026-04-22",
+  "title": "The J2CL parity issue map now turns the remaining migration into an executable issue chain",
+  "summary": "The new issue-map doc keeps the right existing J2CL follow-ups, adds the missing parity issues, and defines the dependency order from parity matrix through read/live/edit parity to opt-in bootstrap, cutover, and eventual GWT retirement.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a dedicated J2CL parity issue-map doc that separates retained open issues from the missing parity slices still needed under #904",
+        "Documented the execution chain for parity work, including Lit shell/read/live/edit stages, server-rendered first paint, viewport-scoped fragments, and parity-gated cutover/retirement"
+      ]
+    }
+  ]
+}

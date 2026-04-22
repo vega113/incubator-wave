@@ -38,7 +38,6 @@ docs/runbooks/mongo-migrations.md
 docs/runbooks/worktree-diagnostics.md
 docs/runbooks/worktree-lane-lifecycle.md
 docs/runbooks/doc-guardrails.md
-docs/runbooks/j2cl-sidecar-testing.md
 docs/README.md
 docs/DEV_SETUP.md
 docs/BUILDING-sbt.md
@@ -46,6 +45,7 @@ docs/SMOKE_TESTS.md
 docs/current-state.md
 docs/j2cl-parity-architecture.md
 docs/j2cl-lit-implementation-workflow.md
+docs/j2cl-parity-issue-map.md
 docs/github-issues.md
 docs/agents/README.md
 docs/architecture/README.md
