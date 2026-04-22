@@ -76,6 +76,8 @@ public final class ImeDebugTracer {
   private static final int REMOTE_UPLOAD_MAX_BATCH_LINES = 20;
   private static final int REMOTE_UPLOAD_DELAY_MS = 750;
   private static final int REMOTE_UPLOAD_TIMEOUT_MS = 10000;
+  private static final int REMOTE_UPLOAD_MAX_QUEUE_LINES = 200;
+  private static final int REMOTE_UPLOAD_MAX_QUEUE_CHARS = 65536;
 
   private ImeDebugTracer() {
     // Utility.
@@ -300,7 +302,9 @@ public final class ImeDebugTracer {
           line,
           REMOTE_UPLOAD_MAX_BATCH_CHARS,
           REMOTE_UPLOAD_MAX_BATCH_LINES,
-          REMOTE_UPLOAD_DELAY_MS);
+          REMOTE_UPLOAD_DELAY_MS,
+          REMOTE_UPLOAD_MAX_QUEUE_LINES,
+          REMOTE_UPLOAD_MAX_QUEUE_CHARS);
     }
   }
 
@@ -447,7 +451,9 @@ public final class ImeDebugTracer {
         msg,
         REMOTE_UPLOAD_MAX_BATCH_CHARS,
         REMOTE_UPLOAD_MAX_BATCH_LINES,
-        REMOTE_UPLOAD_DELAY_MS);
+        REMOTE_UPLOAD_DELAY_MS,
+        REMOTE_UPLOAD_MAX_QUEUE_LINES,
+        REMOTE_UPLOAD_MAX_QUEUE_CHARS);
   }
 
   private static native void ensureOverlayJsni() /*-{
@@ -515,7 +521,8 @@ public final class ImeDebugTracer {
   }-*/;
 
   private static native void queueRemoteLogJsni(
-      String line, int maxBatchChars, int maxBatchLines, int flushDelayMs) /*-{
+      String line, int maxBatchChars, int maxBatchLines, int flushDelayMs,
+      int maxQueueLines, int maxQueueChars) /*-{
     try {
       var w = $wnd;
       var state = w.__imeDebugRemoteLogState;
@@ -598,6 +605,11 @@ public final class ImeDebugTracer {
 
       state.queue.push(line);
       state.queuedChars += (line ? line.length : 0) + 1;
+      while (state.queue.length > maxQueueLines || state.queuedChars > maxQueueChars) {
+        var dropped = state.queue.shift();
+        state.queuedChars -= (dropped ? dropped.length : 0) + 1;
+      }
+      if (state.queuedChars < 0) { state.queuedChars = 0; }
       if (state.queuedChars >= maxBatchChars || state.queue.length >= maxBatchLines) {
         flush();
         return;
