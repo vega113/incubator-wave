@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-22-j2cl-lit-workflow",
+  "version": "Issue #958",
+  "date": "2026-04-22",
+  "title": "The J2CL/Lit workflow doc now defines how to use Stitch, image generation, and specs together",
+  "summary": "The new workflow doc explains that parity work should stay code/spec-first, use Stitch as the main structured design accelerator, and use image-generation tools only for visual direction and moodboards.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a dedicated J2CL/Lit implementation workflow doc that explains how to move from current GWT behavior inventory to approved Lit implementation slices",
+        "Documented a concrete tool split: Stitch for screen/design-system exploration, image generation for visual direction, and code/specs as the behavioral source of truth"
+      ]
+    }
+  ]
+}
