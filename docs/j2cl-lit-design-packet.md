@@ -64,7 +64,7 @@ What this packet **is not**:
    [`docs/j2cl-parity-slice-packet-template.md`](./j2cl-parity-slice-packet-template.md))
    records: the matrix rows claimed, the component families consumed from
    this packet, and — if any family is Stitch-Required — the pinned Stitch
-   project/screen/variant identifiers in the packet's "Server/client surface
+   project/screen/variant identifiers in the packet's "Server / client surface
    list" or "Required-match behaviors" blocks.
 3. Any visual modernization a slice performs is bounded by what this packet
    declares as *allowed*. New tokens, families, or variants must go through
@@ -384,7 +384,7 @@ For each row:
 | §5.2 Read-Surface | Required | `#966` | Stitch project with wave-panel, blip-card, thread-container, focus-frame, collapse-toggle, thread-nav-control, visible-region-placeholder, read-only-skeleton screens; variants for density and visible-region states | Read-surface is the largest user-visible parity gap. |
 | §5.6 Server-First First-Paint | Required | `#965` | Stitch project with server-shell-skeleton, server-wave-skeleton, server-upgrade-placeholder, server-rollback-chrome screens; upgrade-transition walkthrough (no unstyled flash) | The upgrade path is parity-critical and must not be reverse-engineered from a screenshot. |
 | §5.3 Live-Surface Indicators | Optional | `#968`, `#931` (unread/read visual parity) | n/a | Behavior lives in J2CL; visual indicator styling rarely needs exploratory variants. Slice packet spec is enough. |
-| §5.4 Compose / Toolbar | Optional for this packet; promotes to Required under `#969` via a packet amendment PR, per §10 | `#969` | Promotion under `#969` must pin: Stitch project with composer-shell, composer-inline-reply, toolbar-group, toolbar-button, toolbar-overflow-menu, composer-submit-affordance screens; state toggle variants | Issue map §7 permits Stitch for compose/toolbar where behavior is already frozen by the slice packet. |
+| §5.4 Compose / Toolbar | Optional | `#969` | Promotion under `#969` must pin: Stitch project with composer-shell, composer-inline-reply, toolbar-group, toolbar-button, toolbar-overflow-menu, composer-submit-affordance screens; state toggle variants | Issue map §7 permits Stitch for compose/toolbar where behavior is already frozen by the slice packet. Promotes to Required under `#969` via a packet amendment PR, per §10. |
 | §5.5 Interaction Overlays | Optional | `#970`, `#969` | n/a | Overlay visuals benefit from Stitch but most behavior is spec-driven. |
 | Fragment viewport logic (`R-7.*`) | Prohibited | `#967` | n/a | Transport/clamp/window logic is J2CL-owned (issue map §7). Visual affordances (loading placeholders) are already covered under §5.2 `visible-region-placeholder`. |
 | Bootstrap JSON contract (`R-4.2`, `R-6.2`) | Prohibited | `#963` | n/a | Not on the visual critical path; transport/contract work. |
