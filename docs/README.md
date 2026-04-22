@@ -2,7 +2,7 @@
 
 Status: Canonical
 Owner: Project Maintainers
-Updated: 2026-04-04
+Updated: 2026-04-22
 Review cadence: quarterly
 
 This directory keeps the existing documentation in place and adds a small map
@@ -60,6 +60,7 @@ Split of responsibility:
 - [`j2cl-gwt3-inventory.md`](j2cl-gwt3-inventory.md)
 - [`j2cl-gwt3-decision-memo.md`](j2cl-gwt3-decision-memo.md)
 - [`j2cl-parity-architecture.md`](j2cl-parity-architecture.md)
+- [`j2cl-lit-implementation-workflow.md`](j2cl-lit-implementation-workflow.md)
 
 ## Ledgers
 

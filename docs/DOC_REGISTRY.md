@@ -45,6 +45,7 @@ docs/BUILDING-sbt.md
 docs/SMOKE_TESTS.md
 docs/current-state.md
 docs/j2cl-parity-architecture.md
+docs/j2cl-lit-implementation-workflow.md
 docs/github-issues.md
 docs/agents/README.md
 docs/architecture/README.md
