@@ -82,7 +82,7 @@ public final class J2clSelectedWaveProjector {
     } else {
       return null;
     }
-    if (channelId == null || channelId.isEmpty() || replyTargetBlipId == null) {
+    if (channelId == null || channelId.isEmpty() || replyTargetBlipId == null || replyTargetBlipId.isEmpty()) {
       return null;
     }
     return new J2clSidecarWriteSession(
