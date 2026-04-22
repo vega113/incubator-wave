@@ -92,7 +92,7 @@ Replace the two independent resolutions (`resolveBaseVersion` result +
 `historyHash` fallback) with a single coupled resolution inside
 `buildWriteSession`:
 
-```
+```java
 long baseVersion;
 String historyHash;
 
@@ -166,7 +166,7 @@ All five tests construct `SidecarSelectedWaveUpdate` directly and call
 Targeted Maven run (mirrors PR #935's verification pattern, restricted to
 the changed projector and its nearest neighbors):
 
-```
+```bash
 ./j2cl/mvnw -f j2cl/pom.xml -Psearch-sidecar \
   -Dtest=org.waveprotocol.box.j2cl.search.J2clSelectedWaveProjectorTest,org.waveprotocol.box.j2cl.search.J2clSelectedWaveControllerTest \
   test
