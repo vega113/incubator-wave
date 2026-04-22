@@ -49,8 +49,10 @@ Every parity slice in Section 4 of the issue map must:
 
 Row-sourcing rules enforced by review:
 
-- every row cites at least one concrete GWT seam (file + approximate line
-  range) or a merged parity architecture reference
+- each matrix section cites at least one concrete GWT seam (file +
+  approximate line range) or a merged parity architecture reference in its
+  "Origin" prefix; rows in that section inherit that sourcing unless a row
+  adds a more specific citation
 - rows describe observable behavior, not implementation detail
 - visual latitude is expressed as what *may* change, so implementers do not
   default to pixel-level replication where the architecture memo explicitly
@@ -171,12 +173,13 @@ coverage: `#967`, `#968`.
 ## 8. Parity Gate
 
 The parity gate enumerates the rows that must all be closed before the
-future opt-in default-root bootstrap issue (`#5.1` in the issue map) may even
-be opened.
+future opt-in default-root bootstrap item (issue-map §5.1) may even be
+opened as a GitHub issue.
 
 This section is descriptive only. It captures the parity threshold; it does
-not grant authority to open `#5.1`, `#5.2`, or `#5.3`. Those issues remain
-gated by the issue map and `#904`.
+not grant authority to open the items in issue-map §5.1, §5.2, or §5.3.
+Those items remain gated by the issue map and `#904`, and their section
+numbers are not GitHub issue IDs.
 
 Gate rows (must all be closed, with evidence linked from each slice packet):
 

@@ -222,7 +222,7 @@ focus, collapse, and thread navigation
   - `PORT=9900 bash scripts/wave-smoke.sh check`
   - `PORT=9900 bash scripts/wave-smoke.sh stop`
 - Browser:
-  - Required by `change-type-verification-matrix.md` (`GWT client/UI` row)
+  - Required by `docs/runbooks/change-type-verification-matrix.md` (`GWT client/UI` row)
   - Open `http://localhost:9900/?view=j2cl-root` with the flag enabled and
     exercise open-wave, focus navigation, collapse, and next-unread
 - Harness:
