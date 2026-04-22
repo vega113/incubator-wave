@@ -59,6 +59,7 @@ Split of responsibility:
 - [`persistence-topology-audit.md`](persistence-topology-audit.md)
 - [`j2cl-gwt3-inventory.md`](j2cl-gwt3-inventory.md)
 - [`j2cl-gwt3-decision-memo.md`](j2cl-gwt3-decision-memo.md)
+- [`j2cl-parity-architecture.md`](j2cl-parity-architecture.md)
 
 ## Ledgers
 

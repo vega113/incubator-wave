@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-22-j2cl-parity-architecture-memo",
+  "version": "PR #956",
+  "date": "2026-04-22",
+  "title": "The J2CL parity architecture memo now defines the recommended long-term view/runtime split",
+  "summary": "The new architecture memo documents the repo-backed recommendation to keep J2CL for runtime/state/transport concerns, use Lit custom elements for long-term UI composition, and preserve server-rendered first paint plus rollback-ready coexistence.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a dedicated J2CL parity architecture memo that maps the legacy staged GWT runtime responsibilities to the recommended J2CL-plus-Lit direction",
+        "Documented why the parity path should keep server-rendered read-only first paint, viewport-scoped fragment loading, and the existing coexistence/rollback contract instead of moving to a React-owned root"
+      ]
+    }
+  ]
+}
