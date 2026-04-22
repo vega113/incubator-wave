@@ -61,6 +61,7 @@ Split of responsibility:
 - [`j2cl-gwt3-decision-memo.md`](j2cl-gwt3-decision-memo.md)
 - [`j2cl-parity-architecture.md`](j2cl-parity-architecture.md)
 - [`j2cl-lit-implementation-workflow.md`](j2cl-lit-implementation-workflow.md)
+- [`j2cl-parity-issue-map.md`](j2cl-parity-issue-map.md)
 
 ## Ledgers
 
