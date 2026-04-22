@@ -66,23 +66,35 @@ import com.google.gwt.dom.client.Text;
  * should reveal which link in the pipeline is actually dropping characters.
  */
 public final class ImeDebugTracer {
+  private static final String FEATURE_FLAG_NAME = "ime-debug-tracer";
+  private static final String FLAG_ON = "on";
+  private static final String REMOTE_LOGGING_PATH = "webclient/remote_logging";
+  private static final int MAX_OVERLAY_LINES = 200;
+  private static final int MAX_FIELD_LEN = 120;
+  private static final int ENABLE_REFRESH_RETRY_INTERVAL_MS = 1000;
+  private static final int REMOTE_UPLOAD_MAX_BATCH_CHARS = 4096;
+  private static final int REMOTE_UPLOAD_MAX_BATCH_LINES = 20;
+  private static final int REMOTE_UPLOAD_DELAY_MS = 750;
+  private static final int REMOTE_UPLOAD_TIMEOUT_MS = 10000;
+  private static final int REMOTE_UPLOAD_MAX_QUEUE_LINES = 200;
+  private static final int REMOTE_UPLOAD_MAX_QUEUE_CHARS = 65536;
 
   private ImeDebugTracer() {
     // Utility.
   }
 
-  private static final String FLAG_ON = "on";
-  private static final int MAX_OVERLAY_LINES = 200;
-  private static final int MAX_FIELD_LEN = 120;
-
   private static boolean initialized = false;
   private static boolean enabled = false;
+  private static boolean remoteUploadEnabled = false;
   private static double baselineMs = 0.0;
+  private static double nextRefreshAttemptMs = 0.0;
 
   /** Cheap fast-path gate. Safe to call from every hot site. */
   public static boolean isEnabled() {
     if (!initialized) {
       initialize();
+    } else if ((!enabled || !remoteUploadEnabled) && shouldRetryRefresh()) {
+      refreshEnabledState();
     }
     return enabled;
   }
@@ -91,14 +103,47 @@ public final class ImeDebugTracer {
     initialized = true;
     try {
       syncFlagFromUrlJsni();
-      enabled = FLAG_ON.equals(readFlagJsni());
-      if (enabled) {
-        baselineMs = nowMsJsni();
-        installGlobalEventListenersJsni(baselineMs);
-        ensureOverlayJsni();
-      }
+      refreshEnabledState();
     } catch (Throwable t) {
       enabled = false;
+    }
+  }
+
+  private static void refreshEnabledState() {
+    if (enabled && remoteUploadEnabled) {
+      return;
+    }
+    boolean sessionEnabled = isSessionFlagEnabled();
+    if (!enabled) {
+      if (!sessionEnabled && !FLAG_ON.equals(readFlagJsni())) {
+        return;
+      }
+      enabled = true;
+      nextRefreshAttemptMs = 0.0;
+      baselineMs = nowMsJsni();
+      installGlobalEventListenersJsni(baselineMs);
+      ensureOverlayJsni();
+    }
+    if (sessionEnabled) {
+      remoteUploadEnabled = true;
+      nextRefreshAttemptMs = 0.0;
+    }
+  }
+
+  private static boolean shouldRetryRefresh() {
+    double now = System.currentTimeMillis();
+    if (now < nextRefreshAttemptMs) {
+      return false;
+    }
+    nextRefreshAttemptMs = now + ENABLE_REFRESH_RETRY_INTERVAL_MS;
+    return true;
+  }
+
+  private static boolean isSessionFlagEnabled() {
+    try {
+      return hasSessionFeatureJsni(FEATURE_FLAG_NAME);
+    } catch (Throwable t) {
+      return false;
     }
   }
 
@@ -159,6 +204,15 @@ public final class ImeDebugTracer {
       return escape(s);
     }
     return escape(s.substring(0, 200)) + "…(+" + (s.length() - 200) + ")";
+  }
+
+  static String formatFieldValue(String value) {
+    if (value == null) {
+      return "null";
+    }
+    boolean truncated = value.length() > MAX_FIELD_LEN;
+    String formatted = escape(truncated ? value.substring(0, MAX_FIELD_LEN) : value);
+    return truncated ? formatted + '\u2026' : formatted;
   }
 
   private static String escape(String s) {
@@ -227,13 +281,7 @@ public final class ImeDebugTracer {
       if (value == null) {
         buf.append("null");
       } else {
-        boolean truncated = value.length() > MAX_FIELD_LEN;
-        String v = truncated ? value.substring(0, MAX_FIELD_LEN) : value;
-        buf.append('"').append(escape(v));
-        if (truncated) {
-          buf.append('\u2026');
-        }
-        buf.append('"');
+        buf.append('"').append(formatFieldValue(value)).append('"');
       }
       return this;
     }
@@ -261,6 +309,15 @@ public final class ImeDebugTracer {
       String line = buf.toString();
       consoleLogJsni(line);
       appendToOverlayJsni(line);
+      if (remoteUploadEnabled) {
+        queueRemoteLogJsni(
+            line,
+            REMOTE_UPLOAD_MAX_BATCH_CHARS,
+            REMOTE_UPLOAD_MAX_BATCH_LINES,
+            REMOTE_UPLOAD_DELAY_MS,
+            REMOTE_UPLOAD_MAX_QUEUE_LINES,
+            REMOTE_UPLOAD_MAX_QUEUE_CHARS);
+      }
     }
   }
 
@@ -293,6 +350,20 @@ public final class ImeDebugTracer {
       return $wnd.localStorage.getItem("ime_debug") || "";
     } catch (e) {
       return "";
+    }
+  }-*/;
+
+  private static native boolean hasSessionFeatureJsni(String name) /*-{
+    try {
+      var session = $wnd.__session;
+      var features = session && session.features;
+      if (!features || !features.length) return false;
+      for (var i = 0; i < features.length; i++) {
+        if (features[i] === name) return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
     }
   }-*/;
 
@@ -353,19 +424,24 @@ public final class ImeDebugTracer {
         return 'err:' + e;
       }
     }
+    function formatField(value) {
+      return @org.waveprotocol.wave.client.editor.debug.ImeDebugTracer::formatFieldValueForJsniBridge(Ljava/lang/String;)(
+          value === null ? null : String(value));
+    }
     function handler(e) {
       try {
         var t = ((w.performance && w.performance.now ? w.performance.now() : new Date().getTime()) - baseline).toFixed(1);
         var msg = '+' + t + 'ms GLOBAL ' + e.type;
-        if (e.key !== undefined) msg += ' key="' + e.key + '"';
+        if (e.key !== undefined) msg += ' key="' + formatField(e.key) + '"';
         if (e.keyCode !== undefined) msg += ' code=' + e.keyCode;
-        if (e.data !== undefined) msg += ' data="' + (e.data === null ? 'null' : String(e.data)) + '"';
-        if (e.inputType) msg += ' inputType="' + e.inputType + '"';
+        if (e.data !== undefined) msg += ' data="' + formatField(e.data) + '"';
+        if (e.inputType) msg += ' inputType="' + formatField(e.inputType) + '"';
         if (e.isComposing !== undefined) msg += ' isComposing=' + e.isComposing;
         if (e.target) msg += ' target=' + describeNode(e.target);
         msg += ' sel=' + describeSelection();
         if ($wnd.console && $wnd.console.log) { $wnd.console.log('[IME-DBG] ' + msg); }
         @org.waveprotocol.wave.client.editor.debug.ImeDebugTracer::appendToOverlayJsniBridge(Ljava/lang/String;)(msg);
+        @org.waveprotocol.wave.client.editor.debug.ImeDebugTracer::queueRemoteLogJsniBridge(Ljava/lang/String;)(msg);
       } catch (err) {
         // swallow
       }
@@ -383,6 +459,26 @@ public final class ImeDebugTracer {
   @SuppressWarnings("unused")
   private static void appendToOverlayJsniBridge(String msg) {
     appendToOverlayJsni(msg);
+  }
+
+  @SuppressWarnings("unused")
+  private static String formatFieldValueForJsniBridge(String value) {
+    return formatFieldValue(value);
+  }
+
+  /** Callable from JSNI so the global event listeners can queue remote logs too. */
+  @SuppressWarnings("unused")
+  private static void queueRemoteLogJsniBridge(String msg) {
+    if (!remoteUploadEnabled) {
+      return;
+    }
+    queueRemoteLogJsni(
+        msg,
+        REMOTE_UPLOAD_MAX_BATCH_CHARS,
+        REMOTE_UPLOAD_MAX_BATCH_LINES,
+        REMOTE_UPLOAD_DELAY_MS,
+        REMOTE_UPLOAD_MAX_QUEUE_LINES,
+        REMOTE_UPLOAD_MAX_QUEUE_CHARS);
   }
 
   private static native void ensureOverlayJsni() /*-{
@@ -444,6 +540,108 @@ public final class ImeDebugTracer {
         ov.removeChild(ov.firstChild);
       }
       ov.scrollTop = ov.scrollHeight;
+    } catch (e) {
+      // swallow
+    }
+  }-*/;
+
+  private static native void queueRemoteLogJsni(
+      String line, int maxBatchChars, int maxBatchLines, int flushDelayMs,
+      int maxQueueLines, int maxQueueChars) /*-{
+    try {
+      var w = $wnd;
+      var state = w.__imeDebugRemoteLogState;
+      if (!state) {
+        state = {
+          queue: [],
+          queuedChars: 0,
+          timer: null,
+          inFlight: false
+        };
+        w.__imeDebugRemoteLogState = state;
+      }
+
+      function flush() {
+        if (state.timer) {
+          w.clearTimeout(state.timer);
+          state.timer = null;
+        }
+        if (state.inFlight || !state.queue.length) {
+          return;
+        }
+
+        var batch = [];
+        var batchChars = 0;
+        var batchCount = 0;
+        while (batchCount < state.queue.length && batch.length < maxBatchLines) {
+          var nextLine = state.queue[batchCount];
+          var nextChars = (nextLine ? nextLine.length : 0) + (batch.length > 0 ? 1 : 0);
+          if (batch.length > 0 && batchChars + nextChars > maxBatchChars) {
+            break;
+          }
+          batch.push(nextLine);
+          batchChars += nextChars;
+          batchCount++;
+        }
+        if (!batch.length) {
+          batch.push(state.queue[0]);
+          batchCount = 1;
+        }
+        state.queue = state.queue.slice(batchCount);
+        state.queuedChars = 0;
+        for (var i = 0; i < state.queue.length; i++) {
+          state.queuedChars += (state.queue[i] ? state.queue[i].length : 0) + 1;
+        }
+
+        state.inFlight = true;
+        var payload = batch.join('\n');
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', @org.waveprotocol.wave.client.editor.debug.ImeDebugTracer::REMOTE_LOGGING_PATH, true);
+        xhr.withCredentials = true;
+        xhr.timeout = @org.waveprotocol.wave.client.editor.debug.ImeDebugTracer::REMOTE_UPLOAD_TIMEOUT_MS;
+        xhr.setRequestHeader('Content-Type', 'text/plain; charset=utf-8');
+        var finished = false;
+        function finish() {
+          if (finished) {
+            return;
+          }
+          finished = true;
+          state.inFlight = false;
+          if (state.queue.length) {
+            flush();
+          }
+        }
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) {
+            return;
+          }
+          finish();
+        };
+        xhr.onerror = finish;
+        xhr.onabort = finish;
+        xhr.ontimeout = finish;
+        try {
+          xhr.send(payload);
+        } catch (e) {
+          finish();
+        }
+      }
+
+      state.queue.push(line);
+      state.queuedChars += (line ? line.length : 0) + 1;
+      while (state.queue.length > maxQueueLines || state.queuedChars > maxQueueChars) {
+        var dropped = state.queue.shift();
+        state.queuedChars -= (dropped ? dropped.length : 0) + 1;
+      }
+      if (state.queuedChars < 0) { state.queuedChars = 0; }
+      if (state.queuedChars >= maxBatchChars || state.queue.length >= maxBatchLines) {
+        flush();
+        return;
+      }
+      if (!state.timer) {
+        state.timer = w.setTimeout(flush, flushDelayMs);
+      }
     } catch (e) {
       // swallow
     }

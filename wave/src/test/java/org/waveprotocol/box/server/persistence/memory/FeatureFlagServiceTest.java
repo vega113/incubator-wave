@@ -26,6 +26,7 @@ import java.util.Map;
 import org.junit.After;
 import org.junit.Test;
 import org.waveprotocol.box.server.persistence.FeatureFlagService;
+import org.waveprotocol.box.server.persistence.KnownFeatureFlags;
 import org.waveprotocol.box.server.persistence.FeatureFlagStore.FeatureFlag;
 
 public final class FeatureFlagServiceTest {
@@ -63,6 +64,28 @@ public final class FeatureFlagServiceTest {
 
     assertFalse(service.getEnabledFlagNames(null).contains("ot-search"));
     assertFalse(service.getEnabledFlagNames(null).contains("ot-search-fallback"));
+  }
+
+  @Test
+  public void imeDebugTracerFlagIsKnownButDisabledByDefault() throws Exception {
+    assertTrue(KnownFeatureFlags.isKnownFlag("ime-debug-tracer"));
+
+    MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
+    service = new FeatureFlagService(store);
+
+    assertFalse(service.getEnabledFlagNames(null).contains("ime-debug-tracer"));
+
+    Map<String, Boolean> overrides = new LinkedHashMap<>();
+    overrides.put("user@example.com", true);
+    store.save(
+        new FeatureFlag(
+            "ime-debug-tracer",
+            "Enable IME diagnostic trace overlay and remote log upload",
+            false,
+            overrides));
+    service.refreshCache();
+
+    assertTrue(service.getEnabledFlagNames("user@example.com").contains("ime-debug-tracer"));
   }
 
   @Test

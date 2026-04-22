@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
+import org.waveprotocol.box.server.persistence.FeatureFlagService;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
@@ -18,12 +19,17 @@ import org.waveprotocol.wave.util.logging.Log;
  * This is a best-effort compatibility shim; it does not implement full GWT RPC.
  */
 public class RemoteLoggingJakartaServlet extends HttpServlet {
+  public static final String REMOTE_LOGGING_URL = "/webclient/remote_logging";
+  private static final String IME_TRACER_FLAG = "ime-debug-tracer";
   private static final Log LOG = Log.get(RemoteLoggingJakartaServlet.class);
   private final SessionManager sessionManager;
+  private final FeatureFlagService featureFlagService;
 
   @Inject
-  public RemoteLoggingJakartaServlet(SessionManager sessionManager) {
+  public RemoteLoggingJakartaServlet(SessionManager sessionManager,
+      FeatureFlagService featureFlagService) {
     this.sessionManager = sessionManager;
+    this.featureFlagService = featureFlagService;
   }
 
   @Override
@@ -32,6 +38,10 @@ public class RemoteLoggingJakartaServlet extends HttpServlet {
     ParticipantId loggedInUser = sessionManager.getLoggedInUser(session);
     if (loggedInUser == null) {
       resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Authentication required");
+      return;
+    }
+    if (!featureFlagService.isEnabled(IME_TRACER_FLAG, loggedInUser.getAddress())) {
+      resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Feature not enabled");
       return;
     }
 
@@ -88,7 +98,8 @@ public class RemoteLoggingJakartaServlet extends HttpServlet {
       } catch (Throwable ignore) { /* fall through to summary */ }
 
       if (level == null) level = "INFO";
-      String line = "[remote_log][gwt] level=" + level +
+      String line = "[remote_log][gwt] user=" + sanitize(loggedInUser.getAddress()) +
+          " level=" + level +
           (logger != null ? (" logger=" + sanitize(logger)) : "") +
           (message != null ? (" msg=" + sanitize(message)) : (" msg=" + summarize(payload)));
       switch (level) {
@@ -101,10 +112,27 @@ public class RemoteLoggingJakartaServlet extends HttpServlet {
       return;
     }
 
-    LOG.info("[remote_log] " + summarize(payload));
+    logPlainTextPayload(loggedInUser, payload);
     resp.setStatus(HttpServletResponse.SC_OK);
     resp.setContentType("text/plain; charset=utf-8");
     resp.getOutputStream().write("OK".getBytes(StandardCharsets.UTF_8));
+  }
+
+  private static void logPlainTextPayload(ParticipantId loggedInUser, String payload) {
+    String user = loggedInUser == null ? "" : sanitize(loggedInUser.getAddress());
+    boolean loggedAny = false;
+    String[] lines = payload == null ? new String[0] : payload.split("\\r?\\n");
+    for (String line : lines) {
+      String sanitized = sanitize(line);
+      if (sanitized.isEmpty()) {
+        continue;
+      }
+      LOG.info("[remote_log] user=" + user + " " + sanitized);
+      loggedAny = true;
+    }
+    if (!loggedAny) {
+      LOG.info("[remote_log] user=" + user + " <empty>");
+    }
   }
 
   private static String summarize(String s) {
