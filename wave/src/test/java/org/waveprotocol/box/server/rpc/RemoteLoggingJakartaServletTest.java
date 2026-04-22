@@ -17,6 +17,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -25,13 +26,24 @@ import java.util.logging.Logger;
 import org.junit.Test;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
+import org.waveprotocol.box.server.persistence.FeatureFlagService;
+import org.waveprotocol.box.server.persistence.FeatureFlagStore.FeatureFlag;
+import org.waveprotocol.box.server.persistence.memory.MemoryFeatureFlagStore;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
 public final class RemoteLoggingJakartaServletTest {
+
+  private static FeatureFlagService flagServiceWith(boolean imeTracerEnabled) throws Exception {
+    MemoryFeatureFlagStore store = new MemoryFeatureFlagStore();
+    store.save(new FeatureFlag("ime-debug-tracer", "", imeTracerEnabled, Collections.emptyMap()));
+    return new FeatureFlagService(store);
+  }
+
   @Test
   public void doPostRejectsAnonymousRequests() throws Exception {
     SessionManager sessionManager = mock(SessionManager.class);
-    RemoteLoggingJakartaServlet servlet = new RemoteLoggingJakartaServlet(sessionManager);
+    RemoteLoggingJakartaServlet servlet =
+        new RemoteLoggingJakartaServlet(sessionManager, flagServiceWith(true));
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     when(request.getSession(false)).thenReturn(null);
@@ -43,9 +55,28 @@ public final class RemoteLoggingJakartaServletTest {
   }
 
   @Test
+  public void doPostRejectsUserWithoutImeTracerFlag() throws Exception {
+    SessionManager sessionManager = mock(SessionManager.class);
+    RemoteLoggingJakartaServlet servlet =
+        new RemoteLoggingJakartaServlet(sessionManager, flagServiceWith(false));
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
+    when(sessionManager.getLoggedInUser(any(WebSession.class)))
+        .thenReturn(ParticipantId.ofUnsafe("alice@example.com"));
+
+    servlet.doPost(request, response);
+
+    verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "Feature not enabled");
+    verify(request, never()).getReader();
+  }
+
+  @Test
   public void doPostAcceptsAuthenticatedPlainTextLogs() throws Exception {
     SessionManager sessionManager = mock(SessionManager.class);
-    RemoteLoggingJakartaServlet servlet = new RemoteLoggingJakartaServlet(sessionManager);
+    RemoteLoggingJakartaServlet servlet =
+        new RemoteLoggingJakartaServlet(sessionManager, flagServiceWith(true));
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -80,7 +111,8 @@ public final class RemoteLoggingJakartaServletTest {
   @Test
   public void doPostLogsPlainTextPayloadLinesIndividuallyWithUserContext() throws Exception {
     SessionManager sessionManager = mock(SessionManager.class);
-    RemoteLoggingJakartaServlet servlet = new RemoteLoggingJakartaServlet(sessionManager);
+    RemoteLoggingJakartaServlet servlet =
+        new RemoteLoggingJakartaServlet(sessionManager, flagServiceWith(true));
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     ByteArrayOutputStream output = new ByteArrayOutputStream();

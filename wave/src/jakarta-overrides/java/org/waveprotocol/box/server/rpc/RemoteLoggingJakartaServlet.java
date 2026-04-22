@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
+import org.waveprotocol.box.server.persistence.FeatureFlagService;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.util.logging.Log;
 
@@ -19,12 +20,16 @@ import org.waveprotocol.wave.util.logging.Log;
  */
 public class RemoteLoggingJakartaServlet extends HttpServlet {
   public static final String REMOTE_LOGGING_URL = "/webclient/remote_logging";
+  private static final String IME_TRACER_FLAG = "ime-debug-tracer";
   private static final Log LOG = Log.get(RemoteLoggingJakartaServlet.class);
   private final SessionManager sessionManager;
+  private final FeatureFlagService featureFlagService;
 
   @Inject
-  public RemoteLoggingJakartaServlet(SessionManager sessionManager) {
+  public RemoteLoggingJakartaServlet(SessionManager sessionManager,
+      FeatureFlagService featureFlagService) {
     this.sessionManager = sessionManager;
+    this.featureFlagService = featureFlagService;
   }
 
   @Override
@@ -33,6 +38,10 @@ public class RemoteLoggingJakartaServlet extends HttpServlet {
     ParticipantId loggedInUser = sessionManager.getLoggedInUser(session);
     if (loggedInUser == null) {
       resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Authentication required");
+      return;
+    }
+    if (!featureFlagService.isEnabled(IME_TRACER_FLAG, loggedInUser.getAddress())) {
+      resp.sendError(HttpServletResponse.SC_FORBIDDEN, "Feature not enabled");
       return;
     }
 
