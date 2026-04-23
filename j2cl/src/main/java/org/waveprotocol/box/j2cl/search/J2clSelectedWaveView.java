@@ -69,6 +69,10 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     title.textContent = model.getTitleText();
     unread.textContent = model.getUnreadText();
     unread.hidden = model.getUnreadText().isEmpty();
+    unread.className =
+        model.isReadStateStale()
+            ? "sidecar-selected-unread sidecar-selected-unread-stale"
+            : "sidecar-selected-unread";
     status.className =
         model.isError()
             ? "sidecar-selected-status sidecar-selected-status-error"

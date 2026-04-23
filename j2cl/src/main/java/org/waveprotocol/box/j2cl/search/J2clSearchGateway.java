@@ -7,6 +7,7 @@ import java.util.Map;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsPackage;
 import org.waveprotocol.box.j2cl.transport.SidecarOpenRequest;
+import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
@@ -109,6 +110,27 @@ public final class J2clSearchGateway
         socket.close();
       }
     };
+  }
+
+  @Override
+  public void fetchSelectedWaveReadState(
+      String waveId,
+      J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveReadState> onSuccess,
+      J2clSearchPanelController.ErrorCallback onError) {
+    if (waveId == null || waveId.isEmpty()) {
+      onError.accept("Wave id is required for the read-state fetch.");
+      return;
+    }
+    requestText(
+        "/read-state?waveId=" + encodeUriComponent(waveId),
+        text -> {
+          try {
+            onSuccess.accept(SidecarTransportCodec.decodeSelectedWaveReadState(text));
+          } catch (RuntimeException e) {
+            onError.accept(messageOrDefault(e, "Unable to decode the selected-wave read state."));
+          }
+        },
+        onError);
   }
 
   @Override

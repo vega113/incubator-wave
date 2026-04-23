@@ -1,5 +1,7 @@
 package org.waveprotocol.box.j2cl.search;
 
+import com.google.j2cl.junit.apt.J2clTestInput;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Assert;
@@ -8,12 +10,111 @@ import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragment;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragmentRange;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragments;
+import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 
+@J2clTestInput(J2clSelectedWaveProjectorTest.class)
 public class J2clSelectedWaveProjectorTest {
   private static final String WAVE_ID = "example.com/w+1";
   private static final String WAVELET_NAME = "example.com!w+1/example.com!conv+root";
   private static final String CHANNEL_ID = "chan-1";
+
+  // -- Read-state projection (issue #931) -------------------------------------
+
+  @Test
+  public void projectUsesServerReadStateWhenPresent() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 2),
+            sampleUpdate(),
+            null,
+            0,
+            new SidecarSelectedWaveReadState(WAVE_ID, 5, false),
+            false);
+
+    Assert.assertTrue(projected.isReadStateKnown());
+    Assert.assertEquals(5, projected.getUnreadCount());
+    Assert.assertEquals("5 unread.", projected.getUnreadText());
+  }
+
+  @Test
+  public void projectFallsBackToDigestWhenServerReadStateAbsent() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 3),
+            sampleUpdate(),
+            null,
+            0);
+
+    Assert.assertFalse(projected.isReadStateKnown());
+    Assert.assertEquals("3 unread in the selected digest.", projected.getUnreadText());
+  }
+
+  @Test
+  public void projectCarriesForwardPreviousServerReadStateAcrossUpdates() {
+    J2clSelectedWaveModel first =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            sampleUpdate(),
+            null,
+            0,
+            new SidecarSelectedWaveReadState(WAVE_ID, 2, false),
+            false);
+
+    J2clSelectedWaveModel second =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            sampleUpdate(),
+            first,
+            0);
+
+    Assert.assertTrue(second.isReadStateKnown());
+    Assert.assertEquals(2, second.getUnreadCount());
+    Assert.assertEquals("2 unread.", second.getUnreadText());
+  }
+
+  @Test
+  public void projectRendersReadWhenServerReportsZero() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 7),
+            sampleUpdate(),
+            null,
+            0,
+            new SidecarSelectedWaveReadState(WAVE_ID, 0, true),
+            false);
+
+    Assert.assertTrue(projected.isReadStateKnown());
+    Assert.assertTrue(projected.isRead());
+    Assert.assertEquals("Read.", projected.getUnreadText());
+  }
+
+  @Test
+  public void staleFlagPreservesPriorCountAndAnnotatesStatus() {
+    J2clSelectedWaveModel fresh =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            sampleUpdate(),
+            null,
+            0,
+            new SidecarSelectedWaveReadState(WAVE_ID, 4, false),
+            false);
+
+    J2clSelectedWaveModel stale =
+        J2clSelectedWaveProjector.reprojectReadState(fresh, null, null, true);
+
+    Assert.assertTrue(stale.isReadStateStale());
+    Assert.assertEquals(4, stale.getUnreadCount());
+    Assert.assertEquals("4 unread.", stale.getUnreadText());
+  }
+
+  // -- Write-session coupling (pre-existing) ----------------------------------
 
   @Test
   public void advancesWriteSessionWhenUpdateCarriesCoupledVersionAndHash() {
@@ -124,6 +225,26 @@ public class J2clSelectedWaveProjectorTest {
     Assert.assertEquals("b+root", writeSession.getReplyTargetBlipId());
   }
 
+  // -- Helpers ----------------------------------------------------------------
+
+  private static J2clSearchDigestItem digest(String title, String snippet, int unreadCount) {
+    return new J2clSearchDigestItem(
+        WAVE_ID, title, snippet, "user@example.com", unreadCount, 2, 1L, false);
+  }
+
+  private static SidecarSelectedWaveUpdate sampleUpdate() {
+    return new SidecarSelectedWaveUpdate(
+        1,
+        WAVELET_NAME,
+        true,
+        CHANNEL_ID,
+        -1L,
+        null,
+        Arrays.asList("user@example.com"),
+        new ArrayList<SidecarSelectedWaveDocument>(),
+        null);
+  }
+
   private static SidecarSelectedWaveUpdate updateWithVersionAndHash(
       long resultingVersion, String resultingVersionHistoryHash) {
     return new SidecarSelectedWaveUpdate(
@@ -163,6 +284,10 @@ public class J2clSelectedWaveProjectorTest {
         0,
         Collections.<String>emptyList(),
         Collections.<String>emptyList(),
-        writeSession);
+        writeSession,
+        J2clSelectedWaveModel.UNKNOWN_UNREAD_COUNT,
+        false,
+        false,
+        false);
   }
 }

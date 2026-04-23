@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.List;
 
 public final class J2clSelectedWaveModel {
+  public static final int UNKNOWN_UNREAD_COUNT = -1;
+
   private final boolean hasSelection;
   private final boolean loading;
   private final boolean error;
@@ -18,6 +20,10 @@ public final class J2clSelectedWaveModel {
   private final List<String> participantIds;
   private final List<String> contentEntries;
   private final J2clSidecarWriteSession writeSession;
+  private final int unreadCount;
+  private final boolean read;
+  private final boolean readStateKnown;
+  private final boolean readStateStale;
 
   J2clSelectedWaveModel(
       boolean hasSelection,
@@ -32,7 +38,11 @@ public final class J2clSelectedWaveModel {
       int reconnectCount,
       List<String> participantIds,
       List<String> contentEntries,
-      J2clSidecarWriteSession writeSession) {
+      J2clSidecarWriteSession writeSession,
+      int unreadCount,
+      boolean read,
+      boolean readStateKnown,
+      boolean readStateStale) {
     this.hasSelection = hasSelection;
     this.loading = loading;
     this.error = error;
@@ -52,6 +62,10 @@ public final class J2clSelectedWaveModel {
             ? Collections.<String>emptyList()
             : Collections.unmodifiableList(new ArrayList<String>(contentEntries));
     this.writeSession = writeSession;
+    this.unreadCount = unreadCount;
+    this.read = read;
+    this.readStateKnown = readStateKnown;
+    this.readStateStale = readStateStale;
   }
 
   public static J2clSelectedWaveModel empty() {
@@ -68,11 +82,22 @@ public final class J2clSelectedWaveModel {
         0,
         Collections.<String>emptyList(),
         Collections.<String>emptyList(),
-        null);
+        null,
+        UNKNOWN_UNREAD_COUNT,
+        false,
+        false,
+        false);
   }
 
   public static J2clSelectedWaveModel loading(
-      String selectedWaveId, J2clSearchDigestItem digestItem, int reconnectCount) {
+      String selectedWaveId,
+      J2clSearchDigestItem digestItem,
+      int reconnectCount,
+      J2clSelectedWaveModel previous) {
+    int prevUnreadCount =
+        previous == null ? UNKNOWN_UNREAD_COUNT : previous.getUnreadCount();
+    boolean prevRead = previous != null && previous.isRead();
+    boolean prevKnown = previous != null && previous.isReadStateKnown();
     return new J2clSelectedWaveModel(
         true,
         true,
@@ -80,7 +105,7 @@ public final class J2clSelectedWaveModel {
         selectedWaveId,
         resolveTitle(selectedWaveId, digestItem),
         resolveSnippet(digestItem),
-        resolveUnreadText(digestItem),
+        resolveUnreadText(digestItem, prevUnreadCount, prevRead, prevKnown),
         reconnectCount > 0 ? "Reconnecting selected wave." : "Opening selected wave.",
         reconnectCount > 0
             ? "Reusing the current session after a disconnect."
@@ -88,11 +113,23 @@ public final class J2clSelectedWaveModel {
         reconnectCount,
         Collections.<String>emptyList(),
         Collections.<String>emptyList(),
-        null);
+        null,
+        prevUnreadCount,
+        prevRead,
+        prevKnown,
+        prevKnown);
   }
 
   public static J2clSelectedWaveModel error(
-      String selectedWaveId, J2clSearchDigestItem digestItem, String statusText, String detailText) {
+      String selectedWaveId,
+      J2clSearchDigestItem digestItem,
+      String statusText,
+      String detailText,
+      J2clSelectedWaveModel previous) {
+    int prevUnreadCount =
+        previous == null ? UNKNOWN_UNREAD_COUNT : previous.getUnreadCount();
+    boolean prevRead = previous != null && previous.isRead();
+    boolean prevKnown = previous != null && previous.isReadStateKnown();
     return new J2clSelectedWaveModel(
         true,
         false,
@@ -100,13 +137,17 @@ public final class J2clSelectedWaveModel {
         selectedWaveId,
         resolveTitle(selectedWaveId, digestItem),
         resolveSnippet(digestItem),
-        resolveUnreadText(digestItem),
+        resolveUnreadText(digestItem, prevUnreadCount, prevRead, prevKnown),
         statusText,
         detailText,
         0,
         Collections.<String>emptyList(),
         Collections.<String>emptyList(),
-        null);
+        null,
+        prevUnreadCount,
+        prevRead,
+        prevKnown,
+        prevKnown);
   }
 
   private static String resolveTitle(String selectedWaveId, J2clSearchDigestItem digestItem) {
@@ -120,12 +161,25 @@ public final class J2clSelectedWaveModel {
     return digestItem == null ? "" : digestItem.getSnippet();
   }
 
-  private static String resolveUnreadText(J2clSearchDigestItem digestItem) {
+  private static String resolveUnreadText(
+      J2clSearchDigestItem digestItem, int unreadCount, boolean read, boolean readStateKnown) {
+    if (readStateKnown) {
+      return formatUnreadText(unreadCount, read);
+    }
     if (digestItem == null) {
       return "";
     }
-    int unreadCount = digestItem.getUnreadCount();
-    return unreadCount <= 0 ? "Selected digest is read." : unreadCount + " unread in the selected digest.";
+    int digestUnreadCount = digestItem.getUnreadCount();
+    return digestUnreadCount <= 0
+        ? "Selected digest is read."
+        : digestUnreadCount + " unread in the selected digest.";
+  }
+
+  static String formatUnreadText(int unreadCount, boolean read) {
+    if (unreadCount <= 0 || read) {
+      return "Read.";
+    }
+    return unreadCount + " unread.";
   }
 
   public boolean hasSelection() {
@@ -178,5 +232,21 @@ public final class J2clSelectedWaveModel {
 
   public J2clSidecarWriteSession getWriteSession() {
     return writeSession;
+  }
+
+  public int getUnreadCount() {
+    return unreadCount;
+  }
+
+  public boolean isRead() {
+    return read;
+  }
+
+  public boolean isReadStateKnown() {
+    return readStateKnown;
+  }
+
+  public boolean isReadStateStale() {
+    return readStateStale;
   }
 }

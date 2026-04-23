@@ -149,6 +149,14 @@ public final class SidecarTransportCodec {
             entries));
   }
 
+  public static SidecarSelectedWaveReadState decodeSelectedWaveReadState(String json) {
+    Map<String, Object> root = parseJsonObject(json);
+    String waveId = getString(root, "waveId");
+    int unreadCount = getInt(root, "unreadCount");
+    boolean read = getBoolean(root, "isRead");
+    return new SidecarSelectedWaveReadState(waveId, unreadCount, read);
+  }
+
   public static boolean decodeRpcFinishedFailed(Map<String, Object> envelope) {
     Map<String, Object> payload = asObject(envelope.get("message"));
     return getBoolean(payload, "1");

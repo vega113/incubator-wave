@@ -17,7 +17,7 @@ public class J2clSelectedWaveModelCopyTest {
   @Test
   public void loadingSelectionUsesSessionNeutralDisconnectCopy() {
     J2clSelectedWaveModel model =
-        J2clSelectedWaveModel.loading("example.com/w+1", null, 1);
+        J2clSelectedWaveModel.loading("example.com/w+1", null, 1, null);
 
     Assert.assertEquals("Reusing the current session after a disconnect.", model.getDetailText());
   }

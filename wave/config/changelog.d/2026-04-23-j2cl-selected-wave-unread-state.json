@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-23-j2cl-selected-wave-unread-state",
+  "version": "Issue #931",
+  "date": "2026-04-23",
+  "title": "J2CL Selected-Wave Unread/Read State",
+  "summary": "The J2CL sidecar's selected-wave panel now shows real per-user unread/read state that updates live.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Selected-wave panel replaces stale digest-derived unread text with server-authoritative unread counts",
+        "Unread count refreshes after each selected-wave update and after the tab returns to visible, so UDW-only read-state changes are reflected without a full reload"
+      ]
+    }
+  ]
+}

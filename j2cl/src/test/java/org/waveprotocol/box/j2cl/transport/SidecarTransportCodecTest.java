@@ -11,6 +11,29 @@ import org.waveprotocol.box.j2cl.search.SidecarSearchResponse;
 @J2clTestInput(SidecarTransportCodecTest.class)
 public class SidecarTransportCodecTest {
   @Test
+  public void decodeSelectedWaveReadStateReadsEndpointJson() {
+    String json =
+        "{\"waveId\":\"example.com/w+abc\",\"unreadCount\":4,\"isRead\":false}";
+
+    SidecarSelectedWaveReadState state = SidecarTransportCodec.decodeSelectedWaveReadState(json);
+
+    Assert.assertEquals("example.com/w+abc", state.getWaveId());
+    Assert.assertEquals(4, state.getUnreadCount());
+    Assert.assertFalse(state.isRead());
+  }
+
+  @Test
+  public void decodeSelectedWaveReadStateHandlesMissingOptionalFields() {
+    String json = "{\"waveId\":\"example.com/w+abc\"}";
+
+    SidecarSelectedWaveReadState state = SidecarTransportCodec.decodeSelectedWaveReadState(json);
+
+    Assert.assertEquals("example.com/w+abc", state.getWaveId());
+    Assert.assertEquals(0, state.getUnreadCount());
+    Assert.assertFalse(state.isRead());
+  }
+
+  @Test
   public void encodeOpenEnvelopeUsesGeneratedNumericFieldKeys() {
     SidecarOpenRequest request =
         new SidecarOpenRequest(
