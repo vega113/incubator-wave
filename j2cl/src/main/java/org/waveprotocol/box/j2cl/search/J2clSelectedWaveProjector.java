@@ -78,7 +78,6 @@ public final class J2clSelectedWaveProjector {
       read = false;
       readStateKnown = false;
     }
-
     // Only surface the "stale" banner when we actually have a known read-state
     // to be stale about — an initial fetch failure with no prior snapshot would
     // otherwise claim the unread count is stale even though no count exists.

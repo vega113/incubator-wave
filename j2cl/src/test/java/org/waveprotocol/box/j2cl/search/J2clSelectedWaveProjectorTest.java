@@ -114,6 +114,23 @@ public class J2clSelectedWaveProjectorTest {
     Assert.assertEquals("4 unread.", stale.getUnreadText());
   }
 
+  @Test
+  public void projectDoesNotAnnotateStaleStatusWhenReadStateIsUnknown() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 3),
+            sampleUpdate(),
+            null,
+            0,
+            null,
+            true);
+
+    Assert.assertFalse(projected.isReadStateKnown());
+    Assert.assertFalse(projected.isReadStateStale());
+    Assert.assertEquals("Live updates connected.", projected.getStatusText());
+  }
+
   // -- Write-session coupling (pre-existing) ----------------------------------
 
   @Test

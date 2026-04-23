@@ -87,6 +87,25 @@ public final class SelectedWaveReadStateHelperTest extends TestCase {
     assertNull(digestedView.getWavelet(OTHER_UDW));
   }
 
+  public void testComputeReadStateThrowsWhenConversationalWaveletLoadFails() throws Exception {
+    WaveMap waveMap = mock(WaveMap.class);
+    WaveDigester digester = mock(WaveDigester.class);
+    SelectedWaveReadStateHelper helper =
+        new SelectedWaveReadStateHelper(DOMAIN, waveMap, digester);
+
+    when(waveMap.lookupWavelets(WAVE_ID)).thenReturn(ImmutableSet.of(ACCESSIBLE_CONV));
+    when(waveMap.getWavelet(WaveletName.of(WAVE_ID, ACCESSIBLE_CONV)))
+        .thenThrow(new WaveletStateException("boom"));
+
+    try {
+      helper.computeReadState(USER, WAVE_ID);
+      fail("Expected computeReadState to surface the wavelet load failure");
+    } catch (RuntimeException e) {
+      assertTrue(e.getMessage().contains("Failed to build read state"));
+      assertTrue(e.getCause() instanceof WaveletStateException);
+    }
+  }
+
   private static ObservableWaveletData wavelet(WaveletId waveletId, ParticipantId participant) {
     ObservableWaveletData wavelet = mock(ObservableWaveletData.class);
     when(wavelet.getWaveletId()).thenReturn(waveletId);
