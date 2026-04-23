@@ -312,6 +312,49 @@ public final class WaveClientServletJ2clRootShellTest {
   }
 
   @Test
+  public void j2clRootShellPrefersSingleForwardedHostValue() throws Exception {
+    WaveClientServlet servlet = createServlet(ParticipantId.ofUnsafe("alice@example.com"));
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    StringWriter body = new StringWriter();
+    when(request.getParameter("view")).thenReturn("j2cl-root");
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
+    when(request.getHeader("X-Forwarded-Host"))
+        .thenReturn("wave.example.com, attacker.example.com");
+    when(request.getHeader("Host")).thenReturn("ignored.example.com");
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    servlet.doGet(request, response);
+
+    String html = body.toString();
+    assertTrue(html.contains("\"wave.example.com\""));
+    assertFalse(html.contains("attacker.example.com"));
+    assertFalse(html.contains("ignored.example.com"));
+  }
+
+  @Test
+  public void j2clRootShellFallsBackWhenPresentedHostHeaderIsUnsafe() throws Exception {
+    WaveClientServlet servlet = createServlet(ParticipantId.ofUnsafe("alice@example.com"));
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    StringWriter body = new StringWriter();
+    when(request.getParameter("view")).thenReturn("j2cl-root");
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
+    when(request.getHeader("X-Forwarded-Host")).thenReturn("bad host");
+    when(request.getHeader("Host")).thenReturn("bad.example.com/<svg>");
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    servlet.doGet(request, response);
+
+    String html = body.toString();
+    assertTrue(html.contains("\"127.0.0.1:9898\""));
+    assertFalse(html.contains("bad host"));
+    assertFalse(html.contains("bad.example.com"));
+  }
+
+  @Test
   public void renderJ2clRootShellPageRejectsNonLocalReturnTargets() {
     String html =
         HtmlRenderer.renderJ2clRootShellPage(

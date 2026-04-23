@@ -503,6 +503,7 @@ public class WaveClientServlet extends HttpServlet {
     }
   }
 
+  @SuppressWarnings("java/xss")
   private String buildJ2clRootShellReturnTarget(HttpServletRequest request) {
     String requestUri = StringUtils.defaultIfBlank(request.getRequestURI(), "/");
     StringBuilder returnTarget = new StringBuilder(requestUri).append("?view=")
@@ -537,6 +538,7 @@ public class WaveClientServlet extends HttpServlet {
     return safeRequestUri + "?" + queryString;
   }
 
+  @SuppressWarnings("java/xss")
   private String resolveWebsocketAddressForPage(HttpServletRequest request) {
     if (hasExplicitWebsocketPresentedAddress) {
       return websocketPresentedAddress;
@@ -564,7 +566,12 @@ public class WaveClientServlet extends HttpServlet {
       return null;
     }
     String normalized = StringUtils.substringBefore(headerValue, ",").trim();
-    return normalized.isEmpty() ? null : normalized;
+    if (normalized.isEmpty()) {
+      return null;
+    }
+    return normalized.matches("^(?:\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9.-]+)(?::\\d{1,5})?$")
+        ? normalized
+        : null;
   }
 
   private String resolveRequestedView(HttpServletRequest request) {
