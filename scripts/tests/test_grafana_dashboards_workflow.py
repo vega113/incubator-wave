@@ -29,6 +29,8 @@ class GrafanaDashboardsWorkflowTest(unittest.TestCase):
   def test_workflow_reuses_existing_grafana_credentials(self):
     workflow = self._workflow()
 
+    self.assertIn("permissions:", workflow)
+    self.assertIn("contents: read", workflow)
     self.assertIn("GRAFANA_URL: ${{ vars.GRAFANA_URL }}", workflow)
     self.assertIn("GRAFANA_FOLDER_UID: ${{ vars.GRAFANA_FOLDER_UID }}", workflow)
     self.assertIn(

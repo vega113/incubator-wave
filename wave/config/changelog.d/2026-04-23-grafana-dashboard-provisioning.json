@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-23-grafana-dashboard-provisioning",
+  "version": "PR #983",
+  "date": "2026-04-23",
+  "title": "Grafana Dashboards Publish From Repo",
+  "summary": "Wave analytics and perf dashboards now publish from the repo through GitHub Actions instead of relying on manual Grafana imports.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Added a repo-owned GitHub Actions workflow to validate and publish the Wave analytics and perf dashboards to Grafana",
+        "Hardened the Grafana dashboard upsert helper so strict CI runs fail on real API errors and accept both dashboard datasource placeholder styles"
+      ]
+    }
+  ]
+}

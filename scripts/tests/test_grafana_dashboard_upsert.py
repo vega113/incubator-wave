@@ -96,7 +96,7 @@ class GrafanaDashboardUpsertTest(unittest.TestCase):
 
   def test_main_skips_cleanly_when_credentials_are_missing(self):
     with mock.patch.dict(os.environ, {}, clear=True):
-      exit_code = upsert_grafana_dashboard.main()
+      exit_code = upsert_grafana_dashboard.main([])
 
     self.assertEqual(0, exit_code)
 
@@ -122,7 +122,7 @@ class GrafanaDashboardUpsertTest(unittest.TestCase):
 
     with mock.patch.dict(os.environ, env, clear=True):
       with mock.patch.object(upsert_grafana_dashboard.urllib.request, "urlopen", side_effect=error):
-        exit_code = upsert_grafana_dashboard.main()
+        exit_code = upsert_grafana_dashboard.main([])
 
     self.assertEqual(0, exit_code)
 
@@ -178,7 +178,7 @@ class GrafanaDashboardUpsertTest(unittest.TestCase):
 
     with mock.patch.dict(os.environ, env, clear=True):
       with mock.patch.object(upsert_grafana_dashboard.urllib.request, "urlopen", side_effect=fake_urlopen):
-        exit_code = upsert_grafana_dashboard.main()
+        exit_code = upsert_grafana_dashboard.main([])
 
     self.assertEqual(0, exit_code)
     self.assertEqual(2, len(requests))
@@ -218,7 +218,7 @@ class GrafanaDashboardUpsertTest(unittest.TestCase):
           "urlopen",
           side_effect=urllib.error.URLError("connection refused"),
       ):
-        exit_code = upsert_grafana_dashboard.main()
+        exit_code = upsert_grafana_dashboard.main([])
 
     self.assertEqual(0, exit_code)
 

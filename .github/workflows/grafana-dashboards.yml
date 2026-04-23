@@ -28,6 +28,9 @@ on:
         required: false
         default: 'false'
 
+permissions:
+  contents: read
+
 jobs:
   dashboards:
     name: Validate and publish Grafana dashboards

@@ -143,7 +143,7 @@ def upsert_dashboard(
 
 
 def main(argv: list[str] | None = None) -> int:
-  args = parse_args([] if argv is None else argv)
+  args = parse_args(argv)
   grafana_url = os.getenv("GRAFANA_URL", "")
   api_token = os.getenv("GRAFANA_DASHBOARD_API_TOKEN", "")
   datasource_uid = os.getenv("GRAFANA_PROMETHEUS_DATASOURCE_UID", "")
@@ -170,4 +170,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-  raise SystemExit(main())
+  raise SystemExit(main(sys.argv[1:]))
