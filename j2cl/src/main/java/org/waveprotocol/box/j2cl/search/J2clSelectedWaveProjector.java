@@ -121,6 +121,14 @@ public final class J2clSelectedWaveProjector {
       read = previous.isRead();
       readStateKnown = previous.isReadStateKnown();
     }
+    String staleSuffix = " Unread count may be stale.";
+    String baseStatus = previous.getStatusText();
+    if (baseStatus.endsWith(staleSuffix)) {
+      baseStatus = baseStatus.substring(0, baseStatus.length() - staleSuffix.length());
+    }
+    String statusText = (readStateKnown && readStateStale)
+        ? appendStatus(baseStatus, "Unread count may be stale.")
+        : baseStatus;
     return new J2clSelectedWaveModel(
         previous.hasSelection(),
         previous.isLoading(),
@@ -129,7 +137,7 @@ public final class J2clSelectedWaveProjector {
         previous.getTitleText(),
         previous.getSnippetText(),
         resolveUnreadText(digestItem, unreadCount, read, readStateKnown),
-        previous.getStatusText(),
+        statusText,
         previous.getDetailText(),
         previous.getReconnectCount(),
         previous.getParticipantIds(),

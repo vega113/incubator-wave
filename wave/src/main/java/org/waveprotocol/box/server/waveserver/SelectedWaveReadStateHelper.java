@@ -116,7 +116,7 @@ public class SelectedWaveReadStateHelper {
       waveletIds = waveMap.lookupWavelets(waveId);
     } catch (WaveletStateException e) {
       LOG.warning("read-state: failed to look up wavelets for " + waveId, e);
-      return Result.notFound();
+      throw new RuntimeException("Failed to load read state for " + waveId, e);
     }
     if (waveletIds == null || waveletIds.isEmpty()) {
       return Result.notFound();
@@ -143,7 +143,7 @@ public class SelectedWaveReadStateHelper {
       return Result.found(Math.max(0, digest.getUnreadCount()));
     } catch (RuntimeException e) {
       LOG.warning("read-state: digest build failed for " + waveId, e);
-      return Result.notFound();
+      throw e;
     }
   }
 
