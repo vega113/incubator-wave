@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-23-compact-inline-avatar-row",
+  "version": "PR pending",
+  "date": "2026-04-23",
+  "title": "Keep compact inline avatars on the author row",
+  "summary": "Updates the compact-inline-blips follow-up so inline reply avatars stay on the same row as the author line while the content still reuses the reclaimed width on desktop and mobile.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Depth 0-2 compact inline replies now keep the avatar on the same row as the author metadata on desktop and mobile.",
+        "Compact inline reply content still spans the reclaimed width below that row, while root blips and depth 3+ reset behavior stay unchanged."
+      ]
+    }
+  ]
+}
