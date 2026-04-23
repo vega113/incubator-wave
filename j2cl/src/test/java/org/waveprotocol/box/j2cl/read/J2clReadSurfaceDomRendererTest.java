@@ -40,7 +40,7 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertNotNull(toggle);
     Assert.assertEquals("true", toggle.getAttribute("aria-expanded"));
     Assert.assertEquals(
-        "Collapse inline reply thread inline", toggle.getAttribute("aria-label"));
+        "Collapse inline reply thread inline 1", toggle.getAttribute("aria-label"));
 
     HTMLElement inlineThread =
         (HTMLElement) host.querySelector(".inline-thread[data-thread-id='t+inline']");
@@ -48,13 +48,15 @@ public class J2clReadSurfaceDomRendererTest {
         (HTMLElement) host.querySelector(".thread[data-thread-id='t+root']");
     Assert.assertEquals("list", rootThread.getAttribute("role"));
     Assert.assertEquals("group", inlineThread.getAttribute("role"));
-    Assert.assertEquals("inline reply thread inline", inlineThread.getAttribute("aria-label"));
+    Assert.assertEquals("listitem", blip(host, "b+root").getAttribute("role"));
+    Assert.assertEquals("article", blip(host, "b+reply").getAttribute("role"));
+    Assert.assertEquals("inline reply thread inline 1", inlineThread.getAttribute("aria-label"));
 
     toggle.click();
 
     Assert.assertEquals("true", inlineThread.getAttribute("data-j2cl-thread-collapsed"));
     Assert.assertEquals("false", toggle.getAttribute("aria-expanded"));
-    Assert.assertEquals("Expand inline reply thread inline", toggle.getAttribute("aria-label"));
+    Assert.assertEquals("Expand inline reply thread inline 1", toggle.getAttribute("aria-label"));
   }
 
   @Test
@@ -222,6 +224,26 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertEquals(2, host.querySelectorAll("[data-j2cl-read-blip='true']").length);
     Assert.assertEquals("b+root", firstBlip(host).getAttribute("data-blip-id"));
     Assert.assertEquals("0", firstBlip(host).getAttribute("tabindex"));
+    Assert.assertEquals(
+        "ArrowUp ArrowDown Home End", firstBlip(host).getAttribute("aria-keyshortcuts"));
+  }
+
+  @Test
+  public void focusedBlipReceivesCurrentMarker() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+
+    Assert.assertTrue(
+        new J2clReadSurfaceDomRenderer(host)
+            .render(
+                Arrays.asList(new J2clReadBlip("b+root", "Root text")),
+                Collections.<String>emptyList()));
+
+    HTMLElement root = blip(host, "b+root");
+    root.focus();
+
+    Assert.assertEquals("true", root.getAttribute("aria-current"));
+    Assert.assertEquals("0", root.getAttribute("tabindex"));
   }
 
   @Test
@@ -339,6 +361,7 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertNotNull(second);
     Assert.assertFalse(
         first.getAttribute("aria-controls").equals(second.getAttribute("aria-controls")));
+    Assert.assertFalse(first.getAttribute("aria-label").equals(second.getAttribute("aria-label")));
   }
 
   private static HTMLDivElement createHost() {

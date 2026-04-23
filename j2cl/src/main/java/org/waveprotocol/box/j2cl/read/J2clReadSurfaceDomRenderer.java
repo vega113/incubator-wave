@@ -109,6 +109,7 @@ public final class J2clReadSurfaceDomRenderer {
 
   private void enhanceThreads(HTMLElement surface) {
     NodeList<Element> threads = surface.querySelectorAll("[data-thread-id]");
+    int inlineThreadOrdinal = 1;
     for (int index = 0; index < threads.length; index++) {
       HTMLElement thread = (HTMLElement) threads.item(index);
       if (thread == null) {
@@ -117,28 +118,37 @@ public final class J2clReadSurfaceDomRenderer {
       thread.classList.add("j2cl-read-thread");
       if (thread.classList.contains("inline-thread")) {
         thread.setAttribute("role", "group");
-        thread.setAttribute("aria-label", threadLabel(thread));
-        enhanceInlineThread(thread, index);
+        enhanceInlineThread(thread, index, inlineThreadOrdinal++);
       } else {
         thread.setAttribute("role", "list");
       }
     }
   }
 
-  private void enhanceInlineThread(HTMLElement thread, int index) {
-    if (thread.hasAttribute("data-j2cl-collapse-ready")) {
-      return;
-    }
-    thread.setAttribute("data-j2cl-collapse-ready", "true");
+  private void enhanceInlineThread(HTMLElement thread, int index, int ordinal) {
     if (!thread.hasAttribute("id")) {
       thread.setAttribute("id", generatedThreadId(thread, index));
     }
+    String label = threadLabel(thread, ordinal);
+    thread.setAttribute("aria-label", label);
+    thread.setAttribute("data-j2cl-thread-label", label);
+    if (thread.hasAttribute("data-j2cl-collapse-ready")) {
+      HTMLElement existingButton = (HTMLElement) thread.querySelector(".j2cl-read-thread-toggle");
+      if (existingButton != null) {
+        existingButton.setAttribute(
+            "aria-label",
+            (thread.classList.contains("j2cl-read-thread-collapsed") ? "Expand " : "Collapse ")
+                + label);
+      }
+      return;
+    }
+    thread.setAttribute("data-j2cl-collapse-ready", "true");
     HTMLElement button = (HTMLElement) DomGlobal.document.createElement("button");
     button.className = "j2cl-read-thread-toggle";
     button.setAttribute("type", "button");
     button.setAttribute("aria-controls", thread.getAttribute("id"));
     button.setAttribute("aria-expanded", "true");
-    button.setAttribute("aria-label", "Collapse " + threadLabel(thread));
+    button.setAttribute("aria-label", "Collapse " + label);
     button.textContent = "Collapse thread";
     button.addEventListener("click", event -> toggleThread(thread, button));
     thread.insertBefore(button, thread.firstChild);
@@ -154,7 +164,7 @@ public final class J2clReadSurfaceDomRenderer {
       }
       blip.classList.add("j2cl-read-blip");
       blip.setAttribute("data-j2cl-read-blip", "true");
-      blip.setAttribute("role", "listitem");
+      blip.setAttribute("role", isInsideInlineThread(blip) ? "article" : "listitem");
       blip.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown Home End");
       boolean alreadyBound = blip.hasAttribute("data-j2cl-read-blip-bound");
       if (!alreadyBound) {
@@ -292,6 +302,17 @@ public final class J2clReadSurfaceDomRenderer {
     return false;
   }
 
+  private boolean isInsideInlineThread(HTMLElement blip) {
+    HTMLElement parent = (HTMLElement) blip.parentElement;
+    while (parent != null && parent != host) {
+      if (parent.classList.contains("inline-thread")) {
+        return true;
+      }
+      parent = (HTMLElement) parent.parentElement;
+    }
+    return false;
+  }
+
   private void restoreFocusedBlip(HTMLElement previousFocusedBlip) {
     HTMLElement restored = visibleRenderedBlip(previousFocusedBlip);
     if (restored == null) {
@@ -379,12 +400,17 @@ public final class J2clReadSurfaceDomRenderer {
     return "j2cl-read-thread-" + sanitizeDomId(threadId) + "-" + generatedThreadIdCounter;
   }
 
-  private static String threadLabel(HTMLElement thread) {
+  private static String threadLabel(HTMLElement thread, int ordinal) {
     String threadId = thread.getAttribute("data-thread-id");
     if (threadId == null || threadId.isEmpty()) {
-      return "inline reply thread";
+      return "inline reply thread " + ordinal;
     }
-    return "inline reply thread " + readableId(threadId, "t+");
+    return "inline reply thread " + readableId(threadId, "t+") + " " + ordinal;
+  }
+
+  private static String threadLabel(HTMLElement thread) {
+    String label = thread.getAttribute("data-j2cl-thread-label");
+    return label == null || label.isEmpty() ? "inline reply thread" : label;
   }
 
   private static String blipLabel(String blipId) {
