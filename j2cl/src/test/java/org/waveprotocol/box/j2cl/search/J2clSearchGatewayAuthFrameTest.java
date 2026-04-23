@@ -7,6 +7,7 @@ import org.junit.Test;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
 import org.waveprotocol.box.j2cl.transport.SidecarTransportCodec;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 
 /**
  * Issue #933 regression coverage for the first outbound J2CL sidecar frames.
@@ -34,6 +35,32 @@ public class J2clSearchGatewayAuthFrameTest {
 
     Assert.assertEquals("ProtocolOpenRequest", SidecarTransportCodec.decodeMessageType(frame));
     Assert.assertFalse(frame.contains("ProtocolAuthenticate"));
+  }
+
+  @Test
+  public void selectedWaveOpenFrameCanCarryExplicitDefaultViewportLimit() {
+    String frame =
+        J2clSearchGateway.buildSelectedWaveOpenFrame(
+            new SidecarSessionBootstrap("rose@example.com", "socket.example.test"),
+            "example.com/w+abc",
+            new SidecarViewportHints(null, null, Integer.valueOf(0)));
+
+    Assert.assertEquals("ProtocolOpenRequest", SidecarTransportCodec.decodeMessageType(frame));
+    Assert.assertTrue(frame.contains("\"7\":0"));
+  }
+
+  @Test
+  public void selectedWaveOpenFrameCanCarryServerFirstViewportAnchor() {
+    String frame =
+        J2clSearchGateway.buildSelectedWaveOpenFrame(
+            new SidecarSessionBootstrap("rose@example.com", "socket.example.test"),
+            "example.com/w+abc",
+            new SidecarViewportHints("b+root", "forward", null));
+
+    Assert.assertEquals("ProtocolOpenRequest", SidecarTransportCodec.decodeMessageType(frame));
+    Assert.assertTrue(frame.contains("\"5\":\"b+root\""));
+    Assert.assertTrue(frame.contains("\"6\":\"forward\""));
+    Assert.assertFalse(frame.contains("\"7\""));
   }
 
   @Test

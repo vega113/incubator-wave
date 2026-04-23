@@ -26,7 +26,18 @@ public final class SidecarTransportCodec {
       }
       json.append('"').append(escapeJson(prefixes.get(i))).append('"');
     }
-    json.append("]}}");
+    json.append(']');
+    SidecarViewportHints hints = request.getViewportHints();
+    if (hints.getStartBlipId() != null) {
+      json.append(",\"5\":\"").append(escapeJson(hints.getStartBlipId())).append('"');
+    }
+    if (hints.getDirection() != null) {
+      json.append(",\"6\":\"").append(escapeJson(hints.getDirection())).append('"');
+    }
+    if (hints.getLimit() != null) {
+      json.append(",\"7\":").append(hints.getLimit().intValue());
+    }
+    json.append("}}");
     return json.toString();
   }
 

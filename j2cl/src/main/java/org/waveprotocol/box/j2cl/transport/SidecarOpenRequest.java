@@ -8,14 +8,25 @@ public final class SidecarOpenRequest {
   private final String participantId;
   private final String waveId;
   private final List<String> waveletIdPrefixes;
+  private final SidecarViewportHints viewportHints;
 
+  /** No-hint convenience constructor retained for legacy selected-wave and test callers. */
   public SidecarOpenRequest(String participantId, String waveId, List<String> waveletIdPrefixes) {
+    this(participantId, waveId, waveletIdPrefixes, null);
+  }
+
+  public SidecarOpenRequest(
+      String participantId,
+      String waveId,
+      List<String> waveletIdPrefixes,
+      SidecarViewportHints viewportHints) {
     this.participantId = participantId;
     this.waveId = waveId;
     this.waveletIdPrefixes =
         waveletIdPrefixes == null
             ? Collections.<String>emptyList()
             : Collections.unmodifiableList(new ArrayList<>(waveletIdPrefixes));
+    this.viewportHints = viewportHints == null ? SidecarViewportHints.none() : viewportHints;
   }
 
   public String getParticipantId() {
@@ -28,5 +39,9 @@ public final class SidecarOpenRequest {
 
   public List<String> getWaveletIdPrefixes() {
     return waveletIdPrefixes;
+  }
+
+  public SidecarViewportHints getViewportHints() {
+    return viewportHints;
   }
 }

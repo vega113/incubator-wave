@@ -48,6 +48,52 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void encodeOpenEnvelopeOmitsViewportHintsWhenAbsent() {
+    SidecarOpenRequest request =
+        new SidecarOpenRequest(
+            "user@example.com", "example.com/w+abc123", Arrays.asList("conv+root"));
+
+    String json = SidecarTransportCodec.encodeOpenEnvelope(8, request);
+    Map<String, Object> envelope = SidecarTransportCodec.parseJsonObject(json);
+    Map<String, Object> message = asObject(envelope.get("message"));
+
+    Assert.assertFalse(message.containsKey("5"));
+    Assert.assertFalse(message.containsKey("6"));
+    Assert.assertFalse(message.containsKey("7"));
+  }
+
+  @Test
+  public void encodeOpenEnvelopeIncludesViewportHintsWhenPresent() {
+    SidecarOpenRequest request =
+        new SidecarOpenRequest(
+            "user@example.com",
+            "example.com/w+abc123",
+            Arrays.asList("conv+root"),
+            new SidecarViewportHints("b+root", "forward", Integer.valueOf(0)));
+
+    String json = SidecarTransportCodec.encodeOpenEnvelope(8, request);
+    Map<String, Object> envelope = SidecarTransportCodec.parseJsonObject(json);
+    Map<String, Object> message = asObject(envelope.get("message"));
+
+    Assert.assertEquals("b+root", message.get("5"));
+    Assert.assertEquals("forward", message.get("6"));
+    Assert.assertEquals(0, ((Number) message.get("7")).intValue());
+  }
+
+  @Test
+  public void parseOpenEnvelopePreservesExplicitZeroViewportLimitField() {
+    Map<String, Object> envelope =
+        SidecarTransportCodec.parseJsonObject(
+            "{\"sequenceNumber\":8,\"messageType\":\"ProtocolOpenRequest\","
+                + "\"message\":{\"1\":\"user@example.com\",\"2\":\"example.com/w+abc123\","
+                + "\"3\":[\"conv+root\"],\"7\":0}}");
+    Map<String, Object> message = asObject(envelope.get("message"));
+
+    Assert.assertTrue(message.containsKey("7"));
+    Assert.assertEquals(0, ((Number) message.get("7")).intValue());
+  }
+
+  @Test
   public void decodeSearchResponseReadsNumericKeysAndLongWords() {
     String json =
         "{\"1\":\"in:inbox\",\"2\":1,\"3\":[{\"1\":\"Inbox wave\",\"2\":\"Snippet\","
@@ -353,5 +399,10 @@ public class SidecarTransportCodecTest {
           "Expected message to contain \"" + substring + "\" but was: " + expected.getMessage(),
           expected.getMessage().contains(substring));
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Map<String, Object> asObject(Object value) {
+    return (Map<String, Object>) value;
   }
 }

@@ -16,6 +16,7 @@ import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragments;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 
 @J2clTestInput(J2clSelectedWaveControllerTest.class)
 public class J2clSelectedWaveControllerTest {
@@ -181,6 +182,52 @@ public class J2clSelectedWaveControllerTest {
     harness.resolveBootstrap(1);
     Assert.assertEquals(1, harness.openCount);
     Assert.assertEquals("example.com/w+b", harness.openAttempts.get(0).waveId);
+  }
+
+  @Test
+  public void selectingWaveDefaultsToExplicitViewportLimitHintWhenViewHasNoAnchor()
+      throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+
+    SidecarViewportHints hints = harness.openAttempts.get(0).viewportHints;
+    Assert.assertNull(hints.getStartBlipId());
+    Assert.assertNull(hints.getDirection());
+    Assert.assertEquals(Integer.valueOf(0), hints.getLimit());
+  }
+
+  @Test
+  public void selectingWaveDefaultsToExplicitViewportLimitHintWhenViewReturnsNoHints()
+      throws Exception {
+    Harness harness = new Harness();
+    harness.initialViewportHints = SidecarViewportHints.none();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+
+    SidecarViewportHints hints = harness.openAttempts.get(0).viewportHints;
+    Assert.assertNull(hints.getStartBlipId());
+    Assert.assertNull(hints.getDirection());
+    Assert.assertEquals(Integer.valueOf(0), hints.getLimit());
+  }
+
+  @Test
+  public void selectingWaveUsesViewProvidedServerFirstViewportAnchor() throws Exception {
+    Harness harness = new Harness();
+    harness.initialViewportHints = new SidecarViewportHints("b+server", "forward", null);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+
+    SidecarViewportHints hints = harness.openAttempts.get(0).viewportHints;
+    Assert.assertEquals("b+server", hints.getStartBlipId());
+    Assert.assertEquals("forward", hints.getDirection());
+    Assert.assertNull(hints.getLimit());
   }
 
   @Test
@@ -518,6 +565,7 @@ public class J2clSelectedWaveControllerTest {
     private final List<ReadStateFetchAttempt> readStateAttempts = new ArrayList<ReadStateFetchAttempt>();
     private final List<Runnable> pendingReadStateDispatches = new ArrayList<Runnable>();
     private final List<Runnable> visibilityListeners = new ArrayList<Runnable>();
+    private SidecarViewportHints initialViewportHints;
     private Object lastModel;
     private Method onWaveSelectedMethod;
     private Method onWaveSelectedWithDigestMethod;
@@ -563,13 +611,15 @@ public class J2clSelectedWaveControllerTest {
                 }
                 if ("openSelectedWave".equals(method.getName())) {
                   openCount++;
+                  SidecarViewportHints viewportHints = (SidecarViewportHints) args[2];
                   @SuppressWarnings("unchecked")
                   J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate> success =
-                      (J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate>) args[2];
+                      (J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate>) args[3];
                   J2clSearchPanelController.ErrorCallback error =
-                      (J2clSearchPanelController.ErrorCallback) args[3];
-                  Runnable disconnect = (Runnable) args[4];
-                  OpenAttempt attempt = new OpenAttempt((String) args[1], success, error, disconnect);
+                      (J2clSearchPanelController.ErrorCallback) args[4];
+                  Runnable disconnect = (Runnable) args[5];
+                  OpenAttempt attempt =
+                      new OpenAttempt((String) args[1], viewportHints, success, error, disconnect);
                   openAttempts.add(attempt);
                   return Proxy.newProxyInstance(
                       subscriptionClass.getClassLoader(),
@@ -600,6 +650,9 @@ public class J2clSelectedWaveControllerTest {
               (proxy, method, args) -> {
                 if ("render".equals(method.getName())) {
                   lastModel = args[0];
+                }
+                if ("initialViewportHints".equals(method.getName())) {
+                  return initialViewportHints;
                 }
                 return null;
               });
@@ -814,16 +867,19 @@ public class J2clSelectedWaveControllerTest {
 
   private static final class OpenAttempt {
     private final String waveId;
+    private final SidecarViewportHints viewportHints;
     private final J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate> success;
     private final J2clSearchPanelController.ErrorCallback error;
     private final Runnable disconnect;
 
     private OpenAttempt(
         String waveId,
+        SidecarViewportHints viewportHints,
         J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate> success,
         J2clSearchPanelController.ErrorCallback error,
         Runnable disconnect) {
       this.waveId = waveId;
+      this.viewportHints = viewportHints;
       this.success = success;
       this.error = error;
       this.disconnect = disconnect;

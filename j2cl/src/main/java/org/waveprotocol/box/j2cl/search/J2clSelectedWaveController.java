@@ -4,6 +4,7 @@ import elemental2.dom.DomGlobal;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 
 public final class J2clSelectedWaveController
     implements J2clSidecarRouteController.SelectedWaveController {
@@ -24,6 +25,7 @@ public final class J2clSelectedWaveController
     Subscription openSelectedWave(
         SidecarSessionBootstrap bootstrap,
         String waveId,
+        SidecarViewportHints viewportHints,
         J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate> onUpdate,
         J2clSearchPanelController.ErrorCallback onError,
         Runnable onDisconnect);
@@ -41,6 +43,10 @@ public final class J2clSelectedWaveController
 
   public interface View {
     void render(J2clSelectedWaveModel model);
+
+    default SidecarViewportHints initialViewportHints(String selectedWaveId) {
+      return SidecarViewportHints.defaultLimit();
+    }
   }
 
   public interface RetryScheduler {
@@ -286,6 +292,7 @@ public final class J2clSelectedWaveController
         gateway.openSelectedWave(
             currentBootstrap,
             selectedWaveId,
+            resolveInitialViewportHints(),
             update -> {
               if (!isCurrentGeneration(generation) || isChannelEstablishmentUpdate(update)) {
                 return;
@@ -341,6 +348,13 @@ public final class J2clSelectedWaveController
               clearActiveSubscription();
               scheduleReconnectOrFail(generation, activeReconnectCount[0]);
             });
+  }
+
+  private SidecarViewportHints resolveInitialViewportHints() {
+    SidecarViewportHints hints = view.initialViewportHints(selectedWaveId);
+    // Defensive fallback for tests and alternate views: a selected-wave open without a
+    // preserved DOM anchor still opts into viewport mode with the configured server default.
+    return hints == null || !hints.hasHints() ? SidecarViewportHints.defaultLimit() : hints;
   }
 
   private void scheduleReconnectOrFail(int generation, int reconnectCount) {

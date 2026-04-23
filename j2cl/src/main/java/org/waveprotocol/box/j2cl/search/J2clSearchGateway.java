@@ -13,6 +13,7 @@ import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitResponse;
 import org.waveprotocol.box.j2cl.transport.SidecarTransportCodec;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 
 public final class J2clSearchGateway
     implements
@@ -45,6 +46,7 @@ public final class J2clSearchGateway
   public J2clSelectedWaveController.Subscription openSelectedWave(
       SidecarSessionBootstrap bootstrap,
       String waveId,
+      SidecarViewportHints viewportHints,
       J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate> onUpdate,
       J2clSearchPanelController.ErrorCallback onError,
       Runnable onDisconnect) {
@@ -61,7 +63,7 @@ public final class J2clSearchGateway
           if (closedByClient[0]) {
             return;
           }
-          socket.send(buildSelectedWaveOpenFrame(bootstrap, waveId));
+          socket.send(buildSelectedWaveOpenFrame(bootstrap, waveId, viewportHints));
         };
     socket.onmessage =
         event -> {
@@ -229,12 +231,18 @@ public final class J2clSearchGateway
   }
 
   static String buildSelectedWaveOpenFrame(SidecarSessionBootstrap bootstrap, String waveId) {
+    return buildSelectedWaveOpenFrame(bootstrap, waveId, SidecarViewportHints.none());
+  }
+
+  static String buildSelectedWaveOpenFrame(
+      SidecarSessionBootstrap bootstrap, String waveId, SidecarViewportHints viewportHints) {
     return SidecarTransportCodec.encodeOpenEnvelope(
         1,
         new SidecarOpenRequest(
             bootstrap.getAddress(),
             waveId,
-            java.util.Collections.singletonList(DEFAULT_WAVELET_PREFIX)));
+            java.util.Collections.singletonList(DEFAULT_WAVELET_PREFIX),
+            viewportHints));
   }
 
   static String buildSubmitFrame(SidecarSubmitRequest request) {

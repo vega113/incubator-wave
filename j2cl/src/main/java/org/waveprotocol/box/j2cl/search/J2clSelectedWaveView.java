@@ -7,6 +7,7 @@ import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
 import org.waveprotocol.box.j2cl.read.J2clReadSurfaceDomRenderer;
 import org.waveprotocol.box.j2cl.root.J2clServerFirstRootShellDom;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 
 public final class J2clSelectedWaveView implements J2clSelectedWaveController.View {
   private final HTMLElement title;
@@ -149,6 +150,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     return composeHost;
   }
 
+  @Override
+  public SidecarViewportHints initialViewportHints(String selectedWaveId) {
+    return resolveInitialViewportHints(
+        serverFirstActive, serverFirstWaveId, selectedWaveId, serverFirstBlipAnchor());
+  }
+
   public static boolean shouldPreserveServerSnapshot(
       String serverSnapshotWaveId, J2clSelectedWaveModel model, boolean serverFirstAlreadySwapped) {
     if (serverFirstAlreadySwapped || model == null) {
@@ -181,6 +188,34 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       return shouldPreserveServerSnapshot(serverFirstWaveId, model, serverFirstSwapRecorded);
     }
     return !model.hasSelection() && !serverFirstMode.isEmpty();
+  }
+
+  static SidecarViewportHints resolveInitialViewportHints(
+      boolean serverFirstActive, String serverFirstWaveId, String selectedWaveId, String anchor) {
+    if (selectedWaveId == null || selectedWaveId.isEmpty()) {
+      return SidecarViewportHints.none();
+    }
+    if (serverFirstActive
+        && (serverFirstWaveId == null
+            || serverFirstWaveId.isEmpty()
+            || serverFirstWaveId.equals(selectedWaveId))
+        && anchor != null
+        && !anchor.isEmpty()) {
+      return new SidecarViewportHints(anchor, "forward", null);
+    }
+    return SidecarViewportHints.defaultLimit();
+  }
+
+  private String serverFirstBlipAnchor() {
+    if (!serverFirstActive) {
+      return null;
+    }
+    HTMLElement firstBlip = (HTMLElement) contentList.querySelector("[data-blip-id]");
+    if (firstBlip == null) {
+      return null;
+    }
+    String blipId = firstBlip.getAttribute("data-blip-id");
+    return blipId == null || blipId.isEmpty() ? null : blipId;
   }
 
   private void renderPreservedServerFirstState(J2clSelectedWaveModel model) {
