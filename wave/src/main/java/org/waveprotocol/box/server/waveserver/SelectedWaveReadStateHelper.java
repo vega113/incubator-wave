@@ -50,14 +50,6 @@ public class SelectedWaveReadStateHelper {
 
   private static final Log LOG = Log.get(SelectedWaveReadStateHelper.class);
 
-  /** Accept every wavelet in the view — permission is enforced separately below. */
-  private static final Function<ReadableWaveletData, Boolean> ACCEPT_ALL =
-      new Function<ReadableWaveletData, Boolean>() {
-        @Override
-        public Boolean apply(ReadableWaveletData wavelet) {
-          return Boolean.TRUE;
-        }
-      };
 
   /**
    * Outcome of a read-state computation. Non-existence and access-denied
@@ -130,8 +122,18 @@ public class SelectedWaveReadStateHelper {
       return Result.notFound();
     }
 
+    Function<ReadableWaveletData, Boolean> accessFilter =
+        new Function<ReadableWaveletData, Boolean>() {
+          @Override
+          public Boolean apply(ReadableWaveletData wavelet) {
+            if (IdUtil.isUserDataWavelet(user.getAddress(), wavelet.getWaveletId())) {
+              return Boolean.TRUE;
+            }
+            return WaveletDataUtil.checkAccessPermission(wavelet, user, sharedDomainParticipantId);
+          }
+        };
     WaveViewData view =
-        AbstractSearchProviderImpl.buildWaveViewData(waveId, waveletIds, ACCEPT_ALL, waveMap);
+        AbstractSearchProviderImpl.buildWaveViewData(waveId, waveletIds, accessFilter, waveMap);
     if (view == null || !hasAccessibleConversationalWavelet(view, user)) {
       return Result.notFound();
     }

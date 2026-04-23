@@ -141,7 +141,7 @@ public final class SelectedWaveReadStateServletTest extends TestCase {
     servlet.doGet(request, response);
 
     org.mockito.Mockito.verify(response).setStatus(HttpServletResponse.SC_OK);
-    org.mockito.Mockito.verify(response).setContentType("application/json; charset=utf8");
+    org.mockito.Mockito.verify(response).setContentType("application/json; charset=utf-8");
     org.mockito.Mockito.verify(response).setHeader("Cache-Control", "no-store");
     String json = body.toString();
     assertTrue("body missing unreadCount: " + json, json.contains("\"unreadCount\":4"));

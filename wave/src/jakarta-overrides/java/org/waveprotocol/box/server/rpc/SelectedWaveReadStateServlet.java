@@ -108,7 +108,7 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
       HttpServletResponse resp, String waveId, int unreadCount, boolean isRead)
       throws IOException {
     resp.setStatus(HttpServletResponse.SC_OK);
-    resp.setContentType("application/json; charset=utf8");
+    resp.setContentType("application/json; charset=utf-8");
     StringBuilder body = new StringBuilder(64);
     body.append("{\"waveId\":\"").append(escapeJson(waveId)).append("\",\"unreadCount\":")
         .append(unreadCount).append(",\"isRead\":").append(isRead).append('}');

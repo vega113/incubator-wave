@@ -89,15 +89,21 @@ public final class J2clSelectedWaveModel {
         false);
   }
 
+  private static boolean sameWave(String selectedWaveId, J2clSelectedWaveModel previous) {
+    return previous != null && selectedWaveId != null
+        && selectedWaveId.equals(previous.getSelectedWaveId());
+  }
+
   public static J2clSelectedWaveModel loading(
       String selectedWaveId,
       J2clSearchDigestItem digestItem,
       int reconnectCount,
       J2clSelectedWaveModel previous) {
-    int prevUnreadCount =
-        previous == null ? UNKNOWN_UNREAD_COUNT : previous.getUnreadCount();
-    boolean prevRead = previous != null && previous.isRead();
-    boolean prevKnown = previous != null && previous.isReadStateKnown();
+    boolean sameWave = sameWave(selectedWaveId, previous);
+    int prevUnreadCount = sameWave ? previous.getUnreadCount() : UNKNOWN_UNREAD_COUNT;
+    boolean prevRead = sameWave && previous.isRead();
+    boolean prevKnown = sameWave && previous.isReadStateKnown();
+    boolean prevStale = sameWave && previous.isReadStateStale();
     return new J2clSelectedWaveModel(
         true,
         true,
@@ -117,7 +123,7 @@ public final class J2clSelectedWaveModel {
         prevUnreadCount,
         prevRead,
         prevKnown,
-        prevKnown);
+        prevStale);
   }
 
   public static J2clSelectedWaveModel error(
@@ -126,10 +132,11 @@ public final class J2clSelectedWaveModel {
       String statusText,
       String detailText,
       J2clSelectedWaveModel previous) {
-    int prevUnreadCount =
-        previous == null ? UNKNOWN_UNREAD_COUNT : previous.getUnreadCount();
-    boolean prevRead = previous != null && previous.isRead();
-    boolean prevKnown = previous != null && previous.isReadStateKnown();
+    boolean sameWave = sameWave(selectedWaveId, previous);
+    int prevUnreadCount = sameWave ? previous.getUnreadCount() : UNKNOWN_UNREAD_COUNT;
+    boolean prevRead = sameWave && previous.isRead();
+    boolean prevKnown = sameWave && previous.isReadStateKnown();
+    boolean prevStale = sameWave && previous.isReadStateStale();
     return new J2clSelectedWaveModel(
         true,
         false,
@@ -147,7 +154,7 @@ public final class J2clSelectedWaveModel {
         prevUnreadCount,
         prevRead,
         prevKnown,
-        prevKnown);
+        prevStale);
   }
 
   private static String resolveTitle(String selectedWaveId, J2clSearchDigestItem digestItem) {

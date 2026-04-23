@@ -160,6 +160,11 @@ body {
   margin: 14px 0 0;
 }
 
+.sidecar-selected-unread-stale {
+  color: #7a99c8;
+  font-style: italic;
+}
+
 .sidecar-selected-status {
   color: #173355;
   font-weight: 700;
