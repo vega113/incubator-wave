@@ -67,6 +67,27 @@ public class J2clReadSurfaceDomRendererTest {
   }
 
   @Test
+  public void reEnhancementPreservesFocusedRovingTabStop() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    Assert.assertTrue(renderer.enhanceExistingSurface());
+    HTMLElement root = blip(host, "b+root");
+    HTMLElement reply = blip(host, "b+reply");
+    HTMLElement after = blip(host, "b+after");
+
+    reply.focus();
+    Assert.assertTrue(renderer.enhanceExistingSurface());
+
+    Assert.assertEquals("-1", root.getAttribute("tabindex"));
+    Assert.assertEquals("0", reply.getAttribute("tabindex"));
+    Assert.assertEquals("true", reply.getAttribute("aria-current"));
+    Assert.assertEquals("-1", after.getAttribute("tabindex"));
+    Assert.assertEquals(1, host.querySelectorAll("[tabindex='0']").length);
+  }
+
+  @Test
   public void keyboardNavigationSkipsCollapsedThreadBlips() {
     assumeBrowserDom();
     HTMLDivElement host = createThreadedHost();
@@ -108,6 +129,26 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertEquals("-1", reply.getAttribute("tabindex"));
     Assert.assertEquals("0", after.getAttribute("tabindex"));
     Assert.assertEquals("true", after.getAttribute("aria-current"));
+  }
+
+  @Test
+  public void collapsingFocusedLastThreadFallsBackToPreviousVisibleBlip() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHostWithoutFollowingBlip();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    Assert.assertTrue(renderer.enhanceExistingSurface());
+    HTMLButtonElement toggle =
+        (HTMLButtonElement) host.querySelector(".j2cl-read-thread-toggle");
+    HTMLElement root = blip(host, "b+root");
+    HTMLElement reply = blip(host, "b+reply");
+
+    reply.focus();
+    toggle.click();
+
+    Assert.assertEquals("0", root.getAttribute("tabindex"));
+    Assert.assertEquals("true", root.getAttribute("aria-current"));
+    Assert.assertEquals("-1", reply.getAttribute("tabindex"));
   }
 
   @Test
@@ -162,6 +203,19 @@ public class J2clReadSurfaceDomRendererTest {
             + "<div class=\"blip\" data-blip-id=\"b+reply\">Reply</div>"
             + "</div>"
             + "<div class=\"blip\" data-blip-id=\"b+after\">After</div>"
+            + "</div></div>";
+    return host;
+  }
+
+  private static HTMLDivElement createThreadedHostWithoutFollowingBlip() {
+    HTMLDivElement host = createHost();
+    host.innerHTML =
+        "<div class=\"wave-content\">"
+            + "<div class=\"thread\" data-thread-id=\"t+root\">"
+            + "<div class=\"blip\" data-blip-id=\"b+root\">Root</div>"
+            + "<div class=\"inline-thread\" data-thread-id=\"t+inline\">"
+            + "<div class=\"blip\" data-blip-id=\"b+reply\">Reply</div>"
+            + "</div>"
             + "</div></div>";
     return host;
   }

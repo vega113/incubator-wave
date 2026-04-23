@@ -231,10 +231,7 @@ body {
   outline-offset: 2px;
 }
 
-.j2cl-read-thread-collapsed > .blip,
-.j2cl-read-thread-collapsed > .j2cl-read-blip,
-.j2cl-read-thread-collapsed > .inline-thread,
-.j2cl-read-thread-collapsed > .j2cl-read-thread {
+.j2cl-read-thread-collapsed > :not(.j2cl-read-thread-toggle) {
   display: none;
 }
 

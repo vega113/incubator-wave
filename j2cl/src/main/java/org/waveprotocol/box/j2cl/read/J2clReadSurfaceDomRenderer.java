@@ -52,13 +52,13 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   public boolean enhanceExistingSurface() {
-    HTMLElement previousFocusedBlip = focusedBlip;
-    renderedBlips.clear();
-    focusedBlip = null;
     HTMLElement surface = findExistingSurface();
     if (surface == null) {
       return false;
     }
+    HTMLElement previousFocusedBlip = focusedBlip;
+    renderedBlips.clear();
+    focusedBlip = null;
     enhanceSurface(surface);
     restoreFocusedBlip(previousFocusedBlip);
     // A zero-blip surface is still valid no-wave/empty markup, but callers use
@@ -114,9 +114,11 @@ public final class J2clReadSurfaceDomRenderer {
         continue;
       }
       thread.classList.add("j2cl-read-thread");
-      thread.setAttribute("role", "list");
       if (thread.classList.contains("inline-thread")) {
+        thread.setAttribute("role", "group");
         enhanceInlineThread(thread, index);
+      } else {
+        thread.setAttribute("role", "list");
       }
     }
   }
@@ -141,6 +143,7 @@ public final class J2clReadSurfaceDomRenderer {
 
   private void enhanceBlips(HTMLElement surface) {
     NodeList<Element> blips = surface.querySelectorAll("[data-blip-id]");
+    boolean tabStopAssigned = false;
     for (int index = 0; index < blips.length; index++) {
       HTMLElement blip = (HTMLElement) blips.item(index);
       if (blip == null) {
@@ -152,10 +155,14 @@ public final class J2clReadSurfaceDomRenderer {
       blip.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown Home End");
       boolean alreadyBound = blip.hasAttribute("data-j2cl-read-blip-bound");
       if (!alreadyBound) {
-        blip.setAttribute("tabindex", index == 0 ? "0" : "-1");
+        boolean visible = !isHiddenByCollapsedThread(blip);
+        blip.setAttribute("tabindex", visible && !tabStopAssigned ? "0" : "-1");
+        tabStopAssigned = tabStopAssigned || visible;
         blip.setAttribute("data-j2cl-read-blip-bound", "true");
         blip.addEventListener("focus", this::onBlipFocus);
         blip.addEventListener("keydown", this::onBlipKeyDown);
+      } else if (!isHiddenByCollapsedThread(blip) && "0".equals(blip.getAttribute("tabindex"))) {
+        tabStopAssigned = true;
       }
       renderedBlips.add(blip);
     }
@@ -361,7 +368,8 @@ public final class J2clReadSurfaceDomRenderer {
     if (threadId == null || threadId.isEmpty()) {
       threadId = "thread-" + index;
     }
-    return "j2cl-read-thread-" + sanitizeDomId(threadId) + "-" + (++generatedThreadIdCounter);
+    generatedThreadIdCounter++;
+    return "j2cl-read-thread-" + sanitizeDomId(threadId) + "-" + generatedThreadIdCounter;
   }
 
   private static String sanitizeDomId(String value) {
