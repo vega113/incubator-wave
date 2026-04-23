@@ -199,10 +199,11 @@ def render_metrics(summaries: list[dict]) -> str:
     lines.append(f"wave_perf_run_info{{{labels}}} 1")
     for stat_name, stat_value in summary["timings_ms"].items():
       lines.append(f'wave_perf_response_time_ms{{{_format_labels(summary, {"stat": stat_name})}}} {stat_value}')
-    lines.append(f"wave_perf_mean_requests_per_second{{{labels}}} {summary['mean_requests_per_second']}")
+    if "mean_requests_per_second" in summary:
+      lines.append(f"wave_perf_mean_requests_per_second{{{labels}}} {summary['mean_requests_per_second']}")
     for status_name, request_count in summary["requests"].items():
       lines.append(f'wave_perf_requests_count{{{_format_labels(summary, {"status": status_name})}}} {request_count}')
-    for bucket_name, bucket in summary["distribution"].items():
+    for bucket_name, bucket in summary.get("distribution", {}).items():
       lines.append(f'wave_perf_distribution_count{{{_format_labels(summary, {"bucket": bucket_name})}}} {bucket["count"]}')
       lines.append(
           f'wave_perf_distribution_ratio{{{_format_labels(summary, {"bucket": bucket_name})}}} {bucket["percentage"] / 100.0}'
@@ -220,16 +221,17 @@ def render_metrics(summaries: list[dict]) -> str:
         lines.append(
             f'wave_perf_request_requests_count{{{_format_labels(summary, {**request_labels, "status": status_name})}}} {request_count}'
         )
-      for bucket_name, bucket in request_metric["distribution"].items():
+      for bucket_name, bucket in request_metric.get("distribution", {}).items():
         lines.append(
             f'wave_perf_request_distribution_count{{{_format_labels(summary, {**request_labels, "bucket": bucket_name})}}} {bucket["count"]}'
         )
         lines.append(
             f'wave_perf_request_distribution_ratio{{{_format_labels(summary, {**request_labels, "bucket": bucket_name})}}} {bucket["percentage"] / 100.0}'
         )
-      lines.append(
-          f'wave_perf_request_mean_requests_per_second{{{_format_labels(summary, request_labels)}}} {request_metric["mean_requests_per_second"]}'
-      )
+      if "mean_requests_per_second" in request_metric:
+        lines.append(
+            f'wave_perf_request_mean_requests_per_second{{{_format_labels(summary, request_labels)}}} {request_metric["mean_requests_per_second"]}'
+        )
     lines.append(f"wave_perf_success_ratio{{{labels}}} {summary['success_ratio']}")
     for assertion_name, assertion_passed in summary["assertions"].items():
       value = 1 if assertion_passed else 0
