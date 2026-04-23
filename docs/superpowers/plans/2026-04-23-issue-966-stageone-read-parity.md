@@ -40,7 +40,7 @@ That means `#966` must stay blocked on the two upstream parity seams the issue a
 - `#964` for the shared Lit shell/chrome primitives that every later J2CL parity slice consumes.
 - `#965` for the server-first selected-wave HTML / shell-swap seam that `#966` must upgrade in place rather than bypass.
 
-This planning lane is therefore **prep only**. It defines the implementation route and readiness criteria, but it does not authorize code that depends on `#964` / `#965` landing first.
+This planning lane was initially **prep only**. The dependency gates on `#964` / `#965` have since been satisfied and the implementation has landed in this PR (`#991`).
 
 ## 2. Claimed Parity Scope
 
@@ -156,7 +156,7 @@ The dependency gate must verify whether the rebased `#965` read-surface path alr
   - new J2CL tests under `j2cl/src/test/java/org/waveprotocol/box/j2cl/read/`
     for semantic DOM/provider, focus, collapse, thread navigation, and root-shell upgrade behavior
 
-Do **not** create those package names or filenames in a speculative prep-only change before `#964` lands; the exact boundary should follow the shell/component conventions that PR establishes.
+These package names and filenames are now created as part of the `#966` implementation in PR `#991`, after `#964` landed and established the shell/component conventions.
 
 ## 5. Dependency Gate And Readiness
 
@@ -183,7 +183,7 @@ Do **not** create those package names or filenames in a speculative prep-only ch
 - the rebased read path makes the collapse-state persistence seam explicit: either existing supplement-backed state is consumable, or `#966` is narrowed to in-session collapse semantics and that deferral is recorded before implementation
 - browser and Jakarta tests already covering the root shell continue to pass after rebasing onto those merges
 
-As of `2026-04-23`, this lane is **plan-ready but not implementation-ready**.
+As of `2026-04-23`, this lane was **plan-ready but not implementation-ready**. The implementation has since been completed and submitted in PR `#991`.
 
 ## 6. Task Breakdown
 

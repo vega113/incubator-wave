@@ -265,7 +265,8 @@ body {
 .j2cl-read-blip-content {
   line-height: 1.65;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .sidecar-search-session {
