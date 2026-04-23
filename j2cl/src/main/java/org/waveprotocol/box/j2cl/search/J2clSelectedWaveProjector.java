@@ -6,6 +6,7 @@ import java.util.List;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragment;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragments;
+import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 
 public final class J2clSelectedWaveProjector {
@@ -18,6 +19,25 @@ public final class J2clSelectedWaveProjector {
       SidecarSelectedWaveUpdate update,
       J2clSelectedWaveModel previous,
       int reconnectCount) {
+    return project(selectedWaveId, digestItem, update, previous, reconnectCount, null, false);
+  }
+
+  /**
+   * Projects a selected-wave update, preferring the supplied per-user read
+   * state over digest metadata. {@code readState} may be {@code null} when the
+   * server has not yet responded; in that case the projector falls back to any
+   * prior read state carried on {@code previous}, and finally to digest
+   * metadata. {@code readStateStale} indicates that the last fetch failed — the
+   * numeric count stays, but callers can surface the staleness separately.
+   */
+  public static J2clSelectedWaveModel project(
+      String selectedWaveId,
+      J2clSearchDigestItem digestItem,
+      SidecarSelectedWaveUpdate update,
+      J2clSelectedWaveModel previous,
+      int reconnectCount,
+      SidecarSelectedWaveReadState readState,
+      boolean readStateStale) {
     List<String> participantIds = update.getParticipantIds();
     if (participantIds.isEmpty() && previous != null) {
       participantIds = previous.getParticipantIds();
@@ -32,7 +52,39 @@ public final class J2clSelectedWaveProjector {
     }
 
     String detailText = buildDetailText(update);
-    String statusText = reconnectCount > 0 ? "Live updates reconnected." : "Live updates connected.";
+    String baseStatusText =
+        reconnectCount > 0 ? "Live updates reconnected." : "Live updates connected.";
+
+    int unreadCount;
+    boolean read;
+    boolean readStateKnown;
+    boolean previousMatchesWave =
+        previous != null
+            && selectedWaveId != null
+            && selectedWaveId.equals(previous.getSelectedWaveId());
+    boolean readStateMatchesWave = readState != null
+        && selectedWaveId != null
+        && selectedWaveId.equals(readState.getWaveId());
+    if (readStateMatchesWave) {
+      unreadCount = Math.max(0, readState.getUnreadCount());
+      read = readState.isRead() || unreadCount <= 0;
+      readStateKnown = true;
+    } else if (previousMatchesWave && previous.isReadStateKnown()) {
+      unreadCount = previous.getUnreadCount();
+      read = previous.isRead();
+      readStateKnown = true;
+    } else {
+      unreadCount = J2clSelectedWaveModel.UNKNOWN_UNREAD_COUNT;
+      read = false;
+      readStateKnown = false;
+    }
+    // Only surface the "stale" banner when we actually have a known read-state
+    // to be stale about — an initial fetch failure with no prior snapshot would
+    // otherwise claim the unread count is stale even though no count exists.
+    String statusText =
+        (readStateKnown && readStateStale)
+            ? appendStatus(baseStatusText, "Unread count may be stale.")
+            : baseStatusText;
 
     return new J2clSelectedWaveModel(
         true,
@@ -41,13 +93,82 @@ public final class J2clSelectedWaveProjector {
         selectedWaveId,
         resolveTitle(selectedWaveId, digestItem),
         resolveSnippet(digestItem, contentEntries),
-        resolveUnreadText(digestItem),
+        resolveUnreadText(digestItem, unreadCount, read, readStateKnown),
         statusText,
         detailText,
         reconnectCount,
         participantIds,
         contentEntries,
-        buildWriteSession(selectedWaveId, update, previous));
+        buildWriteSession(selectedWaveId, update, previous),
+        unreadCount,
+        read,
+        readStateKnown,
+        readStateKnown && readStateStale);
+  }
+
+  /**
+   * Re-projects the previous model with a new read-state snapshot. Used when a
+   * read-state fetch completes between selected-wave updates — there is no new
+   * {@link SidecarSelectedWaveUpdate} to feed into
+   * {@link #project(String, J2clSearchDigestItem, SidecarSelectedWaveUpdate,
+   * J2clSelectedWaveModel, int, SidecarSelectedWaveReadState, boolean)}.
+   */
+  public static J2clSelectedWaveModel reprojectReadState(
+      J2clSelectedWaveModel previous,
+      J2clSearchDigestItem digestItem,
+      SidecarSelectedWaveReadState readState,
+      boolean readStateStale) {
+    if (previous == null || !previous.hasSelection()) {
+      return previous;
+    }
+    int unreadCount;
+    boolean read;
+    boolean readStateKnown;
+    boolean readStateMatchesWave = readState != null
+        && previous.getSelectedWaveId() != null
+        && previous.getSelectedWaveId().equals(readState.getWaveId());
+    if (readStateMatchesWave) {
+      unreadCount = Math.max(0, readState.getUnreadCount());
+      read = readState.isRead() || unreadCount <= 0;
+      readStateKnown = true;
+    } else {
+      unreadCount = previous.getUnreadCount();
+      read = previous.isRead();
+      readStateKnown = previous.isReadStateKnown();
+    }
+    String staleSuffix = " Unread count may be stale.";
+    String baseStatus = previous.getStatusText();
+    if (baseStatus.endsWith(staleSuffix)) {
+      baseStatus = baseStatus.substring(0, baseStatus.length() - staleSuffix.length());
+    }
+    String statusText = (readStateKnown && readStateStale)
+        ? appendStatus(baseStatus, "Unread count may be stale.")
+        : baseStatus;
+    return new J2clSelectedWaveModel(
+        previous.hasSelection(),
+        previous.isLoading(),
+        previous.isError(),
+        previous.getSelectedWaveId(),
+        previous.getTitleText(),
+        previous.getSnippetText(),
+        resolveUnreadText(digestItem, unreadCount, read, readStateKnown),
+        statusText,
+        previous.getDetailText(),
+        previous.getReconnectCount(),
+        previous.getParticipantIds(),
+        previous.getContentEntries(),
+        previous.getWriteSession(),
+        unreadCount,
+        read,
+        readStateKnown,
+        readStateKnown && readStateStale);
+  }
+
+  private static String appendStatus(String base, String suffix) {
+    if (base == null || base.isEmpty()) {
+      return suffix;
+    }
+    return base + " " + suffix;
   }
 
   private static J2clSidecarWriteSession buildWriteSession(
@@ -209,13 +330,19 @@ public final class J2clSelectedWaveProjector {
     return contentEntries.isEmpty() ? "" : contentEntries.get(0);
   }
 
-  private static String resolveUnreadText(J2clSearchDigestItem digestItem) {
-    // #920 does not add a dedicated read-state transport field. The selected-wave panel can only
-    // surface unread status from the latest search digest metadata that selected this wave.
+  private static String resolveUnreadText(
+      J2clSearchDigestItem digestItem, int unreadCount, boolean read, boolean readStateKnown) {
+    if (readStateKnown) {
+      return J2clSelectedWaveModel.formatUnreadText(unreadCount, read);
+    }
+    // Digest fallback for the pre-fetch window only. Once the server responds,
+    // the authoritative copy above overwrites this.
     if (digestItem == null) {
       return "";
     }
-    int unreadCount = digestItem.getUnreadCount();
-    return unreadCount <= 0 ? "Selected digest is read." : unreadCount + " unread in the selected digest.";
+    int digestUnreadCount = digestItem.getUnreadCount();
+    return digestUnreadCount <= 0
+        ? "Selected digest is read."
+        : digestUnreadCount + " unread in the selected digest.";
   }
 }

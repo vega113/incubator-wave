@@ -373,6 +373,7 @@ public class ServerMain {
     server.addServlet("/fetch/*", FetchServlet.class);
     server.addServlet("/fetch/version/*", VersionedFetchServlet.class);
     server.addServlet("/search/*", SearchServlet.class);
+    server.addServlet("/read-state/*", SelectedWaveReadStateServlet.class);
     server.addServlet("/dev/client-applier-stats", ClientApplierStatsJakartaServlet.class);
     server.addServlet("/healthz", HealthServlet.class);
     server.addServlet("/readyz", HealthServlet.class);

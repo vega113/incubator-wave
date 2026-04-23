@@ -13,6 +13,7 @@ import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragment;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragmentRange;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragments;
+import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 
@@ -361,6 +362,147 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertEquals("ZERO", writeSession.getHistoryHash());
   }
 
+  @Test
+  public void updateSchedulesReadStateFetchThatReplacesDigestUnreadText() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", digest("Wave A", "snippet", 3));
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "fresh content");
+
+    Assert.assertEquals(1, harness.pendingReadStateDispatches.size());
+    Assert.assertEquals(
+        "3 unread in the selected digest.", harness.modelValue("getUnreadText"));
+
+    harness.runPendingReadStateDispatch(0);
+    Assert.assertEquals(1, harness.readStateAttempts.size());
+
+    harness.resolveReadState(0, 5, false);
+    Assert.assertEquals("5 unread.", harness.modelValue("getUnreadText"));
+    Assert.assertEquals(5, harness.modelValue("getUnreadCount"));
+    Assert.assertTrue((Boolean) harness.modelValue("isReadStateKnown"));
+  }
+
+  @Test
+  public void readStateFetchFailureKeepsPriorCountAndFlagsStale() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", digest("Wave A", "snippet", 1));
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "content");
+    harness.runPendingReadStateDispatch(0);
+    harness.resolveReadState(0, 2, false);
+    Assert.assertEquals("2 unread.", harness.modelValue("getUnreadText"));
+
+    harness.deliverUpdate(0, "another content");
+    harness.runPendingReadStateDispatch(1);
+    harness.rejectReadState(1, "network blip");
+
+    Assert.assertEquals("2 unread.", harness.modelValue("getUnreadText"));
+    Assert.assertEquals(2, harness.modelValue("getUnreadCount"));
+    Assert.assertTrue((Boolean) harness.modelValue("isReadStateStale"));
+  }
+
+  @Test
+  public void outOfOrderReadStateResponsesOnlyApplyTheLatest() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "content A");
+    harness.runPendingReadStateDispatch(0);
+    Assert.assertEquals(1, harness.readStateAttempts.size());
+
+    harness.deliverUpdate(0, "content B");
+    harness.runPendingReadStateDispatch(1);
+    Assert.assertEquals(2, harness.readStateAttempts.size());
+
+    // Second fetch resolves first — becomes the latest applied.
+    harness.resolveReadState(1, 7, false);
+    Assert.assertEquals("7 unread.", harness.modelValue("getUnreadText"));
+
+    // First fetch resolves later with stale data — must be ignored.
+    harness.resolveReadState(0, 1, false);
+    Assert.assertEquals("7 unread.", harness.modelValue("getUnreadText"));
+    Assert.assertEquals(7, harness.modelValue("getUnreadCount"));
+  }
+
+  @Test
+  public void generationBumpDiscardsReadStateResponseFromPriorSelection() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+a", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "A content");
+    harness.runPendingReadStateDispatch(0);
+    Assert.assertEquals(1, harness.readStateAttempts.size());
+
+    harness.selectWave(controller, "example.com/w+b", null);
+    harness.resolveBootstrap(1);
+    harness.deliverUpdate(1, "B content");
+
+    // Stale response from wave+a arrives AFTER the re-selection to wave+b.
+    harness.resolveReadState(0, 9, false);
+
+    Assert.assertFalse((Boolean) harness.modelValue("isReadStateKnown"));
+    Assert.assertNotEquals(9, harness.modelValue("getUnreadCount"));
+  }
+
+  @Test
+  public void visibilityChangeTriggersReadStateFetchForActiveSelection() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createControllerWithVisibility(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "content");
+    harness.runPendingReadStateDispatch(0);
+    harness.resolveReadState(0, 1, false);
+    int baseline = harness.readStateAttempts.size();
+
+    harness.fireVisibilityVisible();
+    // visibilitychange schedules another debounce tick.
+    Assert.assertTrue(harness.pendingReadStateDispatches.size() >= 2);
+    harness.runPendingReadStateDispatch(harness.pendingReadStateDispatches.size() - 1);
+    Assert.assertEquals(baseline + 1, harness.readStateAttempts.size());
+  }
+
+  @Test
+  public void visibilityChangeWithoutSelectionIsHarmless() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createControllerWithVisibility(false);
+
+    harness.fireVisibilityVisible();
+
+    Assert.assertEquals(0, harness.pendingReadStateDispatches.size());
+    Assert.assertEquals(0, harness.readStateAttempts.size());
+  }
+
+  @Test
+  public void debounceCoalescesConsecutiveUpdatesIntoOneFetch() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "first");
+    harness.deliverUpdate(0, "second");
+    // Two dispatches queued because each deliverUpdate schedules one.
+    Assert.assertEquals(2, harness.pendingReadStateDispatches.size());
+
+    // Running the first: the debounce token has moved on, so this no-ops.
+    harness.runPendingReadStateDispatch(0);
+    Assert.assertEquals(0, harness.readStateAttempts.size());
+
+    // Running the latest dispatches exactly one fetch.
+    harness.runPendingReadStateDispatch(1);
+    Assert.assertEquals(1, harness.readStateAttempts.size());
+  }
+
   private static J2clSearchDigestItem digest(String title, String snippet, int unreadCount) {
     return new J2clSearchDigestItem(
         "example.com/w+1", title, snippet, "user@example.com", unreadCount, 2, 1234L, false);
@@ -373,11 +515,29 @@ public class J2clSelectedWaveControllerTest {
     private final List<Runnable> scheduledRetries = new ArrayList<Runnable>();
     private final List<BootstrapAttempt> bootstrapAttempts = new ArrayList<BootstrapAttempt>();
     private final List<OpenAttempt> openAttempts = new ArrayList<OpenAttempt>();
+    private final List<ReadStateFetchAttempt> readStateAttempts = new ArrayList<ReadStateFetchAttempt>();
+    private final List<Runnable> pendingReadStateDispatches = new ArrayList<Runnable>();
+    private final List<Runnable> visibilityListeners = new ArrayList<Runnable>();
     private Object lastModel;
     private Method onWaveSelectedMethod;
     private Method onWaveSelectedWithDigestMethod;
 
+    private Object createControllerWithVisibility(boolean withScheduler) throws Exception {
+      return createControllerInternal(withScheduler, /* injectVisibility= */ true);
+    }
+
     private Object createController(boolean withScheduler) throws Exception {
+      return createControllerInternal(withScheduler, /* injectVisibility= */ false);
+    }
+
+    private void fireVisibilityVisible() {
+      for (Runnable listener : visibilityListeners) {
+        listener.run();
+      }
+    }
+
+    private Object createControllerInternal(boolean withScheduler, boolean injectVisibility)
+        throws Exception {
       Class<?> controllerClass =
           Class.forName("org.waveprotocol.box.j2cl.search.J2clSelectedWaveController");
       Class<?> gatewayClass =
@@ -421,6 +581,15 @@ public class J2clSelectedWaveControllerTest {
                         return null;
                       });
                 }
+                if ("fetchSelectedWaveReadState".equals(method.getName())) {
+                  @SuppressWarnings("unchecked")
+                  J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveReadState> success =
+                      (J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveReadState>) args[1];
+                  J2clSearchPanelController.ErrorCallback error =
+                      (J2clSearchPanelController.ErrorCallback) args[2];
+                  readStateAttempts.add(new ReadStateFetchAttempt((String) args[0], success, error));
+                  return null;
+                }
                 return null;
               });
 
@@ -435,24 +604,71 @@ public class J2clSelectedWaveControllerTest {
                 return null;
               });
 
+      Class<?> schedulerClass =
+          Class.forName("org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$RetryScheduler");
+      Class<?> readStateSchedulerClass =
+          Class.forName(
+              "org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$ReadStateFetchScheduler");
+      Object scheduler =
+          Proxy.newProxyInstance(
+              schedulerClass.getClassLoader(),
+              new Class<?>[] {schedulerClass},
+              (proxy, method, args) -> {
+                scheduledDelays.add(((Number) args[0]).intValue());
+                scheduledRetries.add((Runnable) args[1]);
+                return null;
+              });
+      Object readStateScheduler =
+          Proxy.newProxyInstance(
+              readStateSchedulerClass.getClassLoader(),
+              new Class<?>[] {readStateSchedulerClass},
+              (proxy, method, args) -> {
+                // Captures debounce dispatches so tests can control when the
+                // debounced fetch fires. Not mirrored into scheduledDelays to
+                // keep reconnect assertions clean.
+                pendingReadStateDispatches.add((Runnable) args[1]);
+                return null;
+              });
       Object controller;
-      if (withScheduler) {
-        Class<?> schedulerClass =
-            Class.forName("org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$RetryScheduler");
-        Object scheduler =
+      if (injectVisibility) {
+        Class<?> visibilityClass =
+            Class.forName(
+                "org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$VisibilitySource");
+        Class<?> writeSessionListenerClass =
+            Class.forName(
+                "org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$WriteSessionListener");
+        Object visibility =
             Proxy.newProxyInstance(
-                schedulerClass.getClassLoader(),
-                new Class<?>[] {schedulerClass},
+                visibilityClass.getClassLoader(),
+                new Class<?>[] {visibilityClass},
                 (proxy, method, args) -> {
-                  scheduledDelays.add(((Number) args[0]).intValue());
-                  scheduledRetries.add((Runnable) args[1]);
+                  if ("addVisibilityListener".equals(method.getName())) {
+                    visibilityListeners.add((Runnable) args[0]);
+                  }
                   return null;
                 });
-        Constructor<?> constructor = controllerClass.getConstructor(gatewayClass, viewClass, schedulerClass);
-        controller = constructor.newInstance(gateway, view, scheduler);
+        Constructor<?> constructor =
+            controllerClass.getConstructor(
+                gatewayClass,
+                viewClass,
+                schedulerClass,
+                readStateSchedulerClass,
+                writeSessionListenerClass,
+                visibilityClass);
+        controller =
+            constructor.newInstance(
+                gateway, view, scheduler, readStateScheduler, null, visibility);
       } else {
-        Constructor<?> constructor = controllerClass.getConstructor(gatewayClass, viewClass);
-        controller = constructor.newInstance(gateway, view);
+        Constructor<?> constructor =
+            controllerClass.getConstructor(
+                gatewayClass, viewClass, schedulerClass, readStateSchedulerClass);
+        controller = constructor.newInstance(gateway, view, scheduler, readStateScheduler);
+      }
+      // The `withScheduler` flag is kept for call-site symmetry with legacy tests;
+      // the harness always wires a custom scheduler now so the implicit retry and
+      // debounce paths are never driven by the browser timer.
+      if (!withScheduler) {
+        // No-op: the constructor above supplies a scheduler regardless.
       }
       onWaveSelectedMethod = controllerClass.getMethod("onWaveSelected", String.class);
       onWaveSelectedWithDigestMethod =
@@ -494,6 +710,23 @@ public class J2clSelectedWaveControllerTest {
 
     private void runScheduledRetry(int index) {
       scheduledRetries.get(index).run();
+    }
+
+    private void runPendingReadStateDispatch(int index) {
+      pendingReadStateDispatches.get(index).run();
+    }
+
+    private void resolveReadState(int index, int unreadCount, boolean read) {
+      readStateAttempts
+          .get(index)
+          .success
+          .accept(
+              new SidecarSelectedWaveReadState(
+                  readStateAttempts.get(index).waveId, unreadCount, read));
+    }
+
+    private void rejectReadState(int index, String message) {
+      readStateAttempts.get(index).error.accept(message);
     }
 
     private void deliverUpdate(int index, String rawSnapshot) {
@@ -559,6 +792,21 @@ public class J2clSelectedWaveControllerTest {
     private BootstrapAttempt(
         J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> success,
         J2clSearchPanelController.ErrorCallback error) {
+      this.success = success;
+      this.error = error;
+    }
+  }
+
+  private static final class ReadStateFetchAttempt {
+    private final String waveId;
+    private final J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveReadState> success;
+    private final J2clSearchPanelController.ErrorCallback error;
+
+    private ReadStateFetchAttempt(
+        String waveId,
+        J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveReadState> success,
+        J2clSearchPanelController.ErrorCallback error) {
+      this.waveId = waveId;
       this.success = success;
       this.error = error;
     }
