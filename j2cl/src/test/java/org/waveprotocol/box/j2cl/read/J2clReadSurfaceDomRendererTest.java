@@ -5,6 +5,8 @@ import elemental2.dom.DomGlobal;
 import elemental2.dom.HTMLButtonElement;
 import elemental2.dom.HTMLDivElement;
 import elemental2.dom.HTMLElement;
+import elemental2.dom.KeyboardEvent;
+import elemental2.dom.KeyboardEventInit;
 import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Assert;
@@ -65,6 +67,50 @@ public class J2clReadSurfaceDomRendererTest {
   }
 
   @Test
+  public void keyboardNavigationSkipsCollapsedThreadBlips() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    Assert.assertTrue(renderer.enhanceExistingSurface());
+    HTMLButtonElement toggle =
+        (HTMLButtonElement) host.querySelector(".j2cl-read-thread-toggle");
+    HTMLElement root = blip(host, "b+root");
+    HTMLElement reply = blip(host, "b+reply");
+    HTMLElement after = blip(host, "b+after");
+
+    toggle.click();
+    root.focus();
+    dispatchKey(root, "ArrowDown");
+
+    Assert.assertEquals("0", after.getAttribute("tabindex"));
+    Assert.assertEquals("true", after.getAttribute("aria-current"));
+    Assert.assertEquals("-1", reply.getAttribute("tabindex"));
+  }
+
+  @Test
+  public void collapsingFocusedThreadMovesToNearestFollowingVisibleBlip() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    Assert.assertTrue(renderer.enhanceExistingSurface());
+    HTMLButtonElement toggle =
+        (HTMLButtonElement) host.querySelector(".j2cl-read-thread-toggle");
+    HTMLElement root = blip(host, "b+root");
+    HTMLElement reply = blip(host, "b+reply");
+    HTMLElement after = blip(host, "b+after");
+
+    reply.focus();
+    toggle.click();
+
+    Assert.assertEquals("-1", root.getAttribute("tabindex"));
+    Assert.assertEquals("-1", reply.getAttribute("tabindex"));
+    Assert.assertEquals("0", after.getAttribute("tabindex"));
+    Assert.assertEquals("true", after.getAttribute("aria-current"));
+  }
+
+  @Test
   public void renderLiveBlipsCreatesSemanticReadSurface() {
     assumeBrowserDom();
     HTMLDivElement host = createHost();
@@ -106,11 +152,35 @@ public class J2clReadSurfaceDomRendererTest {
     return host;
   }
 
+  private static HTMLDivElement createThreadedHost() {
+    HTMLDivElement host = createHost();
+    host.innerHTML =
+        "<div class=\"wave-content\">"
+            + "<div class=\"thread\" data-thread-id=\"t+root\">"
+            + "<div class=\"blip\" data-blip-id=\"b+root\">Root</div>"
+            + "<div class=\"inline-thread\" data-thread-id=\"t+inline\">"
+            + "<div class=\"blip\" data-blip-id=\"b+reply\">Reply</div>"
+            + "</div>"
+            + "<div class=\"blip\" data-blip-id=\"b+after\">After</div>"
+            + "</div></div>";
+    return host;
+  }
+
   private static void assumeBrowserDom() {
     Assume.assumeTrue(DomGlobal.document != null && DomGlobal.document.body != null);
   }
 
   private static HTMLElement firstBlip(HTMLDivElement host) {
     return (HTMLElement) host.querySelector("[data-j2cl-read-blip='true']");
+  }
+
+  private static HTMLElement blip(HTMLDivElement host, String blipId) {
+    return (HTMLElement) host.querySelector("[data-blip-id='" + blipId + "']");
+  }
+
+  private static void dispatchKey(HTMLElement target, String key) {
+    KeyboardEventInit init = KeyboardEventInit.create();
+    init.setKey(key);
+    target.dispatchEvent(new KeyboardEvent("keydown", init));
   }
 }

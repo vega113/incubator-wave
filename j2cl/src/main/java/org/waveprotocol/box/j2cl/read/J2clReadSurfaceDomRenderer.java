@@ -52,6 +52,7 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   public boolean enhanceExistingSurface() {
+    HTMLElement previousFocusedBlip = focusedBlip;
     renderedBlips.clear();
     focusedBlip = null;
     HTMLElement surface = findExistingSurface();
@@ -59,6 +60,7 @@ public final class J2clReadSurfaceDomRenderer {
       return false;
     }
     enhanceSurface(surface);
+    restoreFocusedBlip(previousFocusedBlip);
     // A zero-blip surface is still valid no-wave/empty markup, but callers use
     // the boolean to know whether focusable read content was found.
     return !renderedBlips.isEmpty();
@@ -74,7 +76,7 @@ public final class J2clReadSurfaceDomRenderer {
 
     HTMLElement meta = (HTMLElement) DomGlobal.document.createElement("div");
     meta.className = "blip-meta j2cl-read-blip-meta";
-    meta.textContent = blip.getBlipId().isEmpty() ? "Blip" : blip.getBlipId();
+    meta.textContent = "Blip";
     article.appendChild(meta);
 
     HTMLElement content = (HTMLElement) DomGlobal.document.createElement("div");
@@ -89,6 +91,8 @@ public final class J2clReadSurfaceDomRenderer {
     if (surface != null) {
       return surface;
     }
+    // The server-selected card from WavePreRenderer uses the legacy
+    // `.wave-content` class before the J2CL client marks it as enhanced.
     return (HTMLElement) host.querySelector(".wave-content");
   }
 
@@ -145,6 +149,7 @@ public final class J2clReadSurfaceDomRenderer {
       blip.classList.add("j2cl-read-blip");
       blip.setAttribute("data-j2cl-read-blip", "true");
       blip.setAttribute("role", "listitem");
+      blip.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown Home End");
       boolean alreadyBound = blip.hasAttribute("data-j2cl-read-blip-bound");
       if (!alreadyBound) {
         blip.setAttribute("tabindex", index == 0 ? "0" : "-1");
@@ -169,8 +174,8 @@ public final class J2clReadSurfaceDomRenderer {
       button.setAttribute("aria-expanded", "true");
       button.textContent = "Collapse thread";
     }
-    if (isHiddenByCollapsedThread(focusedBlip)) {
-      focusVisibleByIndex(0);
+    if (collapsed && isHiddenByCollapsedThread(focusedBlip)) {
+      focusNearestVisibleFrom(focusedBlip);
     }
   }
 
@@ -183,11 +188,14 @@ public final class J2clReadSurfaceDomRenderer {
 
   private void onBlipKeyDown(Event event) {
     KeyboardEvent keyEvent = (KeyboardEvent) event;
+    if (event.currentTarget != null) {
+      focusBlip((HTMLElement) event.currentTarget);
+    }
     String key = keyEvent.key;
-    if ("ArrowDown".equals(key) || "j".equals(key)) {
+    if ("ArrowDown".equals(key)) {
       focusByOffset(1);
       keyEvent.preventDefault();
-    } else if ("ArrowUp".equals(key) || "k".equals(key)) {
+    } else if ("ArrowUp".equals(key)) {
       focusByOffset(-1);
       keyEvent.preventDefault();
     } else if ("Home".equals(key)) {
@@ -240,12 +248,12 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   private void clearFocusedBlip() {
-    if (focusedBlip != null) {
-      focusedBlip.classList.remove("j2cl-read-blip-focused");
-      focusedBlip.removeAttribute("aria-current");
-      focusedBlip.setAttribute("tabindex", "-1");
-      focusedBlip = null;
+    for (HTMLElement blip : renderedBlips) {
+      blip.classList.remove("j2cl-read-blip-focused");
+      blip.removeAttribute("aria-current");
+      blip.setAttribute("tabindex", "-1");
     }
+    focusedBlip = null;
   }
 
   private List<HTMLElement> visibleBlips() {
@@ -270,6 +278,82 @@ public final class J2clReadSurfaceDomRenderer {
       parent = (HTMLElement) parent.parentElement;
     }
     return false;
+  }
+
+  private void restoreFocusedBlip(HTMLElement previousFocusedBlip) {
+    HTMLElement restored = visibleRenderedBlip(previousFocusedBlip);
+    if (restored == null) {
+      restored = visibleRenderedBlip((HTMLElement) DomGlobal.document.activeElement);
+    }
+    if (restored == null) {
+      restored = firstVisibleFocusedMarker();
+    }
+    if (restored != null) {
+      focusBlip(restored);
+    } else {
+      ensureSingleTabStop();
+    }
+  }
+
+  private HTMLElement visibleRenderedBlip(HTMLElement blip) {
+    if (blip != null && renderedBlips.contains(blip) && !isHiddenByCollapsedThread(blip)) {
+      return blip;
+    }
+    return null;
+  }
+
+  private HTMLElement firstVisibleFocusedMarker() {
+    for (HTMLElement blip : renderedBlips) {
+      if (!isHiddenByCollapsedThread(blip)
+          && (blip.classList.contains("j2cl-read-blip-focused")
+              || "true".equals(blip.getAttribute("aria-current")))) {
+        return blip;
+      }
+    }
+    return null;
+  }
+
+  private void ensureSingleTabStop() {
+    HTMLElement tabStop = null;
+    for (HTMLElement blip : renderedBlips) {
+      if (!isHiddenByCollapsedThread(blip) && "0".equals(blip.getAttribute("tabindex"))) {
+        tabStop = blip;
+        break;
+      }
+    }
+    if (tabStop == null && !visibleBlips().isEmpty()) {
+      tabStop = visibleBlips().get(0);
+    }
+    for (HTMLElement blip : renderedBlips) {
+      blip.setAttribute("tabindex", blip == tabStop ? "0" : "-1");
+      blip.classList.remove("j2cl-read-blip-focused");
+      blip.removeAttribute("aria-current");
+    }
+  }
+
+  private void focusNearestVisibleFrom(HTMLElement origin) {
+    int originIndex = renderedBlips.indexOf(origin);
+    if (originIndex < 0) {
+      focusVisibleByIndex(0);
+      return;
+    }
+    for (int index = originIndex + 1; index < renderedBlips.size(); index++) {
+      HTMLElement candidate = renderedBlips.get(index);
+      if (!isHiddenByCollapsedThread(candidate)) {
+        focusBlip(candidate);
+        candidate.focus();
+        return;
+      }
+    }
+    for (int index = originIndex - 1; index >= 0; index--) {
+      HTMLElement candidate = renderedBlips.get(index);
+      if (!isHiddenByCollapsedThread(candidate)) {
+        focusBlip(candidate);
+        candidate.focus();
+        return;
+      }
+    }
+    focusBlip(null);
   }
 
   private String generatedThreadId(HTMLElement thread, int index) {

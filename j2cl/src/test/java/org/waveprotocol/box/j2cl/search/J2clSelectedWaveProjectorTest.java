@@ -196,6 +196,40 @@ public class J2clSelectedWaveProjectorTest {
     Assert.assertEquals("Document text", blip.getText());
   }
 
+  @Test
+  public void projectPrefersFragmentReadBlipsOverDocumentFallbacks() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                9L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Arrays.asList(
+                    new SidecarSelectedWaveDocument(
+                        "b+root", "user@example.com", 7L, 8L, "Document text")),
+                new SidecarSelectedWaveFragments(
+                    9L,
+                    0L,
+                    9L,
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 9L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment("blip:b+root", "Fragment text", 0, 0)))),
+            null,
+            0);
+
+    Assert.assertEquals(1, projected.getReadBlips().size());
+    J2clReadBlip blip = projected.getReadBlips().get(0);
+    Assert.assertEquals("b+root", blip.getBlipId());
+    Assert.assertEquals("Fragment text", blip.getText());
+  }
+
   // -- Write-session coupling (pre-existing) ----------------------------------
 
   @Test
