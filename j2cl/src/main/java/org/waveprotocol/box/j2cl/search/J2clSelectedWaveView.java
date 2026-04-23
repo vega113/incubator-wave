@@ -38,7 +38,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       contentList = queryRequired(existingCard, ".sidecar-selected-content");
       readSurface = new J2clReadSurfaceDomRenderer(contentList);
       readSurface.enhanceExistingSurface();
-      emptyState = queryRequired(existingCard, ".sidecar-empty-state");
+      emptyState = queryOrCreate(existingCard, ".sidecar-empty-state", "div", "sidecar-empty-state");
       serverFirstActive = true;
       serverFirstWaveId = J2clServerFirstRootShellDom.serverFirstWaveId(host);
       serverFirstMode = J2clServerFirstRootShellDom.serverFirstMode(host);
@@ -236,6 +236,19 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
           "Missing required DOM element for selector '" + selector + "'");
     }
     return (T) element;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T extends HTMLElement> T queryOrCreate(
+      HTMLElement root, String selector, String tagName, String className) {
+    Object element = root.querySelector(selector);
+    if (element != null) {
+      return (T) element;
+    }
+    HTMLElement created = (HTMLElement) DomGlobal.document.createElement(tagName);
+    created.className = className;
+    root.appendChild(created);
+    return (T) created;
   }
 
   @JsFunction

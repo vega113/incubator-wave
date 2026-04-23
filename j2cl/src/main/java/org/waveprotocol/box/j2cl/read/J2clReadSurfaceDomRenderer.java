@@ -82,11 +82,11 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   private HTMLElement findExistingSurface() {
-    HTMLElement surface = (HTMLElement) host.querySelector(".wave-content");
+    HTMLElement surface = (HTMLElement) host.querySelector("[data-j2cl-read-surface='true']");
     if (surface != null) {
       return surface;
     }
-    return (HTMLElement) host.querySelector("[data-j2cl-read-surface='true']");
+    return (HTMLElement) host.querySelector(".wave-content");
   }
 
   private void enhanceSurface(HTMLElement surface) {
@@ -143,8 +143,11 @@ public final class J2clReadSurfaceDomRenderer {
       blip.setAttribute("data-j2cl-read-blip", "true");
       blip.setAttribute("role", "listitem");
       blip.setAttribute("tabindex", index == 0 ? "0" : "-1");
-      blip.addEventListener("focus", this::onBlipFocus);
-      blip.addEventListener("keydown", this::onBlipKeyDown);
+      if (!blip.hasAttribute("data-j2cl-read-blip-bound")) {
+        blip.setAttribute("data-j2cl-read-blip-bound", "true");
+        blip.addEventListener("focus", this::onBlipFocus);
+        blip.addEventListener("keydown", this::onBlipKeyDown);
+      }
       renderedBlips.add(blip);
     }
   }
@@ -161,6 +164,9 @@ public final class J2clReadSurfaceDomRenderer {
       thread.removeAttribute("data-j2cl-thread-collapsed");
       button.setAttribute("aria-expanded", "true");
       button.textContent = "Collapse thread";
+    }
+    if (isHiddenByCollapsedThread(focusedBlip)) {
+      focusVisibleByIndex(0);
     }
   }
 
@@ -190,38 +196,75 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   private void focusByOffset(int offset) {
-    int current = focusedBlip == null ? -1 : renderedBlips.indexOf(focusedBlip);
+    List<HTMLElement> visibleBlips = visibleBlips();
+    int current = focusedBlip == null ? -1 : visibleBlips.indexOf(focusedBlip);
     if (current < 0) {
       current = 0;
     }
-    focusByIndex(current + offset);
+    focusVisibleByIndex(current + offset);
   }
 
   private void focusByIndex(int index) {
-    if (renderedBlips.isEmpty()) {
+    focusVisibleByIndex(index);
+  }
+
+  private void focusVisibleByIndex(int index) {
+    List<HTMLElement> visibleBlips = visibleBlips();
+    if (visibleBlips.isEmpty()) {
       return;
     }
-    int boundedIndex = Math.max(0, Math.min(index, renderedBlips.size() - 1));
-    HTMLElement next = renderedBlips.get(boundedIndex);
+    int boundedIndex = Math.max(0, Math.min(index, visibleBlips.size() - 1));
+    HTMLElement next = visibleBlips.get(boundedIndex);
     focusBlip(next);
     next.focus();
   }
 
   private void focusBlip(HTMLElement next) {
+    if (next == null) {
+      clearFocusedBlip();
+      return;
+    }
     if (focusedBlip == next) {
       return;
     }
+    clearFocusedBlip();
+    focusedBlip = next;
+    focusedBlip.classList.add("j2cl-read-blip-focused");
+    focusedBlip.setAttribute("aria-current", "true");
+    focusedBlip.setAttribute("tabindex", "0");
+  }
+
+  private void clearFocusedBlip() {
     if (focusedBlip != null) {
       focusedBlip.classList.remove("j2cl-read-blip-focused");
       focusedBlip.removeAttribute("aria-current");
       focusedBlip.setAttribute("tabindex", "-1");
+      focusedBlip = null;
     }
-    focusedBlip = next;
-    if (focusedBlip != null) {
-      focusedBlip.classList.add("j2cl-read-blip-focused");
-      focusedBlip.setAttribute("aria-current", "true");
-      focusedBlip.setAttribute("tabindex", "0");
+  }
+
+  private List<HTMLElement> visibleBlips() {
+    List<HTMLElement> visible = new ArrayList<HTMLElement>();
+    for (HTMLElement blip : renderedBlips) {
+      if (!isHiddenByCollapsedThread(blip)) {
+        visible.add(blip);
+      }
     }
+    return visible;
+  }
+
+  private boolean isHiddenByCollapsedThread(HTMLElement blip) {
+    if (blip == null) {
+      return false;
+    }
+    HTMLElement parent = (HTMLElement) blip.parentElement;
+    while (parent != null && parent != host) {
+      if (parent.classList.contains("j2cl-read-thread-collapsed")) {
+        return true;
+      }
+      parent = (HTMLElement) parent.parentElement;
+    }
+    return false;
   }
 
   private static List<J2clReadBlip> normalizeBlips(
