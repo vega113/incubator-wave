@@ -3422,22 +3422,15 @@ public final class HtmlRenderer {
       StringBuilder sb,
       J2clSelectedWaveSnapshotRenderer.SnapshotResult snapshotResult,
       boolean signedIn) {
-    // When the user is not signed in, never expose wave IDs, snapshot HTML, or session-specific
-    // state (e.g. SNAPSHOT or DENIED modes) to the anonymous page.  Override everything to the
-    // generic signed-out / no-wave state so callers cannot infer wave existence from the HTML.
-    boolean suppressServerFirstState =
-        !signedIn
-            && (snapshotResult.getMode() == J2clSelectedWaveSnapshotRenderer.Mode.SNAPSHOT
-                || snapshotResult.getMode() == J2clSelectedWaveSnapshotRenderer.Mode.DENIED);
+    // When the user is not signed in, never expose wave IDs, snapshot HTML, or any
+    // session-specific mode to the anonymous page — clamp everything to the generic no-wave
+    // state regardless of mode so callers cannot probe wave existence from the HTML.
+    J2clSelectedWaveSnapshotRenderer.SnapshotResult effectiveResult =
+        signedIn ? snapshotResult : J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave();
     boolean hasSnapshot =
-        !suppressServerFirstState
-            && signedIn
+        signedIn
             && snapshotResult.getMode() == J2clSelectedWaveSnapshotRenderer.Mode.SNAPSHOT
             && snapshotResult.hasSnapshotHtml();
-    J2clSelectedWaveSnapshotRenderer.SnapshotResult effectiveResult =
-        suppressServerFirstState
-            ? J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave()
-            : snapshotResult;
     String title = selectedWaveTitle(effectiveResult, signedIn);
     String status = selectedWaveStatus(effectiveResult, signedIn);
     String detail = selectedWaveDetail(effectiveResult, signedIn);
