@@ -105,10 +105,14 @@ def upsert_dashboard(
     print(f"warning: Grafana dashboard file is missing: {path}", file=sys.stderr)
     return 1 if strict else 0
 
-  payload = build_payload(
-      dashboard=prepare_dashboard(path, datasource_uid),
-      folder_uid=folder_uid,
-  )
+  try:
+    payload = build_payload(
+        dashboard=prepare_dashboard(path, datasource_uid),
+        folder_uid=folder_uid,
+    )
+  except (OSError, ValueError) as exc:
+    print(f"warning: Grafana dashboard read/parse error for {path}: {exc}", file=sys.stderr)
+    return 1 if strict else 0
   request = urllib.request.Request(
       f"{grafana_url.rstrip('/')}/api/dashboards/db",
       data=json.dumps(payload).encode("utf-8"),

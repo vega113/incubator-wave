@@ -128,7 +128,7 @@ jobs:
           GRAFANA_DASHBOARD_API_TOKEN: ${{ secrets.GRAFANA_DASHBOARD_API_TOKEN }}
         run: |
           if [ -f scripts/upsert_grafana_dashboard.py ]; then
-            python3 scripts/upsert_grafana_dashboard.py
+            python3 scripts/upsert_grafana_dashboard.py --dashboard grafana/dashboards/perf-observability.json
           else
             echo "Grafana dashboard helper not present yet; skipping"
           fi
