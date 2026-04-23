@@ -40,7 +40,7 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertNotNull(toggle);
     Assert.assertEquals("true", toggle.getAttribute("aria-expanded"));
     Assert.assertEquals(
-        "Collapse inline reply thread inline 1", toggle.getAttribute("aria-label"));
+        "Collapse inline reply thread 1 (inline)", toggle.getAttribute("aria-label"));
 
     HTMLElement inlineThread =
         (HTMLElement) host.querySelector(".inline-thread[data-thread-id='t+inline']");
@@ -50,13 +50,13 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertEquals("group", inlineThread.getAttribute("role"));
     Assert.assertEquals("listitem", blip(host, "b+root").getAttribute("role"));
     Assert.assertEquals("article", blip(host, "b+reply").getAttribute("role"));
-    Assert.assertEquals("inline reply thread inline 1", inlineThread.getAttribute("aria-label"));
+    Assert.assertEquals("inline reply thread 1 (inline)", inlineThread.getAttribute("aria-label"));
 
     toggle.click();
 
     Assert.assertEquals("true", inlineThread.getAttribute("data-j2cl-thread-collapsed"));
     Assert.assertEquals("false", toggle.getAttribute("aria-expanded"));
-    Assert.assertEquals("Expand inline reply thread inline 1", toggle.getAttribute("aria-label"));
+    Assert.assertEquals("Expand inline reply thread 1 (inline)", toggle.getAttribute("aria-label"));
   }
 
   @Test
@@ -100,6 +100,32 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertEquals("-1", reply.getAttribute("tabindex"));
     Assert.assertEquals("0", after.getAttribute("tabindex"));
     Assert.assertEquals("true", after.getAttribute("aria-current"));
+  }
+
+  @Test
+  public void enhanceExistingSurfaceReturnsFalseForEmptyHost() {
+    assumeBrowserDom();
+    Assert.assertFalse(new J2clReadSurfaceDomRenderer(createHost()).enhanceExistingSurface());
+  }
+
+  @Test
+  public void collapsingWithoutFocusedBlipSanitizesHiddenTabStop() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    Assert.assertTrue(renderer.enhanceExistingSurface());
+    HTMLButtonElement toggle =
+        (HTMLButtonElement) host.querySelector(".j2cl-read-thread-toggle");
+    HTMLElement root = blip(host, "b+root");
+    HTMLElement reply = blip(host, "b+reply");
+    root.setAttribute("tabindex", "-1");
+    reply.setAttribute("tabindex", "0");
+
+    toggle.click();
+
+    Assert.assertEquals("0", root.getAttribute("tabindex"));
+    Assert.assertEquals("-1", reply.getAttribute("tabindex"));
   }
 
   @Test
@@ -344,6 +370,17 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertTrue(rendered);
     Assert.assertEquals(2, host.querySelectorAll("[data-j2cl-read-blip='true']").length);
     Assert.assertEquals("entry-1", firstBlip(host).getAttribute("data-blip-id"));
+  }
+
+  @Test
+  public void renderEmptyContentReturnsFalseAndLeavesHostEmpty() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+
+    Assert.assertFalse(
+        new J2clReadSurfaceDomRenderer(host)
+            .render(Collections.<J2clReadBlip>emptyList(), Collections.<String>emptyList()));
+    Assert.assertEquals("", host.innerHTML);
   }
 
   @Test

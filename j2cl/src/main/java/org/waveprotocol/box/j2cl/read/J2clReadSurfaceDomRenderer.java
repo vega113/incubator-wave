@@ -198,6 +198,8 @@ public final class J2clReadSurfaceDomRenderer {
     }
     if (collapsed && isHiddenByCollapsedThread(focusedBlip)) {
       focusNearestVisibleFrom(focusedBlip);
+    } else if (collapsed && focusedBlip == null) {
+      ensureSingleTabStop();
     }
   }
 
@@ -405,7 +407,7 @@ public final class J2clReadSurfaceDomRenderer {
     if (threadId == null || threadId.isEmpty()) {
       return "inline reply thread " + ordinal;
     }
-    return "inline reply thread " + readableId(threadId, "t+") + " " + ordinal;
+    return "inline reply thread " + ordinal + " (" + readableId(threadId, "t+") + ")";
   }
 
   private static String threadLabel(HTMLElement thread) {
