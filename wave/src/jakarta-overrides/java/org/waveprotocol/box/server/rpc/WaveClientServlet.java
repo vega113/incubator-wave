@@ -411,6 +411,26 @@ public class WaveClientServlet extends HttpServlet {
     ret.put(FLAG_MAP.get(name), trimmed);
   }
 
+  /**
+   * Build the {@link SessionConstants}-shaped session payload for the current
+   * request. Package-private so that sibling servlets (e.g. {@link
+   * J2clBootstrapServlet}) can reuse the exact same role/feature/ID-seed logic
+   * rather than duplicating it. The returned object is fresh per call; the
+   * {@link SessionConstants#ID_SEED} seed is regenerated on every invocation.
+   */
+  JSONObject buildSessionJson(WebSession session) {
+    return getSessionJson(session);
+  }
+
+  /**
+   * Return the same presented WebSocket address this servlet would have
+   * embedded into the rendered HTML page. Exposed for sibling servlets that
+   * need to mirror the address into a JSON contract without re-reading config.
+   */
+  String presentedWebsocketAddress() {
+    return websocketPresentedAddress;
+  }
+
   private JSONObject getSessionJson(WebSession session) {
     try {
       ParticipantId user = sessionManager.getLoggedInUser(session);

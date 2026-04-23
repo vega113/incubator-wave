@@ -217,6 +217,60 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void extractSessionBootstrapFromBootstrapJson() {
+    String json =
+        "{\"session\":{\"domain\":\"example.com\",\"address\":\"user@example.com\","
+            + "\"id\":\"seed\",\"role\":\"user\",\"features\":[\"mentions-search\"]},"
+            + "\"socket\":{\"address\":\"socket.example.test:7443\"},"
+            + "\"shell\":{\"buildCommit\":\"abc\",\"serverBuildTime\":1700000000000,"
+            + "\"currentReleaseId\":\"r1\",\"routeReturnTarget\":\"/?view=j2cl-root\"}}";
+
+    SidecarSessionBootstrap bootstrap = SidecarSessionBootstrap.fromBootstrapJson(json);
+
+    Assert.assertEquals("user@example.com", bootstrap.getAddress());
+    Assert.assertEquals("socket.example.test:7443", bootstrap.getWebSocketAddress());
+  }
+
+  @Test
+  public void bootstrapJsonIgnoresUnknownKeysUnderSocketForIssue933Compat() {
+    String json =
+        "{\"session\":{\"address\":\"user@example.com\"},"
+            + "\"socket\":{\"address\":\"socket.example.test:7443\",\"token\":\"future-933-token\"}}";
+
+    SidecarSessionBootstrap bootstrap = SidecarSessionBootstrap.fromBootstrapJson(json);
+
+    Assert.assertEquals("user@example.com", bootstrap.getAddress());
+    Assert.assertEquals("socket.example.test:7443", bootstrap.getWebSocketAddress());
+  }
+
+  @Test
+  public void bootstrapJsonRejectsMissingSocketAddress() {
+    String json = "{\"session\":{\"address\":\"user@example.com\"},\"socket\":{}}";
+    expectIllegalArgumentContains(
+        "socket address", () -> SidecarSessionBootstrap.fromBootstrapJson(json));
+  }
+
+  @Test
+  public void bootstrapJsonSignalsSignedOutWithIllegalStateWhenAddressMissing() {
+    String json = "{\"session\":{\"domain\":\"example.com\"},\"socket\":{\"address\":\"h:1\"}}";
+    try {
+      SidecarSessionBootstrap.fromBootstrapJson(json);
+      Assert.fail("Expected IllegalStateException for signed-out session bootstrap");
+    } catch (IllegalStateException expected) {
+      Assert.assertTrue(
+          "Expected sign-in prompt, got: " + expected.getMessage(),
+          expected.getMessage().contains("sign in"));
+    }
+  }
+
+  @Test
+  public void bootstrapJsonRejectsMissingSessionObject() {
+    String json = "{\"socket\":{\"address\":\"h:1\"}}";
+    expectIllegalArgumentContains(
+        "session object", () -> SidecarSessionBootstrap.fromBootstrapJson(json));
+  }
+
+  @Test
   public void parseJsonObjectRejectsInvalidUnicodeEscapeSequences() {
     expectIllegalArgumentContains(
         "unicode escape",

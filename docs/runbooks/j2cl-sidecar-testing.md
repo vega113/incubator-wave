@@ -175,6 +175,59 @@ server:
 PORT=9900 bash scripts/wave-smoke.sh stop
 ```
 
+## Bootstrap JSON Contract (issue #963)
+
+The J2CL sidecar and root shell now boot from `/bootstrap.json` — a typed,
+server-owned contract — instead of regex-scraping `window.__session` and
+`window.__websocket_address` from the root HTML page. The endpoint is defined
+by `org.waveprotocol.box.common.J2clBootstrapContract` and served by
+`J2clBootstrapServlet`.
+
+Inspect the contract directly:
+
+```bash
+curl -fsS -H 'Accept: application/json' http://localhost:9900/bootstrap.json | jq .
+```
+
+Expected top-level keys and fields:
+
+- `session.domain` — always present
+- `session.address` / `session.role` / `session.features` — present only when signed in
+- `session.id` — per-request ID seed (regenerated per call by design; do not rely on equality with the HTML page's `__session.id`)
+- `socket.address` — the presented WebSocket `host:port`
+- `shell.buildCommit`, `shell.serverBuildTime`, `shell.currentReleaseId`, `shell.routeReturnTarget`
+
+Response headers:
+
+- `Content-Type: application/json;charset=UTF-8`
+- `Cache-Control: no-store`
+- `Pragma: no-cache`
+- `Vary: Cookie`
+- `X-Content-Type-Options: nosniff`
+
+Non-`GET` methods must return HTTP 405 with an `Allow: GET` response header:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST http://localhost:9900/bootstrap.json
+```
+
+Forward compatibility: follow-up work under issue #933 may add a
+`socket.token` field. J2CL clients must ignore unknown keys under `socket`,
+`session`, and `shell`.
+
+Coexistence: the legacy inline `var __session = ...; var __websocket_address =
+...;` script block stays in the rendered HTML for one release so a previously
+deployed J2CL bundle that still calls `SidecarSessionBootstrap.fromRootHtml`
+keeps working through a rolling deploy. Cleanup of that temporary overlap is
+tracked in issue `#978`.
+
+Rollback rule: newer J2CL bundles now expect `/bootstrap.json` and do not fall
+back to HTML scraping. During the overlap window, roll the server forward
+before the client, and roll the client back before or together with any server
+rollback so clients do not land on a server that no longer matches their
+bootstrap expectations. The remaining `session.id` divergence between HTML and
+`/bootstrap.json` is tracked separately in issue `#979`.
+
 ## Dual-Mode Coexistence Matrix
 
 Use this matrix when validating both the default-on legacy GWT root mode and

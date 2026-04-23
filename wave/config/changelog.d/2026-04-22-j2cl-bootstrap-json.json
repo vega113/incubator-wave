@@ -1,0 +1,17 @@
+{
+  "releaseId": "2026-04-22-j2cl-bootstrap-json",
+  "version": "Issue #963",
+  "date": "2026-04-22",
+  "title": "J2CL sidecar and root shell now bootstrap from /bootstrap.json instead of scraping root HTML",
+  "summary": "The J2CL client now reads session, socket, and shell metadata from an explicit server-owned /bootstrap.json endpoint. The historical scraping path that parsed window.__session and window.__websocket_address out of the root HTML page is retained for one release so rolling deploys keep working, but new builds no longer depend on it. During the overlap window, server rollback must happen with or after client rollback because newer J2CL bundles do not fall back to HTML scraping.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a server-owned /bootstrap.json endpoint that publishes the session, socket, and shell metadata the J2CL client needs to boot, with Cache-Control: no-store and GET-only enforcement",
+        "Switched the J2CL sidecar and root-shell bootstrap call sites to the new JSON contract so they no longer regex-scrape the rendered root HTML page",
+        "Reserved a nested socket object in the JSON schema so issue #933 can add signed handshake tokens without a client-side schema migration"
+      ]
+    }
+  ]
+}

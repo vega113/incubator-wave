@@ -27,11 +27,13 @@ public final class J2clSearchGateway
   public void fetchRootSessionBootstrap(
       J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> onSuccess,
       J2clSearchPanelController.ErrorCallback onError) {
+    // #963: read the server-owned bootstrap JSON contract instead of scraping
+    // the root HTML page.
     requestText(
-        "/",
-        html -> {
+        SidecarSessionBootstrap.BOOTSTRAP_PATH,
+        payload -> {
           try {
-            onSuccess.accept(SidecarSessionBootstrap.fromRootHtml(html));
+            onSuccess.accept(SidecarSessionBootstrap.fromBootstrapJson(payload));
           } catch (RuntimeException e) {
             onError.accept(messageOrDefault(e, "Unable to read the root session bootstrap."));
           }
