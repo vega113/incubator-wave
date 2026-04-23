@@ -453,22 +453,44 @@
 @external .compact-inline-blips;
 @external .compact-inline-blips-mobile;
 
-/* Stack the avatar above the metabar/content so inline depth width does not
-   depend on the avatar gutter. */
+/* Keep the avatar on the same row as the metabar while letting content span
+   the full width below that row. */
 .compact-inline-blips [data-depth="0"] .meta,
 .compact-inline-blips [data-depth="1"] .meta,
 .compact-inline-blips [data-depth="2"] .meta {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.35em;
+  row-gap: 0.25em;
   padding-left: 0.75em;
 }
 .compact-inline-blips [data-depth="0"] .avatar,
 .compact-inline-blips [data-depth="1"] .avatar,
 .compact-inline-blips [data-depth="2"] .avatar {
   float: none;
+  grid-column: 1;
+  grid-row: 1;
   margin-left: 0;
-  margin-bottom: 0.35em;
-  align-self: flex-start;
+  margin-bottom: 0;
+}
+.compact-inline-blips [data-depth="0"] .metabar,
+.compact-inline-blips [data-depth="1"] .metabar,
+.compact-inline-blips [data-depth="2"] .metabar {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  margin-left: 0;
+  margin-bottom: 0;
+}
+.compact-inline-blips [data-depth="0"] .contentContainer,
+.compact-inline-blips [data-depth="1"] .contentContainer,
+.compact-inline-blips [data-depth="2"] .contentContainer {
+  grid-column: 1 / -1;
+}
+.compact-inline-blips [data-depth="0"] .draftActive-notification,
+.compact-inline-blips [data-depth="1"] .draftActive-notification,
+.compact-inline-blips [data-depth="2"] .draftActive-notification {
+  grid-column: 1 / -1;
 }
 
 /* --- Depth 0 --- */
@@ -527,17 +549,39 @@
 .compact-inline-blips-mobile [data-depth="0"] .meta,
 .compact-inline-blips-mobile [data-depth="1"] .meta,
 .compact-inline-blips-mobile [data-depth="2"] .meta {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.3em;
+  row-gap: 0.2em;
   padding-left: 0.5em;
 }
 .compact-inline-blips-mobile [data-depth="0"] .avatar,
 .compact-inline-blips-mobile [data-depth="1"] .avatar,
 .compact-inline-blips-mobile [data-depth="2"] .avatar {
   float: none;
+  grid-column: 1;
+  grid-row: 1;
   margin-left: 0;
-  margin-bottom: 0.25em;
-  align-self: flex-start;
+  margin-bottom: 0;
+}
+.compact-inline-blips-mobile [data-depth="0"] .metabar,
+.compact-inline-blips-mobile [data-depth="1"] .metabar,
+.compact-inline-blips-mobile [data-depth="2"] .metabar {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  margin-left: 0;
+  margin-bottom: 0;
+}
+.compact-inline-blips-mobile [data-depth="0"] .contentContainer,
+.compact-inline-blips-mobile [data-depth="1"] .contentContainer,
+.compact-inline-blips-mobile [data-depth="2"] .contentContainer {
+  grid-column: 1 / -1;
+}
+.compact-inline-blips-mobile [data-depth="0"] .draftActive-notification,
+.compact-inline-blips-mobile [data-depth="1"] .draftActive-notification,
+.compact-inline-blips-mobile [data-depth="2"] .draftActive-notification {
+  grid-column: 1 / -1;
 }
 .compact-inline-blips-mobile [data-depth="0"] .avatar {
   width: 22px; height: 22px;
