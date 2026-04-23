@@ -312,9 +312,17 @@ Create:
 
 ```json
 {
-  "type": "ops",
-  "component": "perf-observability",
-  "summary": "Repair Grafana perf metrics export and expand Gatling run-comparison panels."
+  "releaseId": "2026-04-23-perf-gatling-dashboard-repair",
+  "version": "unreleased",
+  "date": "2026-04-23",
+  "title": "Repair perf metrics export and Gatling dashboard comparisons",
+  "summary": "Repair Grafana perf metrics export and expand Gatling run-comparison panels.",
+  "sections": [
+    {
+      "type": "changed",
+      "summary": "Repair the Grafana perf observability pipeline and expand Gatling dashboard views for comparison across branch, SHA, run, simulation, and request."
+    }
+  ]
 }
 ```
 
@@ -353,6 +361,6 @@ Expected: PASS and `/tmp/search-summary.json` contains p95/p99 plus request-leve
 - [ ] **Step 5: Commit**
 
 ```bash
-git add wave/config/changelog.d/2026-04-23-perf-gatling-dashboard-repair.json wave/config/changelog.json
+git add wave/config/changelog.d/2026-04-23-perf-gatling-dashboard-repair.json
 git commit -m "chore: record perf dashboard repair"
 ```
