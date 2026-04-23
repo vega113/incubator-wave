@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-23-compact-inline-avatar-row",
-  "version": "PR pending",
+  "version": "PR #981",
   "date": "2026-04-23",
   "title": "Keep compact inline avatars on the author row",
   "summary": "Updates the compact-inline-blips follow-up so inline reply avatars stay on the same row as the author line while the content still reuses the reclaimed width on desktop and mobile.",
