@@ -25,7 +25,7 @@ The narrow root cause is therefore: the sidecar has no path to the per-user unre
 
 ### In Scope
 
-- Add a server HTTP endpoint that returns `{waveId, unreadCount, totalBlipCount, isRead}` for the authenticated participant, computed via the existing `WaveDigester` + `SimpleSearchProviderImpl.WaveSupplementContext` path.
+- Add a server HTTP endpoint that returns `{waveId, unreadCount, isRead}` for the authenticated participant, computed via the existing `WaveDigester` + package-level `WaveSupplementContext` path.
 - Wire the new endpoint into the Jakarta servlet registry beside the existing `/search/*` mapping.
 - Extend `J2clSearchGateway` with a `fetchSelectedWaveReadState(waveId, onSuccess, onError)` helper that calls the new endpoint.
 - Update `J2clSelectedWaveController` to fetch read state after a successful open, after each non-establishment `ProtocolWaveletUpdate`, and after a reconnect.
@@ -56,19 +56,20 @@ The narrow root cause is therefore: the sidecar has no path to the per-user unre
 ### Server (Common)
 
 - **New:** `wave/src/main/java/org/waveprotocol/box/server/waveserver/SelectedWaveReadStateHelper.java`
-  - Package-visible helper, same package as `SimpleSearchProviderImpl`, so it can reuse the package-private `WaveSupplementContext`.
-  - Constructor is Guice-injectable: takes `WaveMap`, `WaveDigester`, `SharedDomainParticipantProvider`-equivalents already used by the search path.
+  - Package-visible helper, same package as `SimpleSearchProviderImpl`, so it can reuse the existing top-level `WaveSupplementContext` (`wave/src/main/java/org/waveprotocol/box/server/waveserver/WaveSupplementContext.java`) and the package-private construction helpers.
+  - Constructor is Guice-injectable: takes `WaveMap`, `WaveDigester`, and whatever shared-domain participant helpers the search path already uses.
   - Public API exposes only `Result computeReadState(ParticipantId user, WaveId waveId)` returning `{unreadCount, isRead, accessAllowed, exists}`. No internal types leak.
   - Data loading: the helper uses `WaveMap.lookupWavelets(waveId)` + `WaveMap.getWavelet(WaveletName).copyWaveletData()` — the same path `AbstractSearchProviderImpl.buildWaveViewData` (`wave/src/main/java/org/waveprotocol/box/server/waveserver/AbstractSearchProviderImpl.java:123-148`) already uses. This returns `ObservableWaveletData`, which the existing supplement/digester path consumes. Do NOT use `WaveletProvider.getSnapshot` — that returns `CommittedWaveletSnapshot` wrapping `ReadableWaveletData`, which the supplement stack cannot consume.
+  - `WaveMap` null/exception semantics: `lookupWavelets(waveId)` throws `WaveletStateException` on persistence errors; `getWavelet(WaveletName)` returns `null` for non-existent wavelets; `copyWaveletData()` throws if the container is not loaded. The helper null-checks every container, catches `WaveletStateException`, and maps any of those to `Result.notFound()` so non-existence is not distinguishable from access denial.
   - Access check: before counting, the helper must verify the authenticated user is a participant of the conversational wavelet (explicit participant or shared-domain), reusing the same predicate used by search (`AbstractSearchProviderImpl.isWaveletMatchesCriteria` style). If access is denied, the helper returns `accessAllowed=false` and the servlet responds with the same 404 it would use for an unknown wave so existence cannot be probed.
-  - `SimpleSearchProviderImpl.java` itself stays unchanged; the helper duplicates the minimal construction logic of its internal `WaveSupplementContext` rather than widening `SimpleSearchProviderImpl`'s public surface.
+  - `SimpleSearchProviderImpl.java` itself stays unchanged; the helper reuses the existing `WaveSupplementContext` type and duplicates only the minimal construction logic rather than widening `SimpleSearchProviderImpl`'s public surface.
 
 ### J2CL Sidecar
 
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/transport/SidecarSelectedWaveReadState.java` (new)
   - Immutable DTO: `{waveId, unreadCount, isRead}`. Ordering + generation tracking live entirely in the controller (via `readStateFetchSeq`); they do not need to be carried on the DTO.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/transport/SidecarTransportCodec.java`
-  - Add `decodeSelectedWaveReadState(String json)` decoder for the new endpoint response.
+  - Add `decodeSelectedWaveReadState(String json)` decoder. Reads `waveId`, `unreadCount`, `isRead` only.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSearchGateway.java`
   - Add `fetchSelectedWaveReadState(String waveId, SuccessCallback<SidecarSelectedWaveReadState>, ErrorCallback)` using the existing `requestText` XHR helper.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveController.java`
