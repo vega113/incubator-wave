@@ -19,6 +19,8 @@ public final class J2clSearchGateway
         J2clSelectedWaveController.Gateway,
         J2clSidecarComposeController.Gateway {
   private static final String DEFAULT_WAVELET_PREFIX = "conv+root";
+  private static final String CROSS_HOST_WEBSOCKET_ERROR =
+      "The J2CL sidecar requires core.http_websocket_presented_address to use the current page host when HttpOnly session cookies are enabled.";
 
   @Override
   public void fetchRootSessionBootstrap(
@@ -43,6 +45,11 @@ public final class J2clSearchGateway
       J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveUpdate> onUpdate,
       J2clSearchPanelController.ErrorCallback onError,
       Runnable onDisconnect) {
+    if (!SidecarSessionBootstrap.usesCompatibleCookieHost(
+        DomGlobal.location.hostname, bootstrap.getWebSocketAddress())) {
+      onError.accept(CROSS_HOST_WEBSOCKET_ERROR);
+      return () -> {};
+    }
     WebSocket socket =
         new WebSocket(buildWebSocketUrl(DomGlobal.location.protocol, bootstrap.getWebSocketAddress()));
     final boolean[] closedByClient = new boolean[] {false};
@@ -51,17 +58,7 @@ public final class J2clSearchGateway
           if (closedByClient[0]) {
             return;
           }
-          String token = readCookie("JSESSIONID");
-          if (token != null && !token.isEmpty()) {
-            socket.send(SidecarTransportCodec.encodeAuthenticateEnvelope(0, token));
-          }
-          socket.send(
-              SidecarTransportCodec.encodeOpenEnvelope(
-                  1,
-                  new SidecarOpenRequest(
-                      bootstrap.getAddress(),
-                      waveId,
-                      java.util.Collections.singletonList(DEFAULT_WAVELET_PREFIX))));
+          socket.send(buildSelectedWaveOpenFrame(bootstrap, waveId));
         };
     socket.onmessage =
         event -> {
@@ -139,6 +136,11 @@ public final class J2clSearchGateway
       SidecarSubmitRequest request,
       J2clSearchPanelController.SuccessCallback<SidecarSubmitResponse> onSuccess,
       J2clSearchPanelController.ErrorCallback onError) {
+    if (!SidecarSessionBootstrap.usesCompatibleCookieHost(
+        DomGlobal.location.hostname, bootstrap.getWebSocketAddress())) {
+      onError.accept(CROSS_HOST_WEBSOCKET_ERROR);
+      return;
+    }
     WebSocket socket =
         new WebSocket(buildWebSocketUrl(DomGlobal.location.protocol, bootstrap.getWebSocketAddress()));
     final boolean[] closedByClient = new boolean[] {false};
@@ -148,11 +150,7 @@ public final class J2clSearchGateway
           if (closedByClient[0]) {
             return;
           }
-          String token = readCookie("JSESSIONID");
-          if (token != null && !token.isEmpty()) {
-            socket.send(SidecarTransportCodec.encodeAuthenticateEnvelope(0, token));
-          }
-          socket.send(SidecarTransportCodec.encodeSubmitEnvelope(1, request));
+          socket.send(buildSubmitFrame(request));
         };
     socket.onmessage =
         event -> {
@@ -206,6 +204,19 @@ public final class J2clSearchGateway
         + numResults;
   }
 
+  static String buildSelectedWaveOpenFrame(SidecarSessionBootstrap bootstrap, String waveId) {
+    return SidecarTransportCodec.encodeOpenEnvelope(
+        1,
+        new SidecarOpenRequest(
+            bootstrap.getAddress(),
+            waveId,
+            java.util.Collections.singletonList(DEFAULT_WAVELET_PREFIX)));
+  }
+
+  static String buildSubmitFrame(SidecarSubmitRequest request) {
+    return SidecarTransportCodec.encodeSubmitEnvelope(1, request);
+  }
+
   private static void requestText(
       String url,
       J2clSearchPanelController.SuccessCallback<String> onSuccess,
@@ -244,22 +255,6 @@ public final class J2clSearchGateway
     }
     closedByClient[0] = true;
     socket.close();
-  }
-
-  private static String readCookie(String name) {
-    String cookieHeader = DomGlobal.document.cookie;
-    if (cookieHeader == null || cookieHeader.isEmpty()) {
-      return null;
-    }
-    String[] cookies = cookieHeader.split(";");
-    for (String cookie : cookies) {
-      String trimmed = cookie.trim();
-      String prefix = name + "=";
-      if (trimmed.startsWith(prefix)) {
-        return trimmed.substring(prefix.length());
-      }
-    }
-    return null;
   }
 
   @JsMethod(namespace = JsPackage.GLOBAL, name = "encodeURIComponent")

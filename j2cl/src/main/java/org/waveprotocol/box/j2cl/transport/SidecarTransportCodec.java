@@ -10,14 +10,6 @@ public final class SidecarTransportCodec {
   private SidecarTransportCodec() {
   }
 
-  public static String encodeAuthenticateEnvelope(int sequenceNumber, String token) {
-    return "{\"sequenceNumber\":"
-        + sequenceNumber
-        + ",\"messageType\":\"ProtocolAuthenticate\",\"message\":{\"1\":\""
-        + escapeJson(token)
-        + "\"}}";
-  }
-
   public static String encodeOpenEnvelope(int sequenceNumber, SidecarOpenRequest request) {
     StringBuilder json = new StringBuilder(128);
     json.append("{\"sequenceNumber\":")

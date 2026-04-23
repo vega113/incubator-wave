@@ -31,6 +31,8 @@ import org.waveprotocol.box.j2cl.transport.SidecarWaveletUpdateSummary;
 public final class SandboxEntryPoint {
   private static final String DEFAULT_MODE = "sidecar";
   private static final String DEFAULT_WAVELET_PREFIX = "conv+root";
+  private static final String CROSS_HOST_WEBSOCKET_ERROR =
+      "The J2CL sidecar sandbox requires core.http_websocket_presented_address to use the current page host when HttpOnly session cookies are enabled.";
 
   private SandboxEntryPoint() {
   }
@@ -306,6 +308,11 @@ public final class SandboxEntryPoint {
 
     private void openSocket(
         SidecarSessionBootstrap bootstrap, SidecarSearchResponse.Digest digest, int generation) {
+      if (!SidecarSessionBootstrap.usesCompatibleCookieHost(
+          DomGlobal.location.hostname, bootstrap.getWebSocketAddress())) {
+        setError("Cross-host websocket unsupported", CROSS_HOST_WEBSOCKET_ERROR);
+        return;
+      }
       WebSocket ws =
           new WebSocket(buildWebSocketUrl(DomGlobal.location.protocol, bootstrap.getWebSocketAddress()));
       socket = ws;
@@ -314,10 +321,6 @@ public final class SandboxEntryPoint {
           return;
         }
         waitingForUpdate = true;
-        String token = readCookie("JSESSIONID");
-        if (token != null && !token.isEmpty()) {
-          ws.send(SidecarTransportCodec.encodeAuthenticateEnvelope(0, token));
-        }
         ws.send(
             SidecarTransportCodec.encodeOpenEnvelope(
                 1,
@@ -327,7 +330,7 @@ public final class SandboxEntryPoint {
                     Collections.singletonList(DEFAULT_WAVELET_PREFIX))));
         setNeutral(
             "Awaiting ProtocolWaveletUpdate",
-            "Socket connected; auth/open sent for " + digest.getWaveId() + ".");
+            "Socket connected; open sent for " + digest.getWaveId() + ".");
       };
       ws.onmessage = event -> {
         if (!shouldHandleSocketCallback(generation, runGeneration, ws == socket)) {
@@ -476,146 +479,6 @@ public final class SandboxEntryPoint {
     request.send();
   }
 
-  private static String readCookie(String name) {
-    return readCookieFromHeader(DomGlobal.document.cookie, name);
-  }
-
-  static String readCookieFromHeader(String cookieHeader, String name) {
-    if (cookieHeader == null || cookieHeader.isEmpty()) {
-      return null;
-    }
-    String[] cookies = cookieHeader.split(";");
-    for (String cookie : cookies) {
-      String trimmed = cookie.trim();
-      String prefix = name + "=";
-      if (trimmed.startsWith(prefix)) {
-        try {
-          return decodeUriComponentSafe(trimmed.substring(prefix.length()));
-        } catch (RuntimeException e) {
-          return null;
-        }
-      }
-    }
-    return null;
-  }
-
   @JsMethod(namespace = JsPackage.GLOBAL, name = "encodeURIComponent")
   private static native String encodeUriComponent(String value);
-
-  @JsMethod(namespace = JsPackage.GLOBAL, name = "decodeURIComponent")
-  private static native String decodeUriComponentNative(String value);
-
-  private static String decodeUriComponentSafe(String value) {
-    try {
-      return decodeUriComponentNative(value);
-    } catch (Error err) {
-      if (!isMissingNativeUriCodec(err)) {
-        throw err;
-      }
-      return decodeUriComponentFallback(value);
-    }
-  }
-
-  private static String decodeUriComponentFallback(String value) {
-    if (value == null || value.indexOf('%') < 0) {
-      return value;
-    }
-    StringBuilder decoded = new StringBuilder(value.length());
-    byte[] bytes = new byte[value.length()];
-    int index = 0;
-    while (index < value.length()) {
-      char ch = value.charAt(index);
-      if (ch != '%') {
-        decoded.append(ch);
-        index++;
-        continue;
-      }
-      int byteCount = 0;
-      while (index < value.length() && value.charAt(index) == '%') {
-        if (index + 2 >= value.length()) {
-          throw new IllegalArgumentException("Incomplete percent escape");
-        }
-        bytes[byteCount++] =
-            (byte) ((hexValue(value.charAt(index + 1)) << 4) | hexValue(value.charAt(index + 2)));
-        index += 3;
-      }
-      appendUtf8Bytes(decoded, bytes, byteCount);
-    }
-    return decoded.toString();
-  }
-
-  private static void appendUtf8Bytes(StringBuilder decoded, byte[] bytes, int length) {
-    int index = 0;
-    while (index < length) {
-      int first = bytes[index] & 0xFF;
-      if ((first & 0x80) == 0) {
-        decoded.append((char) first);
-        index++;
-        continue;
-      }
-
-      int additionalBytes;
-      int codePoint;
-      int minCodePoint;
-      if ((first & 0xE0) == 0xC0) {
-        additionalBytes = 1;
-        codePoint = first & 0x1F;
-        minCodePoint = 0x80;
-      } else if ((first & 0xF0) == 0xE0) {
-        additionalBytes = 2;
-        codePoint = first & 0x0F;
-        minCodePoint = 0x800;
-      } else if ((first & 0xF8) == 0xF0) {
-        additionalBytes = 3;
-        codePoint = first & 0x07;
-        minCodePoint = 0x10000;
-      } else {
-        throw new IllegalArgumentException("Invalid UTF-8 leading byte");
-      }
-
-      if (index + additionalBytes >= length) {
-        throw new IllegalArgumentException("Incomplete UTF-8 sequence");
-      }
-
-      for (int i = 0; i < additionalBytes; i++) {
-        int continuation = bytes[++index] & 0xFF;
-        if ((continuation & 0xC0) != 0x80) {
-          throw new IllegalArgumentException("Invalid UTF-8 continuation byte");
-        }
-        codePoint = (codePoint << 6) | (continuation & 0x3F);
-      }
-
-      if (codePoint < minCodePoint
-          || codePoint > 0x10FFFF
-          || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
-        throw new IllegalArgumentException("Invalid UTF-8 code point");
-      }
-
-      if (codePoint <= 0xFFFF) {
-        decoded.append((char) codePoint);
-      } else {
-        int supplementary = codePoint - 0x10000;
-        decoded.append((char) ((supplementary >> 10) + 0xD800));
-        decoded.append((char) ((supplementary & 0x3FF) + 0xDC00));
-      }
-      index++;
-    }
-  }
-
-  private static int hexValue(char ch) {
-    if (ch >= '0' && ch <= '9') {
-      return ch - '0';
-    }
-    if (ch >= 'A' && ch <= 'F') {
-      return ch - 'A' + 10;
-    }
-    if (ch >= 'a' && ch <= 'f') {
-      return ch - 'a' + 10;
-    }
-    throw new IllegalArgumentException("Invalid hex digit");
-  }
-
-  private static boolean isMissingNativeUriCodec(Error err) {
-    return "java.lang.UnsatisfiedLinkError".equals(err.getClass().getName());
-  }
 }

@@ -11,15 +11,6 @@ import org.waveprotocol.box.j2cl.search.SidecarSearchResponse;
 @J2clTestInput(SidecarTransportCodecTest.class)
 public class SidecarTransportCodecTest {
   @Test
-  public void encodeAuthenticateEnvelopePreservesLegacyWrapperShape() {
-    String json = SidecarTransportCodec.encodeAuthenticateEnvelope(7, "cookie-token");
-
-    Assert.assertTrue(json.contains("\"sequenceNumber\":7"));
-    Assert.assertTrue(json.contains("\"messageType\":\"ProtocolAuthenticate\""));
-    Assert.assertTrue(json.contains("\"message\":{\"1\":\"cookie-token\"}"));
-  }
-
-  @Test
   public void encodeOpenEnvelopeUsesGeneratedNumericFieldKeys() {
     SidecarOpenRequest request =
         new SidecarOpenRequest(
