@@ -570,12 +570,23 @@ public class WaveClientServlet extends HttpServlet {
     if (StringUtils.isBlank(host)) {
       return false;
     }
-    String normalizedHost = StringUtils.substringBefore(host, ":").trim();
+    // Extract the host label, handling bracketed IPv6 (e.g. [::1]:9898 → [::1]).
+    String normalizedHost;
+    if (host.startsWith("[")) {
+      int end = host.indexOf(']');
+      normalizedHost = end >= 0 ? host.substring(0, end + 1) : "";
+    } else {
+      normalizedHost = StringUtils.substringBefore(host, ":").trim();
+    }
     if (normalizedHost.isEmpty()) {
       return false;
     }
-    return normalizedHost.equalsIgnoreCase(domain)
-        || normalizedHost.equalsIgnoreCase("localhost")
+    String lowerHost = normalizedHost.toLowerCase();
+    String lowerDomain = domain.toLowerCase();
+    return lowerHost.equals(lowerDomain)
+        || lowerHost.endsWith("." + lowerDomain)
+        || lowerHost.equals("localhost")
+        || lowerHost.equals("[::1]")
         || normalizedHost.equals("127.0.0.1");
   }
 
