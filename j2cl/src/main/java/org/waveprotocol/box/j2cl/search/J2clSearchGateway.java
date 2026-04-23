@@ -6,6 +6,7 @@ import elemental2.dom.XMLHttpRequest;
 import java.util.Map;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsPackage;
+import org.waveprotocol.box.j2cl.transport.SidecarFragmentsResponse;
 import org.waveprotocol.box.j2cl.transport.SidecarOpenRequest;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
@@ -138,6 +139,32 @@ public final class J2clSearchGateway
   }
 
   @Override
+  public void fetchFragments(
+      String waveId,
+      String startBlipId,
+      String direction,
+      int limit,
+      long startVersion,
+      long endVersion,
+      J2clSearchPanelController.SuccessCallback<SidecarFragmentsResponse> onSuccess,
+      J2clSearchPanelController.ErrorCallback onError) {
+    if (waveId == null || waveId.isEmpty()) {
+      onError.accept("Wave id is required for the fragments fetch.");
+      return;
+    }
+    requestText(
+        buildFragmentsUrl(waveId, startBlipId, direction, limit, startVersion, endVersion),
+        text -> {
+          try {
+            onSuccess.accept(SidecarFragmentsResponse.fromJson(text));
+          } catch (RuntimeException e) {
+            onError.accept(messageOrDefault(e, "Unable to decode selected-wave fragments."));
+          }
+        },
+        onError);
+  }
+
+  @Override
   public void search(
       String query,
       int index,
@@ -247,6 +274,70 @@ public final class J2clSearchGateway
 
   static String buildSubmitFrame(SidecarSubmitRequest request) {
     return SidecarTransportCodec.encodeSubmitEnvelope(1, request);
+  }
+
+  static String buildFragmentsUrl(
+      String waveId,
+      String startBlipId,
+      String direction,
+      int limit,
+      long startVersion,
+      long endVersion) {
+    // J2CL selected-wave parity currently targets the root conversation wavelet.
+    StringBuilder url = new StringBuilder("/fragments?waveId=");
+    url.append(encodeQueryComponent(waveId))
+        .append("&waveletId=")
+        .append(encodeQueryComponent(defaultWaveletId(waveId)))
+        .append("&client=j2cl")
+        .append("&direction=")
+        .append(encodeQueryComponent(direction == null ? "forward" : direction))
+        .append("&limit=")
+        .append(limit)
+        .append("&startVersion=")
+        .append(startVersion)
+        .append("&endVersion=")
+        .append(endVersion);
+    if (startBlipId != null && !startBlipId.isEmpty()) {
+      url.append("&startBlipId=").append(encodeQueryComponent(startBlipId));
+    }
+    return url.toString();
+  }
+
+  private static String defaultWaveletId(String waveId) {
+    int separator = waveId == null ? -1 : waveId.indexOf('/');
+    String domain = separator <= 0 ? "" : waveId.substring(0, separator);
+    return domain.isEmpty() ? DEFAULT_WAVELET_PREFIX : domain + "/" + DEFAULT_WAVELET_PREFIX;
+  }
+
+  private static String encodeQueryComponent(String value) {
+    if (value == null || value.isEmpty()) {
+      return "";
+    }
+    // Keep this JVM-testable; encodeURIComponent is native and unavailable in JUnit.
+    // Wave ids, wavelet ids, blip ids, and directions use the ASCII-safe Wave id alphabet.
+    StringBuilder encoded = new StringBuilder(value.length());
+    for (int i = 0; i < value.length(); i++) {
+      char c = value.charAt(i);
+      if ((c >= 'A' && c <= 'Z')
+          || (c >= 'a' && c <= 'z')
+          || (c >= '0' && c <= '9')
+          || c == '-'
+          || c == '_'
+          || c == '.'
+          || c == '~') {
+        encoded.append(c);
+      } else {
+        encoded.append('%');
+        appendHex(encoded, c >> 4);
+        appendHex(encoded, c);
+      }
+    }
+    return encoded.toString();
+  }
+
+  private static void appendHex(StringBuilder target, int value) {
+    int nibble = value & 0x0F;
+    target.append((char) (nibble < 10 ? '0' + nibble : 'A' + (nibble - 10)));
   }
 
   private static void requestText(

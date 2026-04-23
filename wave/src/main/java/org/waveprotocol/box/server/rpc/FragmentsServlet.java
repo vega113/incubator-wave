@@ -19,6 +19,7 @@
 
 package org.waveprotocol.box.server.rpc;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
@@ -26,6 +27,7 @@ import org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot;
 import org.waveprotocol.box.server.frontend.FragmentsFetcherCompat;
 import org.waveprotocol.box.server.frontend.FragmentsRequest;
 import org.waveprotocol.box.server.frontend.RawFragmentsBuilder;
+import org.waveprotocol.box.server.frontend.ViewportLimitPolicy;
 import org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.id.SegmentId;
@@ -69,8 +71,13 @@ public final class FragmentsServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     resp.setContentType("application/json;charset=UTF-8");
+    boolean j2clViewportRequest = isJ2clViewportRequest(req);
     if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
       org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpRequests.incrementAndGet();
+      if (j2clViewportRequest) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportExtensionRequests.incrementAndGet();
+      }
     }
     ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
     if (user == null) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return; }
@@ -97,7 +104,7 @@ public final class FragmentsServlet extends HttpServlet {
 
     String start = req.getParameter("startBlipId");
     String dir = normalizeDirection(req.getParameter("direction"));
-    int limit = clampLimit(req.getParameter("limit"));
+    int limit = clampLimit(req.getParameter("limit"), j2clViewportRequest);
     Long startVersion = parseLong(req.getParameter("startVersion"));
     Long endVersion = parseLong(req.getParameter("endVersion"));
 
@@ -138,6 +145,10 @@ public final class FragmentsServlet extends HttpServlet {
       resp.setStatus(HttpServletResponse.SC_OK);
       if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
         org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpOk.incrementAndGet();
+        if (j2clViewportRequest) {
+          org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+              .j2clViewportExtensionOk.incrementAndGet();
+        }
       }
     } catch (WaveServerException e) {
         LOG.warning("Error fetching fragments", e);
@@ -147,6 +158,10 @@ public final class FragmentsServlet extends HttpServlet {
       }
       if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
         org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpErrors.incrementAndGet();
+        if (j2clViewportRequest) {
+          org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+              .j2clViewportExtensionErrors.incrementAndGet();
+        }
       }
     }
   }
@@ -162,13 +177,50 @@ public final class FragmentsServlet extends HttpServlet {
     return (dir == null || dir.isEmpty()) ? "forward" : dir;
   }
 
-  private int clampLimit(String lim) {
-    int limit = 50;
-    if (lim == null) return limit;
-    try { limit = Math.max(1, Math.min(200, Integer.parseInt(lim))); } catch (Exception ex) {
+  @VisibleForTesting
+  static int resolveLimitForRequest(String rawLimit) {
+    return resolveLimitForRequest(rawLimit, false);
+  }
+
+  @VisibleForTesting
+  static int resolveLimitForRequest(String rawLimit, boolean recordJ2clMetric) {
+    Integer requestedLimit = parseInteger(rawLimit);
+    int resolvedLimit =
+        requestedLimit == null
+            ? ViewportLimitPolicy.resolveLimit(rawLimit)
+            : ViewportLimitPolicy.resolveLimit(requestedLimit.intValue());
+    if (recordJ2clMetric
+        && requestedLimit != null
+        && resolvedLimit != requestedLimit.intValue()
+        && org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+      org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+          .j2clViewportClampApplied.incrementAndGet();
+    }
+    return resolvedLimit;
+  }
+
+  private int clampLimit(String lim, boolean recordJ2clMetric) {
+    int limit = resolveLimitForRequest(lim, recordJ2clMetric);
+    Integer requestedLimit = parseInteger(lim);
+    if (lim != null && requestedLimit == null) {
       LOG.fine("Invalid 'limit' parameter '" + lim + "'; using default " + limit);
     }
     return limit;
+  }
+
+  private static boolean isJ2clViewportRequest(HttpServletRequest req) {
+    return "j2cl".equals(req.getParameter("client"));
+  }
+
+  private static Integer parseInteger(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return Integer.valueOf(value);
+    } catch (NumberFormatException ex) {
+      return null;
+    }
   }
 
   private Long parseLong(String v) { if (v == null) return null; try { return Long.parseLong(v); } catch (Exception e) { return null; } }

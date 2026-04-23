@@ -77,6 +77,44 @@ public class J2clSearchGatewayAuthFrameTest {
   }
 
   @Test
+  public void fragmentsFetchUrlCarriesViewportWindowAndDefaultWavelet() {
+    String url =
+        J2clSearchGateway.buildFragmentsUrl(
+            "example.com/w+abc", "b+root", "backward", 12, 40L, 44L);
+
+    Assert.assertTrue(url.startsWith("/fragments?"));
+    Assert.assertTrue(url.contains("waveId=example.com%2Fw%2Babc"));
+    Assert.assertTrue(url.contains("waveletId=example.com%2Fconv%2Broot"));
+    Assert.assertTrue(url.contains("client=j2cl"));
+    Assert.assertTrue(url.contains("startBlipId=b%2Broot"));
+    Assert.assertTrue(url.contains("direction=backward"));
+    Assert.assertTrue(url.contains("limit=12"));
+    Assert.assertTrue(url.contains("startVersion=40"));
+    Assert.assertTrue(url.contains("endVersion=44"));
+  }
+
+  @Test
+  public void fragmentsFetchUrlOmitsEmptyAnchorAndDefaultsDirection() {
+    String url =
+        J2clSearchGateway.buildFragmentsUrl(
+            "example.com/w+abc", "", null, 5, 40L, 44L);
+
+    Assert.assertFalse(url.contains("startBlipId="));
+    Assert.assertTrue(url.contains("direction=forward"));
+    Assert.assertTrue(url.contains("client=j2cl"));
+  }
+
+  @Test
+  public void fragmentsFetchUrlFallsBackToRootWaveletForDomainlessWaveId() {
+    String url =
+        J2clSearchGateway.buildFragmentsUrl(
+            "w+abc", "b+root", "forward", 5, 40L, 44L);
+
+    Assert.assertTrue(url.contains("waveId=w%2Babc"));
+    Assert.assertTrue(url.contains("waveletId=conv%2Broot"));
+  }
+
+  @Test
   public void websocketCookieHostMustMatchCurrentPageHost() {
     Assert.assertTrue(
         SidecarSessionBootstrap.usesCompatibleCookieHost(

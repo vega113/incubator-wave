@@ -466,22 +466,30 @@ Expected:
   - `wave/src/test/java/org/waveprotocol/box/server/rpc/FragmentsServletViewportLimitTest.java`
   - new J2CL decoder test for `/fragments` response
 
-- [ ] Add a J2CL `/fragments` fetch method that decodes the existing servlet JSON shape into typed window data
-- [ ] Keep the selected-wave websocket subscription open for live updates; do not close/reopen the wave just to extend the viewport
-- [ ] Extract shared clamp/default behavior so the initial-open path and `/fragments` path honour the same limits
+- [x] Add a J2CL `/fragments` fetch method that decodes the existing servlet JSON shape into typed window data
+- [x] Keep the selected-wave websocket subscription open for live updates; do not close/reopen the wave just to extend the viewport
+- [x] Extract shared clamp/default behavior so the initial-open path and `/fragments` path honour the same limits
   - existing `wave.fragments.defaultViewportLimit` and `wave.fragments.maxViewportLimit` config keys are the source of truth
   - do not introduce new config keys in this slice
   - replace `FragmentsServlet`'s hardcoded `50/200` only with the same effective defaults already used by `WaveClientRpcImpl`
-  - add a regression note/test for the GWT `DynamicRendererImpl`/`/fragments` path so shared servlet behavior does not unexpectedly change for non-J2CL callers
-  - add an explicit baseline test for current `FragmentsServlet` default/max behavior before the refactor, then update it to prove the shared policy preserves the same effective defaults unless config overrides them
-- [ ] Make the extension request carry the current anchor/direction/limit plus version bounds
-- [ ] Add concrete telemetry counters to `FragmentsMetrics`:
+  - add a regression note/test for the GWT `DynamicRendererImpl`/`/fragments` path so the shared servlet behavior change is explicit for non-J2CL callers
+  - add an explicit baseline/default test proving the servlet uses the shared policy and does not drift back to an HTTP-only `50/200` clamp
+- [x] Make the extension request carry the current anchor/direction/limit plus version bounds
+- [x] Add concrete telemetry counters to `FragmentsMetrics`:
   - `j2clViewportInitialWindows`
   - `j2clViewportClampApplied`
   - `j2clViewportExtensionRequests`
   - `j2clViewportExtensionOk`
   - `j2clViewportExtensionErrors`
   - `j2clViewportSnapshotFallbacks`
+
+Task 4 result:
+- Added `ViewportLimitPolicy` and routed both `WaveClientRpcImpl` initial-open limit resolution and `FragmentsServlet` `/fragments` limit resolution through the same default/max policy (`5/50` unless startup config overrides it).
+- Replaced the servlet's legacy `50/200` hardcoded clamp with the shared policy. This intentionally means legacy non-J2CL `/fragments` callers now use the same effective max (`50`) as initial open instead of the old HTTP-only max (`200`); the changelog fragment calls out this bounded-window change.
+- Added `J2clSearchGateway.fetchFragments(...)` plus a deterministic `/fragments` URL builder that carries `waveId`, root `waveletId`, `client=j2cl`, anchor, direction, limit, and version bounds without closing or reopening the selected-wave websocket.
+- Added `SidecarFragmentsResponse` to decode the existing servlet JSON shape into `SidecarSelectedWaveFragments`, with deterministic failures for non-`ok` status, missing `version`, and malformed range entries. Operation bodies remain intentionally deferred to Task 5; this slice preserves operation counts only.
+- Added the required `FragmentsMetrics.j2clViewport*` counters. The extension and clamp metrics are scoped to J2CL-marked HTTP growth fetches (`client=j2cl`) so legacy `/fragments` callers are not counted as J2CL; the initial-window and snapshot-fallback counters are declared for the later Task 5/6 seams that can identify and gate those events correctly.
+- Review note: Claude Opus 4.7 round 2b passed with no blockers. It flagged the legacy `/fragments` max reduction and the deferred initial-window metric as notes to document, not code blockers.
 
 Run:
 ```bash
@@ -492,8 +500,8 @@ sbt -batch "testOnly org.waveprotocol.box.j2cl.transport.SidecarFragmentsRespons
 Expected:
 - the same configured limits are applied in both paths
 - J2CL can decode and merge `/fragments` growth windows without using GWT-only code
-- non-J2CL `/fragments` callers keep the same default/max behavior unless config explicitly changes it
-- the FragmentsServlet baseline/default test prevents accidental `50/200` drift for GWT or other non-J2CL callers
+- non-J2CL `/fragments` callers use the same configured default/max policy as initial open; the former HTTP-only `50/200` clamp is intentionally removed and documented
+- the FragmentsServlet baseline/default test prevents accidental divergence between GWT, J2CL, and other `/fragments` callers
 
 ### Task 5: Wire scroll growth into the merged read-surface container
 

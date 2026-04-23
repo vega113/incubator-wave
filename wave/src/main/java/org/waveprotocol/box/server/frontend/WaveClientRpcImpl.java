@@ -66,24 +66,24 @@ import javax.annotation.Nullable;
 public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
 
   private static final Log LOG = Log.get(WaveClientRpcImpl.class);
-  /** Default and maximum number of blip segments to include when the client
-   * supplies viewport hints but omits or provides an out-of-range limit.
-   * Values are configurable; see {@link #setViewportLimits(int, int)}. */
-  private static volatile int DEFAULT_VIEWPORT_LIMIT = 5;
-  private static volatile int MAX_VIEWPORT_LIMIT = 50;
-
   /** Config hook to adjust viewport limits at runtime (eager-read at startup). */
   public static void setViewportLimits(int defaultLimit, int maxLimit) {
-    if (defaultLimit <= 0) defaultLimit = 1;
-    if (maxLimit < defaultLimit) maxLimit = defaultLimit;
-    DEFAULT_VIEWPORT_LIMIT = defaultLimit;
-    MAX_VIEWPORT_LIMIT = maxLimit;
-    LOG.info("Configured viewport limits: default=" + DEFAULT_VIEWPORT_LIMIT + ", max=" + MAX_VIEWPORT_LIMIT);
+    ViewportLimitPolicy.setLimits(defaultLimit, maxLimit);
+    LOG.info(
+        "Configured viewport limits: default="
+            + ViewportLimitPolicy.getDefaultLimit()
+            + ", max="
+            + ViewportLimitPolicy.getMaxLimit());
   }
 
   // Visible for tests
-  public static int getDefaultViewportLimit() { return DEFAULT_VIEWPORT_LIMIT; }
-  public static int getMaxViewportLimit() { return MAX_VIEWPORT_LIMIT; }
+  public static int getDefaultViewportLimit() {
+    return ViewportLimitPolicy.getDefaultLimit();
+  }
+
+  public static int getMaxViewportLimit() {
+    return ViewportLimitPolicy.getMaxLimit();
+  }
 
   private final ClientFrontend frontend;
   private final boolean handleAuthentication;
@@ -375,12 +375,10 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
 
   /** Resolves viewport limit with validation and clamping. */
   private static int resolveViewportLimit(ProtocolOpenRequest request) {
-    int limit = DEFAULT_VIEWPORT_LIMIT;
-    if (!request.hasViewportLimit()) return limit;
-    int requested = request.getViewportLimit();
-    if (requested <= 0) return DEFAULT_VIEWPORT_LIMIT;
-    if (requested > MAX_VIEWPORT_LIMIT) return MAX_VIEWPORT_LIMIT;
-    return requested;
+    if (!request.hasViewportLimit()) {
+      return ViewportLimitPolicy.getDefaultLimit();
+    }
+    return ViewportLimitPolicy.resolveLimit(request.getViewportLimit());
   }
 
   /**
@@ -425,13 +423,6 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
 
     // Avoid computeVisibleSegments fallback to prevent snapshot reads from commit thread.
     return segs;
-  }
-
-  private static List<SegmentId> baseSegments() {
-    List<SegmentId> base = new ArrayList<>();
-    base.add(SegmentId.INDEX_ID);
-    base.add(SegmentId.MANIFEST_ID);
-    return base;
   }
 
   @Override

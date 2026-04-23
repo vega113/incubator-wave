@@ -1,6 +1,7 @@
 package org.waveprotocol.box.j2cl.search;
 
 import elemental2.dom.DomGlobal;
+import org.waveprotocol.box.j2cl.transport.SidecarFragmentsResponse;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
@@ -38,6 +39,16 @@ public final class J2clSelectedWaveController
     void fetchSelectedWaveReadState(
         String waveId,
         J2clSearchPanelController.SuccessCallback<SidecarSelectedWaveReadState> onSuccess,
+        J2clSearchPanelController.ErrorCallback onError);
+
+    void fetchFragments(
+        String waveId,
+        String startBlipId,
+        String direction,
+        int limit,
+        long startVersion,
+        long endVersion,
+        J2clSearchPanelController.SuccessCallback<SidecarFragmentsResponse> onSuccess,
         J2clSearchPanelController.ErrorCallback onError);
   }
 
