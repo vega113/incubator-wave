@@ -244,18 +244,20 @@ public final class SandboxEntryPoint {
       waitingForUpdate = false;
       int generation = ++runGeneration;
       setNeutral(
-          "Fetching root bootstrap",
-          "Reading the live root page session so the sidecar can reuse the active legacy login context.");
+          "Fetching bootstrap JSON",
+          "Reading "
+              + SidecarSessionBootstrap.BOOTSTRAP_PATH
+              + " so the sidecar can reuse the active legacy login context.");
       requestText(
-          "/",
-          html -> {
+          SidecarSessionBootstrap.BOOTSTRAP_PATH,
+          payload -> {
             if (!shouldHandleAsyncCallback(generation, runGeneration)) {
               return;
             }
             SidecarSessionBootstrap bootstrap;
             try {
-              bootstrap = SidecarSessionBootstrap.fromRootHtml(html);
-            } catch (IllegalArgumentException e) {
+              bootstrap = SidecarSessionBootstrap.fromBootstrapJson(payload);
+            } catch (RuntimeException e) {
               setError("Root bootstrap missing", e.getMessage());
               return;
             }

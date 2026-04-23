@@ -14,6 +14,7 @@ import com.google.inject.name.Names;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigParseOptions;
+import org.waveprotocol.box.common.J2clBootstrapContract;
 import org.waveprotocol.box.server.authentication.AccountStoreHolder;
 import org.waveprotocol.box.server.executor.ExecutorsModule;
 import org.waveprotocol.box.server.frontend.ClientFrontend;
@@ -440,6 +441,10 @@ public class ServerMain {
     // SEO endpoints
     server.addServlet("/robots.txt", RobotsServlet.class);
     server.addServlet("/sitemap.xml", SitemapServlet.class);
+
+    // Bootstrap JSON endpoint (#963) must be registered before the root
+    // catch-all so the literal bootstrap mapping wins.
+    server.addServlet(J2clBootstrapContract.PATH, J2clBootstrapServlet.class);
 
     server.addServlet("/", WaveClientServlet.class);
   }
