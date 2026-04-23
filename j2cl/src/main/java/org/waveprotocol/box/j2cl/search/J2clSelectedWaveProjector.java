@@ -60,11 +60,15 @@ public final class J2clSelectedWaveProjector {
     int unreadCount;
     boolean read;
     boolean readStateKnown;
+    boolean previousMatchesWave =
+        previous != null
+            && selectedWaveId != null
+            && selectedWaveId.equals(previous.getSelectedWaveId());
     if (readState != null) {
       unreadCount = Math.max(0, readState.getUnreadCount());
       read = readState.isRead() || unreadCount <= 0;
       readStateKnown = true;
-    } else if (previous != null && previous.isReadStateKnown()) {
+    } else if (previousMatchesWave && previous.isReadStateKnown()) {
       unreadCount = previous.getUnreadCount();
       read = previous.isRead();
       readStateKnown = true;
