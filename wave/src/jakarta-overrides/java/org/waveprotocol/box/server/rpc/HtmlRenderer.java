@@ -3404,7 +3404,7 @@ public final class HtmlRenderer {
       sb.append("}\n");
       sb.append("function mountWhenReady(attemptsRemaining,delayMs){\n");
       sb.append("  var entryPoint=resolveEntryPoint();\n");
-      sb.append("  if(entryPoint){try{clearFallback();entryPoint.mount('j2cl-root-shell-workflow','root-shell');return;}catch(err){renderLoadError();return;}}\n");
+      sb.append("  if(entryPoint){try{entryPoint.mount('j2cl-root-shell-workflow','root-shell');clearFallback();return;}catch(err){renderLoadError();return;}}\n");
       sb.append("  if(attemptsRemaining>0){window.setTimeout(function(){mountWhenReady(attemptsRemaining-1,Math.min(delayMs*2,2000));},delayMs);}else{renderLoadError();}\n");
       sb.append("}\n");
     }
