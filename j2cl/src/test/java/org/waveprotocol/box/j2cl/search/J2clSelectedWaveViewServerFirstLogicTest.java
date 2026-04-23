@@ -71,4 +71,11 @@ public class J2clSelectedWaveViewServerFirstLogicTest {
             J2clSelectedWaveModel.empty(),
             false));
   }
+
+  @Test
+  public void clearingSelectionDropsOldServerSnapshotImmediately() {
+    Assert.assertFalse(
+        J2clSelectedWaveView.shouldPreserveServerSnapshot(
+            "example.com/w+1", J2clSelectedWaveModel.clearedSelection(), false));
+  }
 }
