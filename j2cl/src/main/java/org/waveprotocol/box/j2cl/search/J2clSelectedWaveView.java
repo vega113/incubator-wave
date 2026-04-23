@@ -222,7 +222,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     }
     RootShellStatFn rootShellStatFn = Js.uncheckedCast(statFn);
     rootShellStatFn.accept(
-        "shell_swap", reason, Math.max(0, now() - serverFirstMountedAtMs), true);
+        "shell_swap", reason, Math.max(0, now() - serverFirstMountedAtMs), !serverFirstWaveId.isEmpty());
   }
 
   private static double now() {
