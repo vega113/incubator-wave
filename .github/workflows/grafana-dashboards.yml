@@ -1,0 +1,61 @@
+name: Grafana Dashboards
+run-name: >-
+  ${{ github.event_name == 'pull_request' && format('Grafana Dashboards PR #{0} @ {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || github.event_name == 'push' && format('Grafana Dashboards {0} @ {1}', github.ref_name, github.sha) || github.event_name == 'workflow_dispatch' && format('Grafana Dashboards {0} @ {1}', github.ref_name, github.sha) || format('Grafana Dashboards {0}', github.event_name) }}
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/grafana-dashboards.yml'
+      - 'scripts/upsert_grafana_dashboard.py'
+      - 'scripts/tests/test_grafana_dashboard_upsert.py'
+      - 'scripts/tests/test_grafana_dashboards_workflow.py'
+      - 'grafana/dashboards/perf-observability.json'
+      - 'deploy/supawave-host/grafana-dashboards/supawave-analytics-overview.json'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/grafana-dashboards.yml'
+      - 'scripts/upsert_grafana_dashboard.py'
+      - 'scripts/tests/test_grafana_dashboard_upsert.py'
+      - 'scripts/tests/test_grafana_dashboards_workflow.py'
+      - 'grafana/dashboards/perf-observability.json'
+      - 'deploy/supawave-host/grafana-dashboards/supawave-analytics-overview.json'
+  workflow_dispatch:
+    inputs:
+      publish_from_current_ref:
+        description: 'Allow dashboard upsert from the current non-main ref.'
+        required: false
+        default: 'false'
+
+jobs:
+  dashboards:
+    name: Validate and publish Grafana dashboards
+    runs-on: ubuntu-latest
+    env:
+      GRAFANA_URL: ${{ vars.GRAFANA_URL }}
+      HAS_GRAFANA_DASHBOARD_API_TOKEN: ${{ secrets.GRAFANA_DASHBOARD_API_TOKEN != '' && 'true' || '' }}
+      GRAFANA_PROMETHEUS_DATASOURCE_UID: ${{ vars.GRAFANA_PROMETHEUS_DATASOURCE_UID }}
+      GRAFANA_FOLDER_UID: ${{ vars.GRAFANA_FOLDER_UID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run dashboard tests
+        run: |
+          python3 -m unittest scripts.tests.test_grafana_dashboard_upsert scripts.tests.test_grafana_dashboards_workflow
+
+      - name: Upsert Grafana dashboards
+        if: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event.inputs.publish_from_current_ref == 'true') && env.GRAFANA_URL != '' && env.HAS_GRAFANA_DASHBOARD_API_TOKEN == 'true' && env.GRAFANA_PROMETHEUS_DATASOURCE_UID != '' }}
+        env:
+          GRAFANA_DASHBOARD_API_TOKEN: ${{ secrets.GRAFANA_DASHBOARD_API_TOKEN }}
+        run: |
+          python3 scripts/upsert_grafana_dashboard.py --strict \
+            --dashboard grafana/dashboards/perf-observability.json \
+            --dashboard deploy/supawave-host/grafana-dashboards/supawave-analytics-overview.json
