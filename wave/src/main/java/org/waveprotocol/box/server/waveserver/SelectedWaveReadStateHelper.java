@@ -146,20 +146,14 @@ public class SelectedWaveReadStateHelper {
   }
 
   private boolean hasAccessibleConversationalWavelet(WaveViewData view, ParticipantId user) {
-    boolean hasConversational = false;
     for (ReadableWaveletData wavelet : view.getWavelets()) {
       if (!IdUtil.isConversationalId(wavelet.getWaveletId())) {
         continue;
       }
-      hasConversational = true;
       if (WaveletDataUtil.checkAccessPermission(wavelet, user, sharedDomainParticipantId)) {
         return true;
       }
     }
-    if (!hasConversational) {
-      return false;
-    }
-    // Conversational wavelets exist but the user is not a participant of any of them.
     return false;
   }
 

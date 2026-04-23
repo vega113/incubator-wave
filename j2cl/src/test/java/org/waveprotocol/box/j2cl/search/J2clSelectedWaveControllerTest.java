@@ -453,6 +453,36 @@ public class J2clSelectedWaveControllerTest {
   }
 
   @Test
+  public void visibilityChangeTriggersReadStateFetchForActiveSelection() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createControllerWithVisibility(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "content");
+    harness.runPendingReadStateDispatch(0);
+    harness.resolveReadState(0, 1, false);
+    int baseline = harness.readStateAttempts.size();
+
+    harness.fireVisibilityVisible();
+    // visibilitychange schedules another debounce tick.
+    Assert.assertTrue(harness.pendingReadStateDispatches.size() >= 2);
+    harness.runPendingReadStateDispatch(harness.pendingReadStateDispatches.size() - 1);
+    Assert.assertEquals(baseline + 1, harness.readStateAttempts.size());
+  }
+
+  @Test
+  public void visibilityChangeWithoutSelectionIsHarmless() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createControllerWithVisibility(false);
+
+    harness.fireVisibilityVisible();
+
+    Assert.assertEquals(0, harness.pendingReadStateDispatches.size());
+    Assert.assertEquals(0, harness.readStateAttempts.size());
+  }
+
+  @Test
   public void debounceCoalescesConsecutiveUpdatesIntoOneFetch() throws Exception {
     Harness harness = new Harness();
     Object controller = harness.createController(false);
@@ -487,11 +517,27 @@ public class J2clSelectedWaveControllerTest {
     private final List<OpenAttempt> openAttempts = new ArrayList<OpenAttempt>();
     private final List<ReadStateFetchAttempt> readStateAttempts = new ArrayList<ReadStateFetchAttempt>();
     private final List<Runnable> pendingReadStateDispatches = new ArrayList<Runnable>();
+    private final List<Runnable> visibilityListeners = new ArrayList<Runnable>();
     private Object lastModel;
     private Method onWaveSelectedMethod;
     private Method onWaveSelectedWithDigestMethod;
 
+    private Object createControllerWithVisibility(boolean withScheduler) throws Exception {
+      return createControllerInternal(withScheduler, /* injectVisibility= */ true);
+    }
+
     private Object createController(boolean withScheduler) throws Exception {
+      return createControllerInternal(withScheduler, /* injectVisibility= */ false);
+    }
+
+    private void fireVisibilityVisible() {
+      for (Runnable listener : visibilityListeners) {
+        listener.run();
+      }
+    }
+
+    private Object createControllerInternal(boolean withScheduler, boolean injectVisibility)
+        throws Exception {
       Class<?> controllerClass =
           Class.forName("org.waveprotocol.box.j2cl.search.J2clSelectedWaveController");
       Class<?> gatewayClass =
@@ -583,10 +629,41 @@ public class J2clSelectedWaveControllerTest {
                 pendingReadStateDispatches.add((Runnable) args[1]);
                 return null;
               });
-      Constructor<?> constructor =
-          controllerClass.getConstructor(
-              gatewayClass, viewClass, schedulerClass, readStateSchedulerClass);
-      Object controller = constructor.newInstance(gateway, view, scheduler, readStateScheduler);
+      Object controller;
+      if (injectVisibility) {
+        Class<?> visibilityClass =
+            Class.forName(
+                "org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$VisibilitySource");
+        Class<?> writeSessionListenerClass =
+            Class.forName(
+                "org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$WriteSessionListener");
+        Object visibility =
+            Proxy.newProxyInstance(
+                visibilityClass.getClassLoader(),
+                new Class<?>[] {visibilityClass},
+                (proxy, method, args) -> {
+                  if ("addVisibilityListener".equals(method.getName())) {
+                    visibilityListeners.add((Runnable) args[0]);
+                  }
+                  return null;
+                });
+        Constructor<?> constructor =
+            controllerClass.getConstructor(
+                gatewayClass,
+                viewClass,
+                schedulerClass,
+                readStateSchedulerClass,
+                writeSessionListenerClass,
+                visibilityClass);
+        controller =
+            constructor.newInstance(
+                gateway, view, scheduler, readStateScheduler, null, visibility);
+      } else {
+        Constructor<?> constructor =
+            controllerClass.getConstructor(
+                gatewayClass, viewClass, schedulerClass, readStateSchedulerClass);
+        controller = constructor.newInstance(gateway, view, scheduler, readStateScheduler);
+      }
       // The `withScheduler` flag is kept for call-site symmetry with legacy tests;
       // the harness always wires a custom scheduler now so the implicit retry and
       // debounce paths are never driven by the browser timer.

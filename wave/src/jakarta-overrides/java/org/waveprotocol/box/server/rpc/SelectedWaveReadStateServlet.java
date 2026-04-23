@@ -62,6 +62,9 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
 
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+    // Per-user unread state must never be cached across requests.
+    resp.setHeader("Cache-Control", "no-store");
+
     ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
     if (user == null) {
       resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
@@ -70,7 +73,7 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
 
     String rawWaveId = req.getParameter("waveId");
     if (rawWaveId == null || rawWaveId.isEmpty()) {
-      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "waveId is required");
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
@@ -78,7 +81,7 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
     try {
       waveId = ModernIdSerialiser.INSTANCE.deserialiseWaveId(rawWaveId);
     } catch (InvalidIdException e) {
-      resp.sendError(HttpServletResponse.SC_BAD_REQUEST, "waveId is malformed");
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
       return;
     }
 
@@ -87,13 +90,14 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
       result = helper.computeReadState(user, waveId);
     } catch (RuntimeException e) {
       LOG.warning("read-state: unexpected failure for wave " + rawWaveId, e);
-      resp.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-          "Unable to compute read state.");
+      resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
       return;
     }
 
     if (!result.exists() || !result.accessAllowed()) {
-      resp.sendError(HttpServletResponse.SC_NOT_FOUND, "wave not found");
+      // Collapse "unknown wave" and "access denied" into a single status with
+      // no body so non-participants cannot probe existence.
+      resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
       return;
     }
 
@@ -105,7 +109,6 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
       throws IOException {
     resp.setStatus(HttpServletResponse.SC_OK);
     resp.setContentType("application/json; charset=utf8");
-    resp.setHeader("Cache-Control", "no-store");
     StringBuilder body = new StringBuilder(64);
     body.append("{\"waveId\":\"").append(escapeJson(waveId)).append("\",\"unreadCount\":")
         .append(unreadCount).append(",\"isRead\":").append(isRead).append('}');

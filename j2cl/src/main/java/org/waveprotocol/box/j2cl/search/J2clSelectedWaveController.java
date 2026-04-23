@@ -434,6 +434,7 @@ public final class J2clSelectedWaveController
     }
     final int thisFetchSeq = ++readStateFetchSeq;
     final int dispatchGeneration = requestGeneration;
+    final String dispatchWaveId = selectedWaveId;
     gateway.fetchSelectedWaveReadState(
         selectedWaveId,
         readState -> {
@@ -441,6 +442,15 @@ public final class J2clSelectedWaveController
             return;
           }
           if (!isCurrentGeneration(dispatchGeneration)) {
+            return;
+          }
+          if (readState != null
+              && readState.getWaveId() != null
+              && !readState.getWaveId().isEmpty()
+              && !readState.getWaveId().equals(dispatchWaveId)) {
+            // Defense in depth — the generation + seq guards above already cover
+            // the cross-selection case, but a mismatched waveId is a red flag
+            // worth surfacing as a drop rather than silently trusting the body.
             return;
           }
           latestReadStateApplied = thisFetchSeq;

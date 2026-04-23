@@ -65,8 +65,7 @@ public final class SelectedWaveReadStateServletTest extends TestCase {
 
     servlet.doGet(request, response);
 
-    org.mockito.Mockito.verify(response)
-        .sendError(org.mockito.Mockito.eq(HttpServletResponse.SC_BAD_REQUEST), any());
+    org.mockito.Mockito.verify(response).setStatus(HttpServletResponse.SC_BAD_REQUEST);
   }
 
   public void testReturnsBadRequestWhenWaveIdMalformed() throws Exception {
@@ -81,8 +80,7 @@ public final class SelectedWaveReadStateServletTest extends TestCase {
 
     servlet.doGet(request, response);
 
-    org.mockito.Mockito.verify(response)
-        .sendError(org.mockito.Mockito.eq(HttpServletResponse.SC_BAD_REQUEST), any());
+    org.mockito.Mockito.verify(response).setStatus(HttpServletResponse.SC_BAD_REQUEST);
   }
 
   public void testReturnsNotFoundWhenHelperReportsMissingOrAccessDenied() throws Exception {
@@ -95,12 +93,36 @@ public final class SelectedWaveReadStateServletTest extends TestCase {
     SelectedWaveReadStateServlet servlet =
         new SelectedWaveReadStateServlet(sessionManager, helper);
     HttpServletRequest request = requestWith(VALID_WAVE_ID);
+    StringWriter body = new StringWriter();
+    HttpServletResponse response = responseWithWriter(body);
+
+    servlet.doGet(request, response);
+
+    org.mockito.Mockito.verify(response).setStatus(HttpServletResponse.SC_NOT_FOUND);
+    // The 404 branch deliberately conflates "unknown wave" and "access denied"
+    // into a single empty response so non-participants cannot probe existence.
+    assertFalse("404 must not disclose access-denied text: " + body,
+        body.toString().toLowerCase().contains("denied"));
+    assertFalse("404 must not disclose forbidden text: " + body,
+        body.toString().toLowerCase().contains("forbidden"));
+  }
+
+  public void testNoStoreCacheHeaderSetOnEveryResponsePath() throws Exception {
+    SessionManager sessionManager = mock(SessionManager.class);
+    when(sessionManager.getLoggedInUser(any())).thenReturn(null);
+    SelectedWaveReadStateHelper helper = mock(SelectedWaveReadStateHelper.class);
+
+    SelectedWaveReadStateServlet servlet =
+        new SelectedWaveReadStateServlet(sessionManager, helper);
+    HttpServletRequest request = requestWith(VALID_WAVE_ID);
     HttpServletResponse response = responseWithWriter();
 
     servlet.doGet(request, response);
 
-    org.mockito.Mockito.verify(response)
-        .sendError(org.mockito.Mockito.eq(HttpServletResponse.SC_NOT_FOUND), any());
+    // Even the unauthenticated branch must disable caching so an intermediary
+    // can't pin a stale 403/404 in place after the user logs in or is added
+    // as a participant.
+    org.mockito.Mockito.verify(response).setHeader("Cache-Control", "no-store");
   }
 
   public void testReturnsJsonWithUnreadStateOnSuccess() throws Exception {
