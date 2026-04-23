@@ -22,14 +22,23 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   public boolean render(List<J2clReadBlip> blips, List<String> fallbackEntries) {
+    List<J2clReadBlip> effectiveBlips = normalizeBlips(blips, fallbackEntries);
+    if (effectiveBlips.isEmpty()) {
+      host.innerHTML = "";
+      renderedBlips.clear();
+      focusedBlip = null;
+      return false;
+    }
+
+    String focusedBlipId = currentFocusedBlipId();
+    if (matchesRenderedBlips(effectiveBlips)) {
+      restoreFocusedBlipById(focusedBlipId);
+      return true;
+    }
+
     host.innerHTML = "";
     renderedBlips.clear();
     focusedBlip = null;
-
-    List<J2clReadBlip> effectiveBlips = normalizeBlips(blips, fallbackEntries);
-    if (effectiveBlips.isEmpty()) {
-      return false;
-    }
 
     HTMLElement surface = (HTMLElement) DomGlobal.document.createElement("section");
     surface.className = "j2cl-read-surface wave-content";
@@ -48,6 +57,7 @@ public final class J2clReadSurfaceDomRenderer {
 
     host.appendChild(surface);
     enhanceSurface(surface);
+    restoreFocusedBlipById(focusedBlipId);
     return true;
   }
 
@@ -328,6 +338,66 @@ public final class J2clReadSurfaceDomRenderer {
     } else {
       ensureSingleTabStop();
     }
+  }
+
+  private void restoreFocusedBlipById(String blipId) {
+    HTMLElement restored = visibleRenderedBlip(renderedBlipById(blipId));
+    if (restored != null) {
+      focusBlip(restored);
+      restored.focus();
+      return;
+    }
+    restoreFocusedBlip(null);
+  }
+
+  private String currentFocusedBlipId() {
+    if (focusedBlip != null && focusedBlip.hasAttribute("data-blip-id")) {
+      return focusedBlip.getAttribute("data-blip-id");
+    }
+    if (DomGlobal.document == null || !(DomGlobal.document.activeElement instanceof HTMLElement)) {
+      return null;
+    }
+    HTMLElement active = (HTMLElement) DomGlobal.document.activeElement;
+    HTMLElement rendered = visibleRenderedBlip(active);
+    return rendered == null ? null : rendered.getAttribute("data-blip-id");
+  }
+
+  private boolean matchesRenderedBlips(List<J2clReadBlip> blips) {
+    if (renderedBlips.size() != blips.size()) {
+      return false;
+    }
+    for (int i = 0; i < blips.size(); i++) {
+      J2clReadBlip expected = blips.get(i);
+      HTMLElement actual = renderedBlips.get(i);
+      if (!expected.getBlipId().equals(actual.getAttribute("data-blip-id"))) {
+        return false;
+      }
+      if (!expected.getText().equals(renderedBlipText(actual))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private HTMLElement renderedBlipById(String blipId) {
+    if (blipId == null || blipId.isEmpty()) {
+      return null;
+    }
+    for (HTMLElement blip : renderedBlips) {
+      if (blipId.equals(blip.getAttribute("data-blip-id"))) {
+        return blip;
+      }
+    }
+    return null;
+  }
+
+  private static String renderedBlipText(HTMLElement blip) {
+    if (blip == null) {
+      return "";
+    }
+    HTMLElement content =
+        (HTMLElement) blip.querySelector(".j2cl-read-blip-content, .blip-content");
+    return content == null || content.textContent == null ? "" : content.textContent;
   }
 
   private HTMLElement visibleRenderedBlip(HTMLElement blip) {

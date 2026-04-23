@@ -9,6 +9,7 @@ import elemental2.dom.KeyboardEvent;
 import elemental2.dom.KeyboardEventInit;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -304,6 +305,57 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertEquals("-1", root.getAttribute("tabindex"));
     Assert.assertEquals("0", reply.getAttribute("tabindex"));
     Assert.assertEquals("true", reply.getAttribute("aria-current"));
+  }
+
+  @Test
+  public void rerenderingSameLiveBlipsPreservesFocusedNode() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    List<J2clReadBlip> blips =
+        Arrays.asList(
+            new J2clReadBlip("b+root", "Root text"),
+            new J2clReadBlip("b+reply", "Reply text"));
+
+    Assert.assertTrue(renderer.render(blips, Collections.<String>emptyList()));
+    HTMLElement reply = blip(host, "b+reply");
+    reply.focus();
+
+    Assert.assertTrue(renderer.render(blips, Collections.<String>emptyList()));
+
+    Assert.assertSame(reply, blip(host, "b+reply"));
+    Assert.assertEquals(reply, DomGlobal.document.activeElement);
+    Assert.assertEquals("0", reply.getAttribute("tabindex"));
+    Assert.assertEquals("true", reply.getAttribute("aria-current"));
+  }
+
+  @Test
+  public void rerenderingUpdatedLiveBlipsRestoresFocusByBlipId() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    Assert.assertTrue(
+        renderer.render(
+            Arrays.asList(
+                new J2clReadBlip("b+root", "Root text"),
+                new J2clReadBlip("b+reply", "Reply text")),
+            Collections.<String>emptyList()));
+    HTMLElement originalReply = blip(host, "b+reply");
+    originalReply.focus();
+
+    Assert.assertTrue(
+        renderer.render(
+            Arrays.asList(
+                new J2clReadBlip("b+root", "Root text updated"),
+                new J2clReadBlip("b+reply", "Reply text updated")),
+            Collections.<String>emptyList()));
+
+    HTMLElement updatedReply = blip(host, "b+reply");
+    Assert.assertNotSame(originalReply, updatedReply);
+    Assert.assertEquals(updatedReply, DomGlobal.document.activeElement);
+    Assert.assertEquals("0", updatedReply.getAttribute("tabindex"));
+    Assert.assertEquals("true", updatedReply.getAttribute("aria-current"));
   }
 
   @Test
