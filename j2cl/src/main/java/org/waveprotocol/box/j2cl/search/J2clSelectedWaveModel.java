@@ -69,11 +69,19 @@ public final class J2clSelectedWaveModel {
   }
 
   public static J2clSelectedWaveModel empty() {
+    return emptyModel(null);
+  }
+
+  public static J2clSelectedWaveModel clearedSelection() {
+    return emptyModel("");
+  }
+
+  private static J2clSelectedWaveModel emptyModel(String selectedWaveId) {
     return new J2clSelectedWaveModel(
         false,
         false,
         false,
-        null,
+        selectedWaveId,
         "Select a wave",
         "",
         "",

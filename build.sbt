@@ -403,7 +403,8 @@ Test / unmanagedSources := (Test / unmanagedSources).value.filterNot { f =>
   // Additional render/concurrencycontrol/migration exclusions (keep SSR tests)
   (p.contains("/org/waveprotocol/box/server/rpc/render/") &&
     !p.endsWith("/ServerHtmlRendererTest.java") &&
-    !p.endsWith("/WaveContentRendererTest.java")) ||
+    !p.endsWith("/WaveContentRendererTest.java") &&
+    !p.endsWith("/J2clSelectedWaveSnapshotRendererTest.java")) ||
   p.contains("/wave/src/test/java/org/waveprotocol/wave/migration/") ||
   p.contains("/wave/src/test/java/org/waveprotocol/wave/model/document/util/") ||
   // MongoDB integration tests — require Testcontainers; run via Gradle itTest, not sbt test

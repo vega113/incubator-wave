@@ -44,6 +44,7 @@ import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.FeatureFlagService;
 import org.waveprotocol.box.server.persistence.FeatureFlagStore.FeatureFlag;
 import org.waveprotocol.box.server.persistence.memory.MemoryFeatureFlagStore;
+import org.waveprotocol.box.server.rpc.render.J2clSelectedWaveSnapshotRenderer;
 import org.waveprotocol.box.server.rpc.render.WavePreRenderer;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
@@ -133,7 +134,7 @@ public final class WaveClientServletJ2clBootstrapTest {
   }
 
   @Test
-  public void j2clRootUsesConfiguredWebsocketAddressInsteadOfRequestHostHeader()
+  public void bootstrapedPlainRootUsesPresentedHostForWebsocketAddress()
       throws Exception {
     WaveClientServlet servlet = createServlet(null, true);
     HttpServletRequest request = mock(HttpServletRequest.class);
@@ -147,8 +148,8 @@ public final class WaveClientServletJ2clBootstrapTest {
     servlet.doGet(request, response);
 
     String html = body.toString();
-    assertTrue(html.contains("127.0.0.1:9898"));
-    assertFalse(html.contains("example.com:7777"));
+    assertTrue(html.contains("example.com:7777"));
+    assertFalse(html.contains("127.0.0.1:9898"));
   }
 
   @Test
@@ -297,6 +298,7 @@ public final class WaveClientServletJ2clBootstrapTest {
         accountStore,
         new VersionServlet("test", 0L),
         wavePreRenderer,
+        mock(J2clSelectedWaveSnapshotRenderer.class),
         featureFlagService);
   }
 }

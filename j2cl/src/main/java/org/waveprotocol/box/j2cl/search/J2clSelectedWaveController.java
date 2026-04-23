@@ -220,7 +220,7 @@ public final class J2clSelectedWaveController
       reconnectCount = 0;
       currentReadState = null;
       readStateStale = false;
-      currentModel = J2clSelectedWaveModel.empty();
+      currentModel = J2clSelectedWaveModel.clearedSelection();
       view.render(currentModel);
       publishWriteSession();
       return;

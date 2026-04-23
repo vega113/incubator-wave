@@ -48,6 +48,7 @@ import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.FeatureFlagService;
+import org.waveprotocol.box.server.rpc.render.J2clSelectedWaveSnapshotRenderer;
 import org.waveprotocol.box.server.rpc.render.WavePreRenderer;
 import org.waveprotocol.box.server.util.RandomBase64Generator;
 import org.waveprotocol.box.server.util.UrlParameters;
@@ -83,6 +84,7 @@ public class WaveClientServlet extends HttpServlet {
   private final String currentReleaseId;
   private final boolean prerenderingEnabled;
   private final WavePreRenderer wavePreRenderer;
+  private final J2clSelectedWaveSnapshotRenderer j2clSelectedWaveSnapshotRenderer;
   private final FeatureFlagService featureFlagService;
 
   static boolean supportsMentionSearch(Config config) {
@@ -97,6 +99,7 @@ public class WaveClientServlet extends HttpServlet {
       AccountStore accountStore,
       VersionServlet versionServlet,
       WavePreRenderer wavePreRenderer,
+      J2clSelectedWaveSnapshotRenderer j2clSelectedWaveSnapshotRenderer,
       FeatureFlagService featureFlagService) {
     List<String> httpAddresses = config.getStringList("core.http_frontend_addresses");
     String websocketAddress = config.getString("core.http_websocket_public_address");
@@ -121,7 +124,27 @@ public class WaveClientServlet extends HttpServlet {
     this.prerenderingEnabled = config.hasPath("core.enable_prerendering")
         && config.getBoolean("core.enable_prerendering");
     this.wavePreRenderer = wavePreRenderer;
+    this.j2clSelectedWaveSnapshotRenderer = j2clSelectedWaveSnapshotRenderer;
     this.featureFlagService = featureFlagService;
+  }
+
+  WaveClientServlet(
+      String domain,
+      Config config,
+      SessionManager sessionManager,
+      AccountStore accountStore,
+      VersionServlet versionServlet,
+      WavePreRenderer wavePreRenderer,
+      FeatureFlagService featureFlagService) {
+    this(
+        domain,
+        config,
+        sessionManager,
+        accountStore,
+        versionServlet,
+        wavePreRenderer,
+        null,
+        featureFlagService);
   }
 
   @Override
@@ -144,8 +167,14 @@ public class WaveClientServlet extends HttpServlet {
     if (VIEW_J2CL_ROOT.equals(requestedView)
         || (StringUtils.isEmpty(requestedView) && j2clRootBootstrapEnabled)) {
       String rootShellReturnTarget = buildJ2clRootShellReturnTarget(request);
+      J2clSelectedWaveSnapshotRenderer.SnapshotResult snapshotResult =
+          j2clSelectedWaveSnapshotRenderer == null
+              ? J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave()
+              : j2clSelectedWaveSnapshotRenderer.renderRequestedWave(request.getParameter("wave"), id);
       response.setContentType("text/html");
       response.setCharacterEncoding("UTF-8");
+      response.setHeader("Cache-Control", "private, no-store");
+      response.setHeader("Vary", "Cookie");
       response.setStatus(HttpServletResponse.SC_OK);
       try (var w = response.getWriter()) {
         // HtmlRenderer normalizes the route target to a same-origin path and escapes it with
@@ -157,7 +186,8 @@ public class WaveClientServlet extends HttpServlet {
             serverBuildTime,
             currentReleaseId,
             rootShellReturnTarget,
-            resolveWebsocketAddressForPage(request))); // codeql[java/xss]
+            resolveWebsocketAddressForPage(request, true), // codeql[java/xss]
+            snapshotResult)); // codeql[java/xss]
       } catch (IOException e) {
         LOG.warning("Failed to render J2CL root shell page", e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -203,7 +233,7 @@ public class WaveClientServlet extends HttpServlet {
       w.write(HtmlRenderer.renderWaveClientPage(
           getSessionJson(session),
           getClientFlags(request),
-          resolveWebsocketAddressForPage(request),
+          resolveWebsocketAddressForPage(request, false),
           topBarHtml,
           analyticsAccount,
           buildCommit,
@@ -473,6 +503,7 @@ public class WaveClientServlet extends HttpServlet {
     }
   }
 
+  @SuppressWarnings("java/xss")
   private String buildJ2clRootShellReturnTarget(HttpServletRequest request) {
     String requestUri = StringUtils.defaultIfBlank(request.getRequestURI(), "/");
     StringBuilder returnTarget = new StringBuilder(requestUri).append("?view=")
@@ -507,8 +538,69 @@ public class WaveClientServlet extends HttpServlet {
     return safeRequestUri + "?" + queryString;
   }
 
-  private String resolveWebsocketAddressForPage(HttpServletRequest request) {
-    return websocketPresentedAddress;
+  @SuppressWarnings("java/xss")
+  private String resolveWebsocketAddressForPage(
+      HttpServletRequest request, boolean servingJ2clRootShell) {
+    if (hasExplicitWebsocketPresentedAddress) {
+      return websocketPresentedAddress;
+    }
+    if (!servingJ2clRootShell) {
+      return websocketPresentedAddress;
+    }
+    String host = resolvePresentedHostHeader(request);
+    return StringUtils.isBlank(host) ? websocketPresentedAddress : host;
+  }
+
+  private String resolvePresentedHostHeader(HttpServletRequest request) {
+    if (request == null) {
+      return null;
+    }
+    String forwardedHost = normalizeSingleHostHeaderValue(request.getHeader("X-Forwarded-Host"));
+    if (StringUtils.isNotBlank(forwardedHost) && isTrustedPublicHost(forwardedHost)) {
+      return forwardedHost;
+    }
+    String host = normalizeSingleHostHeaderValue(request.getHeader("Host"));
+    if (StringUtils.isNotBlank(host) && isTrustedPublicHost(host)) {
+      return host;
+    }
+    return null;
+  }
+
+  private boolean isTrustedPublicHost(String host) {
+    if (StringUtils.isBlank(host)) {
+      return false;
+    }
+    // Extract the host label, handling bracketed IPv6 (e.g. [::1]:9898 → [::1]).
+    String normalizedHost;
+    if (host.startsWith("[")) {
+      int end = host.indexOf(']');
+      normalizedHost = end >= 0 ? host.substring(0, end + 1) : "";
+    } else {
+      normalizedHost = StringUtils.substringBefore(host, ":").trim();
+    }
+    if (normalizedHost.isEmpty()) {
+      return false;
+    }
+    String lowerHost = normalizedHost.toLowerCase();
+    String lowerDomain = domain.toLowerCase();
+    return lowerHost.equals(lowerDomain)
+        || lowerHost.endsWith("." + lowerDomain)
+        || lowerHost.equals("localhost")
+        || lowerHost.equals("[::1]")
+        || normalizedHost.equals("127.0.0.1");
+  }
+
+  private static String normalizeSingleHostHeaderValue(String headerValue) {
+    if (StringUtils.isBlank(headerValue)) {
+      return null;
+    }
+    String normalized = StringUtils.substringBefore(headerValue, ",").trim();
+    if (normalized.isEmpty()) {
+      return null;
+    }
+    return normalized.matches("^(?:\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9.-]+)(?::\\d{1,5})?$")
+        ? normalized
+        : null;
   }
 
   private String resolveRequestedView(HttpServletRequest request) {
