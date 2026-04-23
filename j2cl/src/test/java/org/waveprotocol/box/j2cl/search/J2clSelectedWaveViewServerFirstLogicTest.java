@@ -19,6 +19,15 @@ public class J2clSelectedWaveViewServerFirstLogicTest {
   }
 
   @Test
+  public void serverSnapshotSurvivesInitialEmptyModelBeforeRouteSelection() {
+    Assert.assertTrue(
+        J2clSelectedWaveView.shouldPreserveServerSnapshot(
+            "example.com/w+1",
+            J2clSelectedWaveModel.empty(),
+            false));
+  }
+
+  @Test
   public void firstLiveContentSwapsServerSnapshotOut() {
     J2clSelectedWaveModel liveModel =
         new J2clSelectedWaveModel(

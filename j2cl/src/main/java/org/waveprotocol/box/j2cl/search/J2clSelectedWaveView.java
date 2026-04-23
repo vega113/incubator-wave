@@ -158,7 +158,11 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (serverSnapshotWaveId == null || serverSnapshotWaveId.isEmpty()) {
       return !model.hasSelection();
     }
-    if (!serverSnapshotWaveId.equals(model.getSelectedWaveId())) {
+    String selectedWaveId = model.getSelectedWaveId();
+    if (selectedWaveId == null || selectedWaveId.isEmpty()) {
+      return true;
+    }
+    if (!serverSnapshotWaveId.equals(selectedWaveId)) {
       return false;
     }
     if (model.isLoading() || model.isError()) {

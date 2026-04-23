@@ -29,6 +29,8 @@ import org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
 import org.waveprotocol.wave.model.id.IdUtil;
+import org.waveprotocol.wave.model.id.InvalidIdException;
+import org.waveprotocol.wave.model.id.ModernIdSerialiser;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.id.WaveletName;
@@ -168,8 +170,8 @@ public class J2clSelectedWaveSnapshotRenderer {
 
     final WaveId waveId;
     try {
-      waveId = WaveId.deserialise(requestedWaveId);
-    } catch (IllegalArgumentException e) {
+      waveId = ModernIdSerialiser.INSTANCE.deserialiseWaveId(requestedWaveId);
+    } catch (InvalidIdException e) {
       return SnapshotResult.denied();
     }
 
