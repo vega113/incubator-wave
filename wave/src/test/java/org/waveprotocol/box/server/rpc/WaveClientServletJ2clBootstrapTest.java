@@ -153,6 +153,25 @@ public final class WaveClientServletJ2clBootstrapTest {
   }
 
   @Test
+  public void bootstrapedPlainRootUsesTrustedSubdomainForWebsocketAddress()
+      throws Exception {
+    WaveClientServlet servlet = createServlet(null, true);
+    HttpServletRequest request = mock(HttpServletRequest.class);
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    StringWriter body = new StringWriter();
+    when(request.getSession(false)).thenReturn(null);
+    when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
+    when(request.getHeader("Host")).thenReturn("wave.example.com:7777");
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+
+    servlet.doGet(request, response);
+
+    String html = body.toString();
+    assertTrue(html.contains("wave.example.com:7777"));
+    assertFalse(html.contains("127.0.0.1:9898"));
+  }
+
+  @Test
   public void legacyWaveClientDoesNotInvokePreRenderer() throws Exception {
     ParticipantId user = ParticipantId.ofUnsafe("alice@example.com");
     SessionManager sessionManager = mock(SessionManager.class);

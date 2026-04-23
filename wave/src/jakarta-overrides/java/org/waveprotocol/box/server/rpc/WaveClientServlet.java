@@ -570,13 +570,27 @@ public class WaveClientServlet extends HttpServlet {
     if (StringUtils.isBlank(host)) {
       return false;
     }
-    String normalizedHost = StringUtils.substringBefore(host, ":").trim();
+    String normalizedHost = normalizeHostForTrustCheck(host);
     if (normalizedHost.isEmpty()) {
       return false;
     }
-    return normalizedHost.equalsIgnoreCase(domain)
+    return (StringUtils.isNotBlank(domain)
+            && (normalizedHost.equalsIgnoreCase(domain)
+                || StringUtils.endsWithIgnoreCase(normalizedHost, "." + domain)))
         || normalizedHost.equalsIgnoreCase("localhost")
-        || normalizedHost.equals("127.0.0.1");
+        || normalizedHost.equals("127.0.0.1")
+        || normalizedHost.equals("[::1]")
+        || normalizedHost.equals("::1");
+  }
+
+  private static String normalizeHostForTrustCheck(String host) {
+    String trimmedHost = StringUtils.trimToEmpty(host);
+    if (trimmedHost.startsWith("[")) {
+      int closingBracket = trimmedHost.indexOf(']');
+      return closingBracket >= 0 ? trimmedHost.substring(0, closingBracket + 1) : "";
+    }
+    int portSeparator = trimmedHost.indexOf(':');
+    return portSeparator >= 0 ? trimmedHost.substring(0, portSeparator).trim() : trimmedHost;
   }
 
   private static String normalizeSingleHostHeaderValue(String headerValue) {
