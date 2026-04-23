@@ -81,10 +81,10 @@ The current J2CL selected-wave path is still fundamentally sidecar-demo shaped:
 - J2CL has no fragment-growth transport seam:
   - there is no `fetchFragments(...)` equivalent anywhere under `j2cl/src/main/java`
   - a repository-wide search only finds viewport-aware logic in the GWT client and server path, not in J2CL
-- The root-shell/search-selected-wave host seams are still destructive:
+- The root-shell/search-selected-wave host seams were destructive before `#965`:
   - `j2cl/src/main/java/org/waveprotocol/box/j2cl/root/J2clRootShellView.java:13-40`
   - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSearchPanelView.java:48-152`
-  - `J2clRootShellView` and `J2clSearchPanelView` clear `host.innerHTML`; that is exactly the kind of startup behavior `#965` must change before `#967` can safely consume preserved server-rendered fragment HTML.
+  - `#965` has now landed the preserved server-first selected-wave seam. `#967` must re-audit the merged root-shell/selected-wave host behavior and consume that seam rather than reintroducing startup DOM clearing.
 
 ### 1.4 Additional implementation risks that must be planned up front
 
@@ -167,22 +167,23 @@ These are the non-obvious seams that turn `#967` into a mixed server/client slic
 - `#962` Lit design packet: merged
 - `#963` bootstrap JSON contract: merged
 - `#964` Lit root shell/chrome primitives: merged
+- `#965` server-first selected-wave HTML / shell-swap seam: merged via PR `#989`
 - `#931` unread/read selected-wave state: merged
 - `#933` HttpOnly-safe sidecar websocket auth: merged
 - `#936` selected-wave version/hash atomicity: merged
 
 ### 4.2 Current blockers for implementation
 
-As of the current issue state on 2026-04-23:
+As of the current issue state on 2026-04-24:
 
-- `#965` is in active implementation, not merged
-- `#966` is still prep-only / not merged
+- `#965` has merged and this plan branch has been rebased onto an `origin/main` containing it
+- `#966` has moved from prep into PR `#991`, but it is not merged yet
 
-That means `#967` is **plan-ready but not implementation-ready**.
+That means `#967` is **plan-current and review-ready, but not implementation-ready** until `#966` lands.
 
-### 4.3 Why `#965` is a hard blocker
+### 4.3 Why `#965` was a hard blocker
 
-`#965` owns the preserved server-first selected-wave HTML seam. Until that lands, the J2CL root-shell/search-selected-wave path still clears host DOM on startup (`J2clRootShellView`, `J2clSearchPanelView`), which means `#967` has no stable preserved server fragment container to upgrade or inspect for initial visible-window state.
+`#965` owns the preserved server-first selected-wave HTML seam. That dependency is now satisfied, but Task 1 must still re-audit the exact merged files before implementation because `#967` needs to seed viewport state from the real preserved selected-wave surface, not from the pre-`#965` placeholder assumptions.
 
 ### 4.4 Why `#966` is a hard blocker
 
@@ -190,7 +191,7 @@ That means `#967` is **plan-ready but not implementation-ready**.
 
 ### 4.5 Required first implementation step once the blockers merge
 
-Before any code task below:
+Before any code task below, after `#966` merges:
 
 - [ ] Run `git fetch origin && git rebase origin/main`
 - [ ] Confirm `origin/main` includes the merged implementations for `#965` and `#966`
@@ -301,7 +302,7 @@ Before any code task below:
   - `docs/superpowers/plans/2026-04-23-issue-967-viewport-fragments.md`
   - merged `#965` / `#966` files on `origin/main`
 
-- [ ] Rebase the worktree after `#965` and `#966` merge
+- [ ] Rebase the worktree after `#966` merges
 
 Run:
 ```bash
@@ -531,7 +532,6 @@ Before implementation starts, the worker should be able to answer these review q
 
 - `#967` is **not** ready for implementation on the current checkout.
 - `#967` becomes implementation-ready only after:
-  - `#965` merges
   - `#966` merges
   - this worktree rebases onto the merged `origin/main`
   - Task 1 confirms the actual merged read-surface and server-first seams
