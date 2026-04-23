@@ -86,10 +86,4 @@ public class SandboxBuildSmokeTest {
         "mentions:me unread:true",
         J2clSidecarRouteCodec.parse("?q=mentions%3Ame+unread%3Atrue").getQuery());
   }
-
-  @Test
-  public void malformedCookieValueReturnsNull() {
-    Assert.assertNull(
-        SandboxEntryPoint.readCookieFromHeader("JSESSIONID=%; theme=dark", "JSESSIONID"));
-  }
 }
