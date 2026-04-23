@@ -420,6 +420,36 @@ public class J2clReadSurfaceDomRendererTest {
   }
 
   @Test
+  public void rerenderPreservesFocusedBlipAndTabStop() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    renderer.render(
+        Arrays.asList(
+            new J2clReadBlip("b+root", "Root text"),
+            new J2clReadBlip("b+reply", "Reply text")),
+        Collections.<String>emptyList());
+
+    HTMLElement reply = blip(host, "b+reply");
+    reply.focus();
+    Assert.assertEquals("true", reply.getAttribute("aria-current"));
+
+    // Re-render with the same blip IDs (simulating a read-state-only reprojet).
+    renderer.render(
+        Arrays.asList(
+            new J2clReadBlip("b+root", "Root text updated"),
+            new J2clReadBlip("b+reply", "Reply text updated")),
+        Collections.<String>emptyList());
+
+    HTMLElement restoredReply = blip(host, "b+reply");
+    Assert.assertNotNull(restoredReply);
+    Assert.assertEquals("true", restoredReply.getAttribute("aria-current"));
+    Assert.assertEquals("0", restoredReply.getAttribute("tabindex"));
+    Assert.assertEquals("-1", blip(host, "b+root").getAttribute("tabindex"));
+  }
+
+  @Test
   public void renderFallbackEntriesSynthesizesStableEntryIds() {
     assumeBrowserDom();
     HTMLDivElement host = createHost();

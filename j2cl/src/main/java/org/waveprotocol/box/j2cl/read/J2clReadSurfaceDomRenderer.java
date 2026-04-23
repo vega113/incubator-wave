@@ -31,6 +31,7 @@ public final class J2clReadSurfaceDomRenderer {
     }
 
     String focusedBlipId = currentFocusedBlipId();
+    List<String> previouslyCollapsedThreadIds = captureCollapsedThreadIds();
     if (matchesRenderedBlips(effectiveBlips)) {
       restoreFocusedBlipById(focusedBlipId);
       return true;
@@ -57,8 +58,58 @@ public final class J2clReadSurfaceDomRenderer {
 
     host.appendChild(surface);
     enhanceSurface(surface);
+    restoreCollapsedThreads(previouslyCollapsedThreadIds);
     restoreFocusedBlipById(focusedBlipId);
     return true;
+  }
+
+  private List<String> captureCollapsedThreadIds() {
+    List<String> ids = new ArrayList<String>();
+    NodeList<Element> collapsed = host.querySelectorAll("[data-j2cl-thread-collapsed='true']");
+    for (int i = 0; i < collapsed.length; i++) {
+      Element thread = collapsed.item(i);
+      if (thread != null) {
+        String id = thread.getAttribute("data-thread-id");
+        if (id != null && !id.isEmpty()) {
+          ids.add(id);
+        }
+      }
+    }
+    return ids;
+  }
+
+  private void restoreCollapsedThreads(List<String> collapsedIds) {
+    if (collapsedIds.isEmpty()) {
+      return;
+    }
+    NodeList<Element> threads = host.querySelectorAll("[data-j2cl-collapse-ready]");
+    for (int i = 0; i < threads.length; i++) {
+      HTMLElement thread = (HTMLElement) threads.item(i);
+      if (thread == null) {
+        continue;
+      }
+      String threadId = thread.getAttribute("data-thread-id");
+      if (threadId != null && collapsedIds.contains(threadId)) {
+        HTMLElement button = (HTMLElement) thread.querySelector(".j2cl-read-thread-toggle");
+        if (button != null) {
+          toggleThread(thread, button);
+        }
+      }
+    }
+  }
+
+  private void restoreFocusedBlipById(String blipId) {
+    if (blipId == null) {
+      ensureSingleTabStop();
+      return;
+    }
+    for (HTMLElement blip : renderedBlips) {
+      if (blipId.equals(blip.getAttribute("data-blip-id")) && !isHiddenByCollapsedThread(blip)) {
+        focusBlip(blip);
+        return;
+      }
+    }
+    ensureSingleTabStop();
   }
 
   public boolean enhanceExistingSurface() {
