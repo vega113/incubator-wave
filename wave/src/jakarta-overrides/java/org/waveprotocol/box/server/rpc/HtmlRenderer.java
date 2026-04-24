@@ -3246,6 +3246,7 @@ public final class HtmlRenderer {
     String safeEncodedReturnTarget =
         StringEscapeUtils.escapeHtml4(encodeLocalReturnTarget(resolvedReturnTarget));
     int queryStart = resolvedReturnTarget.indexOf('?');
+    // Query-only client routes reuse this path prefix when updating return targets.
     String resolvedBasePath = queryStart >= 0 ? resolvedReturnTarget.substring(0, queryStart) : resolvedReturnTarget;
     String safeResolvedBasePath = StringEscapeUtils.escapeHtml4(resolvedBasePath);
 
@@ -3278,6 +3279,8 @@ public final class HtmlRenderer {
     if (signedIn) {
       sb.append("<shell-root data-j2cl-root-shell=\"true\" data-j2cl-root-return-target=\"")
           .append(safeResolvedReturnTarget)
+          .append("\" data-j2cl-root-base-path=\"")
+          .append(safeResolvedBasePath)
           .append("\">\n");
       sb.append("  <shell-skip-link slot=\"skip-link\" target=\"#j2cl-root-shell-workflow\" label=\"Skip to main content\">")
           .append("<a href=\"#j2cl-root-shell-workflow\">Skip to main content</a>")
@@ -3315,6 +3318,8 @@ public final class HtmlRenderer {
     } else {
       sb.append("<shell-root-signed-out data-j2cl-root-shell=\"true\" data-j2cl-root-return-target=\"")
           .append(safeResolvedReturnTarget)
+          .append("\" data-j2cl-root-base-path=\"")
+          .append(safeResolvedBasePath)
           .append("\">\n");
       sb.append("  <shell-skip-link slot=\"skip-link\" target=\"#j2cl-root-shell-workflow\" label=\"Skip to main content\">")
           .append("<a href=\"#j2cl-root-shell-workflow\">Skip to main content</a>")

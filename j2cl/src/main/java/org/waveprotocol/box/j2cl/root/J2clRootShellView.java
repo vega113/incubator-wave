@@ -1,14 +1,20 @@
 package org.waveprotocol.box.j2cl.root;
 
 import elemental2.dom.DomGlobal;
+import elemental2.dom.Element;
 import elemental2.dom.HTMLElement;
 import elemental2.dom.NodeList;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsPackage;
 
-public final class J2clRootShellView {
+public final class J2clRootShellView implements J2clRootLiveSurfaceController.ShellSurface {
   private static final String DEFAULT_RETURN_TARGET = "/?view=j2cl-root";
+  private static final String LIVE_STATUS_ID = "j2cl-root-live-status-text";
+  private static final String LIVE_STATUS_SEPARATOR_ID = "j2cl-root-live-status-separator";
   private final HTMLElement workflowHost;
+  private HTMLElement liveStatus;
+  private HTMLElement liveStatusSeparator;
+  private String lastPublishedLiveStatusText;
 
   public J2clRootShellView(HTMLElement host) {
     if (J2clServerFirstRootShellDom.hasServerFirstWorkflow(host)) {
@@ -48,38 +54,168 @@ public final class J2clRootShellView {
     return workflowHost;
   }
 
+  @Override
   public void syncReturnTarget(String routeUrl) {
-    String returnTarget = normalizeLocalReturnTarget(routeUrl);
-    HTMLElement shell = (HTMLElement) DomGlobal.document.querySelector("[data-j2cl-root-shell='true']");
-    if (shell != null) {
-      shell.setAttribute("data-j2cl-root-return-target", returnTarget);
+    Element shell = findRootShell();
+    if (shell == null) {
+      return;
     }
-    updateHref("j2cl-root-brand-link", returnTarget);
-    updateAuthHrefs("[data-j2cl-root-signin='true']", "/auth/signin", returnTarget);
-    updateAuthHrefs("[data-j2cl-root-signout='true']", "/auth/signout", returnTarget);
+    String returnTarget = resolveReturnTarget(routeUrl, shell);
+    shell.setAttribute("data-j2cl-root-return-target", returnTarget);
+    updateHref(shell, "j2cl-root-brand-link", returnTarget);
+    updateAuthHrefs(shell, "[data-j2cl-root-signin='true']", "/auth/signin", returnTarget);
+    updateAuthHrefs(shell, "[data-j2cl-root-signout='true']", "/auth/signout", returnTarget);
 
     HTMLElement returnTargetLabel =
-        (HTMLElement) DomGlobal.document.getElementById("j2cl-root-return-target-text");
+        firstElementOwnedByRootShell(shell, "#j2cl-root-return-target-text");
     if (returnTargetLabel != null) {
       returnTargetLabel.textContent = "Return target: " + returnTarget;
     }
   }
 
-  private static void updateHref(String elementId, String href) {
-    HTMLElement element = (HTMLElement) DomGlobal.document.getElementById(elementId);
+  @Override
+  public void publishLiveStatus(J2clRootLiveSurfaceModel model) {
+    HTMLElement statusElement = ensureLiveStatusElement();
+    if (statusElement != null) {
+      String statusText = model == null ? "" : model.getStatusText();
+      String desiredSeparatorDisplay = statusText.isEmpty() ? "none" : "";
+      if (statusText.equals(lastPublishedLiveStatusText)
+          && (liveStatusSeparator == null
+              || liveStatusSeparator.style.display.equals(desiredSeparatorDisplay))) {
+        return;
+      }
+      statusElement.textContent = statusText;
+      if (liveStatusSeparator != null) {
+        liveStatusSeparator.style.display = desiredSeparatorDisplay;
+      }
+      lastPublishedLiveStatusText = statusText;
+    }
+  }
+
+  private HTMLElement ensureLiveStatusElement() {
+    Element rootShell = findRootShell();
+    HTMLElement statusStrip = findStatusStrip(rootShell);
+    if (statusStrip == null) {
+      return null;
+    }
+    if (!isCurrentStatusNode(liveStatus, statusStrip, rootShell)) {
+      HTMLElement nextLiveStatus =
+          firstElementOwnedByRootShell(statusStrip, "#" + LIVE_STATUS_ID, rootShell);
+      if (nextLiveStatus != liveStatus) {
+        lastPublishedLiveStatusText = null;
+      }
+      liveStatus = nextLiveStatus;
+    }
+    if (!isCurrentStatusNode(liveStatusSeparator, statusStrip, rootShell)) {
+      HTMLElement nextLiveStatusSeparator =
+          firstElementOwnedByRootShell(statusStrip, "#" + LIVE_STATUS_SEPARATOR_ID, rootShell);
+      if (nextLiveStatusSeparator != liveStatusSeparator) {
+        lastPublishedLiveStatusText = null;
+      }
+      liveStatusSeparator = nextLiveStatusSeparator;
+    }
+    if (liveStatusSeparator == null) {
+      liveStatusSeparator = (HTMLElement) DomGlobal.document.createElement("span");
+      liveStatusSeparator.id = LIVE_STATUS_SEPARATOR_ID;
+      liveStatusSeparator.setAttribute("aria-hidden", "true");
+      liveStatusSeparator.textContent = " | ";
+      if (liveStatus != null && liveStatus.parentElement == statusStrip) {
+        statusStrip.insertBefore(liveStatusSeparator, liveStatus);
+      } else {
+        statusStrip.appendChild(liveStatusSeparator);
+      }
+      lastPublishedLiveStatusText = null;
+    }
+    if (liveStatus == null) {
+      liveStatus = (HTMLElement) DomGlobal.document.createElement("span");
+      liveStatus.id = LIVE_STATUS_ID;
+      statusStrip.appendChild(liveStatus);
+      lastPublishedLiveStatusText = null;
+    }
+    return liveStatus;
+  }
+
+  private Element findRootShell() {
+    return findNearestRootShell(workflowHost);
+  }
+
+  private static Element findNearestRootShell(Element start) {
+    Element rootShell = start;
+    // Bind to the nearest owning root shell so nested or parallel shells cannot cross-write status.
+    while (rootShell != null) {
+      if ("true".equals(rootShell.getAttribute("data-j2cl-root-shell"))) {
+        return rootShell;
+      }
+      rootShell = rootShell.parentElement;
+    }
+    return null;
+  }
+
+  private HTMLElement findStatusStrip(Element rootShell) {
+    if (rootShell == null) {
+      return null;
+    }
+    // shell-status-strip renders a default slot; appended light-DOM children stay visible.
+    return firstElementOwnedByRootShell(rootShell, "shell-status-strip[slot='status']");
+  }
+
+  private static void updateHref(Element scope, String elementId, String href) {
+    HTMLElement element = firstElementOwnedByRootShell(scope, "#" + elementId);
     if (element != null) {
       element.setAttribute("href", href);
     }
   }
 
-  private static void updateAuthHrefs(String selector, String authPath, String returnTarget) {
-    NodeList<elemental2.dom.Element> elements = DomGlobal.document.querySelectorAll(selector);
+  private static void updateAuthHrefs(
+      Element scope, String selector, String authPath, String returnTarget) {
+    NodeList<elemental2.dom.Element> elements = scope.querySelectorAll(selector);
     for (int index = 0; index < elements.length; index++) {
       HTMLElement element = (HTMLElement) elements.item(index);
-      if (element != null) {
+      if (element != null && isOwnedByRootShell(element, scope)) {
         element.setAttribute("href", authPath + "?r=" + encodeLocalReturnTarget(returnTarget));
       }
     }
+  }
+
+  private static HTMLElement firstElementOwnedByRootShell(Element rootShell, String selector) {
+    return firstElementOwnedByRootShell(rootShell, selector, rootShell);
+  }
+
+  private static HTMLElement firstElementOwnedByRootShell(
+      Element searchScope, String selector, Element rootShell) {
+    if (rootShell == null) {
+      return null;
+    }
+    NodeList<elemental2.dom.Element> elements = searchScope.querySelectorAll(selector);
+    for (int index = 0; index < elements.length; index++) {
+      HTMLElement element = (HTMLElement) elements.item(index);
+      if (element != null && isOwnedByRootShell(element, rootShell)) {
+        return element;
+      }
+    }
+    return null;
+  }
+
+  private static boolean isOwnedByRootShell(Element element, Element rootShell) {
+    return rootShell != null && element != null && findNearestRootShell(element) == rootShell;
+  }
+
+  private static boolean isCurrentStatusNode(
+      HTMLElement element, HTMLElement statusStrip, Element rootShell) {
+    return element != null
+        && statusStrip.contains(element)
+        && isOwnedByRootShell(element, rootShell);
+  }
+
+  private static String resolveReturnTarget(String routeUrl, Element shell) {
+    if (routeUrl != null && !routeUrl.isEmpty() && routeUrl.charAt(0) == '?') {
+      String basePath = shell.getAttribute("data-j2cl-root-base-path");
+      if (basePath != null && !basePath.isEmpty()
+          && basePath.startsWith("/") && !basePath.startsWith("//")) {
+        return basePath + routeUrl;
+      }
+    }
+    return normalizeLocalReturnTarget(routeUrl);
   }
 
   private static String normalizeLocalReturnTarget(String routeUrl) {
