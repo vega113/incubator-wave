@@ -1,0 +1,315 @@
+package org.waveprotocol.box.j2cl.richtext;
+
+import com.google.j2cl.junit.apt.J2clTestInput;
+import org.junit.Assert;
+import org.junit.Test;
+import org.waveprotocol.box.j2cl.search.J2clSidecarWriteSession;
+import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
+
+@J2clTestInput(J2clRichContentDeltaFactoryTest.class)
+public class J2clRichContentDeltaFactoryTest {
+  @Test
+  public void createWaveRequestEmitsTextAnnotationsAndAttachmentElements() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clComposerDocument document =
+        J2clComposerDocument.builder()
+            .text("Hello ")
+            .annotatedText("fontWeight", "bold", "bold text")
+            .text(" before ")
+            .imageAttachment("att+hero/1=", "diagram.png", "medium")
+            .build();
+
+    J2clRichContentDeltaFactory.CreateWaveRequest request =
+        factory.createWaveRequest("User@Example.COM ", document);
+
+    Assert.assertEquals("example.com/w+seedA", request.getCreatedWaveId());
+    SidecarSubmitRequest submitRequest = request.getSubmitRequest();
+    Assert.assertEquals("example.com/w+seedA/~/conv+root", submitRequest.getWaveletName());
+    Assert.assertNull(submitRequest.getChannelId());
+    String deltaJson = submitRequest.getDeltaJson();
+    assertContains(
+        deltaJson,
+        "\"1\":{\"1\":0,\"2\":\"" + encodeHex("wave://example.com/w+seedA/conv+root") + "\"}",
+        "\"2\":\"user@example.com\"",
+        "{\"1\":\"user@example.com\"}",
+        "\"1\":\"b+root\"",
+        "\"2\":\"Hello \"",
+        "{\"1\":{\"3\":[{\"1\":\"fontWeight\",\"3\":\"bold\"}]}}",
+        "\"2\":\"bold text\"",
+        "{\"1\":{\"2\":[\"fontWeight\"]}}",
+        "\"3\":{\"1\":\"image\"",
+        "{\"1\":\"attachment\",\"2\":\"att+hero/1=\"}",
+        "{\"1\":\"display-size\",\"2\":\"medium\"}",
+        "\"3\":{\"1\":\"caption\"",
+        "\"2\":\"diagram.png\"");
+    Assert.assertTrue(
+        deltaJson.indexOf("{\"1\":\"user@example.com\"}")
+            < deltaJson.indexOf("\"1\":\"b+root\""));
+  }
+
+  @Test
+  public void replyRequestPreservesWriteSessionBasisAndChannel() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
+    J2clComposerDocument document =
+        J2clComposerDocument.builder()
+            .text("Plain ")
+            .annotatedText("link/manual", "https://example.com", "link")
+            .build();
+
+    SidecarSubmitRequest request = factory.createReplyRequest("user@example.com", session, document);
+
+    Assert.assertEquals("example.com/w+reply/~/conv+root", request.getWaveletName());
+    Assert.assertEquals("chan-7", request.getChannelId());
+    assertContains(
+        request.getDeltaJson(),
+        "\"1\":{\"1\":44,\"2\":\"ABCD\"}",
+        "\"2\":\"user@example.com\"",
+        "\"1\":\"b+seedA\"",
+        "\"2\":\"Plain \"",
+        "{\"1\":{\"3\":[{\"1\":\"link/manual\",\"3\":\"https://example.com\"}]}}",
+        "\"2\":\"link\"",
+        "{\"1\":{\"2\":[\"link/manual\"]}}");
+  }
+
+  @Test
+  public void replyRequestSerializesAttachmentElements() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
+    J2clComposerDocument document =
+        J2clComposerDocument.builder()
+            .text("See ")
+            .imageAttachment("att+reply/1=", "reply.png", "large")
+            .build();
+
+    SidecarSubmitRequest request = factory.createReplyRequest("user@example.com", session, document);
+
+    assertContains(
+        request.getDeltaJson(),
+        "\"1\":\"b+seedA\"",
+        "\"2\":\"See \"",
+        "\"3\":{\"1\":\"image\"",
+        "{\"1\":\"attachment\",\"2\":\"att+reply/1=\"}",
+        "{\"1\":\"display-size\",\"2\":\"large\"}",
+        "\"3\":{\"1\":\"caption\"",
+        "\"2\":\"reply.png\"");
+  }
+
+  @Test
+  public void emptyCaptionImageClosesCaptionAndImageElementsCleanly() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
+    J2clComposerDocument document =
+        J2clComposerDocument.builder().imageAttachment("att+empty", "", "small").build();
+
+    SidecarSubmitRequest request = factory.createReplyRequest("user@example.com", session, document);
+
+    assertContains(
+        request.getDeltaJson(),
+        "\"3\":{\"1\":\"caption\"}},{\"4\":{}},{\"4\":{}}",
+        "{\"1\":\"display-size\",\"2\":\"small\"}");
+  }
+
+  @Test
+  public void escapesJsonInTextAnnotationValuesAndAttachmentAttributes() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clComposerDocument document =
+        J2clComposerDocument.builder()
+            .text("Quote \" slash \\ newline\n control" + (char) 1)
+            .annotatedText("link/manual", "https://example.com/a?x=\"y\"", "link")
+            .imageAttachment("att+quote\"slash\\", "caption \" slash \\", "medium")
+            .build();
+
+    String deltaJson =
+        factory.createWaveRequest("user@example.com", document).getSubmitRequest().getDeltaJson();
+
+    assertContains(
+        deltaJson,
+        "Quote \\\" slash \\\\ newline\\n",
+        "control\\u0001",
+        "https://example.com/a?x=\\\"y\\\"",
+        "att+quote\\\"slash\\\\",
+        "caption \\\" slash \\\\");
+  }
+
+  @Test
+  public void validatesStructuredDocumentInputs() {
+    assertThrows(() -> J2clComposerDocument.builder().annotatedText("", "bold", "text"));
+    assertThrows(() -> J2clComposerDocument.builder().annotatedText("   ", "bold", "text"));
+    assertThrows(() -> J2clComposerDocument.builder().annotatedText("fontWeight", "", "text"));
+    assertThrows(() -> J2clComposerDocument.builder().annotatedText("fontWeight", "   ", "text"));
+    assertThrows(() -> J2clComposerDocument.builder().annotatedText("fontWeight", "bold", ""));
+    assertThrows(() -> J2clComposerDocument.builder().annotatedText("fontWeight", "bold", "   "));
+    assertThrows(() -> J2clComposerDocument.builder().imageAttachment("", "caption", "small"));
+    assertThrows(() -> J2clComposerDocument.builder().imageAttachment("att+1", "caption", "huge"));
+
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
+    J2clComposerDocument document = J2clComposerDocument.builder().text("x").build();
+    assertThrows(() -> factory.createWaveRequest(null, document));
+    assertThrows(() -> factory.createReplyRequest(" ", session, document));
+    assertThrows(() -> factory.createReplyRequest(null, session, document));
+    assertThrows(
+        () ->
+            factory.createWaveRequest(
+                "missing-domain", document));
+    assertThrows(() -> factory.createWaveRequest("user@evil/path", document));
+    assertThrows(() -> factory.createWaveRequest("user@example.com@evil.com", document));
+  }
+
+  @Test
+  public void replyBlipIdsAdvanceAcrossRequests() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
+    J2clComposerDocument document = J2clComposerDocument.builder().text("Reply").build();
+
+    SidecarSubmitRequest first = factory.createReplyRequest("user@example.com", session, document);
+    SidecarSubmitRequest second = factory.createReplyRequest("user@example.com", session, document);
+
+    assertContains(first.getDeltaJson(), "\"1\":\"b+seedA\"");
+    assertContains(second.getDeltaJson(), "\"1\":\"b+seedB\"");
+  }
+
+  @Test
+  public void createAndReplyRequestsShareOneTokenCounter() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
+    J2clComposerDocument document = J2clComposerDocument.builder().text("Body").build();
+
+    J2clRichContentDeltaFactory.CreateWaveRequest create =
+        factory.createWaveRequest("user@example.com", document);
+    SidecarSubmitRequest reply = factory.createReplyRequest("user@example.com", session, document);
+
+    Assert.assertEquals("example.com/w+seedA", create.getCreatedWaveId());
+    assertContains(reply.getDeltaJson(), "\"1\":\"b+seedB\"");
+  }
+
+  @Test
+  public void tokenCounterUsesMultiCharacterWeb64TokensAfterSixtyFourValues() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
+    J2clComposerDocument document = J2clComposerDocument.builder().text("Reply").build();
+
+    for (int i = 0; i < 64; i++) {
+      factory.createReplyRequest("user@example.com", session, document);
+    }
+    SidecarSubmitRequest request = factory.createReplyRequest("user@example.com", session, document);
+
+    assertContains(request.getDeltaJson(), "\"1\":\"b+seedBA\"");
+  }
+
+  @Test
+  public void createWaveIdsAdvanceAcrossRequests() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clComposerDocument document = J2clComposerDocument.builder().text("Wave").build();
+
+    J2clRichContentDeltaFactory.CreateWaveRequest first =
+        factory.createWaveRequest("user@example.com", document);
+    J2clRichContentDeltaFactory.CreateWaveRequest second =
+        factory.createWaveRequest("user@example.com", document);
+
+    Assert.assertEquals("example.com/w+seedA", first.getCreatedWaveId());
+    Assert.assertEquals("example.com/w+seedB", second.getCreatedWaveId());
+  }
+
+  @Test
+  public void consecutiveAnnotatedTextClosesEachAnnotationIndependently() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clComposerDocument document =
+        J2clComposerDocument.builder()
+            .annotatedText("fontWeight", "bold", "bold")
+            .annotatedText("fontStyle", "italic", "italic")
+            .build();
+
+    String deltaJson =
+        factory.createWaveRequest("user@example.com", document).getSubmitRequest().getDeltaJson();
+
+    assertContains(
+        deltaJson,
+        "{\"1\":{\"3\":[{\"1\":\"fontWeight\",\"3\":\"bold\"}]}}",
+        "{\"2\":\"bold\"}",
+        "{\"1\":{\"2\":[\"fontWeight\"]}}",
+        "{\"1\":{\"3\":[{\"1\":\"fontStyle\",\"3\":\"italic\"}]}}",
+        "{\"2\":\"italic\"}",
+        "{\"1\":{\"2\":[\"fontStyle\"]}}");
+  }
+
+  @Test
+  public void preservesUnicodeTextAndCaption() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    String text = "\u05e9\u05dc\u05d5\u05dd";
+    String caption = "\u05ea\u05de\u05d5\u05e0\u05d4";
+    J2clComposerDocument document =
+        J2clComposerDocument.builder()
+            .text(text)
+            .imageAttachment("att+unicode", caption, "small")
+            .build();
+
+    String deltaJson =
+        factory.createWaveRequest("user@example.com", document).getSubmitRequest().getDeltaJson();
+
+    assertContains(deltaJson, "\"2\":\"" + text + "\"", "\"2\":\"" + caption + "\"");
+  }
+
+  @Test
+  public void normalizesDisplaySizeCaseDeterministically() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clComposerDocument document =
+        J2clComposerDocument.builder()
+            .imageAttachment("att+small", "small", "Small")
+            .imageAttachment("att+medium", "medium", "MEDIUM")
+            .imageAttachment("att+large", "large", "LaRgE")
+            .build();
+
+    String deltaJson =
+        factory.createWaveRequest("user@example.com", document).getSubmitRequest().getDeltaJson();
+
+    assertContains(
+        deltaJson,
+        "{\"1\":\"display-size\",\"2\":\"small\"}",
+        "{\"1\":\"display-size\",\"2\":\"medium\"}",
+        "{\"1\":\"display-size\",\"2\":\"large\"}");
+  }
+
+  private static void assertContains(String value, String... fragments) {
+    for (String fragment : fragments) {
+      Assert.assertTrue(
+          "Missing fragment: " + fragment + "\nJSON: " + value, value.contains(fragment));
+    }
+  }
+
+  private static void assertThrows(ThrowingRunnable runnable) {
+    try {
+      runnable.run();
+      Assert.fail("Expected IllegalArgumentException.");
+    } catch (IllegalArgumentException expected) {
+      // Expected.
+    }
+  }
+
+  private interface ThrowingRunnable {
+    void run();
+  }
+
+  // ASCII-only: mirrors the submit factory's version-zero URI hash encoding.
+  private static String encodeHex(String value) {
+    StringBuilder encoded = new StringBuilder(value.length() * 2);
+    for (int i = 0; i < value.length(); i++) {
+      int ch = value.charAt(i);
+      encoded.append(toHexDigit((ch >> 4) & 0xF));
+      encoded.append(toHexDigit(ch & 0xF));
+    }
+    return encoded.toString();
+  }
+
+  private static char toHexDigit(int value) {
+    return (char) (value < 10 ? ('0' + value) : ('A' + (value - 10)));
+  }
+}
