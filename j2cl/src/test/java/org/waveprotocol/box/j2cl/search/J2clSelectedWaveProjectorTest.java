@@ -1784,7 +1784,10 @@ public class J2clSelectedWaveProjectorTest {
                         "author@example.com",
                         7L,
                         8L,
-                        "Root text")),
+                        "Root text",
+                        Arrays.asList(
+                            new SidecarAnnotationRange("task/id", "task-123", 0, 4)),
+                        Collections.<SidecarReactionEntry>emptyList())),
                 null),
             null,
             0);
@@ -1821,6 +1824,9 @@ public class J2clSelectedWaveProjectorTest {
     Assert.assertEquals(
         Arrays.asList("alice@example.com", "bob@example.com"),
         blip.getParticipantContext());
+    Assert.assertTrue(blip.isEditable());
+    Assert.assertEquals(1, blip.getTaskItems().size());
+    Assert.assertTrue(blip.getTaskItems().get(0).isEditable());
     Assert.assertEquals(1, blip.getReactionEntries().size());
     Assert.assertEquals("tada", blip.getReactionEntries().get(0).getEmoji());
   }

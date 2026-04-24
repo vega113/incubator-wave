@@ -102,6 +102,15 @@ public class J2clOverlayModelTest {
   }
 
   @Test
+  public void reactionSummaryHandlesNullParticipants() {
+    J2clReactionSummary summary = new J2clReactionSummary("thumbs_up", null, false, null);
+
+    Assert.assertEquals(0, summary.getCount());
+    Assert.assertEquals(Collections.<String>emptyList(), summary.getParticipantAddresses());
+    Assert.assertEquals("0 reactions for thumbs_up.", summary.getInspectLabel());
+  }
+
+  @Test
   public void interactionBlipClampsMentionTextAndSkipsEmptyReactionEmoji() {
     J2clInteractionBlipModel blip =
         new J2clInteractionBlipModel(

@@ -400,6 +400,8 @@ public final class J2clSelectedWaveProjector {
       List<J2clInteractionBlipModel> previousBlips,
       List<String> participantIds,
       boolean editable) {
+    // Rebuild carried-forward blips so read-only state and participant context follow the
+    // current selected-wave snapshot instead of stale per-blip state.
     Map<String, List<SidecarReactionEntry>> reactionsByBlip = extractReactionsByBlip(documents);
     Map<String, J2clInteractionBlipModel> previousByBlip = indexInteractionBlips(previousBlips);
     List<J2clInteractionBlipModel> merged = new ArrayList<J2clInteractionBlipModel>();
