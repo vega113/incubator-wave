@@ -181,9 +181,19 @@ export class MentionSuggestionPopover extends LitElement {
     if (!Array.isArray(this.candidates)) {
       return [];
     }
-    return this.candidates.filter(
-      candidate => candidate && typeof candidate === "object" && !Array.isArray(candidate)
-    );
+    return this.candidates
+      .filter(
+        candidate =>
+          candidate &&
+          typeof candidate === "object" &&
+          !Array.isArray(candidate) &&
+          typeof candidate.address === "string" &&
+          candidate.address.trim() !== ""
+      )
+      .map(candidate => ({
+        ...candidate,
+        address: candidate.address.trim()
+      }));
   }
 
   liveText(count) {

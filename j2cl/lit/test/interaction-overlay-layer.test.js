@@ -83,6 +83,34 @@ describe("<interaction-overlay-layer>", () => {
     expect(document.activeElement).to.equal(el.querySelector("#last"));
   });
 
+  it("does not close when slotted content already handled Escape", async () => {
+    const el = await fixture(html`
+      <interaction-overlay-layer open modal label="Nested overlay">
+        <button id="nested">Nested close</button>
+      </interaction-overlay-layer>
+    `);
+    let closeCount = 0;
+    const nested = el.querySelector("#nested");
+    el.addEventListener("overlay-close", () => {
+      closeCount += 1;
+    });
+    nested.addEventListener("keydown", event => {
+      event.preventDefault();
+    });
+
+    nested.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        composed: true,
+        cancelable: true
+      })
+    );
+
+    expect(closeCount).to.equal(0);
+    expect(el.open).to.equal(true);
+  });
+
   it("traps modal focus through slotted custom element shadow controls", async () => {
     const el = await fixture(html`
       <interaction-overlay-layer open modal label="Shadow task details">

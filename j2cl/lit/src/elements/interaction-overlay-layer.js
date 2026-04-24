@@ -70,6 +70,9 @@ export class InteractionOverlayLayer extends LitElement {
       return;
     }
     if (event.key === "Escape") {
+      if (event.defaultPrevented) {
+        return;
+      }
       event.preventDefault();
       this.close("escape");
       return;
