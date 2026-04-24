@@ -450,15 +450,27 @@ Exit criteria:
 
 ### Slice 2 - Add Overlay Models And Projection
 
-- [ ] Create the pure overlay model classes under `j2cl/src/main/java/org/waveprotocol/box/j2cl/overlay/`.
-- [ ] Add `interactionBlips()` to `J2clSelectedWaveModel`.
-- [ ] Project mention ranges, task items, and reaction summaries in `J2clSelectedWaveProjector`.
-- [ ] Keep `contentEntries()` behavior intact for current read UI compatibility.
-- [ ] Add null/empty-state tests for waves without overlays.
+- [x] Create the pure overlay model classes under `j2cl/src/main/java/org/waveprotocol/box/j2cl/overlay/`.
+- [x] Add `interactionBlips()` to `J2clSelectedWaveModel`.
+- [x] Project mention ranges, task items, and reaction summaries in `J2clSelectedWaveProjector`.
+- [x] Keep `contentEntries()` behavior intact for current read UI compatibility.
+- [x] Add null/empty-state tests for waves without overlays.
 
 Exit criteria:
 
 - Selected-wave model can represent a blip with text, mentions, task metadata, and reaction summaries without requiring Lit.
+
+Implementation evidence (2026-04-24):
+
+- RED: `./j2cl/mvnw -f j2cl/pom.xml -Psearch-sidecar -Dtest=org.waveprotocol.box.j2cl.search.J2clSelectedWaveProjectorTest test`
+  failed first with missing overlay model classes and accessors.
+- GREEN: targeted overlay/projector verification passed after implementation:
+  `./j2cl/mvnw -f j2cl/pom.xml -Psearch-sidecar -Dtest=org.waveprotocol.box.j2cl.overlay.J2clOverlayModelTest,org.waveprotocol.box.j2cl.search.J2clSelectedWaveProjectorTest test`
+  passed with 51 tests, 0 failures, 0 errors, 0 skipped.
+- Formatting gate: `git diff --check` exited 0.
+- Scope note: task `checked` remains `false` until a later slice safely exposes
+  checkbox element state; current decoded metadata covers id, assignee, and due
+  timestamp only.
 
 ### Slice 3 - Add Lit Overlay Primitives
 

@@ -80,7 +80,7 @@ public final class J2clSelectedWaveProjector {
       readBlips = previous.getReadBlips();
     }
     List<J2clInteractionBlipModel> interactionBlips =
-        extractInteractionBlips(update.getDocuments());
+        extractInteractionBlips(update.getDocuments(), participantIds);
     if (previousMatchesWave && previous != null && !previous.getInteractionBlips().isEmpty()) {
       interactionBlips =
           mergePreviousInteractionBlips(
@@ -356,7 +356,7 @@ public final class J2clSelectedWaveProjector {
   }
 
   private static List<J2clInteractionBlipModel> extractInteractionBlips(
-      List<SidecarSelectedWaveDocument> documents) {
+      List<SidecarSelectedWaveDocument> documents, List<String> participantIds) {
     if (documents == null || documents.isEmpty()) {
       return Collections.emptyList();
     }
@@ -375,7 +375,11 @@ public final class J2clSelectedWaveProjector {
       blips.add(
           new J2clInteractionBlipModel(
               documentId,
+              documentId,
+              document.getAuthor(),
               document.getTextContent(),
+              participantIds,
+              true,
               document.getAnnotationRanges(),
               reactions == null ? Collections.<SidecarReactionEntry>emptyList() : reactions));
     }
@@ -401,7 +405,11 @@ public final class J2clSelectedWaveProjector {
       merged.add(
           new J2clInteractionBlipModel(
               projected.getBlipId(),
+              projected.getDocumentId(),
+              projected.getAuthor(),
               projected.getText(),
+              projected.getParticipantContext(),
+              projected.isEditable(),
               projected.getAnnotationRanges(),
               reactions));
       seenBlipIds.add(projected.getBlipId());
@@ -417,7 +425,11 @@ public final class J2clSelectedWaveProjector {
       merged.add(
           new J2clInteractionBlipModel(
               previous.getBlipId(),
+              previous.getDocumentId(),
+              previous.getAuthor(),
               previous.getText(),
+              previous.getParticipantContext(),
+              previous.isEditable(),
               previous.getAnnotationRanges(),
               reactions));
     }
