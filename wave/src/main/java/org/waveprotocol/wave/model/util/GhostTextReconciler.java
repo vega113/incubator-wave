@@ -92,9 +92,11 @@ public final class GhostTextReconciler {
    * composition character from the adjacent DOM sibling before the editor
    * flushes the IME scratch. This method therefore treats the captured DOM
    * snapshot itself as a possible ghost carrier over the model baseline. It
-   * then compares that captured ghost with the final DOM state and keeps the
-   * longest model-relative ghost, covering both Android removing the captured
-   * text before Done and Android adding more ghost text after activation.
+   * then compares that captured ghost with the final DOM state. If the final
+   * DOM still has a model-relative ghost, the final DOM wins because it may
+   * contain IME rewrites made after activation. If the final DOM no longer
+   * has a ghost, the captured ghost is kept so Android's Done path cannot
+   * drop the first character by deleting the temporary sibling text.
    */
   public static String combineWithCapturedGhosts(String scratchContent,
       String previousModelBaseline, String capturedPrevious, String currentPrevious,
@@ -102,10 +104,10 @@ public final class GhostTextReconciler {
     if (scratchContent == null) {
       throw new NullPointerException("scratchContent must not be null");
     }
-    String ghostBefore = longerOrCurrentOnTie(
+    String ghostBefore = currentOrCapturedFallback(
         extractGhostSuffix(previousModelBaseline, capturedPrevious),
         extractGhostSuffix(previousModelBaseline, currentPrevious));
-    String ghostAfter = longerOrCurrentOnTie(
+    String ghostAfter = currentOrCapturedFallback(
         extractGhostPrefix(nextModelBaseline, capturedNext),
         extractGhostPrefix(nextModelBaseline, currentNext));
 
@@ -115,8 +117,8 @@ public final class GhostTextReconciler {
     return ghostBefore + scratchContent + ghostAfter;
   }
 
-  private static String longerOrCurrentOnTie(String capturedGhost, String currentGhost) {
-    return currentGhost.length() >= capturedGhost.length() ? currentGhost : capturedGhost;
+  private static String currentOrCapturedFallback(String capturedGhost, String currentGhost) {
+    return currentGhost.isEmpty() ? capturedGhost : currentGhost;
   }
 
   /**
