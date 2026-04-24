@@ -79,4 +79,22 @@ public class ImeCompositionTextTrackerTest extends TestCase {
 
     assertEquals("c", tracker.effectiveText("c"));
   }
+
+  public void testEmptyUpdateClearsRecoveredText() {
+    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
+
+    tracker.observe("a");
+    tracker.observe("");
+
+    assertEquals("", tracker.effectiveText(""));
+  }
+
+  public void testShrinkWithoutReplacementEvidenceKeepsScratch() {
+    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
+
+    tracker.observe("abc");
+    tracker.observe("bc");
+
+    assertEquals("bc", tracker.effectiveText("bc"));
+  }
 }

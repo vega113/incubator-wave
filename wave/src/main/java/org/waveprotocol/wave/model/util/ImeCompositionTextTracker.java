@@ -33,14 +33,20 @@ public final class ImeCompositionTextTracker {
 
   private String reconstructed = "";
   private String lastObserved = "";
+  private boolean hasRecoveredReplacement;
 
   public void reset() {
     reconstructed = "";
     lastObserved = "";
+    hasRecoveredReplacement = false;
   }
 
   public void observe(String value) {
-    if (value == null || value.isEmpty()) {
+    if (value == null) {
+      return;
+    }
+    if (value.isEmpty()) {
+      reset();
       return;
     }
     if (reconstructed.isEmpty()) {
@@ -59,9 +65,12 @@ public final class ImeCompositionTextTracker {
     if (isSingleCharacterReplacement(value)) {
       reconstructed += value;
       lastObserved = value;
+      hasRecoveredReplacement = true;
       return;
     }
+    reconstructed = value;
     lastObserved = value;
+    hasRecoveredReplacement = false;
   }
 
   public String effectiveText(String scratchText) {
@@ -70,12 +79,12 @@ public final class ImeCompositionTextTracker {
       return scratch;
     }
     if (scratch.isEmpty()) {
-      return reconstructed;
+      return scratch;
     }
     if (scratch.endsWith(reconstructed)) {
       return scratch;
     }
-    if (reconstructed.endsWith(scratch)) {
+    if (hasRecoveredReplacement && scratch.equals(lastObserved) && reconstructed.endsWith(scratch)) {
       return reconstructed;
     }
     return scratch;
