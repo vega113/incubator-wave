@@ -27,74 +27,39 @@ import junit.framework.TestCase;
  */
 public class ImeCompositionTextTrackerTest extends TestCase {
 
-  public void testAndroidSingleLetterReplacementSequenceRecoversNew() {
+  private void assertImeSequence(String expectedText, String scratchText, String... observedValues) {
     ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
+    for (String v : observedValues) {
+      tracker.observe(v);
+    }
+    assertEquals(expectedText, tracker.effectiveText(scratchText));
+  }
 
-    tracker.observe("n");
-    tracker.observe("e");
-    tracker.observe("e");
-    tracker.observe("ew");
-    tracker.observe("ew");
-
-    assertEquals("new", tracker.effectiveText("ew"));
+  public void testAndroidSingleLetterReplacementSequenceRecoversNew() {
+    assertImeSequence("new", "ew", "n", "e", "e", "ew", "ew");
   }
 
   public void testAndroidSecondWordReplacementSequenceRecoversBlip() {
-    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
-
-    tracker.observe("b");
-    tracker.observe("l");
-    tracker.observe("l");
-    tracker.observe("li");
-    tracker.observe("li");
-    tracker.observe("lip");
-
-    assertEquals("blip", tracker.effectiveText("lip"));
+    assertImeSequence("blip", "lip", "b", "l", "l", "li", "li", "lip");
   }
 
   public void testRepeatedSingleCharacterDoesNotDuplicate() {
-    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
-
-    tracker.observe("n");
-    tracker.observe("e");
-    tracker.observe("e");
-
-    assertEquals("ne", tracker.effectiveText("e"));
+    assertImeSequence("ne", "e", "n", "e", "e");
   }
 
   public void testBrowserCaughtUpScratchWins() {
-    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
-
-    tracker.observe("n");
-    tracker.observe("e");
-
-    assertEquals("new", tracker.effectiveText("new"));
+    assertImeSequence("new", "new", "n", "e");
   }
 
   public void testUnrelatedMultiCharacterReplacementFallsBackToScratch() {
-    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
-
-    tracker.observe("ab");
-    tracker.observe("c");
-
-    assertEquals("c", tracker.effectiveText("c"));
+    assertImeSequence("c", "c", "ab", "c");
   }
 
   public void testEmptyUpdateClearsRecoveredText() {
-    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
-
-    tracker.observe("a");
-    tracker.observe("");
-
-    assertEquals("", tracker.effectiveText(""));
+    assertImeSequence("", "", "a", "");
   }
 
   public void testShrinkWithoutReplacementEvidenceKeepsScratch() {
-    ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
-
-    tracker.observe("abc");
-    tracker.observe("bc");
-
-    assertEquals("bc", tracker.effectiveText("bc"));
+    assertImeSequence("bc", "bc", "abc", "bc");
   }
 }

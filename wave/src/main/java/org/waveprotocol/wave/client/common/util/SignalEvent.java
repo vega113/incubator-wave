@@ -176,7 +176,8 @@ public interface SignalEvent {
   String getKey();
 
   /**
-   * @return The text payload reported by text/composition input events, if any.
+   * @return The text payload reported by text/composition input events; never null -
+   *         implementations return {@code ""} when there is no text payload.
    */
   String getData();
 

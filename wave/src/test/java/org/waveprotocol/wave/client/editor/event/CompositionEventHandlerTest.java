@@ -73,8 +73,9 @@ public class CompositionEventHandlerTest extends TestCase {
     verify(listener, times(1)).compositionStart(token.length == 1 ? token[0] : eventToken);
     nothingElseUpToNow();
   }
-  private void verifyUpdate() {
-    verify(listener, times(1)).compositionUpdate(eventToken);
+  private void verifyUpdate(Object ... token) {
+    Preconditions.checkArgument(token.length <= 1);
+    verify(listener, times(1)).compositionUpdate(token.length == 1 ? token[0] : eventToken);
     nothingElseUpToNow();
   }
   private void verifyEnd() {
