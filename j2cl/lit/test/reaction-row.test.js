@@ -25,15 +25,24 @@ describe("<reaction-row>", () => {
 
     const addPromise = oneEvent(el, "reaction-add");
     el.renderRoot.querySelector("[data-reaction-add]").click();
-    expect((await addPromise).detail.blipId).to.equal("b+1");
+    const addEvent = await addPromise;
+    expect(addEvent.bubbles).to.equal(true);
+    expect(addEvent.composed).to.equal(true);
+    expect(addEvent.detail.blipId).to.equal("b+1");
 
     const togglePromise = oneEvent(el, "reaction-toggle");
     el.renderRoot.querySelector("[data-reaction-chip]").click();
-    expect((await togglePromise).detail).to.deep.equal({ blipId: "b+1", emoji: "tada" });
+    const toggleEvent = await togglePromise;
+    expect(toggleEvent.bubbles).to.equal(true);
+    expect(toggleEvent.composed).to.equal(true);
+    expect(toggleEvent.detail).to.deep.equal({ blipId: "b+1", emoji: "tada" });
 
     const inspectPromise = oneEvent(el, "reaction-inspect");
     el.renderRoot.querySelector("[data-reaction-inspect]").click();
-    expect((await inspectPromise).detail).to.deep.equal({ blipId: "b+1", emoji: "tada" });
+    const inspectEvent = await inspectPromise;
+    expect(inspectEvent.bubbles).to.equal(true);
+    expect(inspectEvent.composed).to.equal(true);
+    expect(inspectEvent.detail).to.deep.equal({ blipId: "b+1", emoji: "tada" });
   });
 
   it("renders an empty add-only state without mutation decisions", async () => {
