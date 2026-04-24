@@ -496,7 +496,7 @@ public final class ImeDebugTracer {
       ov.setAttribute("aria-expanded", "false");
       var collapsedHeight = "44px";
       var safeAreaInset = "env(safe-area-inset-bottom, 0px)";
-      var reservedHeight = "calc(" + collapsedHeight + " + " + safeAreaInset + ")";
+      var reservedHeight = "calc(" + collapsedHeight + " + 1px + " + safeAreaInset + ")";
       ov.style.cssText =
           "position:fixed;left:0;right:0;bottom:0;z-index:2147483646;"
           + "height:" + reservedHeight + ";max-height:" + reservedHeight + ";overflow:hidden;"
