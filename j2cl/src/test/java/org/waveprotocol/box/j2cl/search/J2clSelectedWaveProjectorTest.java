@@ -19,6 +19,7 @@ import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
 public class J2clSelectedWaveProjectorTest {
   private static final String WAVE_ID = "example.com/w+1";
   private static final String WAVELET_NAME = "example.com!w+1/example.com!conv+root";
+  private static final String WAVELET_NAME_2 = "example.com!w+2/example.com!conv+root";
   private static final String CHANNEL_ID = "chan-1";
   private static final String INDEX_SEGMENT = "index";
   private static final String MANIFEST_SEGMENT = "manifest";
@@ -420,7 +421,7 @@ public class J2clSelectedWaveProjectorTest {
             null,
             new SidecarSelectedWaveUpdate(
                 2,
-                WAVELET_NAME,
+                WAVELET_NAME_2,
                 true,
                 CHANNEL_ID,
                 44L,
@@ -1229,7 +1230,7 @@ public class J2clSelectedWaveProjectorTest {
   private static SidecarSelectedWaveUpdate rootFragmentUpdate(
       int sequence, long version, String historyHash, String rawSnapshot) {
     // Keep the helper window non-zero so tests catch accidental range downgrades.
-    long fromVersion = version - 10L;
+    long fromVersion = Math.max(0L, version - 10L);
     return new SidecarSelectedWaveUpdate(
         sequence,
         WAVELET_NAME,
