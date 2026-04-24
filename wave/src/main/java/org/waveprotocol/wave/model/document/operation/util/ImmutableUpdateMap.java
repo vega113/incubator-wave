@@ -175,9 +175,10 @@ public abstract class ImmutableUpdateMap<T extends ImmutableUpdateMap<T, U>, U e
     if (mutation instanceof ImmutableUpdateMap<?,?>) {
       return ((ImmutableUpdateMap<?,?>) mutation).updates;
     }
+    int changeSize = mutation.changeSize();
     List<AttributeUpdate> mutationAttributes =
-        new ArrayList<AttributeUpdate>(mutation.changeSize());
-    for (int i = 0; i < mutation.changeSize(); i++) {
+        new ArrayList<AttributeUpdate>(changeSize);
+    for (int i = 0; i < changeSize; i++) {
       mutationAttributes.add(new AttributeUpdate(mutation.getChangeKey(i),
           mutation.getOldValue(i), mutation.getNewValue(i)));
     }

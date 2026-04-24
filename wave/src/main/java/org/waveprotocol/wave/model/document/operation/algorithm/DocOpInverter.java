@@ -91,8 +91,9 @@ public final class DocOpInverter<T> implements EvaluatingDocOpCursor<T> {
 
   @Override
   public void updateAttributes(AttributesUpdate attrUpdate) {
-    List<AttributeUpdate> updates = new ArrayList<AttributeUpdate>(attrUpdate.changeSize());
-    for (int i = 0; i < attrUpdate.changeSize(); ++i) {
+    int changeSize = attrUpdate.changeSize();
+    List<AttributeUpdate> updates = new ArrayList<AttributeUpdate>(changeSize);
+    for (int i = 0; i < changeSize; ++i) {
       updates.add(new AttributeUpdate(attrUpdate.getChangeKey(i),
           attrUpdate.getNewValue(i), attrUpdate.getOldValue(i)));
     }

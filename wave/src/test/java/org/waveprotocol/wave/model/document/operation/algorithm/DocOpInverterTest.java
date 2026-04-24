@@ -51,7 +51,11 @@ public class DocOpInverterTest extends TestCase {
     private final String[] triples;
 
     NonImmutableAttributesUpdate(String ... triples) {
-      this.triples = triples;
+      if (triples.length % 3 != 0) {
+        throw new IllegalArgumentException(
+            "Attributes updates must be supplied as key/old/new triples");
+      }
+      this.triples = triples.clone();
     }
 
     @Override

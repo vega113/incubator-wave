@@ -163,7 +163,11 @@ public class ImmutableUpdateMapTest extends TestCase {
     private final String[] triples;
 
     NonImmutableAttributesUpdate(String ... triples) {
-      this.triples = triples;
+      if (triples.length % 3 != 0) {
+        throw new IllegalArgumentException(
+            "triples length must be a multiple of 3: " + triples.length);
+      }
+      this.triples = Arrays.copyOf(triples, triples.length);
     }
 
     @Override
