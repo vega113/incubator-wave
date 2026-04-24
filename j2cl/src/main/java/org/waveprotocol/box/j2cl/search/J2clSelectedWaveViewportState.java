@@ -88,8 +88,8 @@ public final class J2clSelectedWaveViewportState {
         continue;
       }
       String textContent = document.getTextContent();
-      if (textContent == null || textContent.isEmpty()) {
-        continue;
+      if (textContent == null) {
+        textContent = "";
       }
       String documentId = document.getDocumentId();
       if (documentId == null || documentId.isEmpty()) {
@@ -134,7 +134,20 @@ public final class J2clSelectedWaveViewportState {
     for (Entry fragmentEntry : fragmentState.getEntries()) {
       int existingIndex = indexOfSegment(merged, fragmentEntry.getSegment());
       if (existingIndex >= 0) {
-        merged.set(existingIndex, fragmentEntry);
+        Entry existing = merged.get(existingIndex);
+        if (existing.isLoaded() && !fragmentEntry.isLoaded()) {
+          merged.set(
+              existingIndex,
+              Entry.loaded(
+                  existing.getSegment(),
+                  minKnown(existing.getFromVersion(), fragmentEntry.getFromVersion()),
+                  Math.max(existing.getToVersion(), fragmentEntry.getToVersion()),
+                  existing.getRawSnapshot(),
+                  existing.getAdjustOperationCount(),
+                  existing.getDiffOperationCount()));
+        } else {
+          merged.set(existingIndex, fragmentEntry);
+        }
       } else {
         missing.add(fragmentEntry);
       }

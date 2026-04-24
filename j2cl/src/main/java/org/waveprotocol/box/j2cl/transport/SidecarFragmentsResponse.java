@@ -117,7 +117,10 @@ public final class SidecarFragmentsResponse {
 
   private static long getLong(Map<String, Object> object, String key) {
     Object value = object.get(key);
-    return value instanceof Number ? ((Number) value).longValue() : 0L;
+    if (!(value instanceof Number)) {
+      throw new IllegalArgumentException("Expected numeric '" + key + "' but got " + value);
+    }
+    return ((Number) value).longValue();
   }
 
   private static int getArrayLength(Object value) {

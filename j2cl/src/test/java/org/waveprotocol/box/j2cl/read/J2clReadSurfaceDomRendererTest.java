@@ -123,6 +123,23 @@ public class J2clReadSurfaceDomRendererTest {
   }
 
   @Test
+  public void renderAfterFailedReEnhancementRebuildsDetachedHost() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    List<J2clReadBlip> blips = Arrays.asList(new J2clReadBlip("b+root", "Root text"));
+
+    Assert.assertTrue(renderer.render(blips, Collections.<String>emptyList()));
+    host.innerHTML = "";
+    Assert.assertFalse(renderer.enhanceExistingSurface());
+
+    Assert.assertTrue(renderer.render(blips, Collections.<String>emptyList()));
+
+    Assert.assertNotNull(host.querySelector("[data-j2cl-read-surface='true']"));
+    Assert.assertEquals("Root text", renderedText(blip(host, "b+root")));
+  }
+
+  @Test
   public void enhanceExistingSurfaceReturnsFalseForEmptyHost() {
     assumeBrowserDom();
     Assert.assertFalse(new J2clReadSurfaceDomRenderer(createHost()).enhanceExistingSurface());
@@ -733,6 +750,18 @@ public class J2clReadSurfaceDomRendererTest {
   }
 
   @Test
+  public void renderWindowEmptyEntriesClearPendingViewportEdgeMemory() throws Exception {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    setLastScrollDirection(renderer, J2clViewportGrowthDirection.FORWARD);
+
+    Assert.assertFalse(renderer.renderWindow(Collections.<J2clReadWindowEntry>emptyList()));
+
+    Assert.assertNull(getLastScrollDirection(renderer));
+  }
+
+  @Test
   public void renderWindowDoesNotRequestGrowthWhenScrolledToLoadedEdges() {
     assumeBrowserDom();
     HTMLDivElement host = createHost();
@@ -1087,6 +1116,13 @@ public class J2clReadSurfaceDomRendererTest {
     Field field = J2clReadSurfaceDomRenderer.class.getDeclaredField("lastScrollDirection");
     field.setAccessible(true);
     field.set(renderer, direction);
+  }
+
+  private static String getLastScrollDirection(J2clReadSurfaceDomRenderer renderer)
+      throws Exception {
+    Field field = J2clReadSurfaceDomRenderer.class.getDeclaredField("lastScrollDirection");
+    field.setAccessible(true);
+    return (String) field.get(renderer);
   }
 
   private static void dispatchKey(HTMLElement target, String key) {

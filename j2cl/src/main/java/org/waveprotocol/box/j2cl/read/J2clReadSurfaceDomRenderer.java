@@ -106,6 +106,7 @@ public final class J2clReadSurfaceDomRenderer {
 
   public boolean renderWindow(List<J2clReadWindowEntry> entries) {
     if (entries == null || entries.isEmpty()) {
+      clearViewportScrollMemory();
       host.innerHTML = "";
       renderedBlips.clear();
       renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
@@ -207,6 +208,9 @@ public final class J2clReadSurfaceDomRenderer {
     HTMLElement surface = findExistingSurface();
     if (surface == null) {
       renderedSurface = null;
+      renderedBlips.clear();
+      renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
+      focusedBlip = null;
       return false;
     }
     HTMLElement previousFocusedBlip = focusedBlip;
@@ -618,6 +622,9 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   private boolean matchesRenderedBlips(List<J2clReadBlip> blips) {
+    if (renderedSurface == null || renderedSurface.parentElement != host) {
+      return false;
+    }
     if (!renderedWindowEntries.isEmpty()) {
       return false;
     }
