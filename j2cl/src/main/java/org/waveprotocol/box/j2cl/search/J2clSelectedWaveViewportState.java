@@ -186,7 +186,7 @@ public final class J2clSelectedWaveViewportState {
         long mergedToVersion =
             Math.max(existing.getToVersion(), documentEntry.getToVersion());
         long mergedFromVersion =
-            minKnown(existing.getFromVersion(), documentEntry.getFromVersion());
+            knownOrFallback(existing.getFromVersion(), documentEntry.getFromVersion());
         merged.set(
             existingIndex,
             Entry.loaded(
@@ -202,7 +202,7 @@ public final class J2clSelectedWaveViewportState {
     }
     return new J2clSelectedWaveViewportState(
         Math.max(snapshotVersion, documentState.getSnapshotVersion()),
-        minKnown(startVersion, documentState.getStartVersion()),
+        knownOrFallback(startVersion, documentState.getStartVersion()),
         Math.max(endVersion, documentState.getEndVersion()),
         merged);
   }
@@ -297,6 +297,10 @@ public final class J2clSelectedWaveViewportState {
       return left;
     }
     return Math.min(left, right);
+  }
+
+  private static long knownOrFallback(long value, long fallback) {
+    return value < 0 ? fallback : value;
   }
 
   private static SidecarSelectedWaveFragment findFragment(

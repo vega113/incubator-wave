@@ -525,6 +525,41 @@ public class J2clSelectedWaveProjectorTest {
   }
 
   @Test
+  public void projectResolvesUnknownFragmentStartFromDocumentMerge() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                44L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Arrays.asList(
+                    new SidecarSelectedWaveDocument(
+                        "b+root", "user@example.com", 44L, 45L, "Root text from document")),
+                new SidecarSelectedWaveFragments(
+                    44L,
+                    -1L,
+                    44L,
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragmentRange("blip:b+root", -1L, -1L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment("blip:b+root", null, 0, 0)))),
+            null,
+            0);
+
+    J2clSelectedWaveViewportState viewport = projected.getViewportState();
+    J2clSelectedWaveViewportState.Entry root = viewport.getEntries().get(0);
+    Assert.assertEquals(44L, viewport.getStartVersion());
+    Assert.assertEquals(44L, root.getFromVersion());
+    Assert.assertEquals(44L, root.getToVersion());
+  }
+
+  @Test
   public void projectKeepsLoadedFragmentWhenSameUpdateDocumentAlsoExists() {
     J2clSelectedWaveModel projected =
         J2clSelectedWaveProjector.project(

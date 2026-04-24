@@ -55,6 +55,17 @@ public class SidecarFragmentsResponseTest {
   }
 
   @Test
+  public void decodeFragmentsServletResponsePreservesMissingRawSnapshotAsNull() {
+    SidecarFragmentsResponse response =
+        SidecarFragmentsResponse.fromJson(
+            "{\"status\":\"ok\",\"waveRef\":\"example.com/w+abc/~/conv+root\","
+                + "\"version\":{\"snapshot\":44,\"start\":40,\"end\":44},"
+                + "\"fragments\":[{\"segment\":\"blip:b+pending\"}]}");
+
+    Assert.assertNull(response.getFragments().getEntries().get(0).getRawSnapshot());
+  }
+
+  @Test
   public void decodeFragmentsServletResponseRequiresVersionObject() {
     try {
       SidecarFragmentsResponse.fromJson(

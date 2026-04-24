@@ -36,6 +36,7 @@ public final class ViewportLimitPolicyTest {
     ViewportLimitPolicy.setLimits(5, 12);
 
     assertEquals(8, ViewportLimitPolicy.resolveLimit("8"));
+    assertEquals(10, ViewportLimitPolicy.resolveLimit(" 10 "));
     assertEquals(12, ViewportLimitPolicy.resolveLimit("100"));
   }
 
