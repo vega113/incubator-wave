@@ -1,0 +1,17 @@
+{
+  "releaseId": "2026-04-24-j2cl-viewport-fragment-policy",
+  "version": "Issue #967",
+  "date": "2026-04-24",
+  "title": "Align viewport fragment limits for J2CL window growth",
+  "summary": "J2CL selected-wave fragment growth now uses the existing /fragments endpoint with the same bounded viewport policy as initial open, so fragment windows stay small and predictable while the full GWT UI remains available.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a J2CL /fragments fetch path that carries the selected wave, root wavelet, anchor, direction, limit, and version bounds for future scroll-window growth",
+        "Aligned /fragments limit clamping with the configured viewport policy used by initial open, reducing the legacy HTTP-only maximum from 200 to the shared default maximum of 50 unless deployment config overrides it",
+        "Added scoped J2CL viewport fragment metrics so marked J2CL growth requests can be tracked without counting legacy /fragments callers as J2CL traffic"
+      ]
+    }
+  ]
+}

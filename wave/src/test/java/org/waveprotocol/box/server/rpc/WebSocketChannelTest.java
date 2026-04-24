@@ -77,6 +77,18 @@ public class WebSocketChannelTest extends TestCase {
     checkRoundtripping(sourceBuilder);
   }
 
+  public void testRoundTrippingJsonPreservesExplicitZeroViewportLimit() throws Exception {
+    WaveClientRpc.ProtocolOpenRequest.Builder sourceBuilder = buildProtocolOpenRequest();
+    sourceBuilder.setViewportLimit(0);
+
+    checkRoundtripping(sourceBuilder);
+
+    WaveClientRpc.ProtocolOpenRequest decoded =
+        (WaveClientRpc.ProtocolOpenRequest) callback.savedMessage;
+    assertTrue(decoded.hasViewportLimit());
+    assertEquals(0, decoded.getViewportLimit());
+  }
+
   private void checkRoundtripping(final WaveClientRpc.ProtocolOpenRequest.Builder sourceBuilder) {
     WaveClientRpc.ProtocolOpenRequest sourceRequest = sourceBuilder.build();
     channel.sendMessage(SEQUENCE_NUMBER, sourceRequest);

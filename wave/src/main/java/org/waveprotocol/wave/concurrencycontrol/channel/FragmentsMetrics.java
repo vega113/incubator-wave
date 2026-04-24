@@ -55,6 +55,13 @@ public final class FragmentsMetrics {
   public static final AtomicLong httpRequests = new AtomicLong();
   public static final AtomicLong httpOk = new AtomicLong();
   public static final AtomicLong httpErrors = new AtomicLong();
+  // J2CL viewport counters are incremented only from request seams that identify J2CL.
+  public static final AtomicLong j2clViewportInitialWindows = new AtomicLong();
+  public static final AtomicLong j2clViewportClampApplied = new AtomicLong();
+  public static final AtomicLong j2clViewportExtensionRequests = new AtomicLong();
+  public static final AtomicLong j2clViewportExtensionOk = new AtomicLong();
+  public static final AtomicLong j2clViewportExtensionErrors = new AtomicLong();
+  public static final AtomicLong j2clViewportSnapshotFallbacks = new AtomicLong();
   // Client-side requester counters
   public static final AtomicLong requesterSends = new AtomicLong();
   public static final AtomicLong requesterCoalesced = new AtomicLong();

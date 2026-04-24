@@ -3,10 +3,14 @@ package org.waveprotocol.box.j2cl.search;
 import elemental2.dom.DomGlobal;
 import elemental2.dom.HTMLDivElement;
 import elemental2.dom.HTMLElement;
+import java.util.List;
 import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
 import org.waveprotocol.box.j2cl.read.J2clReadSurfaceDomRenderer;
+import org.waveprotocol.box.j2cl.read.J2clReadWindowEntry;
 import org.waveprotocol.box.j2cl.root.J2clServerFirstRootShellDom;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
+import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
 
 public final class J2clSelectedWaveView implements J2clSelectedWaveController.View {
   private final HTMLElement title;
@@ -24,6 +28,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   private String serverFirstWaveId;
   private String serverFirstMode;
   private double serverFirstMountedAtMs;
+  private String lastRenderedWaveId = "";
 
   public J2clSelectedWaveView(HTMLElement host) {
     HTMLElement existingCard = J2clServerFirstRootShellDom.findSelectedWaveCard(host);
@@ -36,6 +41,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       snippet = queryRequired(existingCard, ".sidecar-selected-snippet");
       composeHost = queryRequired(existingCard, ".sidecar-selected-compose");
       contentList = queryRequired(existingCard, ".sidecar-selected-content");
+      configureContentList(contentList);
       readSurface = new J2clReadSurfaceDomRenderer(contentList);
       readSurface.enhanceExistingSurface();
       emptyState = queryOrCreate(existingCard, ".sidecar-empty-state", "div", "sidecar-empty-state");
@@ -87,6 +93,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
     contentList = (HTMLDivElement) DomGlobal.document.createElement("div");
     contentList.className = "sidecar-selected-content";
+    configureContentList(contentList);
     card.appendChild(contentList);
     readSurface = new J2clReadSurfaceDomRenderer(contentList);
 
@@ -101,8 +108,28 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     serverFirstMountedAtMs = 0;
   }
 
+  static void configureContentList(HTMLElement contentList) {
+    configureContentListAttributes(
+        (name, value) -> contentList.setAttribute(name, value));
+  }
+
+  static void configureContentListAttributes(AttributeWriter attributes) {
+    attributes.setAttribute("role", "region");
+    attributes.setAttribute("aria-label", "Selected wave content");
+    attributes.setAttribute("tabindex", "0");
+  }
+
+  interface AttributeWriter {
+    void setAttribute(String name, String value);
+  }
+
   @Override
   public void render(J2clSelectedWaveModel model) {
+    String renderedWaveId = model.getSelectedWaveId() == null ? "" : model.getSelectedWaveId();
+    if (!renderedWaveId.equals(lastRenderedWaveId)) {
+      readSurface.clearViewportScrollMemory();
+      lastRenderedWaveId = renderedWaveId;
+    }
     if (shouldPreserveServerFirstCard(model)) {
       renderPreservedServerFirstState(model);
       return;
@@ -129,7 +156,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     snippet.textContent = model.getSnippetText();
     snippet.hidden = model.getSnippetText().isEmpty();
 
-    boolean hasRenderedReadSurface = readSurface.render(model.getReadBlips(), model.getContentEntries());
+    List<J2clReadWindowEntry> readWindowEntries = model.getViewportState().getReadWindowEntries();
+    boolean hasViewportReadWindow = !readWindowEntries.isEmpty();
+    boolean hasRenderedReadSurface =
+        hasViewportReadWindow
+            ? readSurface.renderWindow(readWindowEntries)
+            : readSurface.render(model.getReadBlips(), model.getContentEntries());
 
     emptyState.hidden = model.isError() || (model.hasSelection() && hasRenderedReadSurface);
     emptyState.textContent =
@@ -147,6 +179,18 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
   public HTMLElement getComposeHost() {
     return composeHost;
+  }
+
+  @Override
+  public void setViewportEdgeHandler(J2clSelectedWaveController.ViewportEdgeHandler handler) {
+    readSurface.setViewportEdgeListener(
+        handler == null ? null : handler::onViewportEdge);
+  }
+
+  @Override
+  public SidecarViewportHints initialViewportHints(String selectedWaveId) {
+    return resolveInitialViewportHints(
+        serverFirstActive, serverFirstWaveId, selectedWaveId, serverFirstBlipAnchor());
   }
 
   public static boolean shouldPreserveServerSnapshot(
@@ -170,7 +214,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (model.isLoading() || model.isError()) {
       return true;
     }
-    return model.getContentEntries().isEmpty() && model.getReadBlips().isEmpty();
+    return model.getContentEntries().isEmpty()
+        && model.getReadBlips().isEmpty()
+        && model.getViewportState().getReadWindowEntries().isEmpty();
   }
 
   private boolean shouldPreserveServerFirstCard(J2clSelectedWaveModel model) {
@@ -181,6 +227,38 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       return shouldPreserveServerSnapshot(serverFirstWaveId, model, serverFirstSwapRecorded);
     }
     return !model.hasSelection() && !serverFirstMode.isEmpty();
+  }
+
+  static SidecarViewportHints resolveInitialViewportHints(
+      boolean serverFirstActive, String serverFirstWaveId, String selectedWaveId, String anchor) {
+    if (selectedWaveId == null || selectedWaveId.isEmpty()) {
+      return SidecarViewportHints.none();
+    }
+    if (serverFirstActive
+        && (serverFirstWaveId == null
+            || serverFirstWaveId.isEmpty()
+            || serverFirstWaveId.equals(selectedWaveId))
+        && anchor != null
+        && !anchor.isEmpty()) {
+      return new SidecarViewportHints(anchor, J2clViewportGrowthDirection.FORWARD, null);
+    }
+    return SidecarViewportHints.defaultLimit();
+  }
+
+  private String serverFirstBlipAnchor() {
+    if (!serverFirstActive) {
+      return null;
+    }
+    HTMLElement firstBlip =
+        (HTMLElement) contentList.querySelector("[data-j2cl-read-blip='true'][tabindex='0']");
+    if (firstBlip == null) {
+      firstBlip = (HTMLElement) contentList.querySelector("[data-j2cl-read-blip='true']");
+    }
+    if (firstBlip == null) {
+      return null;
+    }
+    String blipId = firstBlip.getAttribute("data-blip-id");
+    return blipId == null || blipId.isEmpty() ? null : blipId;
   }
 
   private void renderPreservedServerFirstState(J2clSelectedWaveModel model) {

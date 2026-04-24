@@ -7,6 +7,7 @@ import org.junit.Test;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
 import org.waveprotocol.box.j2cl.transport.SidecarTransportCodec;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 
 /**
  * Issue #933 regression coverage for the first outbound J2CL sidecar frames.
@@ -37,6 +38,32 @@ public class J2clSearchGatewayAuthFrameTest {
   }
 
   @Test
+  public void selectedWaveOpenFrameCanCarryExplicitDefaultViewportLimit() {
+    String frame =
+        J2clSearchGateway.buildSelectedWaveOpenFrame(
+            new SidecarSessionBootstrap("rose@example.com", "socket.example.test"),
+            "example.com/w+abc",
+            new SidecarViewportHints(null, null, Integer.valueOf(0)));
+
+    Assert.assertEquals("ProtocolOpenRequest", SidecarTransportCodec.decodeMessageType(frame));
+    Assert.assertTrue(frame.contains("\"7\":0"));
+  }
+
+  @Test
+  public void selectedWaveOpenFrameCanCarryServerFirstViewportAnchor() {
+    String frame =
+        J2clSearchGateway.buildSelectedWaveOpenFrame(
+            new SidecarSessionBootstrap("rose@example.com", "socket.example.test"),
+            "example.com/w+abc",
+            new SidecarViewportHints("b+root", "forward", null));
+
+    Assert.assertEquals("ProtocolOpenRequest", SidecarTransportCodec.decodeMessageType(frame));
+    Assert.assertTrue(frame.contains("\"5\":\"b+root\""));
+    Assert.assertTrue(frame.contains("\"6\":\"forward\""));
+    Assert.assertFalse(frame.contains("\"7\""));
+  }
+
+  @Test
   public void submitSocketStartsWithProtocolSubmitRequest() {
     String frame =
         J2clSearchGateway.buildSubmitFrame(
@@ -47,6 +74,44 @@ public class J2clSearchGatewayAuthFrameTest {
 
     Assert.assertEquals("ProtocolSubmitRequest", SidecarTransportCodec.decodeMessageType(frame));
     Assert.assertFalse(frame.contains("ProtocolAuthenticate"));
+  }
+
+  @Test
+  public void fragmentsFetchUrlCarriesViewportWindowAndDefaultWavelet() {
+    String url =
+        J2clSearchGateway.buildFragmentsUrl(
+            "example.com/w+abc", "b+root", "backward", 12, 40L, 44L);
+
+    Assert.assertTrue(url.startsWith("/fragments?"));
+    Assert.assertTrue(url.contains("waveId=example.com%2Fw%2Babc"));
+    Assert.assertTrue(url.contains("waveletId=example.com%2Fconv%2Broot"));
+    Assert.assertTrue(url.contains("client=j2cl"));
+    Assert.assertTrue(url.contains("startBlipId=b%2Broot"));
+    Assert.assertTrue(url.contains("direction=backward"));
+    Assert.assertTrue(url.contains("limit=12"));
+    Assert.assertTrue(url.contains("startVersion=40"));
+    Assert.assertTrue(url.contains("endVersion=44"));
+  }
+
+  @Test
+  public void fragmentsFetchUrlOmitsEmptyAnchorAndDefaultsDirection() {
+    String url =
+        J2clSearchGateway.buildFragmentsUrl(
+            "example.com/w+abc", "", null, 5, 40L, 44L);
+
+    Assert.assertFalse(url.contains("startBlipId="));
+    Assert.assertTrue(url.contains("direction=forward"));
+    Assert.assertTrue(url.contains("client=j2cl"));
+  }
+
+  @Test
+  public void fragmentsFetchUrlFallsBackToRootWaveletForDomainlessWaveId() {
+    String url =
+        J2clSearchGateway.buildFragmentsUrl(
+            "w+abc", "b+root", "forward", 5, 40L, 44L);
+
+    Assert.assertTrue(url.contains("waveId=w%2Babc"));
+    Assert.assertTrue(url.contains("waveletId=conv%2Broot"));
   }
 
   @Test

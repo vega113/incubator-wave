@@ -19,6 +19,7 @@
 
 package org.waveprotocol.box.server.rpc;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 import org.waveprotocol.box.server.waveserver.WaveServerException;
 import org.waveprotocol.box.server.waveserver.WaveletProvider;
@@ -26,6 +27,7 @@ import org.waveprotocol.box.server.frontend.CommittedWaveletSnapshot;
 import org.waveprotocol.box.server.frontend.FragmentsFetcherCompat;
 import org.waveprotocol.box.server.frontend.FragmentsRequest;
 import org.waveprotocol.box.server.frontend.RawFragmentsBuilder;
+import org.waveprotocol.box.server.frontend.ViewportLimitPolicy;
 import org.waveprotocol.wave.concurrencycontrol.channel.dto.FragmentsPayload;
 import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.id.SegmentId;
@@ -43,19 +45,24 @@ import org.waveprotocol.box.server.persistence.blocks.VersionRange;
 import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
 
 import com.google.gson.Gson;
-import com.google.gson.annotations.SerializedName;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Fragments endpoint (compat): returns a JSON list of blip ids + metadata near viewport.
  */
 public final class FragmentsServlet extends HttpServlet {
   private static final Log LOG = Log.get(FragmentsServlet.class);
+  private static final Gson GSON = new Gson();
 
   private final WaveletProvider waveletProvider;
   private final SessionManager sessionManager;
@@ -69,11 +76,23 @@ public final class FragmentsServlet extends HttpServlet {
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
     resp.setContentType("application/json;charset=UTF-8");
+    boolean j2clViewportRequest = isJ2clViewportRequest(req);
     if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
       org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpRequests.incrementAndGet();
+      if (j2clViewportRequest) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportExtensionRequests.incrementAndGet();
+      }
     }
     ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
-    if (user == null) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return; }
+    if (user == null) {
+      if (j2clViewportRequest && org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportExtensionErrors.incrementAndGet();
+      }
+      resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+      return;
+    }
 
     String ref = req.getParameter("ref");
     WaveletName wn = null;
@@ -93,11 +112,18 @@ public final class FragmentsServlet extends HttpServlet {
         }
       }
     }
-    if (wn == null) { resp.setStatus(HttpServletResponse.SC_BAD_REQUEST); return; }
+    if (wn == null) {
+      if (j2clViewportRequest && org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportExtensionErrors.incrementAndGet();
+      }
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      return;
+    }
 
     String start = req.getParameter("startBlipId");
-    String dir = normalizeDirection(req.getParameter("direction"));
-    int limit = clampLimit(req.getParameter("limit"));
+    String dir = ViewportLimitPolicy.normalizeDirection(req.getParameter("direction"));
+    int limit = clampLimit(req.getParameter("limit"), j2clViewportRequest);
     Long startVersion = parseLong(req.getParameter("startVersion"));
     Long endVersion = parseLong(req.getParameter("endVersion"));
 
@@ -112,14 +138,16 @@ public final class FragmentsServlet extends HttpServlet {
         LOG.warning("FragmentsServlet: manifestOrder failed for " + wn + ", falling back to time-based ordering", ex);
         order = null;
       }
-      List<String> slice = FragmentsFetcherCompat.sliceUsingOrder(metas, order, start, dir, limit);
+      SliceWindow sliceWindow = buildSliceWindow(metas, order, start, dir, limit);
       if (order == null) {
-        LOG.fine("FragmentsServlet: using time-based blip order for " + wn + ", slice size=" + slice.size());
+        LOG.fine("FragmentsServlet: using time-based blip order for " + wn
+            + ", loaded slice size=" + sliceWindow.getLoadedBlipIds().size());
       }
       long snapshotVersion = FragmentsFetcherCompat.getCommittedVersion(waveletProvider, wn);
       FragmentsRequest fReq = buildFragmentsRequest(snapshotVersion, startVersion, endVersion);
       com.google.common.collect.ImmutableMap<SegmentId, VersionRange> ranges =
-          FragmentsFetcherCompat.computeRangesForSegments(snapshotVersion, fReq, buildSegments(slice));
+          FragmentsFetcherCompat.computeRangesForSegments(
+              snapshotVersion, fReq, buildSegments(sliceWindow.getRangeBlipIds()));
       ReadableWaveletData data = null;
       try {
         CommittedWaveletSnapshot snap = waveletProvider.getSnapshot(wn);
@@ -129,15 +157,30 @@ public final class FragmentsServlet extends HttpServlet {
       } catch (WaveServerException ex) {
         LOG.warning("FragmentsServlet: snapshot load failed for " + wn, ex);
       }
-      List<FragmentsPayload.Fragment> rawFragments = RawFragmentsBuilder.build(data, ranges);
+      List<FragmentsPayload.Fragment> rawFragments =
+          RawFragmentsBuilder.build(
+              data,
+              filterRawRanges(ranges, buildSegments(sliceWindow.getLoadedBlipIds())));
       // Build safe JSON with proper escaping and canonical waveref encoding
-      String json = buildJson(wn, metas, slice, snapshotVersion, fReq, ranges, rawFragments);
+      String json =
+          buildJson(
+              wn,
+              metas,
+              sliceWindow.getLoadedBlipIds(),
+              snapshotVersion,
+              fReq,
+              ranges,
+              rawFragments);
       // Help browsers avoid content-type sniffing
       resp.setHeader("X-Content-Type-Options", "nosniff");
       resp.getWriter().write(json);
       resp.setStatus(HttpServletResponse.SC_OK);
       if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
         org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpOk.incrementAndGet();
+        if (j2clViewportRequest) {
+          org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+              .j2clViewportExtensionOk.incrementAndGet();
+        }
       }
     } catch (WaveServerException e) {
         LOG.warning("Error fetching fragments", e);
@@ -147,6 +190,10 @@ public final class FragmentsServlet extends HttpServlet {
       }
       if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
         org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpErrors.incrementAndGet();
+        if (j2clViewportRequest) {
+          org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+              .j2clViewportExtensionErrors.incrementAndGet();
+        }
       }
     }
   }
@@ -158,17 +205,50 @@ public final class FragmentsServlet extends HttpServlet {
     } catch (Exception e) { return null; }
   }
 
-  private String normalizeDirection(String dir) {
-    return (dir == null || dir.isEmpty()) ? "forward" : dir;
+  @VisibleForTesting
+  static int resolveLimitForRequest(String rawLimit) {
+    return resolveLimitForRequest(rawLimit, false);
   }
 
-  private int clampLimit(String lim) {
-    int limit = 50;
-    if (lim == null) return limit;
-    try { limit = Math.max(1, Math.min(200, Integer.parseInt(lim))); } catch (Exception ex) {
+  @VisibleForTesting
+  static int resolveLimitForRequest(String rawLimit, boolean recordJ2clMetric) {
+    Integer requestedLimit = parseInteger(rawLimit);
+    int resolvedLimit =
+        requestedLimit == null
+            ? ViewportLimitPolicy.resolveLimit(rawLimit)
+            : ViewportLimitPolicy.resolveLimit(requestedLimit.intValue());
+    if (recordJ2clMetric
+        && requestedLimit != null
+        && resolvedLimit != requestedLimit.intValue()
+        && org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+      org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+          .j2clViewportClampApplied.incrementAndGet();
+    }
+    return resolvedLimit;
+  }
+
+  private int clampLimit(String lim, boolean recordJ2clMetric) {
+    int limit = resolveLimitForRequest(lim, recordJ2clMetric);
+    Integer requestedLimit = parseInteger(lim);
+    if (lim != null && requestedLimit == null) {
       LOG.fine("Invalid 'limit' parameter '" + lim + "'; using default " + limit);
     }
     return limit;
+  }
+
+  private static boolean isJ2clViewportRequest(HttpServletRequest req) {
+    return "j2cl".equals(req.getParameter("client"));
+  }
+
+  private static Integer parseInteger(String value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return Integer.valueOf(value);
+    } catch (NumberFormatException ex) {
+      return null;
+    }
   }
 
   private Long parseLong(String v) { if (v == null) return null; try { return Long.parseLong(v); } catch (Exception e) { return null; } }
@@ -180,99 +260,151 @@ public final class FragmentsServlet extends HttpServlet {
     return new FragmentsRequest.Builder().setStartVersion(snapshot).setEndVersion(snapshot).build();
   }
 
-  private java.util.ArrayList<SegmentId> buildSegments(List<String> slice) {
-    java.util.ArrayList<SegmentId> segs = new java.util.ArrayList<>();
+  private ArrayList<SegmentId> buildSegments(List<String> slice) {
+    ArrayList<SegmentId> segs = new ArrayList<>();
     segs.add(SegmentId.INDEX_ID);
     segs.add(SegmentId.MANIFEST_ID);
     for (String id : slice) segs.add(SegmentId.ofBlipId(id));
     return segs;
   }
 
-  private String buildJson(WaveletName wn,
+  @VisibleForTesting
+  static SliceWindow buildSliceWindow(
+      Map<String, FragmentsFetcherCompat.BlipMeta> metas,
+      List<String> order,
+      String start,
+      String direction,
+      int limit) {
+    // Keep this defensive for tests and future internal callers; HTTP doGet normalizes first.
+    String normalizedDirection = ViewportLimitPolicy.normalizeDirection(direction);
+    int boundedLimit = Math.max(1, limit);
+    List<String> rangeSlice =
+        FragmentsFetcherCompat.sliceUsingOrder(
+            metas, order, start, normalizedDirection, boundedLimit + 1);
+    if (rangeSlice.size() <= boundedLimit) {
+      return new SliceWindow(rangeSlice, rangeSlice);
+    }
+    if (ViewportLimitPolicy.DIRECTION_BACKWARD.equals(normalizedDirection)) {
+      return new SliceWindow(
+          rangeSlice,
+          rangeSlice.subList(1, rangeSlice.size()));
+    }
+    return new SliceWindow(
+        rangeSlice,
+        rangeSlice.subList(0, boundedLimit));
+  }
+
+  private Map<SegmentId, VersionRange> filterRawRanges(
+      Map<SegmentId, VersionRange> ranges,
+      List<SegmentId> rawSegments) {
+    Set<SegmentId> rawSegmentSet = new HashSet<SegmentId>(rawSegments);
+    Map<SegmentId, VersionRange> filtered = new LinkedHashMap<SegmentId, VersionRange>();
+    for (Map.Entry<SegmentId, VersionRange> entry : ranges.entrySet()) {
+      if (rawSegmentSet.contains(entry.getKey())) {
+        filtered.put(entry.getKey(), entry.getValue());
+      }
+    }
+    return filtered;
+  }
+
+  static final class SliceWindow {
+    private final List<String> rangeBlipIds;
+    private final List<String> loadedBlipIds;
+
+    private SliceWindow(List<String> rangeBlipIds, List<String> loadedBlipIds) {
+      this.rangeBlipIds =
+          Collections.unmodifiableList(new ArrayList<String>(rangeBlipIds));
+      this.loadedBlipIds =
+          Collections.unmodifiableList(new ArrayList<String>(loadedBlipIds));
+    }
+
+    List<String> getRangeBlipIds() {
+      return rangeBlipIds;
+    }
+
+    List<String> getLoadedBlipIds() {
+      return loadedBlipIds;
+    }
+  }
+
+  @VisibleForTesting
+  static String buildJson(WaveletName wn,
       Map<String, FragmentsFetcherCompat.BlipMeta> metas,
       List<String> slice,
       long snapshotVersion,
       FragmentsRequest fReq,
-      java.util.Map<SegmentId, VersionRange> ranges,
+      Map<SegmentId, VersionRange> ranges,
       List<FragmentsPayload.Fragment> fragmentsList) {
-    class VersionInfo {
-      long snapshot; long start; long end;
-      VersionInfo(long s, long st, long en) { snapshot=s; start=st; end=en; }
-    }
-    class BlipInfo {
-      String id; String author; long lastModifiedTime;
-      BlipInfo(String i, String a, long t) { id=i; author=a; lastModifiedTime=t; }
-    }
-    class RangeInfo {
-      String segment; long from; long to;
-      RangeInfo(String s, long f, long t) { segment=s; from=f; to=t; }
-    }
-    class FragmentOp {
-      String operations;
-      String author;
-      long targetVersion;
-      long timestamp;
-      FragmentOp(String operations, String author, long targetVersion, long timestamp) {
-        this.operations = operations;
-        this.author = author;
-        this.targetVersion = targetVersion;
-        this.timestamp = timestamp;
-      }
-    }
-    class FragmentInfo {
-      String segment;
-      List<FragmentOp> adjust;
-      List<FragmentOp> diff;
-      String rawSnapshot;
-      FragmentInfo(String segment, List<FragmentOp> adjust, List<FragmentOp> diff, String rawSnapshot) {
-        this.segment = segment;
-        this.adjust = adjust;
-        this.diff = diff;
-        this.rawSnapshot = rawSnapshot;
-      }
-    }
-    class Response {
-      String status = "ok";
-      @SerializedName("waveRef") String waveRefPath;
-      VersionInfo version;
-      List<BlipInfo> blips;
-      List<RangeInfo> ranges;
-      List<FragmentInfo> fragments;
-    }
-    Response out = new Response();
+    Map<String, Object> out = new LinkedHashMap<String, Object>();
+    out.put("status", "ok");
     // Canonical, server-encoded waveref path segment
-    out.waveRefPath = JavaWaverefEncoder.encodeToUriPathSegment(
-        org.waveprotocol.wave.model.waveref.WaveRef.of(wn.waveId, wn.waveletId));
-    out.version = new VersionInfo(snapshotVersion, fReq.startVersion, fReq.endVersion);
-    out.blips = new java.util.ArrayList<>(slice.size());
+    out.put(
+        "waveRef",
+        JavaWaverefEncoder.encodeToUriPathSegment(
+            org.waveprotocol.wave.model.waveref.WaveRef.of(wn.waveId, wn.waveletId)));
+    Map<String, Object> version = new LinkedHashMap<String, Object>();
+    version.put("snapshot", snapshotVersion);
+    version.put("start", fReq.startVersion);
+    version.put("end", fReq.endVersion);
+    out.put("version", version);
+    List<Map<String, Object>> blips = new ArrayList<>(slice.size());
     for (String id : slice) {
       FragmentsFetcherCompat.BlipMeta m = metas.get(id);
-      out.blips.add(new BlipInfo(id, (m.author==null? "" : m.author.getAddress()), m.lastModifiedTime));
+      Map<String, Object> blip = new LinkedHashMap<String, Object>();
+      blip.put("id", id);
+      blip.put("author", m == null || m.author == null ? "" : m.author.getAddress());
+      blip.put("lastModifiedTime", m == null ? 0L : m.lastModifiedTime);
+      blips.add(blip);
     }
-    out.ranges = new java.util.ArrayList<>(ranges.size());
-    for (java.util.Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
-      out.ranges.add(new RangeInfo(e.getKey().asString(), e.getValue().from(), e.getValue().to()));
+    out.put("blips", blips);
+    List<Map<String, Object>> rangeList = new ArrayList<>(ranges.size());
+    for (Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
+      Map<String, Object> range = new LinkedHashMap<String, Object>();
+      range.put("segment", e.getKey().asString());
+      range.put("from", e.getValue().from());
+      range.put("to", e.getValue().to());
+      rangeList.add(range);
     }
+    out.put("ranges", rangeList);
     if (fragmentsList == null || fragmentsList.isEmpty()) {
-      out.fragments = java.util.Collections.emptyList();
+      out.put("fragments", Collections.emptyList());
     } else {
-      out.fragments = new java.util.ArrayList<>(fragmentsList.size());
+      List<Map<String, Object>> fragments = new ArrayList<>(fragmentsList.size());
       for (FragmentsPayload.Fragment fragment : fragmentsList) {
-        List<FragmentOp> adjust = new java.util.ArrayList<>(fragment.adjustOperations.size());
+        List<Map<String, Object>> adjust = new ArrayList<>(fragment.adjustOperations.size());
         for (FragmentsPayload.Operation op : fragment.adjustOperations) {
-          adjust.add(new FragmentOp(op.operations, op.author, op.targetVersion, op.timestamp));
+          adjust.add(fragmentOp(op));
         }
-        List<FragmentOp> diff = new java.util.ArrayList<>(fragment.diffOperations.size());
+        List<Map<String, Object>> diff = new ArrayList<>(fragment.diffOperations.size());
         for (FragmentsPayload.Operation op : fragment.diffOperations) {
-          diff.add(new FragmentOp(op.operations, op.author, op.targetVersion, op.timestamp));
+          diff.add(fragmentOp(op));
         }
-        out.fragments.add(new FragmentInfo(
-            fragment.segment.asString(),
-            adjust.isEmpty() ? java.util.Collections.<FragmentOp>emptyList() : adjust,
-            diff.isEmpty() ? java.util.Collections.<FragmentOp>emptyList() : diff,
-            fragment.rawSnapshot == null ? "" : fragment.rawSnapshot));
+        Map<String, Object> fragmentMap = new LinkedHashMap<String, Object>();
+        fragmentMap.put("segment", fragment.segment.asString());
+        fragmentMap.put(
+            "adjust",
+            adjust.isEmpty()
+                ? Collections.<Map<String, Object>>emptyList()
+                : adjust);
+        fragmentMap.put(
+            "diff",
+            diff.isEmpty()
+                ? Collections.<Map<String, Object>>emptyList()
+                : diff);
+        fragmentMap.put("rawSnapshot", fragment.rawSnapshot == null ? "" : fragment.rawSnapshot);
+        fragments.add(fragmentMap);
       }
+      out.put("fragments", fragments);
     }
-    return new Gson().toJson(out);
+    return GSON.toJson(out);
+  }
+
+  private static Map<String, Object> fragmentOp(FragmentsPayload.Operation op) {
+    Map<String, Object> operation = new LinkedHashMap<String, Object>();
+    operation.put("operations", op.operations);
+    operation.put("author", op.author);
+    operation.put("targetVersion", op.targetVersion);
+    operation.put("timestamp", op.timestamp);
+    return operation;
   }
 }

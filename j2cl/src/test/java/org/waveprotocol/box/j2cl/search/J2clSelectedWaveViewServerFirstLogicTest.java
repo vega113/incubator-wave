@@ -3,9 +3,12 @@ package org.waveprotocol.box.j2cl.search;
 import com.google.j2cl.junit.apt.J2clTestInput;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.junit.Assert;
 import org.junit.Test;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
+import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 
 @J2clTestInput(J2clSelectedWaveViewServerFirstLogicTest.class)
 public class J2clSelectedWaveViewServerFirstLogicTest {
@@ -105,5 +108,49 @@ public class J2clSelectedWaveViewServerFirstLogicTest {
     Assert.assertFalse(
         J2clSelectedWaveView.shouldPreserveServerSnapshot(
             "example.com/w+1", J2clSelectedWaveModel.clearedSelection(), false));
+  }
+
+  @Test
+  public void initialViewportHintsUseServerFirstBlipAnchor() {
+    SidecarViewportHints hints =
+        J2clSelectedWaveView.resolveInitialViewportHints(
+            true, "example.com/w+1", "example.com/w+1", "b+root");
+
+    Assert.assertEquals("b+root", hints.getStartBlipId());
+    Assert.assertEquals("forward", hints.getDirection());
+    Assert.assertNull(hints.getLimit());
+  }
+
+  @Test
+  public void initialViewportHintsIgnoreMismatchedServerFirstWave() {
+    SidecarViewportHints hints =
+        J2clSelectedWaveView.resolveInitialViewportHints(
+            true, "example.com/w+old", "example.com/w+new", "b+root");
+
+    Assert.assertNull(hints.getStartBlipId());
+    Assert.assertNull(hints.getDirection());
+    Assert.assertEquals(Integer.valueOf(0), hints.getLimit());
+  }
+
+  @Test
+  public void initialViewportHintsFallbackToDefaultLimitWhenServerFirstHasNoBlipAnchor() {
+    SidecarViewportHints hints =
+        J2clSelectedWaveView.resolveInitialViewportHints(
+            true, "example.com/w+1", "example.com/w+1", null);
+
+    Assert.assertNull(hints.getStartBlipId());
+    Assert.assertNull(hints.getDirection());
+    Assert.assertEquals(Integer.valueOf(0), hints.getLimit());
+  }
+
+  @Test
+  public void configureContentListAddsScrollableRegionA11yAttributes() {
+    Map<String, String> attributes = new LinkedHashMap<String, String>();
+
+    J2clSelectedWaveView.configureContentListAttributes(attributes::put);
+
+    Assert.assertEquals("region", attributes.get("role"));
+    Assert.assertEquals("Selected wave content", attributes.get("aria-label"));
+    Assert.assertEquals("0", attributes.get("tabindex"));
   }
 }

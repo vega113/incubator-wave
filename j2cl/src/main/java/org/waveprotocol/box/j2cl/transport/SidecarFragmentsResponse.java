@@ -1,0 +1,137 @@
+package org.waveprotocol.box.j2cl.transport;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+public final class SidecarFragmentsResponse {
+  private final String status;
+  private final String waveRefPath;
+  private final SidecarSelectedWaveFragments fragments;
+
+  private SidecarFragmentsResponse(
+      String status, String waveRefPath, SidecarSelectedWaveFragments fragments) {
+    this.status = status == null ? "" : status;
+    this.waveRefPath = waveRefPath == null ? "" : waveRefPath;
+    this.fragments = fragments == null
+        ? new SidecarSelectedWaveFragments(
+            -1L,
+            0L,
+            0L,
+            Collections.<SidecarSelectedWaveFragmentRange>emptyList(),
+            Collections.<SidecarSelectedWaveFragment>emptyList())
+        : fragments;
+  }
+
+  public static SidecarFragmentsResponse fromJson(String json) {
+    Map<String, Object> root = SidecarTransportCodec.parseJsonObject(json);
+    String status = getString(root, "status");
+    if (!"ok".equals(status)) {
+      throw new IllegalArgumentException("Unexpected fragments response status: " + status);
+    }
+    Map<String, Object> version = getObject(root.get("version"));
+    List<SidecarSelectedWaveFragmentRange> ranges =
+        new ArrayList<SidecarSelectedWaveFragmentRange>();
+    Object rawRanges = root.get("ranges");
+    if (rawRanges != null) {
+      for (Object rawRange : asList(rawRanges)) {
+        Map<String, Object> range = getObject(rawRange);
+        ranges.add(
+            new SidecarSelectedWaveFragmentRange(
+                getRequiredString(range, "segment"),
+                getLong(range, "from"),
+                getLong(range, "to")));
+      }
+    }
+
+    List<SidecarSelectedWaveFragment> entries =
+        new ArrayList<SidecarSelectedWaveFragment>();
+    Object rawFragments = root.get("fragments");
+    if (rawFragments != null) {
+      for (Object rawFragment : asList(rawFragments)) {
+        Map<String, Object> fragment = getObject(rawFragment);
+        entries.add(
+            new SidecarSelectedWaveFragment(
+                getRequiredString(fragment, "segment"),
+                getNullableString(fragment, "rawSnapshot"),
+                // TODO(#967 Task 5): decode operation bodies when growth windows apply deltas.
+                getArrayLength(fragment.get("adjust")),
+                getArrayLength(fragment.get("diff"))));
+      }
+    }
+
+    return new SidecarFragmentsResponse(
+        status,
+        getString(root, "waveRef"),
+        new SidecarSelectedWaveFragments(
+            getLong(version, "snapshot"),
+            getLong(version, "start"),
+            getLong(version, "end"),
+            ranges,
+            entries));
+  }
+
+  public String getStatus() {
+    return status;
+  }
+
+  public String getWaveRefPath() {
+    return waveRefPath;
+  }
+
+  public SidecarSelectedWaveFragments getFragments() {
+    return fragments;
+  }
+
+  private static Map<String, Object> getObject(Object value) {
+    if (!(value instanceof Map)) {
+      throw new IllegalArgumentException("Expected object but got " + value);
+    }
+    @SuppressWarnings("unchecked")
+    Map<String, Object> object = (Map<String, Object>) value;
+    return object;
+  }
+
+  private static List<Object> asList(Object value) {
+    if (!(value instanceof List)) {
+      throw new IllegalArgumentException("Expected array but got " + value);
+    }
+    @SuppressWarnings("unchecked")
+    List<Object> list = (List<Object>) value;
+    return list;
+  }
+
+  private static String getString(Map<String, Object> object, String key) {
+    Object value = object.get(key);
+    return value == null ? "" : String.valueOf(value);
+  }
+
+  private static String getRequiredString(Map<String, Object> object, String key) {
+    Object value = object.get(key);
+    if (value == null) {
+      throw new IllegalArgumentException("Missing required field: " + key);
+    }
+    return String.valueOf(value);
+  }
+
+  private static String getNullableString(Map<String, Object> object, String key) {
+    if (!object.containsKey(key)) {
+      return null;
+    }
+    Object value = object.get(key);
+    return value == null ? null : String.valueOf(value);
+  }
+
+  private static long getLong(Map<String, Object> object, String key) {
+    Object value = object.get(key);
+    if (!(value instanceof Number)) {
+      throw new IllegalArgumentException("Expected numeric '" + key + "' but got " + value);
+    }
+    return ((Number) value).longValue();
+  }
+
+  private static int getArrayLength(Object value) {
+    return value instanceof List ? ((List<?>) value).size() : 0;
+  }
+}
