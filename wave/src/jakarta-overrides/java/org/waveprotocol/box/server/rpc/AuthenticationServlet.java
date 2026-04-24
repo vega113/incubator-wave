@@ -54,6 +54,7 @@ import org.waveprotocol.wave.util.logging.Log;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
@@ -69,14 +70,12 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
-import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -491,17 +490,14 @@ public class AuthenticationServlet extends HttpServlet {
         initMessage = "Account created! Sign in to get started.";
         initResponseType = RESPONSE_STATUS_SUCCESS;
       }
+      rememberSocialReturnTarget(req);
       resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, initMessage,
           initResponseType, isLoginPageDisabled, analyticsAccount,
-          passwordResetEnabled, magicLinkEnabled, socialProviderLinks(req.getParameter("r"))));
+          passwordResetEnabled, magicLinkEnabled, socialProviderLinks()));
     }
   }
 
   private List<HtmlRenderer.SocialProviderLink> socialProviderLinks() {
-    return socialProviderLinks(null);
-  }
-
-  private List<HtmlRenderer.SocialProviderLink> socialProviderLinks(String returnTarget) {
     if (featureFlagService == null || socialAuthConfig == null
         || isLoginPageDisabled
         || !featureFlagService.isGloballyEnabled(SocialAuthServlet.SOCIAL_AUTH_FLAG)) {
@@ -510,16 +506,25 @@ public class AuthenticationServlet extends HttpServlet {
     List<HtmlRenderer.SocialProviderLink> links = new ArrayList<>();
     for (SocialAuthProvider provider : SocialAuthProvider.values()) {
       if (socialAuthConfig.isConfigured(provider)) {
-        String url = "/auth/social/" + provider.id();
-        if (!Strings.isNullOrEmpty(returnTarget)) {
-          url += "?r=" + URLEncoder.encode(
-              AuthRedirects.sanitizeLocalRedirect(returnTarget), StandardCharsets.UTF_8);
-        }
         links.add(new HtmlRenderer.SocialProviderLink(
-            provider.label(), url));
+            provider.label(), "/auth/social/" + provider.id()));
       }
     }
     return links;
+  }
+
+  private void rememberSocialReturnTarget(HttpServletRequest req) {
+    String returnTarget = req.getParameter("r");
+    if (Strings.isNullOrEmpty(returnTarget)) {
+      HttpSession session = req.getSession(false);
+      if (session != null) {
+        session.removeAttribute(AuthRedirects.SOCIAL_AUTH_RETURN_SESSION_ATTR);
+      }
+      return;
+    }
+    req.getSession(true).setAttribute(
+        AuthRedirects.SOCIAL_AUTH_RETURN_SESSION_ATTR,
+        AuthRedirects.sanitizeLocalRedirect(returnTarget));
   }
 
   private void redirectLoggedInUser(HttpServletRequest req, HttpServletResponse resp)

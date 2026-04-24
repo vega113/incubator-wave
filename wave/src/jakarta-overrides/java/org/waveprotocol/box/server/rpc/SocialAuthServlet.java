@@ -157,13 +157,28 @@ public final class SocialAuthServlet extends HttpServlet {
     String state = newToken();
     String nonce = newToken();
     String verifier = PkceUtil.newVerifier(secureRandom);
-    String redirect = AuthRedirects.sanitizeLocalRedirect(req.getParameter("r"));
+    String redirect = socialReturnTarget(req);
     HttpSession session = req.getSession(true);
+    session.removeAttribute(AuthRedirects.SOCIAL_AUTH_RETURN_SESSION_ATTR);
     session.setAttribute(AUTH_SESSION_ATTR, new PendingAuthorization(
         provider.id(), state, nonce, verifier, redirect, user != null ? user.getAddress() : null,
         System.currentTimeMillis()));
     resp.sendRedirect(socialAuthService.authorizationUrl(provider, state, nonce,
         PkceUtil.challenge(verifier)));
+  }
+
+  private String socialReturnTarget(HttpServletRequest req) {
+    String queryReturnTarget = req.getParameter("r");
+    if (queryReturnTarget != null && !queryReturnTarget.isEmpty()) {
+      return AuthRedirects.sanitizeLocalRedirect(queryReturnTarget);
+    }
+    HttpSession session = req.getSession(false);
+    Object sessionReturnTarget = session == null
+        ? null : session.getAttribute(AuthRedirects.SOCIAL_AUTH_RETURN_SESSION_ATTR);
+    if (sessionReturnTarget instanceof String) {
+      return AuthRedirects.sanitizeLocalRedirect((String) sessionReturnTarget);
+    }
+    return AuthRedirects.sanitizeLocalRedirect(null);
   }
 
   private void handleCallback(HttpServletRequest req, HttpServletResponse resp)

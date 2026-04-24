@@ -5,6 +5,7 @@ import java.net.URISyntaxException;
 
 final class AuthRedirects {
   private static final String DEFAULT_REDIRECT_URL = "/";
+  static final String SOCIAL_AUTH_RETURN_SESSION_ATTR = "socialAuth.returnTarget";
 
   private AuthRedirects() {
   }

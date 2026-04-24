@@ -199,16 +199,18 @@ public class AuthenticationServletTest extends TestCase {
           socialFeatureFlags, new SocialAuthConfig(config));
       StringWriter body = new StringWriter();
       when(req.getSession(false)).thenReturn(null);
+      when(req.getSession(true)).thenReturn(session);
       when(req.getParameter("r")).thenReturn("/wave/example.com/w+abc?pane=1");
       when(req.getLocale()).thenReturn(Locale.ENGLISH);
       when(resp.getWriter()).thenReturn(new PrintWriter(body));
 
       servlet.doGet(req, resp);
 
-      assertTrue(body.toString().contains(
-          "href=\"/auth/social/github?r=%2Fwave%2Fexample.com%2Fw%2Babc%3Fpane%3D1\""));
-      assertTrue(body.toString().contains(
-          "href=\"/auth/social/google?r=%2Fwave%2Fexample.com%2Fw%2Babc%3Fpane%3D1\""));
+      verify(session).setAttribute(eq(AuthRedirects.SOCIAL_AUTH_RETURN_SESSION_ATTR),
+          eq("/wave/example.com/w+abc?pane=1"));
+      assertTrue(body.toString().contains("href=\"/auth/social/github\""));
+      assertTrue(body.toString().contains("href=\"/auth/social/google\""));
+      assertFalse(body.toString().contains("?r="));
     } finally {
       socialFeatureFlags.shutdown();
     }

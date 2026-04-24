@@ -147,6 +147,33 @@ public final class SocialAuthServletTest {
   }
 
   @Test
+  public void callbackThenCompleteUsesSessionReturnTargetFromSignInPage()
+      throws Exception {
+    Fixture fixture = newFixture(true);
+    Map<String, Object> sessionAttributes = new HashMap<>();
+    sessionAttributes.put(AuthRedirects.SOCIAL_AUTH_RETURN_SESSION_ATTR,
+        "/wave/example.com/w+abc?pane=1");
+    HttpSession session = newSession(sessionAttributes);
+    RequestContext start = request("/github", Map.of(), session);
+    ResponseContext startResponse = response();
+    fixture.servlet.doGet(start.req, startResponse.resp);
+    String state = queryParam(startResponse.redirect, "state");
+
+    RequestContext callback = request("/callback/github",
+        Map.of("state", state, "code", "provider-code"), session);
+    ResponseContext callbackResponse = response();
+    fixture.servlet.doGet(callback.req, callbackResponse.resp);
+    String csrf = hiddenValue(callbackResponse.body(), "csrf");
+    RequestContext complete = request("/complete",
+        Map.of("csrf", csrf, "address", "octo"), session);
+    ResponseContext completeResponse = response();
+    fixture.servlet.doPost(complete.req, completeResponse.resp);
+
+    assertEquals("/wave/example.com/w+abc?pane=1", completeResponse.redirect);
+    assertFalse(sessionAttributes.containsKey(AuthRedirects.SOCIAL_AUTH_RETURN_SESSION_ATTR));
+  }
+
+  @Test
   public void completeKeepsSocialAccountUserWhenAccountsAlreadyExist() throws Exception {
     Fixture fixture = newFixture(true);
     HumanAccountDataImpl existing =
