@@ -64,7 +64,9 @@ describe("<task-metadata-popover>", () => {
     dueDateInput.value = "2026-05-01";
     const eventPromise = oneEvent(el, "task-metadata-submit");
 
-    dueDateInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    dueDateInput.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true, composed: true })
+    );
 
     expect((await eventPromise).detail).to.deep.equal({
       taskId: "task-1",

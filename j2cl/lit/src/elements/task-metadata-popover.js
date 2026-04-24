@@ -150,7 +150,7 @@ export class TaskMetadataPopover extends LitElement {
       return;
     }
     if (event.key === "Enter") {
-      if (this.isFormControl(event)) {
+      if (this.usesNativeEnterBehavior(event)) {
         return;
       }
       event.preventDefault();
@@ -203,9 +203,9 @@ export class TaskMetadataPopover extends LitElement {
     );
   };
 
-  isFormControl(event) {
+  usesNativeEnterBehavior(event) {
     const target = event.composedPath?.()[0] || event.target;
-    return Boolean(target?.closest?.("input, select, textarea, button"));
+    return Boolean(target?.closest?.("select, textarea, button"));
   }
 
   focusableControls() {
