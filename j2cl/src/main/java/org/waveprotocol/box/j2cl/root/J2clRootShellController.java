@@ -24,6 +24,9 @@ public final class J2clRootShellController {
     final J2clSidecarRouteController[] routeControllerRef = new J2clSidecarRouteController[1];
     final J2clSelectedWaveController[] selectedWaveControllerRef =
         new J2clSelectedWaveController[1];
+    // The route controller is wired below; the starter runs only after that assignment.
+    J2clRootLiveSurfaceController liveSurfaceController =
+        new J2clRootLiveSurfaceController(shellView, () -> routeControllerRef[0].start());
     J2clSearchPanelView searchView =
         new J2clSearchPanelView(
             shellView.getWorkflowHost(), J2clSearchPanelView.ShellPresentation.ROOT_SHELL);
@@ -52,20 +55,21 @@ public final class J2clRootShellController {
         new J2clSearchPanelController(
             gateway,
             searchView,
-            (state, digestItem, userNavigation) ->
-                routeControllerRef[0].onRouteStateChanged(state, digestItem, userNavigation),
+            liveSurfaceController.routeStateHandler(
+                (state, digestItem, userNavigation) ->
+                    routeControllerRef[0].onRouteStateChanged(state, digestItem, userNavigation)),
             resolveViewportWidth());
     J2clSidecarRouteController routeController =
         new J2clSidecarRouteController(
             new J2clSidecarRouteController.BrowserHistoryAdapter(),
             controller,
-            selectedWaveController,
+            liveSurfaceController.selectedWaveController(selectedWaveController),
             "view=j2cl-root",
-            shellView::syncReturnTarget);
+            liveSurfaceController::onRouteUrlChanged);
     routeControllerRef[0] = routeController;
     searchView.setSessionSummary("Mounted inside the J2CL root shell.");
     composeController.start();
-    routeController.start();
+    liveSurfaceController.start();
   }
 
   private static double resolveViewportWidth() {

@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-24-root-live-surface",
+  "version": "Issue #968",
+  "date": "2026-04-24",
+  "title": "J2CL root shell begins publishing live-surface status",
+  "summary": "The opt-in J2CL root shell now has a root-scoped live-surface coordinator that keeps existing search and selected-wave controllers wired through one shell status publication path.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a root live-surface model and controller for route and selected-wave continuity inside `/?view=j2cl-root`",
+        "Published root live-surface status into the existing `shell-status-strip` without changing the default GWT root route or server protocol"
+      ]
+    }
+  ]
+}

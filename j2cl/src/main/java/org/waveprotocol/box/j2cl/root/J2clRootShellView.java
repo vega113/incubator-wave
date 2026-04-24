@@ -1,14 +1,20 @@
 package org.waveprotocol.box.j2cl.root;
 
 import elemental2.dom.DomGlobal;
+import elemental2.dom.Element;
 import elemental2.dom.HTMLElement;
 import elemental2.dom.NodeList;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsPackage;
 
-public final class J2clRootShellView {
+public final class J2clRootShellView implements J2clRootLiveSurfaceController.ShellSurface {
   private static final String DEFAULT_RETURN_TARGET = "/?view=j2cl-root";
+  private static final String LIVE_STATUS_ID = "j2cl-root-live-status-text";
+  private static final String LIVE_STATUS_SEPARATOR_ID = "j2cl-root-live-status-separator";
   private final HTMLElement workflowHost;
+  private HTMLElement liveStatus;
+  private HTMLElement liveStatusSeparator;
+  private String lastPublishedLiveStatusText;
 
   public J2clRootShellView(HTMLElement host) {
     if (J2clServerFirstRootShellDom.hasServerFirstWorkflow(host)) {
@@ -48,9 +54,11 @@ public final class J2clRootShellView {
     return workflowHost;
   }
 
+  @Override
   public void syncReturnTarget(String routeUrl) {
     String returnTarget = normalizeLocalReturnTarget(routeUrl);
-    HTMLElement shell = (HTMLElement) DomGlobal.document.querySelector("[data-j2cl-root-shell='true']");
+    HTMLElement shell =
+        (HTMLElement) DomGlobal.document.querySelector("[data-j2cl-root-shell='true']");
     if (shell != null) {
       shell.setAttribute("data-j2cl-root-return-target", returnTarget);
     }
@@ -63,6 +71,62 @@ public final class J2clRootShellView {
     if (returnTargetLabel != null) {
       returnTargetLabel.textContent = "Return target: " + returnTarget;
     }
+  }
+
+  @Override
+  public void publishLiveStatus(J2clRootLiveSurfaceModel model) {
+    HTMLElement liveStatus = ensureLiveStatusElement();
+    if (liveStatus != null) {
+      String statusText = model == null ? "" : model.getStatusText();
+      if (statusText.equals(lastPublishedLiveStatusText)) {
+        return;
+      }
+      liveStatus.textContent = statusText;
+      if (liveStatusSeparator != null) {
+        liveStatusSeparator.style.display = statusText.isEmpty() ? "none" : "";
+      }
+      lastPublishedLiveStatusText = statusText;
+    }
+  }
+
+  private HTMLElement ensureLiveStatusElement() {
+    if (liveStatus != null) {
+      return liveStatus;
+    }
+    HTMLElement statusStrip = findStatusStrip();
+    if (statusStrip == null) {
+      return null;
+    }
+    if (liveStatusSeparator == null) {
+      liveStatusSeparator = (HTMLElement) DomGlobal.document.createElement("span");
+      liveStatusSeparator.id = LIVE_STATUS_SEPARATOR_ID;
+      liveStatusSeparator.setAttribute("aria-hidden", "true");
+      liveStatusSeparator.textContent = " | ";
+      statusStrip.appendChild(liveStatusSeparator);
+    }
+    liveStatus = (HTMLElement) DomGlobal.document.createElement("span");
+    liveStatus.id = LIVE_STATUS_ID;
+    liveStatus.setAttribute("role", "status");
+    liveStatus.setAttribute("aria-live", "polite");
+    statusStrip.appendChild(liveStatus);
+    return liveStatus;
+  }
+
+  private HTMLElement findStatusStrip() {
+    Element rootShell = workflowHost;
+    // Bind to the nearest owning root shell so nested or parallel shells cannot cross-write status.
+    while (rootShell != null) {
+      if ("true".equals(rootShell.getAttribute("data-j2cl-root-shell"))) {
+        // shell-status-strip renders a default slot; appended light-DOM children stay visible.
+        HTMLElement scopedStatusStrip =
+            (HTMLElement) rootShell.querySelector("shell-status-strip[slot='status']");
+        if (scopedStatusStrip != null) {
+          return scopedStatusStrip;
+        }
+      }
+      rootShell = rootShell.parentElement;
+    }
+    return null;
   }
 
   private static void updateHref(String elementId, String href) {

@@ -1,0 +1,221 @@
+package org.waveprotocol.box.j2cl.root;
+
+import com.google.j2cl.junit.apt.J2clTestInput;
+import elemental2.dom.DomGlobal;
+import elemental2.dom.HTMLDivElement;
+import elemental2.dom.HTMLElement;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Test;
+import org.waveprotocol.box.j2cl.search.J2clSidecarRouteState;
+
+@J2clTestInput(J2clRootShellViewTest.class)
+public class J2clRootShellViewTest {
+  private HTMLDivElement host;
+
+  @After
+  public void tearDown() {
+    if (host != null && host.parentElement != null) {
+      host.parentElement.removeChild(host);
+    }
+    host = null;
+  }
+
+  @Test
+  public void publishLiveStatusCreatesSingleAriaHiddenSeparatorAndLiveText() {
+    assumeBrowserDom();
+    J2clRootShellView view = createViewWithStatusStrip();
+    HTMLElement statusStrip = statusStrip();
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+    view.publishLiveStatus(J2clRootLiveSurfaceModel.starting().withSelectedWaveId("example/w+1"));
+
+    Assert.assertEquals(1, host.querySelectorAll("#j2cl-root-live-status-separator").length);
+    HTMLElement separator =
+        (HTMLElement) host.querySelector("#j2cl-root-live-status-separator");
+    Assert.assertEquals("true", separator.getAttribute("aria-hidden"));
+    Assert.assertEquals("", separator.style.display);
+    HTMLElement liveStatus = (HTMLElement) host.querySelector("#j2cl-root-live-status-text");
+    Assert.assertTrue(statusStrip.contains(separator));
+    Assert.assertTrue(statusStrip.contains(liveStatus));
+    Assert.assertEquals("status", liveStatus.getAttribute("role"));
+    Assert.assertEquals("polite", liveStatus.getAttribute("aria-live"));
+    Assert.assertEquals(liveStatus, separator.nextSibling);
+    Assert.assertEquals("Selected wave is active.", liveStatus.textContent);
+  }
+
+  @Test
+  public void publishLiveStatusNullClearsTextAndHidesSeparator() {
+    assumeBrowserDom();
+    J2clRootShellView view = createViewWithStatusStrip();
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+    view.publishLiveStatus(null);
+
+    HTMLElement separator =
+        (HTMLElement) host.querySelector("#j2cl-root-live-status-separator");
+    HTMLElement liveStatus = (HTMLElement) host.querySelector("#j2cl-root-live-status-text");
+    Assert.assertEquals("", liveStatus.textContent);
+    Assert.assertEquals("none", separator.style.display);
+  }
+
+  @Test
+  public void publishLiveStatusScopesInsertionToOwningRootShell() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement firstRoot = createRootShell();
+    HTMLElement firstStatusStrip = appendStatusStrip(firstRoot);
+    HTMLElement secondRoot = createRootShell();
+    HTMLElement secondStatusStrip = appendStatusStrip(secondRoot);
+    HTMLElement secondWorkflowHost = appendWorkflowHost(secondRoot);
+    J2clRootShellView view = new J2clRootShellView(secondWorkflowHost);
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+
+    Assert.assertNull(firstStatusStrip.querySelector("#j2cl-root-live-status-text"));
+    Assert.assertNotNull(secondStatusStrip.querySelector("#j2cl-root-live-status-text"));
+  }
+
+  @Test
+  public void publishLiveStatusScopesInsertionToNearestNestedRootShell() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement outerRoot = createRootShell();
+    HTMLElement outerStatusStrip = appendStatusStrip(outerRoot);
+    HTMLElement innerRoot = (HTMLElement) DomGlobal.document.createElement("shell-root");
+    innerRoot.setAttribute("data-j2cl-root-shell", "true");
+    outerRoot.appendChild(innerRoot);
+    HTMLElement innerStatusStrip = appendStatusStrip(innerRoot);
+    HTMLElement innerWorkflowHost = appendWorkflowHost(innerRoot);
+    J2clRootShellView view = new J2clRootShellView(innerWorkflowHost);
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+
+    Assert.assertNull(outerStatusStrip.querySelector("#j2cl-root-live-status-text"));
+    Assert.assertNotNull(innerStatusStrip.querySelector("#j2cl-root-live-status-text"));
+  }
+
+  @Test
+  public void publishLiveStatusUsesServerFirstWorkflowHostAncestor() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement rootShell = createRootShell();
+    HTMLElement statusStrip = appendStatusStrip(rootShell);
+    HTMLElement workflowHost = appendWorkflowHost(rootShell);
+    HTMLElement serverFirstWorkflow =
+        (HTMLElement) DomGlobal.document.createElement("div");
+    serverFirstWorkflow.className = "sidecar-search-shell";
+    serverFirstWorkflow.setAttribute("data-j2cl-server-first-workflow", "true");
+    workflowHost.appendChild(serverFirstWorkflow);
+    J2clRootShellView view = new J2clRootShellView(workflowHost);
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+
+    Assert.assertNotNull(statusStrip.querySelector("#j2cl-root-live-status-text"));
+  }
+
+  @Test
+  public void publishLiveStatusDoesNotUseUnrelatedStatusStripOutsideRootShell() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement unrelatedStatusStrip = appendStatusStrip(host);
+    HTMLElement workflowHost = (HTMLElement) DomGlobal.document.createElement("div");
+    host.appendChild(workflowHost);
+    J2clRootShellView view = new J2clRootShellView(workflowHost);
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+
+    Assert.assertNull(unrelatedStatusStrip.querySelector("#j2cl-root-live-status-text"));
+    Assert.assertNull(host.querySelector("#j2cl-root-live-status-text"));
+  }
+
+  @Test
+  public void publishLiveStatusDoesNothingWithoutStatusStrip() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement rootShell = createRootShell();
+    HTMLElement workflowHost = appendWorkflowHost(rootShell);
+    J2clRootShellView view = new J2clRootShellView(workflowHost);
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+
+    Assert.assertNull(host.querySelector("#j2cl-root-live-status-separator"));
+    Assert.assertNull(host.querySelector("#j2cl-root-live-status-text"));
+  }
+
+  @Test
+  public void publishLiveStatusCanAttachAfterStatusStripArrives() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement rootShell = createRootShell();
+    HTMLElement workflowHost = appendWorkflowHost(rootShell);
+    J2clRootShellView view = new J2clRootShellView(workflowHost);
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+    HTMLElement statusStrip = appendStatusStrip(rootShell);
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+
+    Assert.assertNotNull(statusStrip.querySelector("#j2cl-root-live-status-text"));
+  }
+
+  @Test
+  public void publishLiveStatusCanReturnToStartingStatus() {
+    assumeBrowserDom();
+    J2clRootShellView view = createViewWithStatusStrip();
+
+    view.publishLiveStatus(queryStatusModel("in:inbox"));
+    view.publishLiveStatus(J2clRootLiveSurfaceModel.starting());
+
+    HTMLElement liveStatus = (HTMLElement) host.querySelector("#j2cl-root-live-status-text");
+    Assert.assertEquals("Loading workspace.", liveStatus.textContent);
+  }
+
+  private J2clRootShellView createViewWithStatusStrip() {
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement rootShell = createRootShell();
+    appendStatusStrip(rootShell);
+    HTMLElement workflowHost = appendWorkflowHost(rootShell);
+    return new J2clRootShellView(workflowHost);
+  }
+
+  private HTMLElement createRootShell() {
+    HTMLElement rootShell = (HTMLElement) DomGlobal.document.createElement("shell-root");
+    rootShell.setAttribute("data-j2cl-root-shell", "true");
+    host.appendChild(rootShell);
+    return rootShell;
+  }
+
+  private static HTMLElement appendStatusStrip(HTMLElement rootShell) {
+    HTMLElement statusStrip = (HTMLElement) DomGlobal.document.createElement("shell-status-strip");
+    statusStrip.setAttribute("slot", "status");
+    rootShell.appendChild(statusStrip);
+    return statusStrip;
+  }
+
+  private static HTMLElement appendWorkflowHost(HTMLElement rootShell) {
+    HTMLElement workflowHost = (HTMLElement) DomGlobal.document.createElement("div");
+    rootShell.appendChild(workflowHost);
+    return workflowHost;
+  }
+
+  private HTMLElement statusStrip() {
+    return (HTMLElement) host.querySelector("shell-status-strip[slot='status']");
+  }
+
+  private static J2clRootLiveSurfaceModel queryStatusModel(String query) {
+    return J2clRootLiveSurfaceModel.starting()
+        .withRouteState(new J2clSidecarRouteState(query, null));
+  }
+
+  private static void assumeBrowserDom() {
+    Assume.assumeTrue(DomGlobal.document != null && DomGlobal.document.body != null);
+  }
+}

@@ -6,7 +6,7 @@
 
 **Architecture:** Keep J2CL authoritative for the live-runtime state machine. The root shell should stop behaving like "the sidecar widget mounted in a different div" and instead gain a root-scoped live-runtime coordinator that owns bootstrap/session state, route state, reconnect status, selected-wave continuity, and fragment-policy inputs. The existing search, selected-wave, and compose controllers remain the narrowest reusable seams, but they should be composed under a root-runtime owner rather than each independently reacquiring bootstrap and lifecycle state. Lit stays visual-only for this slice: existing shell primitives and status-strip slots render state that J2CL publishes.
 
-**Tech Stack:** J2CL Java under `j2cl/src/main/java`, Jakarta servlet/rendering seams under `wave/src/jakarta-overrides/java`, generated protocol models under `gen/messages/`, existing root-shell Lit primitives under `j2cl/lit/`, the explicit `/bootstrap.json` contract from `#963`, the unread/read-state path from `#931`, server-side viewport-hint support under `WaveClientRpcImpl`, and targeted J2CL/server unit tests plus local browser verification on `/?view=j2cl-root`.
+**Tech Stack:** J2CL Java under `j2cl/src/main/java`, Jakarta servlet/rendering seams under `wave/src/jakarta-overrides/java`, generated protocol models under `gen/messages/`, existing root-shell Lit primitives under `j2cl/lit/`, the explicit `/bootstrap.json` contract from `#963`, the unread/read-state path from `#931`, the StageOne read surface from `#966`, viewport-hint/fragment-window support from `#967` plus `#993`, server-side viewport-hint support under `WaveClientRpcImpl`, and targeted J2CL/server unit tests plus local browser verification on `/?view=j2cl-root`.
 
 ---
 
@@ -20,6 +20,10 @@ The current repo state already provides several of the prerequisites `#968` must
 - `#931` is closed: the selected-wave panel already has real unread/read-state fetching, debounce, reconnect persistence, and visibility-based refresh inside `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveController.java`.
 - `#963` is closed: root/session/socket metadata now come from `/bootstrap.json`, served by `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/J2clBootstrapServlet.java`, with the contract pinned in `wave/src/main/java/org/waveprotocol/box/common/J2clBootstrapContract.java`.
 - `#964` is closed: the root shell already exposes Lit shell primitives such as `shell-main-region` and `shell-status-strip`, and `HtmlRenderer.renderJ2clRootShellPage(...)` mounts the J2CL bundle into the existing shell page.
+- `#965` is merged: the root-shell host can serve selected-wave HTML before J2CL boot; `#968` should preserve that server-first host contract rather than reimplement it.
+- `#966` is merged: StageOne read-surface parity exists; `#968` consumes it only through the current selected-wave/read-state seams.
+- `#967` is merged: viewport-hint transport, selected-wave fragment fetching, viewport growth, and `J2clSelectedWaveViewportState` are present in the J2CL selected-wave path.
+- `#993` is merged: viewport metadata edge cases have additional hardening on top of `#967`.
 
 ### 1.2 Exact current seams
 
@@ -35,14 +39,17 @@ These seams are the actual starting point for `#968`:
   - Reconnect, read-state refresh, and visibility-refresh logic already exist, but they are owned entirely by the selected-wave controller.
   - Bootstrap is refetched on open/reconnect from inside this controller, which keeps session/bootstrap lifecycle controller-local instead of root-scoped.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSearchGateway.java:45-115`
-  - Selected-wave open still creates a socket per opened wave and sends a manual `ProtocolOpenRequest` frame.
-  - The gateway fetches bootstrap and opens sockets, but it does not own a shared root session/bootstrap snapshot or any root-runtime continuity.
+  - Selected-wave open still creates a socket per opened wave and sends a manual `ProtocolOpenRequest` frame, now with optional `SidecarViewportHints`.
+  - The gateway fetches bootstrap, opens sockets, and fetches fragment windows, but it does not own a shared root session/bootstrap snapshot or any root-runtime continuity.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/transport/SidecarOpenRequest.java:7-31`
-  - The sidecar open request carries only participant id, wave id, and wavelet prefixes.
-  - It has no fields for `viewportStartBlipId`, `viewportDirection`, or `viewportLimit`.
+  - The sidecar open request carries participant id, wave id, wavelet prefixes, and `SidecarViewportHints`.
+  - This is now a consumed seam, not an implementation gap for `#968`.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/transport/SidecarTransportCodec.java:13-30`
-  - The manual JSON encoder writes only fields `"1"`, `"2"`, and `"3"` into the `ProtocolOpenRequest` payload.
-  - It does not expose the viewport-hint fields the server already understands.
+  - The manual JSON encoder writes required fields `"1"`, `"2"`, and `"3"` plus optional viewport fields `"5"`, `"6"`, and `"7"`.
+  - Transport-codec behavior is already covered by existing J2CL tests from the merged viewport work.
+- `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveViewportState.java`
+  - The selected-wave path now has an explicit viewport-window model from `#967`.
+  - `#968` should consume this model through existing selected-wave controller behavior, not duplicate fragment growth logic in the root coordinator.
 - `gen/messages/org/waveprotocol/box/common/comms/proto/ProtocolOpenRequestProtoImpl.java:856-900`
   - The generated protocol model already reserves the JSON/proto slots for viewport hints:
     - `"5"` = `viewportStartBlipId`
@@ -66,7 +73,7 @@ Today:
 - bootstrap/session state is reacquired independently by search, selected-wave open, and compose flows;
 - route/history state is split between root-shell bootstrap JS and the sidecar route controller;
 - reconnect/read-state continuity lives inside the selected-wave widget;
-- viewport-fragment policy is supported by the server but not by the J2CL open-frame encoder;
+- viewport-fragment policy is now available in the selected-wave path, but root-runtime ownership still does not coordinate or publish that live-state continuity;
 - root-shell chrome has a live-status surface, but no root-runtime controller publishes live state into it.
 
 That is why parity docs still describe the live runtime as controller-local and sidecar-oriented. `#968` is the slice that turns those seams into one root-scoped live surface.
@@ -93,7 +100,7 @@ That is why parity docs still describe the live runtime as controller-local and 
   - the selected wave remains logically selected during reconnect,
   - the last known read state survives transient failures,
   - successful recovery resets the reconnect budget.
-- The J2CL open-frame path can carry viewport hints using the existing protocol fields already supported by the server, so the root live surface can consume the `#967` fragment-window state instead of whole-wave default behavior.
+- The root live surface consumes the existing `#967`/`#993` viewport-hint and fragment-window path without changing server protocol or duplicating selected-wave fragment growth behavior.
 - `#931` unread/read modeling is consumed as part of the root live surface rather than treated as an isolated selected-wave label feature.
 - The shell consumes live-state visuals through existing Lit/root-shell seams only:
   - `shell-status-strip` for reconnect and root-runtime status,
@@ -117,13 +124,13 @@ That is why parity docs still describe the live runtime as controller-local and 
 - Root-runtime ownership of route/history continuity for the current query + selected-wave deep-link model.
 - Publishing reconnect/live-state into the root shell status surface.
 - Wiring the existing unread/read-state path from `#931` into the root live surface contract.
-- Extending the J2CL open request so it can send viewport hints already supported by the server.
+- Consuming the existing J2CL viewport-hint and fragment-window path when coordinating selected-wave opens.
 - Targeted J2CL/server tests and root-shell browser verification.
 
 ### 3.2 Explicit non-goals
 
-- No StageOne read-surface implementation work from `#966`.
-- No fragment-window modeling or visible-region rendering work from `#967`.
+- No StageOne read-surface reimplementation or visual redesign from `#966`.
+- No fragment-window modeling, visible-region rendering, or viewport metadata hardening rework from `#967` / `#993`.
 - No StageThree compose/editor parity from `#969`.
 - No attempt to aggregate ephemeral compose/search socket lifecycles into the root reconnect-status strip in `#968`; root reconnect publication is limited to the selected-wave live surface plus bootstrap refresh continuity.
 - No new server protocol beyond exposing existing `ProtocolOpenRequest` viewport fields already present in generated models.
@@ -133,46 +140,39 @@ That is why parity docs still describe the live runtime as controller-local and 
 
 ## 4. Dependency Readiness
 
-### 4.1 Closed prerequisites
+### 4.1 Merged prerequisites
 
-As of 2026-04-23 in this worktree:
+As of 2026-04-24 in this worktree after `git fetch origin main`:
 
 - `#933` — closed
 - `#931` — closed
 - `#963` — closed
 - `#964` — closed
 - `#936` — closed
+- `#965` — merged into `origin/main`
+- `#966` — merged into `origin/main`
+- `#967` — merged into `origin/main`
+- `#993` — merged into `origin/main`
 
-These closed issues mean the auth, unread/read modeling, bootstrap JSON, root-shell chrome, and atomic write-basis seams are already available.
+These merged issues mean the auth, unread/read modeling, bootstrap JSON, root-shell chrome, server-first selected-wave host, StageOne read surface, viewport transport, fragment-window growth, and atomic write-basis seams are already available.
 
-### 4.2 Open dependencies and readiness call
+### 4.2 Dependency readiness call
 
-As of 2026-04-23:
+As of 2026-04-24:
 
-- `#966` — open
-- `#967` — open
-- `#965` — open
+- There are no dependency blockers for starting `#968` implementation on `issue-968-root-live-surface`.
+- The lane must consume, not recreate, the now-merged work from `#965`, `#966`, `#967`, and `#993`.
+- The first implementation slice is intentionally narrower than the full plan: refresh this plan, then add the root-scoped live-surface model/controller and root-shell status publication wiring only.
+- Keep compose/write path changes, default-root routing, server protocol changes, and StageThree parity out of this first slice.
+- Before future larger slices, re-diff root-shell host and selected-wave viewport seams against `origin/main` because adjacent lanes continue to merge into the same surfaces.
 
-Readiness call:
-
-- Planning is ready now.
-- Full implementation is **not** ready to merge until `#966` and `#967` land, because the parity matrix ties:
-  - `R-4.6` to `#967`,
-  - `R-7.3` to `#967`,
-  - the practical root read/live handoff to the StageOne read surface from `#966`.
-- `#965` is an adjacent integration edge, not a declared hard blocker in the issue body, but the implementation lane should pull its latest root-shell host changes before coding so `#968` does not hardcode against a stale shell-swap surface.
-- If `#966` and `#967` merge before `#965`, pause and decide explicitly whether to:
-  - pull the latest `#965` branch/worktree changes into the lane for the diff-check, or
-  - wait for `#965` to merge.
-  Do not guess the host contract in that state.
-
-Implementation verdict: `#968` is **dependency-ready for planning/prep only**. The worker lane should wait for `#966` and `#967` to merge before landing code.
+Implementation verdict: `#968` is dependency-ready for the first narrow implementation slice.
 
 ## 5. Slice Packet For #968
 
 **Title:** Promote the J2CL sidecar into a root-shell live surface with route/history/reconnect/read-state integration
 **Stage:** live
-**Dependencies:** `#933`, `#931`, `#963`, `#966`, `#967`
+**Dependencies:** `#933`, `#931`, `#963`, `#965`, `#966`, `#967`, `#993`
 
 ### Matrix rows claimed
 
@@ -201,6 +201,7 @@ Implementation verdict: `#968` is **dependency-ready for planning/prep only**. T
 - Route/history persistence: `J2clSidecarRouteController`
 - Selected-wave reconnect/read-state: `J2clSelectedWaveController`
 - Server viewport-hint support: `WaveClientRpcImpl` + `WaveClientRpcViewportHintsTest`
+- J2CL viewport-hint transport and fragment growth: `SidecarViewportHints`, `SidecarOpenRequest`, `SidecarTransportCodec`, `J2clSelectedWaveViewportState`, `J2clSelectedWaveController.fetchFragments(...)`
 
 ### Rollout / rollback seam
 
@@ -243,11 +244,7 @@ Implementation verdict: `#968` is **dependency-ready for planning/prep only**. T
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveProjector.java`
   - Continue to consume read-state and fragment data, but do not own root-runtime continuity decisions.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSearchGateway.java`
-  - Shared bootstrap/session access, open-frame viewport hints, and any root-runtime transport helpers.
-- `j2cl/src/main/java/org/waveprotocol/box/j2cl/transport/SidecarOpenRequest.java`
-  - Add viewport-hint fields.
-- `j2cl/src/main/java/org/waveprotocol/box/j2cl/transport/SidecarTransportCodec.java`
-  - Extend `ProtocolOpenRequest` encoding to include viewport fields `5/6/7`.
+  - Future shared bootstrap/session access if a later slice makes the root coordinator the single bootstrap owner. Do not change transport semantics in the first slice.
 
 ### Modified tests
 
@@ -255,7 +252,7 @@ Implementation verdict: `#968` is **dependency-ready for planning/prep only**. T
 - `j2cl/src/test/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveControllerTest.java`
 - `j2cl/src/test/java/org/waveprotocol/box/j2cl/search/J2clSearchGatewayAuthFrameTest.java`
 - `j2cl/src/test/java/org/waveprotocol/box/j2cl/transport/SidecarTransportCodecTest.java`
-  - Existing transport test file; extend it rather than creating a duplicate transport-codec suite.
+  - Inspect-only for the first slice unless root-live wiring reveals a transport regression. Viewport transport assertions already exist after `#967` / `#993`.
 - `wave/src/jakarta-test/java/org/waveprotocol/box/server/rpc/J2clBootstrapServletTest.java`
   - Existing bootstrap JSON regression coverage; verify the signed-out contract still degrades cleanly once the root runtime becomes the single bootstrap owner.
 
@@ -284,14 +281,16 @@ Implementation verdict: `#968` is **dependency-ready for planning/prep only**. T
 ### Task 1: Freeze the dependency gate and root-runtime boundary
 
 - [ ] Keep `#968` scoped to the root-runtime/state-machine layer only.
-- [ ] Treat `#966` and `#967` as merge gates for implementation, not as work to subsume into `#968`.
+- [ ] Treat `#965`, `#966`, `#967`, and `#993` as merged prerequisites to consume, not work to subsume into `#968`.
+- [ ] For the first worker slice, touch only root live-surface model/controller wiring, root-shell status publication, focused J2CL tests, and any required changelog fragment.
+- [ ] Keep compose/write path, default root routing, server protocol, and StageThree parity out of the first worker slice.
 - [ ] Record in the issue comment:
   - worktree path,
   - branch,
   - plan path,
   - closed prerequisites,
-  - open blockers (`#966`, `#967`),
-  - adjacent integration edge (`#965`).
+  - merged dependency refresh note for `#965`, `#966`, `#967`, and `#993`,
+  - first-slice scope.
 
 ### Task 2: Introduce a root-scoped live-runtime coordinator
 
@@ -372,36 +371,12 @@ Implementation verdict: `#968` is **dependency-ready for planning/prep only**. T
   - callbacks whose generation no longer matches are dropped.
 - [ ] Lock that guard with a dedicated `J2clRootLiveSurfaceControllerTest` case rather than leaving the stale-drop behavior as prose only.
 
-### Task 5a: Add viewport-hint transport plumbing on the J2CL sidecar/root path
+### Task 5: Consume the merged viewport-hint and fragment-window path
 
-- [ ] Extend `SidecarOpenRequest` with:
-  - `viewportStartBlipId`
-  - `viewportDirection`
-  - `viewportLimit`
-- [ ] Extend `SidecarTransportCodec.encodeOpenEnvelope(...)` to emit fields:
-  - `"5"` for `viewportStartBlipId`
-  - `"6"` for `viewportDirection`
-  - `"7"` for `viewportLimit`
-  matching the generated `ProtocolOpenRequest` contract already used by the GWT client and server.
-- [ ] Do not hand-guess new protocol semantics; reuse the existing generated field numbering already present in `gen/messages/.../ProtocolOpenRequestProtoImpl.java`.
-- [ ] Extend `SidecarTransportCodecTest` as the canonical transport-encoding home for these assertions, and keep `J2clSearchGatewayAuthFrameTest` focused on the no-auth-envelope contract.
-- [ ] In `SidecarTransportCodecTest`, prove:
-  - open frames still begin with `ProtocolOpenRequest`,
-  - no auth envelope regresses,
-  - viewport fields are present only when explicitly set,
-  - a default-constructed / unset `SidecarOpenRequest` emits no viewport fields at all,
-  - pre-`#967` caller paths do not emit viewport fields accidentally,
-  - the JSON key set remains backward-compatible with the current GWT/ProtocolOpenRequest schema: required keys stay `1/2/3`, with `5/6/7` present only as optional additions.
-- [ ] Keep this transport plumbing in the same `#968` implementation lane; do not merge it independently before `#967`.
-
-### Task 5b: Feed real fragment-window state into the open request after `#967`
-
-- [ ] Gate the caller-side wiring on pulling `#967` once it merges.
-- [ ] Use the actual fragment-window/visible-region state from `#967` as the source of:
-  - `viewportStartBlipId`
-  - `viewportDirection`
-  - `viewportLimit`
-- [ ] Do not invent a temporary heuristic source in `#968`; if `#967` is not merged, Task 5b remains blocked and `#968` does not merge.
+- [ ] Treat `SidecarViewportHints`, `SidecarOpenRequest` viewport fields, `SidecarTransportCodec` fields `5/6/7`, `J2clSearchGateway.openSelectedWave(... SidecarViewportHints ...)`, `fetchFragments(...)`, `J2clSelectedWaveController` viewport growth, and `J2clSelectedWaveViewportState` as existing seams.
+- [ ] Do not alter the server protocol or transport codec in the first worker slice.
+- [ ] Do not invent a second root-level fragment-window model; root-live coordination should observe or preserve selected-wave state through existing selected-wave controller seams.
+- [ ] If a later `#968` slice needs to route viewport status into shell chrome, add it as a root-status/model projection only after proving the selected-wave controller remains the single owner of fragment growth.
 
 ### Task 6: Re-scope selected-wave reconnect/read-state behavior under the root live surface
 
@@ -480,16 +455,17 @@ Implementation verdict: `#968` is **dependency-ready for planning/prep only**. T
   - `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java`
   - `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WaveClientServlet.java`
   - `j2cl/lit/src/elements/shell-main-region.js`
-- [ ] When `#967` is pulled into the lane for Task 5b, re-diff the fragment-window transport seam and confirm the generated `ProtocolOpenRequest` field usage still maps to the same viewport slots (`5/6/7`) before wiring caller state.
+- [ ] Confirm the merged fragment-window transport seam still maps to generated `ProtocolOpenRequest` viewport slots (`5/6/7`) before any future caller-state wiring changes.
 
 ## 8. Verification Commands
 
-Run these from `/Users/vega/devroot/worktrees/issue-968-root-live-surface` once implementation starts and after `#966`/`#967` are merged into the lane:
+Run these from `/Users/vega/devroot/worktrees/issue-968-root-live-surface` once implementation starts:
 
 ### Targeted J2CL/server test gates
 
 ```bash
 sbt -batch j2clSearchBuild j2clSearchTest
+j2cl/mvnw -f j2cl/pom.xml -Psearch-sidecar -Dtest=org.waveprotocol.box.j2cl.root.J2clRootLiveSurfaceControllerTest,org.waveprotocol.box.j2cl.root.J2clRootShellViewTest test
 sbt -batch "testOnly org.waveprotocol.box.j2cl.search.J2clSidecarRouteControllerTest org.waveprotocol.box.j2cl.search.J2clSelectedWaveControllerTest org.waveprotocol.box.j2cl.search.J2clSearchGatewayAuthFrameTest org.waveprotocol.box.j2cl.transport.SidecarTransportCodecTest"
 sbt -batch "testOnly org.waveprotocol.box.server.frontend.WaveClientRpcViewportHintsTest org.waveprotocol.box.server.rpc.J2clBootstrapServletTest"
 ```
@@ -531,10 +507,7 @@ PORT=9968 bash scripts/wave-smoke.sh stop
 ## 9. Review And Traceability Gates
 
 - [ ] Run Claude Opus 4.7 review on this plan before implementation starts.
-- [ ] Do not start the implementation lane until:
-  - plan review is clean,
-  - `#966` is merged or otherwise pulled as final accepted base,
-  - `#967` is merged or otherwise pulled as final accepted base.
+- [ ] Implementation may start after this dependency refresh because `#965`, `#966`, `#967`, and `#993` are present on `origin/main` in this worktree.
 - [ ] After implementation, run Claude Opus 4.7 review again on the implementation diff.
 - [ ] Feature-flag decision for implementation:
   - default plan is to reuse only the existing `j2cl-root-bootstrap` seam
@@ -552,9 +525,9 @@ PORT=9968 bash scripts/wave-smoke.sh stop
 
 ## 10. Dependency-Readiness Verdict
 
-Planner verdict for 2026-04-23:
+Planner verdict refreshed for 2026-04-24:
 
-- `#968` has enough closed foundation to write and review the implementation plan now.
-- `#968` should **not** start product implementation yet because `#966` and `#967` are still open and own part of the live-surface contract this issue must consume.
-- The implementation lane should resume only after those two issues are merged into `main` and pulled into the worktree, with `#965` checked for any root-shell host drift.
+- `#968` has the required merged foundation to start the first narrow implementation slice.
+- `#968` should consume the merged #965/#966/#967/#993 seams and avoid duplicate viewport transport, read-surface, or server-first host work.
+- The first worker slice is root-scoped live-surface model/controller plus root-shell status publication wiring and focused J2CL tests.
 - The listed verification commands are current in this worktree: `build.sbt` defines both `j2clSearchBuild` and `j2clSearchTest`.
