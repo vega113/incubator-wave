@@ -33,12 +33,13 @@ public final class DefaultSocialAuthHttpClient implements SocialAuthHttpClient {
 
   private String request(String method, String url, Map<String, String> headers, String body)
       throws SocialAuthException {
+    HttpURLConnection connection = null;
     try {
       URI uri = URI.create(url);
       if (!"https".equalsIgnoreCase(uri.getScheme())) {
         throw new SocialAuthException("Provider request must use HTTPS");
       }
-      HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+      connection = (HttpURLConnection) uri.toURL().openConnection();
       connection.setInstanceFollowRedirects(false);
       connection.setConnectTimeout(timeoutMillis);
       connection.setReadTimeout(timeoutMillis);
@@ -65,7 +66,10 @@ public final class DefaultSocialAuthHttpClient implements SocialAuthHttpClient {
       InputStream stream = status >= 200 && status < 300
           ? connection.getInputStream()
           : connection.getErrorStream();
-      String response = readBounded(stream);
+      String response;
+      try (InputStream responseStream = stream) {
+        response = readBounded(responseStream);
+      }
       if (status < 200 || status >= 300) {
         throw new SocialAuthException("Provider request failed");
       }
@@ -74,6 +78,10 @@ public final class DefaultSocialAuthHttpClient implements SocialAuthHttpClient {
       throw e;
     } catch (Exception e) {
       throw new SocialAuthException("Provider request failed", e);
+    } finally {
+      if (connection != null) {
+        connection.disconnect();
+      }
     }
   }
 

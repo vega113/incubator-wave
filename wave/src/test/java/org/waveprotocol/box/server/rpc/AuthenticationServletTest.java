@@ -214,6 +214,43 @@ public class AuthenticationServletTest extends TestCase {
     verify(manager, never()).setLoggedInUser(Mockito.any(), Mockito.any());
   }
 
+  public void testDisabledLoginWithoutClientAuthReturnsForbidden() throws Exception {
+    AccountStore store = new MemoryStore();
+    Config config = ConfigFactory.parseMap(ImmutableMap.<String, Object>builder()
+        .put("administration.disable_registration", false)
+        .put("administration.analytics_account", "UA-someid")
+        .put("security.enable_clientauth", false)
+        .put("security.clientauth_cert_domain", "")
+        .put("administration.disable_loginpage", true)
+        .put("security.enable_ssl", false)
+        .put("core.email_confirmation_enabled", false)
+        .put("core.auth_email_send_cooldown_seconds", 300)
+        .put("core.auth_email_send_max_per_address_per_hour", 5)
+        .put("core.auth_email_send_max_per_ip_per_hour", 20)
+        .put("core.public_url", "https://wave.example.com")
+        .build());
+    AuthEmailService authEmailService = new AuthEmailService(
+        store,
+        emailTokenIssuer,
+        mailProvider,
+        Clock.fixed(Instant.parse("2026-03-28T08:00:00Z"), ZoneOffset.UTC),
+        config);
+    servlet = new AuthenticationServlet(store, AuthTestUtil.makeConfiguration(),
+        manager, "example.com", config, browserSessionJwtIssuer, authEmailService,
+        new org.waveprotocol.box.server.waveserver.AnalyticsRecorder());
+    StringWriter body = new StringWriter();
+    when(resp.getWriter()).thenReturn(new PrintWriter(body));
+    when(req.getLocale()).thenReturn(Locale.ENGLISH);
+
+    servlet.doPost(req, resp);
+
+    verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
+    assertTrue(body.toString().contains("Sign in is not available"));
+    verify(manager, never()).setLoggedInUser(Mockito.any(), Mockito.any());
+    verify(browserSessionJwtIssuer, never()).issue(Mockito.any());
+    verify(resp, never()).sendRedirect(Mockito.anyString());
+  }
+
   public void testValidLoginForUnconfirmedAccountResendsActivationEmail() throws Exception {
     AccountStore store = new MemoryStore();
     HumanAccountDataImpl account =

@@ -291,8 +291,18 @@ public class AuthenticationServlet extends HttpServlet {
       }
     }
 
+    if (loggedInAddress == null) {
+      resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+      resp.setContentType("text/html;charset=utf-8");
+      resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain,
+          "Sign in is not available for this deployment.",
+          RESPONSE_STATUS_FAILED, isLoginPageDisabled, analyticsAccount,
+          passwordResetEnabled, magicLinkEnabled, socialProviderLinks()));
+      return;
+    }
+
     // Check email confirmation if enabled
-    if (emailConfirmationEnabled && loggedInAddress != null) {
+    if (emailConfirmationEnabled) {
       try {
         AccountData acct = accountStore.getAccount(loggedInAddress);
         if (acct != null && acct.isHuman()) {

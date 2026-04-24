@@ -74,7 +74,7 @@ Add Google and GitHub sign-in/sign-up support so operators can enable it by addi
      - do not follow redirects on token/userinfo/JWKS endpoints
      - enforce connect/read timeout config
      - bound response-size reads
-     - JWKS cache must be bounded, respect `Cache-Control` where available, and enforce a minimum refresh interval on unknown-`kid` misses
+     - JWKS cache must be bounded with a fixed TTL and enforce a minimum refresh interval on unknown-`kid` misses
    - Config keys in `reference.conf`:
      - `core.social_auth.google.client_id`, `client_secret`, `redirect_uri`
      - `core.social_auth.github.client_id`, `client_secret`, `redirect_uri`
