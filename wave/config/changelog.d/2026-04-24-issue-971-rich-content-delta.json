@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-24-issue-971-rich-content-delta",
+  "version": "Issue #971",
+  "date": "2026-04-24",
+  "title": "Prepare J2CL rich-content submit deltas",
+  "summary": "The opt-in J2CL shell now has a tested structured delta builder for rich text and attachment document operations, enabling later attachment and rich-edit controller slices without changing the legacy GWT default route.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a structured J2CL composer document model for text, annotation boundaries, and image attachment caption elements",
+        "Added rich-content create and reply submit delta construction with participant-add ordering, write-session basis preservation, validation, escaping, and token-progression coverage"
+      ]
+    }
+  ]
+}
