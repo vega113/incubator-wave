@@ -40,6 +40,7 @@ public final class J2clRichContentDeltaFactory {
   }
 
   public CreateWaveRequest createWaveRequest(String address, J2clComposerDocument document) {
+    requirePresent(document, "Missing composer document.");
     String normalizedAddress = normalizeAddress(address);
     String domain = extractDomain(normalizedAddress);
     String waveToken = nextToken("w+");
@@ -60,7 +61,10 @@ public final class J2clRichContentDeltaFactory {
 
   public SidecarSubmitRequest createReplyRequest(
       String address, J2clSidecarWriteSession session, J2clComposerDocument document) {
+    requirePresent(session, "Missing write session.");
+    requirePresent(document, "Missing composer document.");
     String normalizedAddress = normalizeAddress(address);
+    extractDomain(normalizedAddress);
     String replyBlipId = nextToken("b+");
     String deltaJson =
         buildDeltaJson(
@@ -178,6 +182,13 @@ public final class J2clRichContentDeltaFactory {
         + "/"
         + waveId.substring(separator + 1)
         + "/~/conv+root";
+  }
+
+  private static <T> T requirePresent(T value, String message) {
+    if (value == null) {
+      throw new IllegalArgumentException(message);
+    }
+    return value;
   }
 
   private static String normalizeAddress(String address) {

@@ -28,24 +28,24 @@ Task 1 has been revalidated after the dependency chain landed:
 - #970 merged as PR #1006 at `d3f13547084a4aaac15749187b0eabf0c63b8c15` and introduced the Lit interaction overlay primitives for mentions, task metadata, reactions, and generic overlay focus/lifecycle.
 - This #971 branch was rebased onto `origin/main` at `d3f13547084a4aaac15749187b0eabf0c63b8c15`, which is the #970 merge commit and the current `origin/main` HEAD for this gate; product-code implementation can now start from this branch.
 
-#969 absorbed the following ownership:
+Issue #969 absorbed the following ownership:
 
 - J2CL root composer/toolbar host creation in `J2clRootShellController`.
 - Plain-text create/reply submit flow through `J2clComposeSurfaceController` and `J2clPlainTextDeltaFactory`.
 - Lit shell primitives: `composer-shell`, `composer-inline-reply`, `composer-submit-affordance`, `toolbar-button`, `toolbar-group`, and `toolbar-overflow-menu`.
 - Daily toolbar action identifiers and disabled/error presentation for `bold`, `italic`, `underline`, `strikethrough`, `heading`, `unordered-list`, `ordered-list`, `align-left`, `align-center`, `align-right`, `rtl`, `link`, `unlink`, and `clear-formatting`.
 
-#969 did not wire those edit toolbar actions to a rich editor or structured DocOp command model. #971 owns that command execution layer where it is needed for daily parity.
+Issue #969 did not wire those edit toolbar actions to a rich editor or structured DocOp command model. #971 owns that command execution layer where it is needed for daily parity.
 
-#970 absorbed the following ownership:
+Issue #970 absorbed the following ownership:
 
 - Generic Lit overlay/focus primitive: `interaction-overlay-layer`.
 - Mention, task metadata, reaction picker/authors/row Lit primitives.
 - Tests for those overlay primitives under `j2cl/lit/test/`.
 
-#971 must not modify the #970 overlay primitive element files unless a later review explicitly requires a shared bug fix. If #971 needs overlay behavior, compose it from those elements rather than reimplementing focus/lifecycle handling.
+Issue #971 must not modify the #970 overlay primitive element files unless a later review explicitly requires a shared bug fix. If #971 needs overlay behavior, compose it from those elements rather than reimplementing focus/lifecycle handling.
 
-#970 overlap scan result: no blocking overlap. #970 shipped new Lit overlay primitive files plus `j2cl/lit/src/index.js`; #971 may extend `j2cl/lit/src/index.js` only to register its own attachment/rich-edit elements, and must consume #970 overlay primitives by composition instead of editing them.
+Issue #970 overlap scan result: no blocking overlap. #970 shipped new Lit overlay primitive files plus `j2cl/lit/src/index.js`; #971 may extend `j2cl/lit/src/index.js` only to register its own attachment/rich-edit elements, and must consume #970 overlay primitives by composition instead of editing them.
 
 Final #971-owned `R-5.7` command list:
 

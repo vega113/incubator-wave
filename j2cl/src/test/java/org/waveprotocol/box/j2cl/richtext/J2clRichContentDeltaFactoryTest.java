@@ -151,14 +151,19 @@ public class J2clRichContentDeltaFactoryTest {
         new J2clSidecarWriteSession("example.com/w+reply", "chan-7", 44L, "ABCD", "b+root");
     J2clComposerDocument document = J2clComposerDocument.builder().text("x").build();
     assertThrows(() -> factory.createWaveRequest(null, document));
+    assertThrows(() -> factory.createWaveRequest("user@example.com", null));
     assertThrows(() -> factory.createReplyRequest(" ", session, document));
     assertThrows(() -> factory.createReplyRequest(null, session, document));
+    assertThrows(() -> factory.createReplyRequest("user@example.com", null, document));
+    assertThrows(() -> factory.createReplyRequest("user@example.com", session, null));
     assertThrows(
         () ->
             factory.createWaveRequest(
                 "missing-domain", document));
+    assertThrows(() -> factory.createReplyRequest("missing-domain", session, document));
     assertThrows(() -> factory.createWaveRequest("user@evil/path", document));
     assertThrows(() -> factory.createWaveRequest("user@example.com@evil.com", document));
+    assertThrows(() -> factory.createReplyRequest("user@example.com@evil.com", session, document));
   }
 
   @Test
