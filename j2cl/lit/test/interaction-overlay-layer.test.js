@@ -1,6 +1,20 @@
 import { fixture, expect, html, oneEvent } from "@open-wc/testing";
 import "../src/elements/interaction-overlay-layer.js";
 
+class ShadowOverlayControls extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" }).innerHTML = `
+      <button id="first">First</button>
+      <button id="last">Last</button>
+    `;
+  }
+}
+
+if (!customElements.get("shadow-overlay-controls")) {
+  customElements.define("shadow-overlay-controls", ShadowOverlayControls);
+}
+
 describe("<interaction-overlay-layer>", () => {
   it("wraps non-modal overlay content and dispatches close with focus target", async () => {
     const el = await fixture(html`
@@ -67,5 +81,38 @@ describe("<interaction-overlay-layer>", () => {
       })
     );
     expect(document.activeElement).to.equal(el.querySelector("#last"));
+  });
+
+  it("traps modal focus through slotted custom element shadow controls", async () => {
+    const el = await fixture(html`
+      <interaction-overlay-layer open modal label="Shadow task details">
+        <shadow-overlay-controls></shadow-overlay-controls>
+      </interaction-overlay-layer>
+    `);
+    const controls = el.querySelector("shadow-overlay-controls");
+    const first = controls.shadowRoot.querySelector("#first");
+    const last = controls.shadowRoot.querySelector("#last");
+
+    first.focus();
+    first.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Tab",
+        shiftKey: true,
+        bubbles: true,
+        composed: true,
+        cancelable: true
+      })
+    );
+    expect(controls.shadowRoot.activeElement).to.equal(last);
+
+    last.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Tab",
+        bubbles: true,
+        composed: true,
+        cancelable: true
+      })
+    );
+    expect(controls.shadowRoot.activeElement).to.equal(first);
   });
 });

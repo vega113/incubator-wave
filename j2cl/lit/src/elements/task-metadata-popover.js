@@ -247,14 +247,19 @@ export class TaskMetadataPopover extends LitElement {
     if (!Array.isArray(this.participants)) {
       return [];
     }
-    return this.participants.filter(
-      participant =>
-        participant &&
-        typeof participant === "object" &&
-        !Array.isArray(participant) &&
-        typeof participant.address === "string" &&
-        participant.address.trim() !== ""
-    );
+    return this.participants
+      .filter(
+        participant =>
+          participant &&
+          typeof participant === "object" &&
+          !Array.isArray(participant) &&
+          typeof participant.address === "string" &&
+          participant.address.trim() !== ""
+      )
+      .map(participant => ({
+        ...participant,
+        address: participant.address.trim()
+      }));
   }
 
   assigneeOptions() {

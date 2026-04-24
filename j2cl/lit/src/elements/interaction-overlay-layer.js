@@ -95,7 +95,10 @@ export class InteractionOverlayLayer extends LitElement {
     if (controls.length === 0) {
       return;
     }
-    const active = this.renderRoot.activeElement || this.getRootNode().activeElement;
+    const active =
+      event.composedPath?.()[0] ||
+      this.renderRoot.activeElement ||
+      this.getRootNode().activeElement;
     const currentIndex = controls.indexOf(active);
     if (currentIndex === -1) {
       event.preventDefault();
@@ -118,15 +121,32 @@ export class InteractionOverlayLayer extends LitElement {
     const assigned = slot?.assignedElements({ flatten: true }) || [];
     const controls = [];
     for (const element of assigned) {
-      if (this.isFocusable(element)) {
-        controls.push(element);
-      }
-      controls.push(...Array.from(element.querySelectorAll(this.focusableSelector())));
+      this.collectFocusableControls(element, controls);
     }
     const contentControls = controls.filter(Boolean).filter(element => !element.disabled);
     return contentControls.length > 0
       ? contentControls
       : [this.renderRoot.querySelector("[part='surface']")].filter(Boolean);
+  }
+
+  collectFocusableControls(root, controls) {
+    if (!root) {
+      return;
+    }
+    if (this.isFocusable(root)) {
+      controls.push(root);
+    }
+    for (const element of Array.from(root.querySelectorAll?.("*") || [])) {
+      if (this.isFocusable(element)) {
+        controls.push(element);
+      }
+      if (element.shadowRoot) {
+        this.collectFocusableControls(element.shadowRoot, controls);
+      }
+    }
+    if (root.shadowRoot) {
+      this.collectFocusableControls(root.shadowRoot, controls);
+    }
   }
 
   isFocusable(element) {

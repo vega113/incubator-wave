@@ -51,6 +51,26 @@ describe("<task-metadata-popover>", () => {
     expect(options[1].value).to.equal("valid@example.com");
   });
 
+  it("trims participant addresses before rendering and submitting options", async () => {
+    const el = await fixture(html`
+      <task-metadata-popover
+        open
+        task-id="task-1"
+        assignee-address=" padded@example.com "
+        .participants=${[{ address: " padded@example.com ", displayName: "Padded" }]}
+      ></task-metadata-popover>
+    `);
+    const eventPromise = oneEvent(el, "task-metadata-submit");
+
+    expect(el.renderRoot.querySelector("select[name='assignee']").value).to.equal(
+      "padded@example.com"
+    );
+
+    el.renderRoot.querySelector("button[type='submit']").click();
+
+    expect((await eventPromise).detail.assigneeAddress).to.equal("padded@example.com");
+  });
+
   it("preserves a current assignee that is no longer in the participant list", async () => {
     const el = await fixture(html`
       <task-metadata-popover
