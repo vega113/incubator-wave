@@ -75,15 +75,18 @@ public final class J2clRootShellView implements J2clRootLiveSurfaceController.Sh
 
   @Override
   public void publishLiveStatus(J2clRootLiveSurfaceModel model) {
-    HTMLElement liveStatus = ensureLiveStatusElement();
-    if (liveStatus != null) {
+    HTMLElement statusElement = ensureLiveStatusElement();
+    if (statusElement != null) {
       String statusText = model == null ? "" : model.getStatusText();
-      if (statusText.equals(lastPublishedLiveStatusText)) {
+      String desiredSeparatorDisplay = statusText.isEmpty() ? "none" : "";
+      if (statusText.equals(lastPublishedLiveStatusText)
+          && (liveStatusSeparator == null
+              || liveStatusSeparator.style.display.equals(desiredSeparatorDisplay))) {
         return;
       }
-      liveStatus.textContent = statusText;
+      statusElement.textContent = statusText;
       if (liveStatusSeparator != null) {
-        liveStatusSeparator.style.display = statusText.isEmpty() ? "none" : "";
+        liveStatusSeparator.style.display = desiredSeparatorDisplay;
       }
       lastPublishedLiveStatusText = statusText;
     }

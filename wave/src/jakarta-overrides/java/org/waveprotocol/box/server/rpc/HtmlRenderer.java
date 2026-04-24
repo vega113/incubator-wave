@@ -3246,6 +3246,7 @@ public final class HtmlRenderer {
     String safeEncodedReturnTarget =
         StringEscapeUtils.escapeHtml4(encodeLocalReturnTarget(resolvedReturnTarget));
     int queryStart = resolvedReturnTarget.indexOf('?');
+    // Query-only client routes reuse this path prefix when updating return targets.
     String resolvedBasePath = queryStart >= 0 ? resolvedReturnTarget.substring(0, queryStart) : resolvedReturnTarget;
     String safeResolvedBasePath = StringEscapeUtils.escapeHtml4(resolvedBasePath);
 

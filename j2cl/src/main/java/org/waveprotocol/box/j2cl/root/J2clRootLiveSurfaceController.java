@@ -41,6 +41,7 @@ public final class J2clRootLiveSurfaceController {
     try {
       routeStarter.start();
     } catch (RuntimeException | Error e) {
+      // Reset lifecycle state before rethrowing JVM or translated JavaScript failures.
       active = false;
       throw e;
     }

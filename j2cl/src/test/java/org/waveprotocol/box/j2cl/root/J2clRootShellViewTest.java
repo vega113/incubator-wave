@@ -282,6 +282,48 @@ public class J2clRootShellViewTest {
   }
 
   @Test
+  public void syncReturnTargetPreservesBasePathWithoutTrailingSlash() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement rootShell = createRootShell();
+    rootShell.setAttribute("data-j2cl-root-base-path", "/app");
+    appendReturnTargetNodes(rootShell);
+    HTMLElement workflowHost = appendWorkflowHost(rootShell);
+    J2clRootShellView view = new J2clRootShellView(workflowHost);
+
+    view.syncReturnTarget("?view=j2cl-root&q=in%3Ainbox");
+
+    Assert.assertEquals(
+        "/app?view=j2cl-root&q=in%3Ainbox",
+        rootShell.getAttribute("data-j2cl-root-return-target"));
+    Assert.assertEquals(
+        "/app?view=j2cl-root&q=in%3Ainbox",
+        ((HTMLElement) rootShell.querySelector("#j2cl-root-brand-link")).getAttribute("href"));
+  }
+
+  @Test
+  public void syncReturnTargetIgnoresUnsafeBasePathForQueryOnlyRoute() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement rootShell = createRootShell();
+    rootShell.setAttribute("data-j2cl-root-base-path", "//evil.example");
+    appendReturnTargetNodes(rootShell);
+    HTMLElement workflowHost = appendWorkflowHost(rootShell);
+    J2clRootShellView view = new J2clRootShellView(workflowHost);
+
+    view.syncReturnTarget("?view=j2cl-root&q=in%3Ainbox");
+
+    Assert.assertEquals(
+        "/?view=j2cl-root&q=in%3Ainbox",
+        rootShell.getAttribute("data-j2cl-root-return-target"));
+    Assert.assertEquals(
+        "/?view=j2cl-root&q=in%3Ainbox",
+        ((HTMLElement) rootShell.querySelector("#j2cl-root-brand-link")).getAttribute("href"));
+  }
+
+  @Test
   public void publishLiveStatusRepublishesWhenSeparatorRemovedWithSameStatusText() {
     assumeBrowserDom();
     J2clRootShellView view = createViewWithStatusStrip();
