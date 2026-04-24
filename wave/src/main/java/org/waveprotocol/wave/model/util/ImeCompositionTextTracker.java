@@ -33,11 +33,16 @@ public final class ImeCompositionTextTracker {
 
   private String reconstructed = "";
   private String lastObserved = "";
+  // A one-character replacement is ambiguous until a duplicate or extension follows.
+  private String pendingReplacementBase = "";
+  private String pendingReplacementValue = "";
   private boolean hasRecoveredReplacement;
 
   public void reset() {
     reconstructed = "";
     lastObserved = "";
+    pendingReplacementBase = "";
+    pendingReplacementValue = "";
     hasRecoveredReplacement = false;
   }
 
@@ -55,21 +60,41 @@ public final class ImeCompositionTextTracker {
       return;
     }
     if (value.equals(lastObserved)) {
+      if (value.equals(pendingReplacementValue)) {
+        confirmPendingReplacement();
+      }
       return;
     }
     if (!lastObserved.isEmpty() && value.startsWith(lastObserved)) {
-      reconstructed += value.substring(lastObserved.length());
+      if (lastObserved.equals(pendingReplacementValue)) {
+        reconstructed = pendingReplacementBase + value;
+        pendingReplacementBase = "";
+        pendingReplacementValue = "";
+        hasRecoveredReplacement = true;
+      } else {
+        reconstructed += value.substring(lastObserved.length());
+      }
       lastObserved = value;
       return;
     }
+    if (!pendingReplacementValue.isEmpty()
+        && value.length() == 1
+        && isAsciiLetterOrDigit(value.charAt(0))) {
+      confirmPendingReplacement();
+    }
     if (isSingleCharacterReplacement(value)) {
-      reconstructed += value;
+      if (!pendingReplacementValue.isEmpty()) {
+        confirmPendingReplacement();
+      }
+      pendingReplacementBase = reconstructed;
+      pendingReplacementValue = value;
       lastObserved = value;
-      hasRecoveredReplacement = true;
       return;
     }
     reconstructed = value;
     lastObserved = value;
+    pendingReplacementBase = "";
+    pendingReplacementValue = "";
     hasRecoveredReplacement = false;
   }
 
@@ -84,7 +109,9 @@ public final class ImeCompositionTextTracker {
     if (scratch.endsWith(reconstructed)) {
       return scratch;
     }
-    if (hasRecoveredReplacement && scratch.equals(lastObserved) && reconstructed.endsWith(scratch)) {
+    if (hasRecoveredReplacement
+        && scratch.equals(lastObserved)
+        && reconstructed.endsWith(scratch)) {
       return reconstructed;
     }
     return scratch;
@@ -93,6 +120,24 @@ public final class ImeCompositionTextTracker {
   private boolean isSingleCharacterReplacement(String value) {
     return value.length() == 1
         && lastObserved.length() == 1
+        && isAsciiLetterOrDigit(value.charAt(0))
+        && isAsciiLetterOrDigit(lastObserved.charAt(0))
         && reconstructed.endsWith(lastObserved);
+  }
+
+  private void confirmPendingReplacement() {
+    if (pendingReplacementValue.isEmpty()) {
+      return;
+    }
+    reconstructed = pendingReplacementBase + pendingReplacementValue;
+    pendingReplacementBase = "";
+    pendingReplacementValue = "";
+    hasRecoveredReplacement = true;
+  }
+
+  private boolean isAsciiLetterOrDigit(char c) {
+    return ('a' <= c && c <= 'z')
+        || ('A' <= c && c <= 'Z')
+        || ('0' <= c && c <= '9');
   }
 }

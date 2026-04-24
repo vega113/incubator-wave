@@ -43,6 +43,10 @@ public class ImeCompositionTextTrackerTest extends TestCase {
     assertImeSequence("blip", "lip", "b", "l", "l", "li", "li", "lip");
   }
 
+  public void testAndroidReplacementCanRecoverWhenScratchExtendsPendingValue() {
+    assertImeSequence("new", "ew", "n", "e", "ew");
+  }
+
   public void testRepeatedSingleCharacterDoesNotDuplicate() {
     assertImeSequence("ne", "e", "n", "e", "e");
   }
@@ -61,5 +65,9 @@ public class ImeCompositionTextTrackerTest extends TestCase {
 
   public void testShrinkWithoutReplacementEvidenceKeepsScratch() {
     assertImeSequence("bc", "bc", "abc", "bc");
+  }
+
+  public void testSingleCharacterDiacriticReplacementKeepsScratch() {
+    assertImeSequence("\u00e1", "\u00e1", "a", "\u00e1", "\u00e1");
   }
 }
