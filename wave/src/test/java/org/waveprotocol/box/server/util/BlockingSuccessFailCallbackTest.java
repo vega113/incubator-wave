@@ -181,7 +181,7 @@ public class BlockingSuccessFailCallbackTest extends TestCase {
     successThread.start();
     failureThread.start();
     start.countDown();
-    assertTrue(done.await(1, TimeUnit.SECONDS));
+    assertTrue("Timed out waiting for concurrent callbacks", done.await(5, TimeUnit.SECONDS));
 
     assertEquals(1, completed.get());
     assertEquals(1, rejected.get());

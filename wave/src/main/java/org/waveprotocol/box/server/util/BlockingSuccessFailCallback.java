@@ -86,18 +86,22 @@ public class BlockingSuccessFailCallback<S, F> implements SuccessFailCallback<S,
 
   @Override
   public void onFailure(F failureValue) {
-    LOG.warning(description + ": onFailure(" + failureValue + ")");
-    Preconditions.checkArgument(failureValue != null);
-    Preconditions.checkState(completed.compareAndSet(false, true));
+    Preconditions.checkArgument(failureValue != null,
+        description + ": onFailure requires a non-null failure value");
+    Preconditions.checkState(completed.compareAndSet(false, true),
+        description + ": callback already completed before onFailure");
     failureResult.set(failureValue);
+    LOG.warning(description + ": onFailure(" + failureValue + ")");
     awaitLatch.countDown();
   }
 
   @Override
   public void onSuccess(S successValue) {
+    Preconditions.checkArgument(successValue != null,
+        description + ": onSuccess requires a non-null success value");
+    Preconditions.checkState(completed.compareAndSet(false, true),
+        description + ": callback already completed before onSuccess");
     LOG.fine(description + ": onSuccess(" + successValue + ")");
-    Preconditions.checkArgument(successValue != null);
-    Preconditions.checkState(completed.compareAndSet(false, true));
     successResult.set(successValue);
     awaitLatch.countDown();
   }
