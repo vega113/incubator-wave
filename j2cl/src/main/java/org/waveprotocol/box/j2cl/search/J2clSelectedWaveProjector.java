@@ -415,15 +415,7 @@ public final class J2clSelectedWaveProjector {
         reactions = previous.getReactionEntries();
       }
       merged.add(
-          new J2clInteractionBlipModel(
-              projected.getBlipId(),
-              projected.getDocumentId(),
-              projected.getAuthor(),
-              projected.getText(),
-              participantIds,
-              editable,
-              projected.getAnnotationRanges(),
-              reactions));
+          rebuildInteractionBlip(projected, participantIds, editable, reactions));
       seenBlipIds.add(projected.getBlipId());
     }
     for (J2clInteractionBlipModel previous : previousBlips) {
@@ -435,17 +427,25 @@ public final class J2clSelectedWaveProjector {
               ? reactionsByBlip.get(previous.getBlipId())
               : previous.getReactionEntries();
       merged.add(
-          new J2clInteractionBlipModel(
-              previous.getBlipId(),
-              previous.getDocumentId(),
-              previous.getAuthor(),
-              previous.getText(),
-              participantIds,
-              editable,
-              previous.getAnnotationRanges(),
-              reactions));
+          rebuildInteractionBlip(previous, participantIds, editable, reactions));
     }
     return merged;
+  }
+
+  private static J2clInteractionBlipModel rebuildInteractionBlip(
+      J2clInteractionBlipModel source,
+      List<String> participantIds,
+      boolean editable,
+      List<SidecarReactionEntry> reactions) {
+    return new J2clInteractionBlipModel(
+        source.getBlipId(),
+        source.getDocumentId(),
+        source.getAuthor(),
+        source.getText(),
+        participantIds,
+        editable,
+        source.getAnnotationRanges(),
+        reactions);
   }
 
   private static Map<String, List<SidecarReactionEntry>> extractReactionsByBlip(
