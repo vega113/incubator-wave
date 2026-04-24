@@ -84,6 +84,25 @@ public class J2clComposeSurfaceControllerTest {
   }
 
   @Test
+  public void differentWaveSelectionDuringStaleSubmitPreservesDraft() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 45L, "BCDE", "b+root"));
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertTrue(view.model.isReplyStaleBasis());
+  }
+
+  @Test
   public void bootstrapFailurePreservesDraftAndSurfacesRootSubmitError() {
     FakeGateway gateway = new FakeGateway();
     gateway.bootstrapError = "bootstrap unavailable";

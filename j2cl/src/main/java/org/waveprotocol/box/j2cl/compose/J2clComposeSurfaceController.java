@@ -162,7 +162,7 @@ public final class J2clComposeSurfaceController {
       }
       replySubmitting = false;
       replyStatusText = "";
-      if (selectedWaveChanged(nextWriteSession)) {
+      if (selectedWaveChanged(nextWriteSession) && !replyStaleBasis) {
         replyDraft = "";
       }
     }
