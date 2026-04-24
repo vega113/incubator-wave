@@ -31,6 +31,7 @@ import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.account.RobotAccountDataImpl;
+import org.waveprotocol.box.server.account.SocialIdentity;
 import org.waveprotocol.box.server.authentication.PasswordDigest;
 import org.waveprotocol.box.server.robots.RobotCapabilities;
 import org.waveprotocol.wave.model.util.CollectionUtils;
@@ -106,6 +107,50 @@ public abstract class AccountStoreTestBase extends TestCase {
         new HumanAccountDataImpl(HUMAN_ID, new PasswordDigest("internet".toCharArray())));
     AccountData retrievedAccount = accountStore.getAccount(HUMAN_ID);
     assertTrue(retrievedAccount.asHuman().getPasswordDigest().verify("internet".toCharArray()));
+  }
+
+  public final void testRoundtripHumanAccountWithSocialIdentityLookup() throws Exception {
+    AccountStore accountStore = newAccountStore();
+    HumanAccountDataImpl account = new HumanAccountDataImpl(HUMAN_ID);
+    account.addOrReplaceSocialIdentity(
+        new SocialIdentity("google", "google-sub-123", "human@example.com", "Human User", 1234L));
+
+    accountStore.putAccount(account);
+
+    AccountData retrievedAccount =
+        accountStore.getAccountBySocialIdentity("google", "google-sub-123");
+    assertNotNull(retrievedAccount);
+    assertEquals(HUMAN_ID, retrievedAccount.getId());
+    assertEquals(1, retrievedAccount.asHuman().getSocialIdentities().size());
+  }
+
+  public final void testEmailLookupMatchesLegacyMixedCaseEmail() throws Exception {
+    AccountStore accountStore = newAccountStore();
+    HumanAccountDataImpl account = new HumanAccountDataImpl(HUMAN_ID);
+    account.setEmail("Human@Example.COM");
+    accountStore.putAccount(account);
+
+    AccountData retrievedAccount = accountStore.getAccountByEmail("human@example.com");
+
+    assertNotNull(retrievedAccount);
+    assertEquals(HUMAN_ID, retrievedAccount.getId());
+  }
+
+  public final void testSocialIdentityLookupRemovesStaleMappingOnReplace() throws Exception {
+    AccountStore accountStore = newAccountStore();
+    HumanAccountDataImpl account = new HumanAccountDataImpl(HUMAN_ID);
+    account.addOrReplaceSocialIdentity(
+        new SocialIdentity("github", "old-subject", "human@example.com", "Human User", 1234L));
+    accountStore.putAccount(account);
+
+    HumanAccountDataImpl replacement = new HumanAccountDataImpl(HUMAN_ID);
+    replacement.addOrReplaceSocialIdentity(
+        new SocialIdentity("github", "new-subject", "human@example.com", "Human User", 2345L));
+    accountStore.putAccount(replacement);
+
+    assertNull(accountStore.getAccountBySocialIdentity("github", "old-subject"));
+    assertEquals(HUMAN_ID,
+        accountStore.getAccountBySocialIdentity("github", "new-subject").getId());
   }
 
   public final void testRoundtripRobotAccount() throws Exception {

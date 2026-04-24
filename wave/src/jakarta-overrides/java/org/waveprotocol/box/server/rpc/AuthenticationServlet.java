@@ -37,9 +37,12 @@ import org.waveprotocol.box.server.authentication.email.AuthEmailService.Dispatc
 import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwt;
 import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtCookie;
 import org.waveprotocol.box.server.authentication.jwt.BrowserSessionJwtIssuer;
+import org.waveprotocol.box.server.authentication.oauth.SocialAuthConfig;
+import org.waveprotocol.box.server.authentication.oauth.SocialAuthProvider;
 import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.persistence.AccountStore;
+import org.waveprotocol.box.server.persistence.FeatureFlagService;
 import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.waveserver.AnalyticsRecorder;
 import org.waveprotocol.box.server.util.RegistrationSupport;
@@ -74,6 +77,8 @@ import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CodingErrorAction;
 import java.security.Principal;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Jakarta variant of AuthenticationServlet.
@@ -110,6 +115,8 @@ public class AuthenticationServlet extends HttpServlet {
   private final boolean passwordResetEnabled;
   private final boolean magicLinkEnabled;
   private final boolean emailConfirmationEnabled;
+  private final FeatureFlagService featureFlagService;
+  private final SocialAuthConfig socialAuthConfig;
 
   @Inject
   public AuthenticationServlet(AccountStore accountStore,
@@ -119,7 +126,36 @@ public class AuthenticationServlet extends HttpServlet {
                                Config config,
                                BrowserSessionJwtIssuer browserSessionJwtIssuer,
                                AuthEmailService authEmailService,
+                               AnalyticsRecorder analyticsRecorder,
+                               FeatureFlagService featureFlagService,
+                               SocialAuthConfig socialAuthConfig) {
+    this(accountStore, configuration, sessionManager, domain, config, browserSessionJwtIssuer,
+        authEmailService, analyticsRecorder, featureFlagService, socialAuthConfig, true);
+  }
+
+  public AuthenticationServlet(AccountStore accountStore,
+                               Configuration configuration,
+                               SessionManager sessionManager,
+                               @Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
+                               Config config,
+                               BrowserSessionJwtIssuer browserSessionJwtIssuer,
+                               AuthEmailService authEmailService,
                                AnalyticsRecorder analyticsRecorder) {
+    this(accountStore, configuration, sessionManager, domain, config, browserSessionJwtIssuer,
+        authEmailService, analyticsRecorder, null, null, true);
+  }
+
+  private AuthenticationServlet(AccountStore accountStore,
+                               Configuration configuration,
+                               SessionManager sessionManager,
+                               String domain,
+                               Config config,
+                               BrowserSessionJwtIssuer browserSessionJwtIssuer,
+                               AuthEmailService authEmailService,
+                               AnalyticsRecorder analyticsRecorder,
+                               FeatureFlagService featureFlagService,
+                               SocialAuthConfig socialAuthConfig,
+                               boolean ignored) {
     Preconditions.checkNotNull(accountStore, "AccountStore is null");
     Preconditions.checkNotNull(configuration, "Configuration is null");
     Preconditions.checkNotNull(sessionManager, "Session manager is null");
@@ -144,6 +180,8 @@ public class AuthenticationServlet extends HttpServlet {
         && config.getBoolean("core.magic_link_enabled");
     this.emailConfirmationEnabled = config.hasPath("core.email_confirmation_enabled")
         && config.getBoolean("core.email_confirmation_enabled");
+    this.featureFlagService = featureFlagService;
+    this.socialAuthConfig = socialAuthConfig;
   }
 
   private static X509Certificate[] getClientCerts(HttpServletRequest req) {
@@ -232,7 +270,7 @@ public class AuthenticationServlet extends HttpServlet {
         resp.setContentType("text/html;charset=utf-8");
         resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, message,
             responseType, isLoginPageDisabled, analyticsAccount,
-            passwordResetEnabled, magicLinkEnabled));
+            passwordResetEnabled, magicLinkEnabled, socialProviderLinks()));
         return;
       }
 
@@ -302,11 +340,20 @@ public class AuthenticationServlet extends HttpServlet {
       }
     }
 
+    rotateSession(req);
     WebSession session = WebSessions.from(req, true);
     sessionManager.setLoggedInUser(session, loggedInAddress);
     issueBrowserSessionJwtCookie(req, resp, loggedInAddress);
     LOG.info("Authenticated user " + loggedInAddress);
     redirectLoggedInUser(req, resp);
+  }
+
+  private void rotateSession(HttpServletRequest req) {
+    try {
+      req.getSession(true);
+      req.changeSessionId();
+    } catch (IllegalStateException ignored) {
+    }
   }
 
   private void issueBrowserSessionJwtCookie(HttpServletRequest req,
@@ -335,7 +382,7 @@ public class AuthenticationServlet extends HttpServlet {
     resp.setContentType("text/html;charset=utf-8");
     resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, message,
         RESPONSE_STATUS_FAILED, isLoginPageDisabled, analyticsAccount,
-        passwordResetEnabled, magicLinkEnabled));
+        passwordResetEnabled, magicLinkEnabled, socialProviderLinks()));
   }
 
   private ParticipantId getLoggedInUser(Subject subject) throws InvalidParticipantAddress {
@@ -434,8 +481,23 @@ public class AuthenticationServlet extends HttpServlet {
       }
       resp.getWriter().write(HtmlRenderer.renderAuthenticationPage(domain, initMessage,
           initResponseType, isLoginPageDisabled, analyticsAccount,
-          passwordResetEnabled, magicLinkEnabled));
+          passwordResetEnabled, magicLinkEnabled, socialProviderLinks()));
     }
+  }
+
+  private List<HtmlRenderer.SocialProviderLink> socialProviderLinks() {
+    if (featureFlagService == null || socialAuthConfig == null
+        || !featureFlagService.isGloballyEnabled(SocialAuthServlet.SOCIAL_AUTH_FLAG)) {
+      return java.util.Collections.emptyList();
+    }
+    List<HtmlRenderer.SocialProviderLink> links = new ArrayList<>();
+    for (SocialAuthProvider provider : SocialAuthProvider.values()) {
+      if (socialAuthConfig.isConfigured(provider)) {
+        links.add(new HtmlRenderer.SocialProviderLink(
+            provider.label(), "/auth/social/" + provider.id()));
+      }
+    }
+    return links;
   }
 
   private void redirectLoggedInUser(HttpServletRequest req, HttpServletResponse resp)

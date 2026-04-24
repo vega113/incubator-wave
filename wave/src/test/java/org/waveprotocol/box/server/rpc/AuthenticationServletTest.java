@@ -357,6 +357,7 @@ public class AuthenticationServletTest extends TestCase {
     }
     servlet.doPost(req, resp);
     if (expectSuccess) {
+      verify(req).changeSessionId();
       verify(manager).setLoggedInUser(Mockito.any(WebSession.class), eq(USER));
       ArgumentCaptor<String> cookieCaptor = ArgumentCaptor.forClass(String.class);
       verify(resp).addHeader(eq("Set-Cookie"), cookieCaptor.capture());

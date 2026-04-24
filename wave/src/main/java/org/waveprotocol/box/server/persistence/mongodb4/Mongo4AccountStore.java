@@ -2,6 +2,7 @@ package org.waveprotocol.box.server.persistence.mongodb4;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.types.Binary;
 import org.waveprotocol.box.searches.SearchesItem;
@@ -10,6 +11,7 @@ import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.account.HumanAccountDataImpl;
 import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.account.RobotAccountDataImpl;
+import org.waveprotocol.box.server.account.SocialIdentity;
 import org.waveprotocol.box.server.authentication.PasswordDigest;
 import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.PersistenceException;
@@ -23,11 +25,16 @@ import com.google.wave.api.event.EventType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static com.mongodb.client.model.Filters.and;
+import static com.mongodb.client.model.Filters.elemMatch;
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Filters.exists;
+import static com.mongodb.client.model.Filters.regex;
+import static com.mongodb.client.model.Updates.combine;
 import static com.mongodb.client.model.Updates.set;
 
 /** MongoDB 4.x AccountStore implementation (human + robot). */
@@ -53,11 +60,17 @@ final class Mongo4AccountStore implements AccountStore {
   private static final String HUMAN_PROFILE_IMAGE_FIELD = "profileImageAttachmentId";
   private static final String HUMAN_SHOW_LAST_SEEN_FIELD = "showLastSeen";
   private static final String HUMAN_SEARCHES_FIELD = "searches";
+  private static final String HUMAN_SOCIAL_IDENTITIES_FIELD = "socialIdentities";
   private static final String SEARCH_NAME_FIELD = "name";
   private static final String SEARCH_QUERY_FIELD = "query";
   private static final String SEARCH_PINNED_FIELD = "pinned";
   private static final String PASSWORD_DIGEST_FIELD = "digest";
   private static final String PASSWORD_SALT_FIELD = "salt";
+  private static final String SOCIAL_PROVIDER_FIELD = "provider";
+  private static final String SOCIAL_SUBJECT_FIELD = "subject";
+  private static final String SOCIAL_EMAIL_FIELD = "email";
+  private static final String SOCIAL_DISPLAY_NAME_FIELD = "displayName";
+  private static final String SOCIAL_LINKED_AT_FIELD = "linkedAtMillis";
 
   private static final String ROBOT_URL_FIELD = "url";
   private static final String ROBOT_SECRET_FIELD = "secret";
@@ -133,6 +146,21 @@ final class Mongo4AccountStore implements AccountStore {
   }
 
   @Override
+  public void updateHumanLoginTimestamps(ParticipantId id, long lastLoginTime,
+      long lastActivityTime) throws PersistenceException {
+    try {
+      col.updateOne(
+          and(eq("_id", id.getAddress()), exists(ACCOUNT_HUMAN_DATA_FIELD)),
+          combine(
+              set(ACCOUNT_HUMAN_DATA_FIELD + "." + HUMAN_LAST_LOGIN_TIME_FIELD, lastLoginTime),
+              set(ACCOUNT_HUMAN_DATA_FIELD + "." + HUMAN_LAST_ACTIVITY_TIME_FIELD,
+                  lastActivityTime)));
+    } catch (RuntimeException e) {
+      throw new PersistenceException(e);
+    }
+  }
+
+  @Override
   public void removeAccount(ParticipantId id) throws PersistenceException {
     try {
       col.deleteOne(eq("_id", id.getAddress()));
@@ -145,13 +173,57 @@ final class Mongo4AccountStore implements AccountStore {
   public AccountData getAccountByEmail(String email) throws PersistenceException {
     if (email == null || email.isEmpty()) return null;
     try {
-      Document doc = col.find(eq(ACCOUNT_HUMAN_DATA_FIELD + "." + HUMAN_EMAIL_FIELD, email)).first();
+      String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+      if (normalizedEmail.isEmpty()) return null;
+      Document doc = col.find(eq(
+          ACCOUNT_HUMAN_DATA_FIELD + "." + HUMAN_EMAIL_FIELD, normalizedEmail)).first();
+      if (doc == null) {
+        doc = col.find(regex(
+            ACCOUNT_HUMAN_DATA_FIELD + "." + HUMAN_EMAIL_FIELD,
+            "^" + Pattern.quote(normalizedEmail) + "$",
+            "i")).first();
+      }
       if (doc == null) return null;
       String idStr = doc.getString("_id");
       ParticipantId id = ParticipantId.ofUnsafe(idStr);
       Document human = (Document) doc.get(ACCOUNT_HUMAN_DATA_FIELD);
       if (human != null) return objectToHuman(id, human);
       return null;
+    } catch (RuntimeException e) {
+      throw new PersistenceException(e);
+    }
+  }
+
+  @Override
+  public AccountData getAccountBySocialIdentity(String provider, String subject)
+      throws PersistenceException {
+    if (provider == null || provider.isEmpty() || subject == null || subject.isEmpty()) return null;
+    try {
+      Document match = new Document(SOCIAL_PROVIDER_FIELD, provider.trim().toLowerCase(Locale.ROOT))
+          .append(SOCIAL_SUBJECT_FIELD, subject.trim());
+      Document doc = col.find(elemMatch(
+          ACCOUNT_HUMAN_DATA_FIELD + "." + HUMAN_SOCIAL_IDENTITIES_FIELD, match)).first();
+      if (doc == null) return null;
+      String idStr = doc.getString("_id");
+      ParticipantId id = ParticipantId.ofUnsafe(idStr);
+      Document human = (Document) doc.get(ACCOUNT_HUMAN_DATA_FIELD);
+      if (human != null) return objectToHuman(id, human);
+      return null;
+    } catch (RuntimeException e) {
+      throw new PersistenceException(e);
+    }
+  }
+
+  @Override
+  public void linkSocialIdentity(ParticipantId id, SocialIdentity socialIdentity)
+      throws PersistenceException {
+    try {
+      UpdateResult result = col.updateOne(
+          and(eq("_id", id.getAddress()), exists(ACCOUNT_HUMAN_DATA_FIELD)),
+          List.of(replaceSocialIdentityStage(socialIdentity)));
+      if (result.getMatchedCount() == 0L) {
+        throw new PersistenceException("No human account found for " + id);
+      }
     } catch (RuntimeException e) {
       throw new PersistenceException(e);
     }
@@ -267,7 +339,45 @@ final class Mongo4AccountStore implements AccountStore {
       }
       doc.append(HUMAN_SEARCHES_FIELD, searchDocs);
     }
+    List<SocialIdentity> identities = account.getSocialIdentities();
+    if (identities != null && !identities.isEmpty()) {
+      List<Document> identityDocs = new ArrayList<>();
+      for (SocialIdentity identity : identities) {
+        identityDocs.add(socialIdentityToObject(identity));
+      }
+      doc.append(HUMAN_SOCIAL_IDENTITIES_FIELD, identityDocs);
+    }
     return doc;
+  }
+
+  private static Document socialIdentityToObject(SocialIdentity identity) {
+    Document doc = new Document()
+        .append(SOCIAL_PROVIDER_FIELD, identity.getProvider())
+        .append(SOCIAL_SUBJECT_FIELD, identity.getSubject());
+    if (identity.getEmail() != null) {
+      doc.append(SOCIAL_EMAIL_FIELD, identity.getEmail());
+    }
+    if (identity.getDisplayName() != null) {
+      doc.append(SOCIAL_DISPLAY_NAME_FIELD, identity.getDisplayName());
+    }
+    if (identity.getLinkedAtMillis() != 0L) {
+      doc.append(SOCIAL_LINKED_AT_FIELD, identity.getLinkedAtMillis());
+    }
+    return doc;
+  }
+
+  private static Document replaceSocialIdentityStage(SocialIdentity identity) {
+    String identityPath = ACCOUNT_HUMAN_DATA_FIELD + "." + HUMAN_SOCIAL_IDENTITIES_FIELD;
+    Document existingDoesNotMatch = new Document("$not", List.of(new Document("$and", List.of(
+        new Document("$eq", List.of("$$identity." + SOCIAL_PROVIDER_FIELD, identity.getProvider())),
+        new Document("$eq", List.of("$$identity." + SOCIAL_SUBJECT_FIELD, identity.getSubject()))))));
+    Document existingWithoutIdentity = new Document("$filter", new Document()
+        .append("input", new Document("$ifNull", List.of("$" + identityPath, List.of())))
+        .append("as", "identity")
+        .append("cond", existingDoesNotMatch));
+    return new Document("$set", new Document(identityPath, new Document("$concatArrays", List.of(
+        existingWithoutIdentity,
+        List.of(socialIdentityToObject(identity))))));
   }
 
   private static HumanAccountData objectToHuman(ParticipantId id, Document doc) {
@@ -347,6 +457,25 @@ final class Mongo4AccountStore implements AccountStore {
             sPinned != null && sPinned));
       }
       account.setSearches(searches);
+    }
+    List<?> socialList = (List<?>) doc.get(HUMAN_SOCIAL_IDENTITIES_FIELD);
+    if (socialList != null && !socialList.isEmpty()) {
+      List<SocialIdentity> identities = new ArrayList<>();
+      for (Object obj : socialList) {
+        Document sDoc = (Document) obj;
+        String provider = sDoc.getString(SOCIAL_PROVIDER_FIELD);
+        String subject = sDoc.getString(SOCIAL_SUBJECT_FIELD);
+        if (provider != null && subject != null) {
+          Long linkedAt = sDoc.getLong(SOCIAL_LINKED_AT_FIELD);
+          identities.add(new SocialIdentity(
+              provider,
+              subject,
+              sDoc.getString(SOCIAL_EMAIL_FIELD),
+              sDoc.getString(SOCIAL_DISPLAY_NAME_FIELD),
+              linkedAt != null ? linkedAt : 0L));
+        }
+      }
+      account.setSocialIdentities(identities);
     }
     return account;
   }

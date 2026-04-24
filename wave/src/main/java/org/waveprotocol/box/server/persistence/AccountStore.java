@@ -22,9 +22,12 @@ package org.waveprotocol.box.server.persistence;
 import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.account.RobotAccountDataImpl;
+import org.waveprotocol.box.server.account.SocialIdentity;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.logging.Logger;
 
 /**
  * Interface for the storage and retrieval of {@link AccountData}s.
@@ -32,6 +35,7 @@ import java.util.List;
  * @author ljvderijk@google.com (Lennard de Rijk)
  */
 public interface AccountStore {
+  Logger ACCOUNT_STORE_LOG = Logger.getLogger(AccountStore.class.getName());
   /**
    * Initialize the account store.
    * Implementations are expected to validate any configuration values, validate the state of the
@@ -95,6 +99,23 @@ public interface AccountStore {
   }
 
   /**
+   * Updates human login/activity timestamps.
+   *
+   * <p>The default implementation performs a read-modify-write. Database-backed
+   * stores should override this with a field-targeted update.
+   */
+  default void updateHumanLoginTimestamps(ParticipantId id, long lastLoginTime,
+      long lastActivityTime) throws PersistenceException {
+    AccountData account = getAccount(id);
+    if (account == null || !account.isHuman()) {
+      return;
+    }
+    account.asHuman().setLastLoginTime(lastLoginTime);
+    account.asHuman().setLastActivityTime(lastActivityTime);
+    putAccount(account);
+  }
+
+  /**
    * Removes an account from storage.
    *
    * @param id the participant id of the account to remove.
@@ -105,13 +126,67 @@ public interface AccountStore {
    * Returns an {@link AccountData} for the given email address, or null if
    * no account has that email.
    *
-   * <p>Default implementation returns null (backward compatible for stores
-   * that have not indexed by email).
+   * <p>Default implementation scans human accounts case-insensitively. Stores
+   * with an email index should override this method.
    *
    * @param email the email address to look up.
    */
   default AccountData getAccountByEmail(String email) throws PersistenceException {
+    String normalized = normalizeEmail(email);
+    if (normalized.isEmpty()) {
+      return null;
+    }
+    ACCOUNT_STORE_LOG.fine(
+        "Scanning accounts for email lookup; backend should override this method");
+    for (AccountData account : getAllAccounts()) {
+      if (account == null || !account.isHuman()) {
+        continue;
+      }
+      String accountEmail = normalizeEmail(account.asHuman().getEmail());
+      if (!accountEmail.isEmpty() && accountEmail.equals(normalized)) {
+        return account;
+      }
+    }
     return null;
+  }
+
+  /**
+   * Returns a human account linked to the given provider subject, or null.
+   */
+  default AccountData getAccountBySocialIdentity(String provider, String subject)
+      throws PersistenceException {
+    if (provider == null || provider.trim().isEmpty()
+        || subject == null || subject.trim().isEmpty()) {
+      return null;
+    }
+    ACCOUNT_STORE_LOG.fine(
+        "Scanning accounts for social identity lookup; backend should override this method");
+    String normalizedProvider = provider.trim().toLowerCase(Locale.ROOT);
+    String normalizedSubject = subject.trim();
+    for (AccountData account : getAllAccounts()) {
+      if (account == null || !account.isHuman()) {
+        continue;
+      }
+      for (SocialIdentity identity : account.asHuman().getSocialIdentities()) {
+        if (identity.matches(normalizedProvider, normalizedSubject)) {
+          return account;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Links a provider identity to an existing human account.
+   */
+  default void linkSocialIdentity(ParticipantId id, SocialIdentity socialIdentity)
+      throws PersistenceException {
+    AccountData account = getAccount(id);
+    if (account == null || !account.isHuman()) {
+      throw new PersistenceException("No human account found for " + id);
+    }
+    account.asHuman().addOrReplaceSocialIdentity(socialIdentity);
+    putAccount(account);
   }
 
   /**
@@ -139,5 +214,9 @@ public interface AccountStore {
    */
   default long getAccountCount() throws PersistenceException {
     return 0;
+  }
+
+  private static String normalizeEmail(String email) {
+    return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
   }
 }
