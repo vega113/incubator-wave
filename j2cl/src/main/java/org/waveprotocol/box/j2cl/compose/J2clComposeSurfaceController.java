@@ -124,6 +124,7 @@ public final class J2clComposeSurfaceController {
     replyStaleBasis = false;
     replyStaleWaveId = null;
     replyErrorText = "";
+    createErrorText = "";
     createStatusText = "Sign in to create or reply in the J2CL root shell.";
     replyStatusText = createStatusText;
     render();
