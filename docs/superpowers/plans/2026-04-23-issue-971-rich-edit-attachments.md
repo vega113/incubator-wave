@@ -20,6 +20,43 @@
 - If #969 has not introduced a J2CL rich editor command model, Task 1 below must add that adapter as a narrow extension; do not reimplement GWT `StageThree`.
 - GitHub commands in this plan use `--repo vega113/supawave`; this is verified against `origin=https://github.com/vega113/supawave.git`.
 
+### Task 1 Ownership Freeze - 2026-04-24
+
+Task 1 has been revalidated after the dependency chain landed:
+
+- #969 merged as PR #1002 at `d7ea91813a22aaf3c48d50817857765733c1ec53` and introduced the J2CL root compose/toolbar hosts plus Lit composer and toolbar primitives.
+- #970 merged as PR #1006 at `d3f13547084a4aaac15749187b0eabf0c63b8c15` and introduced the Lit interaction overlay primitives for mentions, task metadata, reactions, and generic overlay focus/lifecycle.
+- This #971 branch was rebased onto `origin/main` at `d3f13547084a4aaac15749187b0eabf0c63b8c15`, which is the #970 merge commit and the current `origin/main` HEAD for this gate; product-code implementation can now start from this branch.
+
+#969 absorbed the following ownership:
+
+- J2CL root composer/toolbar host creation in `J2clRootShellController`.
+- Plain-text create/reply submit flow through `J2clComposeSurfaceController` and `J2clPlainTextDeltaFactory`.
+- Lit shell primitives: `composer-shell`, `composer-inline-reply`, `composer-submit-affordance`, `toolbar-button`, `toolbar-group`, and `toolbar-overflow-menu`.
+- Daily toolbar action identifiers and disabled/error presentation for `bold`, `italic`, `underline`, `strikethrough`, `heading`, `unordered-list`, `ordered-list`, `align-left`, `align-center`, `align-right`, `rtl`, `link`, `unlink`, and `clear-formatting`.
+
+#969 did not wire those edit toolbar actions to a rich editor or structured DocOp command model. #971 owns that command execution layer where it is needed for daily parity.
+
+#970 absorbed the following ownership:
+
+- Generic Lit overlay/focus primitive: `interaction-overlay-layer`.
+- Mention, task metadata, reaction picker/authors/row Lit primitives.
+- Tests for those overlay primitives under `j2cl/lit/test/`.
+
+#971 must not modify the #970 overlay primitive element files unless a later review explicitly requires a shared bug fix. If #971 needs overlay behavior, compose it from those elements rather than reimplementing focus/lifecycle handling.
+
+#970 overlap scan result: no blocking overlap. #970 shipped new Lit overlay primitive files plus `j2cl/lit/src/index.js`; #971 may extend `j2cl/lit/src/index.js` only to register its own attachment/rich-edit elements, and must consume #970 overlay primitives by composition instead of editing them.
+
+Final #971-owned `R-5.7` command list:
+
+- Attachment command surface and execution with stable command/state IDs: `attachment-insert`, `attachment-upload-queue`, `attachment-cancel`, `attachment-paste-image`, `attachment-caption`, `attachment-size-small`, `attachment-size-medium`, `attachment-size-large`, `attachment-open`, `attachment-download`, and `attachment-error-state`. `attachment-error-state` is a stable controller/UI state identifier for tests and accessibility assertions, not a toolbar command.
+- Rich-content document model and structured builder for plain text, inline annotation segments, link annotation, paragraph/list/alignment/direction metadata, and attachment XML insertion.
+- Command execution for the #969-exposed daily edit actions: `bold`, `italic`, `underline`, `strikethrough`, `heading-default`, `heading-h1`, `heading-h2`, `heading-h3`, `heading-h4`, `unordered-list`, `ordered-list`, `align-left`, `align-center`, `align-right`, `rtl`, `link`, `unlink`, and `clear-formatting`. `heading-default` maps to the GWT "Default" heading menu entry, meaning paragraph/no heading.
+- Additional daily toolbar actions not exposed by #969 but present in the GWT daily edit toolbar and required by the original #971 candidate list: `indent` and `outdent`.
+- Pasted image upload must mutate the document only after upload success, matching GWT failure safety.
+
+Deferred non-daily GWT toolbar affordances to document before closing #971, not to implement in this first daily slice unless the parity tracker is amended: `superscript`, `subscript`, font size, font family, font color, and highlight color / `backColor`. `block quote` is not present in the inspected GWT `EditToolbar.java` action set and is not #971-owned unless a separate parity row identifies it.
+
 ## Slice Parity Packet - Issue #971
 
 **Title:** Port attachment and remaining rich-edit parity required for daily Wave use in Lit/J2CL
@@ -31,7 +68,7 @@
 ### Parity Matrix Rows Claimed
 
 - `R-5.6` - Attachment upload/download/open paths preserve daily behavior, errors are user-visible, and attachment content round-trips through the model.
-- `R-5.7` - Only daily remaining rich-edit affordances not closed by #969. Initial candidate set: pasted image upload, attachment caption/display-size insertion, attachment tile rendering, attachment keyboard open/download, clear formatting, indent/outdent, block quote if still missing, and any daily inline-link gap not covered by #969.
+- `R-5.7` - Only daily remaining rich-edit affordances not closed by #969. Initial candidate set resolved by the 2026-04-24 Ownership Freeze above: pasted image upload, attachment caption/display-size insertion, attachment tile rendering, attachment keyboard open/download, clear formatting, indent/outdent, and any daily inline-link gap not covered by #969. Block quote was checked against GWT `EditToolbar.java` during the freeze and is not #971-owned because that toolbar does not expose it.
 
 ### GWT Seams De-Risked
 
@@ -86,12 +123,13 @@
 
 ### Task 1: Rebase And Freeze Ownership
 
-- [ ] Fetch `origin/main`, #969, and #970 branch heads or PR heads.
-- [ ] Rebase the implementation branch onto the final #969 baseline.
-- [ ] Diff #969 for compose/toolbar file names and update the file ownership list in this plan if the final files differ.
-- [ ] Diff #970 for shared overlay/toolbar/focus files. If any file overlaps, comment on #971 with `#970 overlap: <file list>` and do not edit those files until the owner sequence is clear.
-- [ ] Write the final #971-owned `R-5.7` command list into this plan or a linked #971 issue comment. The list must explicitly say which candidate commands were absorbed by #969 and which remain for #971.
-- [ ] Confirm no product code is changed before the implementation gate.
+- [x] Fetch `origin/main`, #969, and #970 branch heads or PR heads.
+- [x] Rebase the implementation branch onto the final #969 baseline.
+- [x] Diff #969 for compose/toolbar file names and update the file ownership list in this plan if the final files differ.
+- [x] Diff #970 for shared overlay/toolbar/focus files. If any file overlaps, comment on #971 with `#970 overlap: <file list>` and do not edit those files until the owner sequence is clear.
+- [x] Write the final #971-owned `R-5.7` command list into this plan or a linked #971 issue comment. The list must explicitly say which candidate commands were absorbed by #969 and which remain for #971.
+- [x] Confirm no product code is changed before the implementation gate.
+- [x] Run `git diff --stat origin/main..HEAD` and confirm only the #971 plan file is included before opening the implementation gate.
 
 Expected command examples:
 
@@ -100,6 +138,7 @@ gh issue view 969 --repo vega113/supawave --json state,comments,url
 gh issue view 970 --repo vega113/supawave --json state,comments,url
 git fetch origin
 git status --short --branch
+git diff --stat origin/main..HEAD
 ```
 
 ### Task 2: Add Structured Rich-Content Operation Builder
@@ -158,6 +197,7 @@ cd j2cl && ./mvnw -Dtest=J2clAttachmentComposerControllerTest test
 
 - [ ] Extend the final #969 composer model/view instead of reusing the old `J2clSidecarComposeView` textareas directly.
 - [ ] Add toolbar affordances only for #971-owned commands: attachment picker, pasted image, and remaining rich-edit commands not implemented by #969.
+- [ ] Add parameterized or explicit test coverage for every stable command/state ID named in the 2026-04-24 Ownership Freeze: all attachment IDs, `heading-default`, `heading-h1` through `heading-h4`, `indent`, `outdent`, and the #969-exposed edit action IDs.
 - [ ] Preserve focus restoration: opening a picker or link/block-format popover must return focus to the composer trigger or prior caret after close.
 - [ ] Emit accessible labels and live-region status for upload progress and errors.
 - [ ] Do not implement mentions, tasks, reactions, autocomplete listboxes, or comparable overlays here; those belong to #970.
