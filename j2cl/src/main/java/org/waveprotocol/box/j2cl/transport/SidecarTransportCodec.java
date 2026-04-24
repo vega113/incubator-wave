@@ -104,13 +104,17 @@ public final class SidecarTransportCodec {
     if (rawDocuments != null) {
       for (Object rawDocument : asList(rawDocuments)) {
         Map<String, Object> document = asObject(rawDocument);
+        DocumentExtraction extraction =
+            extractDocument(getOptionalObject(document, "2"), getString(document, "1"));
         documents.add(
             new SidecarSelectedWaveDocument(
                 getString(document, "1"),
                 getString(document, "3"),
                 getLong(document, "5"),
                 getLong(document, "6"),
-                extractDocumentText(getOptionalObject(document, "2"))));
+                extraction.textContent,
+                extraction.annotationRanges,
+                extraction.reactionEntries));
       }
     }
 
@@ -350,14 +354,33 @@ public final class SidecarTransportCodec {
     return asList(value).size();
   }
 
-  private static String extractDocumentText(Map<String, Object> documentOperation) {
+  private static DocumentExtraction extractDocument(
+      Map<String, Object> documentOperation, String documentId) {
     Object rawComponents = documentOperation.get("1");
     if (rawComponents == null) {
-      return "";
+      return new DocumentExtraction(
+          "",
+          new ArrayList<SidecarAnnotationRange>(),
+          new ArrayList<SidecarReactionEntry>());
     }
     StringBuilder text = new StringBuilder();
+    Map<String, ActiveAnnotation> activeAnnotations =
+        new LinkedHashMap<String, ActiveAnnotation>();
+    List<SidecarAnnotationRange> annotationRanges = new ArrayList<SidecarAnnotationRange>();
+    Map<String, List<String>> reactionAddressesByEmoji = new LinkedHashMap<String, List<String>>();
+    List<String> elementStack = new ArrayList<String>();
+    String currentReactionEmoji = null;
+
     for (Object rawComponent : asList(rawComponents)) {
       Map<String, Object> component = asObject(rawComponent);
+      if (component.containsKey("1")) {
+        processAnnotationBoundary(
+            getOptionalObject(component, "1"),
+            text.length(),
+            activeAnnotations,
+            annotationRanges);
+        continue;
+      }
       if (component.containsKey("2")) {
         text.append(getString(component, "2"));
         continue;
@@ -365,12 +388,146 @@ public final class SidecarTransportCodec {
       if (component.containsKey("3")) {
         Map<String, Object> elementStart = getOptionalObject(component, "3");
         String type = getString(elementStart, "1");
+        elementStack.add(type == null ? "" : type);
+        if ("reaction".equals(type)) {
+          currentReactionEmoji = getAttribute(elementStart, "emoji");
+          if (currentReactionEmoji != null
+              && !reactionAddressesByEmoji.containsKey(currentReactionEmoji)) {
+            reactionAddressesByEmoji.put(currentReactionEmoji, new ArrayList<String>());
+          }
+        } else if ("user".equals(type) && currentReactionEmoji != null) {
+          String address = getAttribute(elementStart, "address");
+          if (address != null && !address.isEmpty()) {
+            reactionAddressesByEmoji.get(currentReactionEmoji).add(address);
+          }
+        }
         if ("line".equals(type) && text.length() > 0 && text.charAt(text.length() - 1) != '\n') {
           text.append('\n');
         }
+        continue;
+      }
+      if (component.containsKey("4")) {
+        if (!elementStack.isEmpty()) {
+          String ended = elementStack.remove(elementStack.size() - 1);
+          if ("reaction".equals(ended)) {
+            currentReactionEmoji = null;
+          }
+        }
       }
     }
-    return text.toString();
+    closeAllAnnotations(text.length(), activeAnnotations, annotationRanges);
+    return new DocumentExtraction(
+        text.toString(),
+        annotationRanges,
+        extractReactionEntries(documentId, reactionAddressesByEmoji));
+  }
+
+  private static void processAnnotationBoundary(
+      Map<String, Object> boundary,
+      int offset,
+      Map<String, ActiveAnnotation> activeAnnotations,
+      List<SidecarAnnotationRange> annotationRanges) {
+    Object rawEnds = boundary.get("2");
+    if (rawEnds != null) {
+      for (Object rawEnd : asList(rawEnds)) {
+        closeAnnotation(String.valueOf(rawEnd), offset, activeAnnotations, annotationRanges);
+      }
+    }
+    Object rawChanges = boundary.get("3");
+    if (rawChanges == null) {
+      return;
+    }
+    for (Object rawChange : asList(rawChanges)) {
+      Map<String, Object> change = asObject(rawChange);
+      String key = getString(change, "1");
+      if (key == null || key.isEmpty()) {
+        continue;
+      }
+      if (activeAnnotations.containsKey(key)) {
+        closeAnnotation(key, offset, activeAnnotations, annotationRanges);
+      }
+      String newValue = getString(change, "3");
+      if (newValue != null) {
+        activeAnnotations.put(key, new ActiveAnnotation(newValue, offset));
+      }
+    }
+  }
+
+  private static void closeAllAnnotations(
+      int offset,
+      Map<String, ActiveAnnotation> activeAnnotations,
+      List<SidecarAnnotationRange> annotationRanges) {
+    List<String> activeKeys = new ArrayList<String>(activeAnnotations.keySet());
+    for (String key : activeKeys) {
+      closeAnnotation(key, offset, activeAnnotations, annotationRanges);
+    }
+  }
+
+  private static void closeAnnotation(
+      String key,
+      int offset,
+      Map<String, ActiveAnnotation> activeAnnotations,
+      List<SidecarAnnotationRange> annotationRanges) {
+    ActiveAnnotation active = activeAnnotations.remove(key);
+    if (active == null || offset <= active.startOffset) {
+      return;
+    }
+    annotationRanges.add(
+        new SidecarAnnotationRange(key, active.value, active.startOffset, offset));
+  }
+
+  private static String getAttribute(Map<String, Object> elementStart, String name) {
+    Object rawAttributes = elementStart.get("2");
+    if (rawAttributes == null) {
+      return null;
+    }
+    for (Object rawAttribute : asList(rawAttributes)) {
+      Map<String, Object> attribute = asObject(rawAttribute);
+      if (name.equals(getString(attribute, "1"))) {
+        return getString(attribute, "2");
+      }
+    }
+    return null;
+  }
+
+  private static List<SidecarReactionEntry> extractReactionEntries(
+      String documentId, Map<String, List<String>> reactionAddressesByEmoji) {
+    if (documentId == null || !documentId.startsWith("react+")) {
+      return new ArrayList<SidecarReactionEntry>();
+    }
+    List<SidecarReactionEntry> entries = new ArrayList<SidecarReactionEntry>();
+    for (Map.Entry<String, List<String>> entry : reactionAddressesByEmoji.entrySet()) {
+      if (entry.getKey() == null || entry.getKey().isEmpty()) {
+        continue;
+      }
+      entries.add(new SidecarReactionEntry(entry.getKey(), entry.getValue()));
+    }
+    return entries;
+  }
+
+  private static final class ActiveAnnotation {
+    private final String value;
+    private final int startOffset;
+
+    ActiveAnnotation(String value, int startOffset) {
+      this.value = value;
+      this.startOffset = startOffset;
+    }
+  }
+
+  private static final class DocumentExtraction {
+    private final String textContent;
+    private final List<SidecarAnnotationRange> annotationRanges;
+    private final List<SidecarReactionEntry> reactionEntries;
+
+    DocumentExtraction(
+        String textContent,
+        List<SidecarAnnotationRange> annotationRanges,
+        List<SidecarReactionEntry> reactionEntries) {
+      this.textContent = textContent;
+      this.annotationRanges = annotationRanges;
+      this.reactionEntries = reactionEntries;
+    }
   }
 
   private static long toLong(int highWord, int lowWord) {

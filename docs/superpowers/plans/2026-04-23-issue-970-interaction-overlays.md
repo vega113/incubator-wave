@@ -410,17 +410,29 @@ Exit criteria:
 
 ### Slice 1 - Characterize Transport Metadata With Tests
 
-- [ ] Add fixture-driven tests to `SidecarTransportCodecTest` for a selected-wave document containing a mention annotation.
-- [ ] Add fixture-driven tests to `SidecarTransportCodecTest` for a task checkbox/document segment with assignee and due-date annotations.
-- [ ] Add fixture-driven tests to `SidecarTransportCodecTest` for a reaction data document snapshot.
-- [ ] Extend `SidecarSelectedWaveDocument` with additive metadata accessors while preserving `textContent()`.
-- [ ] Extend `SidecarTransportCodec` to decode annotation ranges and reaction data-doc payloads before text extraction discards metadata.
-- [ ] Add projection tests in `J2clSelectedWaveProjectorTest` for `J2clInteractionBlipModel` creation.
+- [x] Add fixture-driven tests to `SidecarTransportCodecTest` for a selected-wave document containing a mention annotation.
+- [x] Add fixture-driven tests to `SidecarTransportCodecTest` for a task checkbox/document segment with assignee and due-date annotations.
+- [x] Add fixture-driven tests to `SidecarTransportCodecTest` for a reaction data document snapshot.
+- [x] Extend `SidecarSelectedWaveDocument` with additive metadata accessors while preserving `textContent()`.
+- [x] Extend `SidecarTransportCodec` to decode annotation ranges and reaction data-doc payloads before text extraction discards metadata.
+- [x] Add projection tests in `J2clSelectedWaveProjectorTest` for `J2clInteractionBlipModel` creation.
 
 Exit criteria:
 
 - Transport tests fail before implementation and pass after decode/projection changes.
 - Existing selected-wave text projection tests still pass.
+
+Implementation evidence (2026-04-24):
+
+- RED: targeted J2CL transport/projector tests first failed at test compile with
+  the expected missing metadata DTO/accessor/projection APIs.
+- RED: `projectMergesReactionOnlyDocumentUpdateIntoPreviousInteractionBlip`
+  then failed with `expected:<1> but was:<0>` before reaction-only merge support.
+- GREEN: `./j2cl/mvnw -f j2cl/pom.xml -Psearch-sidecar -Dtest=org.waveprotocol.box.j2cl.transport.SidecarTransportCodecTest,org.waveprotocol.box.j2cl.search.J2clSelectedWaveProjectorTest test`
+  passed after review follow-ups: 72 tests, 0 failures, 0 errors, 0 skipped.
+- Canonical sidecar gate: `sbt -batch j2clSearchBuild j2clSearchTest` exited 0.
+- Formatting gate: `git diff --check` exited 0.
+- Claude Opus review loop passed on round 3 with `required_followups: []`.
 
 ### Slice 1A - Conditional Overlay-Metadata Endpoint
 

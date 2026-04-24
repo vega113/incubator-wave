@@ -2,8 +2,12 @@ package org.waveprotocol.box.j2cl.search;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
+import org.waveprotocol.box.j2cl.transport.SidecarReactionEntry;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragment;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragments;
@@ -73,6 +77,13 @@ public final class J2clSelectedWaveProjector {
         && !previous.getReadBlips().isEmpty()) {
       readBlips = previous.getReadBlips();
     }
+    List<J2clInteractionBlipModel> interactionBlips =
+        extractInteractionBlips(update.getDocuments());
+    if (previousMatchesWave && previous != null && !previous.getInteractionBlips().isEmpty()) {
+      interactionBlips =
+          mergePreviousInteractionBlips(
+              interactionBlips, update.getDocuments(), previous.getInteractionBlips());
+    }
 
     String detailText = buildDetailText(update);
     String baseStatusText =
@@ -120,6 +131,7 @@ public final class J2clSelectedWaveProjector {
         contentEntries,
         readBlips,
         viewportState,
+        interactionBlips,
         buildWriteSession(selectedWaveId, update, previous),
         unreadCount,
         read,
@@ -180,6 +192,7 @@ public final class J2clSelectedWaveProjector {
         previous.getContentEntries(),
         previous.getReadBlips(),
         previous.getViewportState(),
+        previous.getInteractionBlips(),
         previous.getWriteSession(),
         unreadCount,
         read,
@@ -338,6 +351,107 @@ public final class J2clSelectedWaveProjector {
       blips.add(new J2clReadBlip(documentId, textContent));
     }
     return blips;
+  }
+
+  private static List<J2clInteractionBlipModel> extractInteractionBlips(
+      List<SidecarSelectedWaveDocument> documents) {
+    if (documents == null || documents.isEmpty()) {
+      return Collections.emptyList();
+    }
+    Map<String, List<SidecarReactionEntry>> reactionsByBlip =
+        extractReactionsByBlip(documents);
+    List<J2clInteractionBlipModel> blips = new ArrayList<J2clInteractionBlipModel>();
+    for (SidecarSelectedWaveDocument document : documents) {
+      if (document == null) {
+        continue;
+      }
+      String documentId = document.getDocumentId();
+      if (documentId == null || !documentId.startsWith("b+")) {
+        continue;
+      }
+      List<SidecarReactionEntry> reactions = reactionsByBlip.get(documentId);
+      blips.add(
+          new J2clInteractionBlipModel(
+              documentId,
+              document.getTextContent(),
+              document.getAnnotationRanges(),
+              reactions == null ? Collections.<SidecarReactionEntry>emptyList() : reactions));
+    }
+    return blips;
+  }
+
+  private static List<J2clInteractionBlipModel> mergePreviousInteractionBlips(
+      List<J2clInteractionBlipModel> projectedBlips,
+      List<SidecarSelectedWaveDocument> documents,
+      List<J2clInteractionBlipModel> previousBlips) {
+    Map<String, List<SidecarReactionEntry>> reactionsByBlip = extractReactionsByBlip(documents);
+    List<J2clInteractionBlipModel> merged = new ArrayList<J2clInteractionBlipModel>();
+    List<String> seenBlipIds = new ArrayList<String>();
+    for (J2clInteractionBlipModel projected : projectedBlips) {
+      J2clInteractionBlipModel previous = findInteractionBlip(previousBlips, projected.getBlipId());
+      List<SidecarReactionEntry> reactions = projected.getReactionEntries();
+      if (reactions.isEmpty()
+          && previous != null
+          && !reactionsByBlip.containsKey(projected.getBlipId())) {
+        reactions = previous.getReactionEntries();
+      }
+      merged.add(
+          new J2clInteractionBlipModel(
+              projected.getBlipId(),
+              projected.getText(),
+              projected.getAnnotationRanges(),
+              reactions));
+      seenBlipIds.add(projected.getBlipId());
+    }
+    for (J2clInteractionBlipModel previous : previousBlips) {
+      if (seenBlipIds.contains(previous.getBlipId())) {
+        continue;
+      }
+      List<SidecarReactionEntry> reactions =
+          reactionsByBlip.containsKey(previous.getBlipId())
+              ? reactionsByBlip.get(previous.getBlipId())
+              : previous.getReactionEntries();
+      merged.add(
+          new J2clInteractionBlipModel(
+              previous.getBlipId(),
+              previous.getText(),
+              previous.getAnnotationRanges(),
+              reactions));
+    }
+    return merged;
+  }
+
+  private static Map<String, List<SidecarReactionEntry>> extractReactionsByBlip(
+      List<SidecarSelectedWaveDocument> documents) {
+    Map<String, List<SidecarReactionEntry>> reactionsByBlip =
+        new LinkedHashMap<String, List<SidecarReactionEntry>>();
+    if (documents == null) {
+      return reactionsByBlip;
+    }
+    for (SidecarSelectedWaveDocument document : documents) {
+      if (document == null || !document.isReactionDataDocument()) {
+        continue;
+      }
+      reactionsByBlip.put(document.getReactionTargetBlipId(), document.getReactionEntries());
+    }
+    return reactionsByBlip;
+  }
+
+  private static J2clInteractionBlipModel findInteractionBlip(
+      List<J2clInteractionBlipModel> blips, String blipId) {
+    if (blips == null) {
+      return null;
+    }
+    for (J2clInteractionBlipModel blip : blips) {
+      if (blip != null && equals(blipId, blip.getBlipId())) {
+        return blip;
+      }
+    }
+    return null;
+  }
+
+  private static boolean equals(String left, String right) {
+    return left == null ? right == null : left.equals(right);
   }
 
   private static String buildDetailText(SidecarSelectedWaveUpdate update) {

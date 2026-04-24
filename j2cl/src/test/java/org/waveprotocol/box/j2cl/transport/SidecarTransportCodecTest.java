@@ -183,6 +183,127 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void decodeSelectedWaveUpdateReadsMentionAnnotationRanges() {
+    String json =
+        "{\"sequenceNumber\":17,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"b+abc123\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"body\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"line\",\"2\":[]}},"
+            + "{\"1\":{\"3\":[{\"1\":\"mention/user\",\"3\":\"teammate@example.com\"}]}},"
+            + "{\"2\":\"@Teammate\"},"
+            + "{\"1\":{\"2\":[\"mention/user\"]}},"
+            + "{\"2\":\" please review\"},"
+            + "{\"4\":true},{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[1,0],\"6\":[2,0]}]},"
+            + "\"6\":true,\"7\":\"ch3\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    SidecarSelectedWaveDocument document = update.getDocuments().get(0);
+    Assert.assertEquals("@Teammate please review", document.getTextContent());
+    Assert.assertEquals(1, document.getAnnotationRanges().size());
+    SidecarAnnotationRange mention = document.getAnnotationRanges().get(0);
+    Assert.assertEquals("mention/user", mention.getKey());
+    Assert.assertEquals("teammate@example.com", mention.getValue());
+    Assert.assertEquals(0, mention.getStartOffset());
+    Assert.assertEquals(9, mention.getEndOffset());
+  }
+
+  @Test
+  public void decodeSelectedWaveUpdateReadsTaskAnnotationRanges() {
+    String json =
+        "{\"sequenceNumber\":18,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"b+task\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"body\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"line\",\"2\":[]}},"
+            + "{\"1\":{\"3\":["
+            + "{\"1\":\"task/id\",\"3\":\"task-123\"},"
+            + "{\"1\":\"task/assignee\",\"3\":\"alice@example.com\"},"
+            + "{\"1\":\"task/dueTs\",\"3\":\"1714000000000\"}]}},"
+            + "{\"2\":\"Review launch\"},"
+            + "{\"1\":{\"2\":[\"task/id\",\"task/assignee\",\"task/dueTs\"]}},"
+            + "{\"4\":true},{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[3,0],\"6\":[4,0]}]},"
+            + "\"6\":true,\"7\":\"ch4\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    SidecarSelectedWaveDocument document = update.getDocuments().get(0);
+    Assert.assertEquals("Review launch", document.getTextContent());
+    Assert.assertEquals(3, document.getAnnotationRanges().size());
+    Assert.assertEquals("task/id", document.getAnnotationRanges().get(0).getKey());
+    Assert.assertEquals("task-123", document.getAnnotationRanges().get(0).getValue());
+    Assert.assertEquals("task/assignee", document.getAnnotationRanges().get(1).getKey());
+    Assert.assertEquals("alice@example.com", document.getAnnotationRanges().get(1).getValue());
+    Assert.assertEquals("task/dueTs", document.getAnnotationRanges().get(2).getKey());
+    Assert.assertEquals("1714000000000", document.getAnnotationRanges().get(2).getValue());
+    for (SidecarAnnotationRange range : document.getAnnotationRanges()) {
+      Assert.assertEquals(0, range.getStartOffset());
+      Assert.assertEquals(13, range.getEndOffset());
+    }
+  }
+
+  @Test
+  public void decodeSelectedWaveUpdateTreatsAnnotationChangeWithoutNewValueAsRemoval() {
+    String json =
+        "{\"sequenceNumber\":20,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"b+abc123\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"body\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"line\",\"2\":[]}},"
+            + "{\"1\":{\"3\":[{\"1\":\"mention/user\",\"3\":\"teammate@example.com\"}]}},"
+            + "{\"2\":\"one\"},"
+            + "{\"1\":{\"3\":[{\"1\":\"mention/user\"}]}},"
+            + "{\"2\":\" two\"},"
+            + "{\"4\":true},{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[1,0],\"6\":[2,0]}]},"
+            + "\"6\":true,\"7\":\"ch6\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    SidecarSelectedWaveDocument document = update.getDocuments().get(0);
+    Assert.assertEquals("one two", document.getTextContent());
+    Assert.assertEquals(1, document.getAnnotationRanges().size());
+    SidecarAnnotationRange mention = document.getAnnotationRanges().get(0);
+    Assert.assertEquals("mention/user", mention.getKey());
+    Assert.assertEquals("teammate@example.com", mention.getValue());
+    Assert.assertEquals(0, mention.getStartOffset());
+    Assert.assertEquals(3, mention.getEndOffset());
+  }
+
+  @Test
+  public void decodeSelectedWaveUpdateReadsReactionDataDocumentSnapshot() {
+    String json =
+        "{\"sequenceNumber\":19,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"react+b+abc123\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"reactions\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"reaction\",\"2\":[{\"1\":\"emoji\",\"2\":\"thumbs_up\"}]}},"
+            + "{\"3\":{\"1\":\"user\",\"2\":[{\"1\":\"address\",\"2\":\"alice@example.com\"}]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"user\",\"2\":[{\"1\":\"address\",\"2\":\"bob@example.com\"}]}},"
+            + "{\"4\":true},{\"4\":true},{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[5,0],\"6\":[6,0]}]},"
+            + "\"6\":true,\"7\":\"ch5\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    SidecarSelectedWaveDocument document = update.getDocuments().get(0);
+    Assert.assertTrue(document.isReactionDataDocument());
+    Assert.assertEquals("b+abc123", document.getReactionTargetBlipId());
+    Assert.assertEquals(1, document.getReactionEntries().size());
+    SidecarReactionEntry reaction = document.getReactionEntries().get(0);
+    Assert.assertEquals("thumbs_up", reaction.getEmoji());
+    Assert.assertEquals(Arrays.asList("alice@example.com", "bob@example.com"), reaction.getAddresses());
+  }
+
+  @Test
   public void decodeSelectedWaveUpdateMarksMissingFragmentSnapshotVersionAsAbsent() {
     String json =
         "{\"sequenceNumber\":14,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
