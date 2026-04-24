@@ -38,6 +38,19 @@ describe("<task-metadata-popover>", () => {
     );
   });
 
+  it("filters malformed participant entries before rendering options", async () => {
+    const el = await fixture(html`
+      <task-metadata-popover
+        open
+        .participants=${[null, "bad", { address: "valid@example.com", displayName: "Valid" }]}
+      ></task-metadata-popover>
+    `);
+
+    const options = el.renderRoot.querySelectorAll("select[name='assignee'] option");
+    expect(options.length).to.equal(2);
+    expect(options[1].value).to.equal("valid@example.com");
+  });
+
   it("submits semantic task metadata on Enter", async () => {
     const el = await fixture(html`
       <task-metadata-popover

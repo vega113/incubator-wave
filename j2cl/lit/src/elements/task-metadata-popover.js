@@ -242,7 +242,12 @@ export class TaskMetadataPopover extends LitElement {
   }
 
   safeParticipants() {
-    return Array.isArray(this.participants) ? this.participants : [];
+    if (!Array.isArray(this.participants)) {
+      return [];
+    }
+    return this.participants.filter(
+      participant => participant && typeof participant === "object" && !Array.isArray(participant)
+    );
   }
 }
 
