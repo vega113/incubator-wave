@@ -18,7 +18,7 @@ This document is the planning artifact for issue #970 only.
 - Planning branch: `issue-970-interaction-overlays`
 - Issue: `https://github.com/vega113/supawave/issues/970`
 - Parent tracker: `#904` / `#960`
-- Dependency: implementation starts only after #969 has merged and its compose/editor/toolbar host is available on the implementation branch.
+- Dependency: #969 merged as PR #1002 and is available on this implementation branch; see section 4.5 for the dependency revalidation result and section 12 for the current readiness verdict.
 - Write scope for this planning lane: this markdown file and GitHub issue comments only.
 
 ## 2. Baseline Evidence
@@ -55,7 +55,10 @@ The current J2CL selected-wave stack is text-oriented:
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/transport/SidecarSelectedWaveDocument.java` stores only document id, author, last modified metadata, and text content.
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSidecarComposeController.java` submits create/reply text drafts through `J2clSearchGateway`; it does not expose annotation/document mutation hooks for mentions, tasks, or reactions.
 
-#969 must supply the editor and toolbar host that #970 attaches to. #970 must not rebuild compose or rich edit as a workaround.
+#969 supplies the compose and toolbar hosts that #970 attaches to. It does not
+yet supply rich editor/caret/mutation APIs, so #970 must not rebuild compose or
+rich edit as a workaround; see section 4.5 for the adjusted implementation
+order.
 
 ## 3. Acceptance Criteria
 
@@ -77,24 +80,34 @@ Issue #970 is implementation-complete when all of the following are true:
 
 ## 4. Dependency Gates
 
-### 4.1 Hard Gate On #969
+### 4.1 #969 Dependency Gate
 
-#970 implementation must not start until #969 has merged into the implementation branch because #970 requires:
+#969 has merged into the implementation branch. That satisfies the branch-level
+dependency gate, but the post-merge API revalidation in section 4.5 found that
+some originally assumed editor-host APIs are still absent.
+
+#970 still requires these capabilities before the relevant mutation-heavy slices
+can claim full parity:
 
 - A J2CL editor host with stable caret/selection APIs.
 - A toolbar integration seam for task affordances.
 - A write-session mutation path that can express more than plain create/reply text.
 - A selected-blip/editing context that overlays can anchor to.
 
-If #969 merges with different file names or APIs than this plan assumes, the implementation worker must update this plan's file ownership section in the issue before writing code.
+Slices 1-3 can proceed without those APIs. Slices 4-7 must either find the
+needed API in the dependency-resolved branch or add the smallest additive host
+interface with issue traceability before editing #969-owned compose/toolbar
+files.
 
 ### 4.2 Upstream Gate Through #969 Dependencies
 
-#969 is itself sequenced after earlier J2CL read/live surface work. The #970 worker must verify the branch includes the finalized selected-wave basis and live update behavior before adding overlay projection:
+#969 was sequenced after earlier J2CL read/live surface work. The #970 worker
+must verify the branch includes the finalized selected-wave basis and live
+update behavior before adding overlay projection:
 
 - Selected-wave open/update path must still flow through `J2clSearchGateway.openSelectedWave(...)`.
 - `J2clSelectedWaveProjector` must still be the narrow projection seam for read-side selected-wave state, unless #969 replaces it with an explicitly documented successor.
-- The editor host must be reachable from the selected-wave workflow without changing the default GWT `/` route.
+- The compose/toolbar hosts must remain reachable from the selected-wave workflow without changing the default GWT `/` route.
 
 ### 4.3 Coordination Gate With #971
 
@@ -119,6 +132,45 @@ Before product-code changes, the implementation worker must re-read:
 - `docs/j2cl-lit-implementation-workflow.md`
 - The dependency-resolved test runner for legacy GWT guardrails; use the repo's actual runner on that branch rather than assuming the planning-time command is still valid.
 - The dependency-resolved J2CL entry route; use the actual route from #969 in browser scripts if it differs from `/?view=j2cl-root`.
+
+### 4.5 Dependency Revalidation Update (2026-04-24)
+
+#969 merged as PR #1002 at commit `d7ea91813a22aaf3c48d50817857765733c1ec53`.
+The dependency exists on the implementation branch, but its editor seam is
+narrower than this plan's earlier assumptions:
+
+- `J2clRootShellController` wires `J2clComposeSurfaceController` and
+  `J2clToolbarSurfaceController` into the selected-wave host.
+- The stable write-session handoff is still
+  `J2clSelectedWaveController.WriteSessionListener` publishing
+  `J2clSidecarWriteSession`.
+- `J2clComposeSurfaceController` owns plain-text create/reply drafts and submit
+  state. It does not expose a rich editor host, caret offset API, typed-filter
+  API, or annotated mutation API.
+- `J2clToolbarSurfaceController` renders daily toolbar actions, but the root
+  dispatcher still reports most actions as unavailable. #970 must not treat
+  these buttons as proof that rich editor commands already exist.
+- #971 remains the owner for attachments and remaining rich-edit commands. #970
+  owns shared interaction overlays and may create generic overlay/focus
+  primitives for #971 reuse, but it must not add attachment or rich-edit command
+  logic.
+
+Adjusted implementation order:
+
+- Start with transport/projection and Lit overlay primitives, because those do
+  not require a rich editor host.
+- Keep mention/task/reaction mutation controllers behind narrow interfaces.
+- Slices most likely to need an additive editor-host or mutation interface are
+  Slice 4 (`J2clMentionOverlayController`), Slice 5
+  (`J2clTaskOverlayController`), and Slice 6
+  (`J2clReactionOverlayController`). Slice 7 may also need a lifecycle hook when
+  controllers attach to the selected-wave view.
+- If a later slice needs a new editor-host or mutation API, add the smallest
+  additive interface and record the overlap in issue #970 before editing
+  #969-owned compose/toolbar files.
+- If selected-wave snapshots do not expose the required annotations or reaction
+  data, follow Slice 1A and record the missing payload evidence before adding a
+  sidecar overlay-metadata endpoint.
 
 ## 5. Architecture Seams
 
@@ -345,11 +397,11 @@ The shared overlay layer may expose placement/focus primitives for #971, but #97
 
 ### Slice 0 - Dependency Intake And Branch Setup
 
-- [ ] Confirm #969 merged and includes the editor/toolbar host required by #970.
-- [ ] Rebase or create the implementation worktree from the dependency-resolved base, not from this planning branch if it has gone stale.
-- [ ] Re-read the docs listed in section 4.4.
-- [ ] Read the final #969 plan and diff; record the editor host and toolbar APIs in the issue.
-- [ ] Read #971's current plan; record the shared overlay coordination note in both issue threads if needed.
+- [x] Confirm #969 merged and includes the compose/toolbar host required by #970 for dependency-safe slices.
+- [x] Rebase or create the implementation worktree from the dependency-resolved base, not from this planning branch if it has gone stale.
+- [x] Re-read the docs listed in section 4.4.
+- [x] Read the final #969 plan and diff; record the compose host and toolbar APIs in the issue.
+- [x] Read #971's current plan; record the shared overlay coordination note in both issue threads if needed.
 - [ ] Run `scripts/worktree-file-store.sh --source /Users/vega/devroot/incubator-wave` if local server verification will need file-based persistence.
 
 Exit criteria:
@@ -581,7 +633,7 @@ PORT=9970 bash scripts/wave-smoke.sh stop
 ### 11.1 With #969
 
 - #969 owns compose/editor/toolbar foundation.
-- #970 starts only after #969 merges.
+- #970 started only after #969 merged as PR #1002.
 - #970 may request additive editor host APIs, but must not fork or replace #969's editor.
 - If #970 needs to modify #969-owned files, the worker must post the intended ownership overlap to issues #969 and #970 before editing.
 
@@ -602,15 +654,26 @@ PORT=9970 bash scripts/wave-smoke.sh stop
 
 ## 12. Implementation Readiness Verdict
 
-This plan is dependency-ready but not implementation-unblocked. The remaining blocker is #969: until the J2CL compose/editor/toolbar parity foundation has merged, #970 cannot safely bind mention trigger handling, task toolbar affordances, or overlay mutation framing without inventing temporary editor APIs.
+This plan is implementation-unblocked for dependency-safe slices after #969 merged
+as PR #1002.
 
-After #969 merges, the implementation can proceed slice-by-slice from section 7.
+The first implementation pass should proceed slice-by-slice from section 7,
+starting with Slice 0 and then the slices that do not require a rich editor host:
+
+- Slice 1 transport metadata characterization.
+- Slice 2 pure overlay models and projection.
+- Slice 3 Lit overlay primitives.
+
+Slices 4-7 remain partially gated by the narrower post-#969 editor seam recorded
+in section 4.5. They may proceed only after the implementation either finds an
+existing suitable host API or adds the smallest additive interface with issue
+traceability before editing #969-owned compose/toolbar files.
 
 ## 13. Planning Self-Review
 
 Planning-worker review result before external review:
 
-- Dependency gate is explicit: implementation is blocked until #969 merges.
+- Dependency gate is explicit: #969 has merged, dependency-safe slices are unblocked, and mutation-heavy slices remain partially gated by the narrower post-#969 editor seam.
 - Scope is bounded to mention, task, reaction, and generic interaction-overlay primitives.
 - #971 attachment/rich-edit work is excluded and coordination rules are stated.
 - Current GWT seams and current J2CL gaps are cited with file and method references.
