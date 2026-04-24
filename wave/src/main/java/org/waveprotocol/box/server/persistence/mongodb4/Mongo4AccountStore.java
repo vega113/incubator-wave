@@ -1,5 +1,7 @@
 package org.waveprotocol.box.server.persistence.mongodb4;
 
+import com.mongodb.ErrorCategory;
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.result.UpdateResult;
@@ -119,14 +121,7 @@ final class Mongo4AccountStore implements AccountStore {
   @Override
   public void putAccount(AccountData account) throws PersistenceException {
     try {
-      Document doc = new Document("_id", account.getId().getAddress());
-      if (account.isHuman()) {
-        doc.append(ACCOUNT_HUMAN_DATA_FIELD, humanToObject(account.asHuman()));
-      } else if (account.isRobot()) {
-        doc.append(ACCOUNT_ROBOT_DATA_FIELD, robotToObject(account.asRobot()));
-      } else {
-        throw new IllegalStateException("Account is neither human nor robot");
-      }
+      Document doc = accountToDocument(account);
       col.replaceOne(eq("_id", account.getId().getAddress()), doc, new com.mongodb.client.model.ReplaceOptions().upsert(true));
     } catch (RuntimeException e) {
       throw new PersistenceException(e);
@@ -232,7 +227,60 @@ final class Mongo4AccountStore implements AccountStore {
   @Override
   public void putAccountWithUniqueSocialIdentity(AccountData account, SocialIdentity socialIdentity)
       throws PersistenceException {
-    putAccount(account);
+    synchronized (this) {
+      // Existing-account updates rely on the same social-identity unique index as account creation;
+      // the pre-check keeps the error path user-friendly within this store instance.
+      AccountData existing = getAccountBySocialIdentity(
+          socialIdentity.getProvider(), socialIdentity.getSubject());
+      if (existing != null && !existing.getId().equals(account.getId())) {
+        throw new PersistenceException("Social identity is already linked");
+      }
+      putAccount(account);
+    }
+  }
+
+  @Override
+  public synchronized AccountCreationResult putNewAccountWithOwnerAssignmentResult(AccountData account,
+      SocialIdentity socialIdentity) throws PersistenceException {
+    try {
+      if (getAccount(account.getId()) != null) {
+        return AccountCreationResult.ACCOUNT_EXISTS;
+      }
+      if (socialIdentity != null) {
+        AccountData existing = getAccountBySocialIdentity(
+            socialIdentity.getProvider(), socialIdentity.getSubject());
+        if (existing != null) {
+          return AccountCreationResult.SOCIAL_IDENTITY_EXISTS;
+        }
+      }
+      if (account.isHuman() && getAccountCount() == 0) {
+        account.asHuman().setRole(HumanAccountData.ROLE_OWNER);
+      }
+      col.insertOne(accountToDocument(account));
+      return AccountCreationResult.CREATED;
+    } catch (MongoWriteException e) {
+      if (e.getError() != null
+          && e.getError().getCategory() == ErrorCategory.DUPLICATE_KEY) {
+        return duplicateAccountCreationResult(account, socialIdentity);
+      }
+      throw new PersistenceException(e);
+    } catch (RuntimeException e) {
+      throw new PersistenceException(e);
+    }
+  }
+
+  private AccountCreationResult duplicateAccountCreationResult(AccountData account,
+      SocialIdentity socialIdentity) throws PersistenceException {
+    if (getAccount(account.getId()) != null) {
+      return AccountCreationResult.ACCOUNT_EXISTS;
+    }
+    if (socialIdentity != null
+        && getAccountBySocialIdentity(socialIdentity.getProvider(), socialIdentity.getSubject())
+            != null) {
+      return AccountCreationResult.SOCIAL_IDENTITY_EXISTS;
+    }
+    // Unexpected duplicate-key source; preserve the account-collision ordering rule.
+    return AccountCreationResult.ACCOUNT_EXISTS;
   }
 
   @Override
@@ -292,6 +340,18 @@ final class Mongo4AccountStore implements AccountStore {
    */
   private static org.bson.conversions.Bson humanAccountsFilter() {
     return exists(ACCOUNT_HUMAN_DATA_FIELD);
+  }
+
+  private static Document accountToDocument(AccountData account) {
+    Document doc = new Document("_id", account.getId().getAddress());
+    if (account.isHuman()) {
+      doc.append(ACCOUNT_HUMAN_DATA_FIELD, humanToObject(account.asHuman()));
+    } else if (account.isRobot()) {
+      doc.append(ACCOUNT_ROBOT_DATA_FIELD, robotToObject(account.asRobot()));
+    } else {
+      throw new IllegalStateException("Account is neither human nor robot");
+    }
+    return doc;
   }
 
   private static Document humanToObject(HumanAccountData account) {

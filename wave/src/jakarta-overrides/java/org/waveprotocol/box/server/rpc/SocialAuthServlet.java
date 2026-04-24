@@ -74,7 +74,6 @@ public final class SocialAuthServlet extends HttpServlet {
   private final boolean passwordResetEnabled;
   private final boolean magicLinkEnabled;
   private final String analyticsAccount;
-  private final Object accountCreationLock;
   private final Object startRateLimitLock = new Object();
   // Per-instance in-memory rate-limit store. Effective only in single-instance deployments;
   // clustered deployments should replace this with a centralized store (e.g. Redis) so the
@@ -92,10 +91,8 @@ public final class SocialAuthServlet extends HttpServlet {
       AnalyticsRecorder analyticsRecorder,
       SecureRandom secureRandom,
       @Named(CoreSettingsNames.WAVE_SERVER_DOMAIN) String domain,
-      Config config,
-      @Named("accountCreationLock") Object accountCreationLock) {
+      Config config) {
     this.accountStore = accountStore;
-    this.accountCreationLock = accountCreationLock;
     this.featureFlagService = featureFlagService;
     this.sessionManager = sessionManager;
     this.browserSessionJwtIssuer = browserSessionJwtIssuer;
@@ -324,7 +321,19 @@ public final class SocialAuthServlet extends HttpServlet {
           pending.provider, pending.subject, pending.email, pending.displayName,
           System.currentTimeMillis());
       account.addOrReplaceSocialIdentity(socialIdentity);
-      persistSocialAccountWithOwnerAssignment(account, socialIdentity);
+      AccountStore.AccountCreationResult accountCreated =
+          persistSocialAccountWithOwnerAssignment(account, socialIdentity);
+      if (accountCreated != AccountStore.AccountCreationResult.CREATED) {
+        if (accountCreated == AccountStore.AccountCreationResult.SOCIAL_IDENTITY_EXISTS) {
+          clearSocialSession(session);
+          renderFailure(resp, HttpServletResponse.SC_FORBIDDEN, DEFAULT_FAILURE);
+          return;
+        }
+        writeUsernamePage(resp, pending.providerLabel, "Account already exists",
+            AuthenticationServlet.RESPONSE_STATUS_FAILED, pending.csrf);
+        return;
+      }
+      logOwnerAssignment(account);
       try {
         analyticsRecorder.incrementUsersRegistered(System.currentTimeMillis());
       } catch (RuntimeException e) {
@@ -338,17 +347,20 @@ public final class SocialAuthServlet extends HttpServlet {
       signInAndRedirect(req, resp, id, pending.redirect);
     } catch (PersistenceException e) {
       LOG.warning("Failed to create social account: " + e.getClass().getName());
+      clearSocialSession(session);
       renderFailure(resp, HttpServletResponse.SC_FORBIDDEN, DEFAULT_FAILURE);
     }
   }
 
-  private void persistSocialAccountWithOwnerAssignment(HumanAccountDataImpl account,
+  private AccountStore.AccountCreationResult persistSocialAccountWithOwnerAssignment(
+      HumanAccountDataImpl account,
       SocialIdentity socialIdentity) throws PersistenceException {
-    synchronized (accountCreationLock) {
-      if (accountStore.getAccountCount() == 0) {
-        account.setRole(HumanAccountData.ROLE_OWNER);
-      }
-      accountStore.putAccountWithUniqueSocialIdentity(account, socialIdentity);
+    return accountStore.putNewAccountWithOwnerAssignmentResult(account, socialIdentity);
+  }
+
+  private void logOwnerAssignment(HumanAccountDataImpl account) {
+    if (HumanAccountData.ROLE_OWNER.equals(account.getRole())) {
+      LOG.info("First registration — assigning owner role to " + account.getId());
     }
   }
 

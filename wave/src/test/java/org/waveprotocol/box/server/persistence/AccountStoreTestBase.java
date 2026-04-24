@@ -147,6 +147,85 @@ public abstract class AccountStoreTestBase extends TestCase {
     }
   }
 
+  public final void testPutNewAccountWithOwnerAssignmentRejectsExistingAddress()
+      throws Exception {
+    AccountStore accountStore = newAccountStore();
+    HumanAccountDataImpl passwordAccount =
+        new HumanAccountDataImpl(HUMAN_ID, new PasswordDigest("internet".toCharArray()));
+
+    assertEquals(AccountStore.AccountCreationResult.CREATED,
+        accountStore.putNewAccountWithOwnerAssignmentResult(passwordAccount, null));
+
+    SocialIdentity identity =
+        new SocialIdentity("github", "github-sub-123", "human@example.com", "Human User", 1234L);
+    HumanAccountDataImpl socialAccount = new HumanAccountDataImpl(HUMAN_ID);
+    socialAccount.addOrReplaceSocialIdentity(identity);
+
+    assertEquals(AccountStore.AccountCreationResult.ACCOUNT_EXISTS,
+        accountStore.putNewAccountWithOwnerAssignmentResult(socialAccount, identity));
+    AccountData stored = accountStore.getAccount(HUMAN_ID);
+    assertNotNull(stored.asHuman().getPasswordDigest());
+    assertTrue(stored.asHuman().getPasswordDigest().verify("internet".toCharArray()));
+    assertTrue(stored.asHuman().getSocialIdentities().isEmpty());
+    assertEquals(HumanAccountData.ROLE_OWNER, stored.asHuman().getRole());
+  }
+
+  public final void testPutNewAccountWithOwnerAssignmentRejectsExistingSocialIdentity()
+      throws Exception {
+    AccountStore accountStore = newAccountStore();
+    SocialIdentity identity =
+        new SocialIdentity("github", "github-sub-123", "human@example.com", "Human User", 1234L);
+    HumanAccountDataImpl first = new HumanAccountDataImpl(HUMAN_ID);
+    first.addOrReplaceSocialIdentity(identity);
+
+    assertEquals(AccountStore.AccountCreationResult.CREATED,
+        accountStore.putNewAccountWithOwnerAssignmentResult(first, identity));
+
+    HumanAccountDataImpl second = new HumanAccountDataImpl(SECOND_HUMAN_ID);
+    second.addOrReplaceSocialIdentity(identity);
+
+    assertEquals(AccountStore.AccountCreationResult.SOCIAL_IDENTITY_EXISTS,
+        accountStore.putNewAccountWithOwnerAssignmentResult(second, identity));
+    assertNull(accountStore.getAccount(SECOND_HUMAN_ID));
+    assertEquals(HUMAN_ID,
+        accountStore.getAccountBySocialIdentity("github", "github-sub-123").getId());
+  }
+
+  public final void testPutNewAccountWithOwnerAssignmentPrefersAccountCollision()
+      throws Exception {
+    AccountStore accountStore = newAccountStore();
+    SocialIdentity identity =
+        new SocialIdentity("github", "github-sub-123", "human@example.com", "Human User", 1234L);
+    HumanAccountDataImpl first = new HumanAccountDataImpl(HUMAN_ID);
+    first.addOrReplaceSocialIdentity(identity);
+
+    assertEquals(AccountStore.AccountCreationResult.CREATED,
+        accountStore.putNewAccountWithOwnerAssignmentResult(first, identity));
+
+    HumanAccountDataImpl duplicate = new HumanAccountDataImpl(HUMAN_ID);
+    duplicate.addOrReplaceSocialIdentity(identity);
+
+    assertEquals(AccountStore.AccountCreationResult.ACCOUNT_EXISTS,
+        accountStore.putNewAccountWithOwnerAssignmentResult(duplicate, identity));
+  }
+
+  public final void testPutNewAccountWithOwnerAssignmentPromotesOnlyFirstHuman()
+      throws Exception {
+    AccountStore accountStore = newAccountStore();
+    HumanAccountDataImpl first = new HumanAccountDataImpl(HUMAN_ID);
+    HumanAccountDataImpl second = new HumanAccountDataImpl(SECOND_HUMAN_ID);
+
+    assertEquals(AccountStore.AccountCreationResult.CREATED,
+        accountStore.putNewAccountWithOwnerAssignmentResult(first, null));
+    assertEquals(AccountStore.AccountCreationResult.CREATED,
+        accountStore.putNewAccountWithOwnerAssignmentResult(second, null));
+
+    assertEquals(HumanAccountData.ROLE_OWNER,
+        accountStore.getAccount(HUMAN_ID).asHuman().getRole());
+    assertEquals(HumanAccountData.ROLE_USER,
+        accountStore.getAccount(SECOND_HUMAN_ID).asHuman().getRole());
+  }
+
   public final void testEmailLookupMatchesLegacyMixedCaseEmail() throws Exception {
     AccountStore accountStore = newAccountStore();
     HumanAccountDataImpl account = new HumanAccountDataImpl(HUMAN_ID);

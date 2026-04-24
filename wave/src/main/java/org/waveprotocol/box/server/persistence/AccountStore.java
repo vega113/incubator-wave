@@ -20,6 +20,7 @@
 package org.waveprotocol.box.server.persistence;
 
 import org.waveprotocol.box.server.account.AccountData;
+import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.account.RobotAccountData;
 import org.waveprotocol.box.server.account.RobotAccountDataImpl;
 import org.waveprotocol.box.server.account.SocialIdentity;
@@ -36,6 +37,13 @@ import java.util.logging.Logger;
  */
 public interface AccountStore {
   Logger ACCOUNT_STORE_LOG = Logger.getLogger(AccountStore.class.getName());
+
+  enum AccountCreationResult {
+    CREATED,
+    ACCOUNT_EXISTS,
+    SOCIAL_IDENTITY_EXISTS
+  }
+
   /**
    * Initialize the account store.
    * Implementations are expected to validate any configuration values, validate the state of the
@@ -212,6 +220,68 @@ public interface AccountStore {
         throw new PersistenceException("Social identity is already linked");
       }
       putAccount(account);
+    }
+  }
+
+  /**
+   * Persists a new account if the participant id is still unused.
+   *
+   * <p>If this creates the first human account in the store, the account is promoted to owner before
+   * it is written. The default implementation is atomic within one store instance so separate
+   * registration servlets in the same JVM cannot overwrite each other's accounts by racing through
+   * pre-checks. Implementations that run behind an external database should override this with a
+   * backend-level create-if-absent operation.
+   *
+   * <p>When owner promotion happens, the implementation mutates the supplied human account by
+   * setting its role before persisting it.
+   */
+  default boolean putNewAccountWithOwnerAssignment(AccountData account)
+      throws PersistenceException {
+    return putNewAccountWithOwnerAssignmentResult(account, null) == AccountCreationResult.CREATED;
+  }
+
+  /**
+   * Persists a new account while also reserving a social identity for that account.
+   *
+   * <p>Returns {@code false} when either the participant id or social identity is already in use.
+   */
+  default boolean putNewAccountWithOwnerAssignment(AccountData account,
+      SocialIdentity socialIdentity) throws PersistenceException {
+    return putNewAccountWithOwnerAssignmentResult(account, socialIdentity)
+        == AccountCreationResult.CREATED;
+  }
+
+  /**
+   * Persists a new account and reports the reason when creation is rejected.
+   *
+   * <p>The default implementation is atomic within one store instance so separate registration
+   * servlets in the same JVM cannot overwrite each other's accounts by racing through pre-checks.
+   * Implementations backed by external databases should override this with a backend-level
+   * create-if-absent operation and map duplicate-key failures to the matching result.
+   *
+   * <p>When owner promotion happens, the implementation mutates the supplied human account by
+   * setting its role before persisting it. Database implementations may do that before an insert
+   * attempt and then return a non-created result after a duplicate-key race, so callers should
+   * discard the supplied account object on non-{@code CREATED} results.
+   */
+  default AccountCreationResult putNewAccountWithOwnerAssignmentResult(AccountData account,
+      SocialIdentity socialIdentity) throws PersistenceException {
+    synchronized (this) {
+      if (getAccount(account.getId()) != null) {
+        return AccountCreationResult.ACCOUNT_EXISTS;
+      }
+      if (socialIdentity != null) {
+        AccountData existing = getAccountBySocialIdentity(
+            socialIdentity.getProvider(), socialIdentity.getSubject());
+        if (existing != null) {
+          return AccountCreationResult.SOCIAL_IDENTITY_EXISTS;
+        }
+      }
+      if (account.isHuman() && getAccountCount() == 0) {
+        account.asHuman().setRole(HumanAccountData.ROLE_OWNER);
+      }
+      putAccount(account);
+      return AccountCreationResult.CREATED;
     }
   }
 

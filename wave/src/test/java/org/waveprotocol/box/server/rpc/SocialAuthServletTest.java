@@ -3,6 +3,7 @@ package org.waveprotocol.box.server.rpc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -46,8 +47,10 @@ import org.waveprotocol.box.server.authentication.oauth.SocialAuthConfig;
 import org.waveprotocol.box.server.authentication.oauth.SocialAuthException;
 import org.waveprotocol.box.server.authentication.oauth.SocialAuthHttpClient;
 import org.waveprotocol.box.server.authentication.oauth.SocialAuthService;
+import org.waveprotocol.box.server.persistence.AccountStore;
 import org.waveprotocol.box.server.persistence.FeatureFlagService;
 import org.waveprotocol.box.server.persistence.FeatureFlagStore.FeatureFlag;
+import org.waveprotocol.box.server.persistence.PersistenceException;
 import org.waveprotocol.box.server.persistence.memory.MemoryFeatureFlagStore;
 import org.waveprotocol.box.server.persistence.memory.MemoryStore;
 import org.waveprotocol.box.server.waveserver.AnalyticsRecorder;
@@ -349,6 +352,70 @@ public final class SocialAuthServletTest {
   }
 
   @Test
+  public void completeKeepsPendingProfileAfterUsernameCollisionForRetry() throws Exception {
+    Fixture fixture = newFixture(true);
+    fixture.accountStore.putAccount(
+        new HumanAccountDataImpl(ParticipantId.ofUnsafe("octo@example.com")));
+    Map<String, Object> sessionAttributes = new HashMap<>();
+    HttpSession session = newSession(sessionAttributes);
+    String csrf = preparePendingProfile(fixture, session);
+
+    RequestContext firstComplete = request("/complete",
+        Map.of("csrf", csrf, "address", "octo"), session);
+    ResponseContext firstResponse = response();
+    fixture.servlet.doPost(firstComplete.req, firstResponse.resp);
+
+    assertEquals(HttpServletResponse.SC_OK, firstResponse.status);
+    assertTrue(firstResponse.body().contains("Account already exists"));
+    assertTrue(sessionAttributes.containsKey("socialAuth.pendingProfile"));
+
+    RequestContext retryComplete = request("/complete",
+        Map.of("csrf", csrf, "address", "octo2"), session);
+    ResponseContext retryResponse = response();
+    fixture.servlet.doPost(retryComplete.req, retryResponse.resp);
+
+    assertEquals("/", retryResponse.redirect);
+    assertFalse(sessionAttributes.containsKey("socialAuth.pendingProfile"));
+    assertNotNull(fixture.accountStore.getAccount(ParticipantId.ofUnsafe("octo2@example.com")));
+  }
+
+  @Test
+  public void completeClearsPendingProfileAfterPersistenceFailure() throws Exception {
+    Fixture fixture = newFixture(true, new LinkedHashMap<>(), false,
+        new ThrowingCreateAccountStore());
+    Map<String, Object> sessionAttributes = new HashMap<>();
+    HttpSession session = newSession(sessionAttributes);
+    String csrf = preparePendingProfile(fixture, session);
+
+    RequestContext complete = request("/complete",
+        Map.of("csrf", csrf, "address", "octo"), session);
+    ResponseContext completeResponse = response();
+    fixture.servlet.doPost(complete.req, completeResponse.resp);
+
+    assertEquals(HttpServletResponse.SC_FORBIDDEN, completeResponse.status);
+    assertFalse(sessionAttributes.containsKey("socialAuth.pendingProfile"));
+  }
+
+  @Test
+  public void completeClearsPendingProfileWhenStoreReportsSocialIdentityExists()
+      throws Exception {
+    Fixture fixture = newFixture(true, new LinkedHashMap<>(), false,
+        new SocialIdentityExistsStore());
+    Map<String, Object> sessionAttributes = new HashMap<>();
+    HttpSession session = newSession(sessionAttributes);
+    String csrf = preparePendingProfile(fixture, session);
+
+    RequestContext complete = request("/complete",
+        Map.of("csrf", csrf, "address", "octo"), session);
+    ResponseContext completeResponse = response();
+    fixture.servlet.doPost(complete.req, completeResponse.resp);
+
+    assertEquals(HttpServletResponse.SC_FORBIDDEN, completeResponse.status);
+    assertFalse(sessionAttributes.containsKey("socialAuth.pendingProfile"));
+    assertNull(fixture.accountStore.getAccount(ParticipantId.ofUnsafe("octo@example.com")));
+  }
+
+  @Test
   public void callbackAttemptsAreRateLimited() throws Exception {
     Fixture fixture = newFixture(true);
     ResponseContext lastResponse = null;
@@ -399,11 +466,15 @@ public final class SocialAuthServletTest {
 
   private Fixture newFixture(boolean socialAuthEnabled, Map<String, Boolean> allowedUsers,
       boolean disableLoginPage) throws Exception {
+    return newFixture(socialAuthEnabled, allowedUsers, disableLoginPage, new MemoryStore());
+  }
+
+  private Fixture newFixture(boolean socialAuthEnabled, Map<String, Boolean> allowedUsers,
+      boolean disableLoginPage, MemoryStore accountStore) throws Exception {
     MemoryFeatureFlagStore featureFlagStore = new MemoryFeatureFlagStore();
     featureFlagStore.save(new FeatureFlag(
         "social-auth", "Social sign-in", socialAuthEnabled, allowedUsers));
     featureFlagService = new FeatureFlagService(featureFlagStore);
-    MemoryStore accountStore = new MemoryStore();
     SessionManager sessionManager = mock(SessionManager.class);
     BrowserSessionJwtIssuer jwtIssuer = mock(BrowserSessionJwtIssuer.class);
     when(jwtIssuer.issue(any(ParticipantId.class))).thenReturn("browser-jwt");
@@ -437,8 +508,7 @@ public final class SocialAuthServletTest {
         new AnalyticsRecorder(),
         new SecureRandom(new byte[] {1, 2, 3, 4}),
         DOMAIN,
-        config,
-        new Object());
+        config);
     return new Fixture(servlet, accountStore, sessionManager, featureFlagStore);
   }
 
@@ -564,6 +634,22 @@ public final class SocialAuthServletTest {
         return "[{\"email\":\"octo@example.com\",\"primary\":true,\"verified\":true}]";
       }
       return "{\"id\":12345,\"login\":\"octocat\",\"name\":\"Octo Cat\"}";
+    }
+  }
+
+  private static final class ThrowingCreateAccountStore extends MemoryStore {
+    @Override
+    public AccountStore.AccountCreationResult putNewAccountWithOwnerAssignmentResult(
+        AccountData account, SocialIdentity socialIdentity) throws PersistenceException {
+      throw new PersistenceException("forced failure");
+    }
+  }
+
+  private static final class SocialIdentityExistsStore extends MemoryStore {
+    @Override
+    public AccountStore.AccountCreationResult putNewAccountWithOwnerAssignmentResult(
+        AccountData account, SocialIdentity socialIdentity) {
+      return AccountStore.AccountCreationResult.SOCIAL_IDENTITY_EXISTS;
     }
   }
 }
