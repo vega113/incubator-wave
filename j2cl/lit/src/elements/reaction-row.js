@@ -133,7 +133,7 @@ export class ReactionRow extends LitElement {
   }
 
   humanizeName(value) {
-    return String(value || "").replaceAll("_", " ");
+    return String(value || "").split("_").join(" ");
   }
 }
 

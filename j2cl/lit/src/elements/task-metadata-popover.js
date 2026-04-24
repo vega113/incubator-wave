@@ -1,6 +1,8 @@
 import { LitElement, css, html } from "lit";
 import { ifDefined } from "lit/directives/if-defined.js";
 
+let taskMetadataPopoverCounter = 0;
+
 export class TaskMetadataPopover extends LitElement {
   static properties = {
     open: { type: Boolean, reflect: true },
@@ -67,6 +69,7 @@ export class TaskMetadataPopover extends LitElement {
     this.participants = [];
     this.error = "";
     this.focusTargetId = "";
+    this.instanceId = `task-metadata-${++taskMetadataPopoverCounter}`;
     this.addEventListener("keydown", this.onKeyDown);
   }
 
@@ -80,8 +83,8 @@ export class TaskMetadataPopover extends LitElement {
     if (!this.open) {
       return "";
     }
-    const titleId = "task-metadata-title";
-    const errorId = "task-due-date-error";
+    const titleId = `${this.instanceId}-title`;
+    const errorId = `${this.instanceId}-due-date-error`;
     return html`
       <form
         class="dialog"

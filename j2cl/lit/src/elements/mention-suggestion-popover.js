@@ -60,6 +60,12 @@ export class MentionSuggestionPopover extends LitElement {
     this.addEventListener("keydown", this.onKeyDown);
   }
 
+  updated(changed) {
+    if (changed.has("open") && this.open) {
+      queueMicrotask(() => this.renderRoot.querySelector("[role='listbox']")?.focus());
+    }
+  }
+
   render() {
     if (!this.open) {
       return "";
@@ -71,6 +77,7 @@ export class MentionSuggestionPopover extends LitElement {
       <div class="popover">
         <div
           role="listbox"
+          tabindex="-1"
           aria-label="Mention suggestions"
           aria-activedescendant=${ifDefined(activeId || undefined)}
         >

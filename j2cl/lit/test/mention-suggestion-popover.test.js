@@ -14,6 +14,8 @@ describe("<mention-suggestion-popover>", () => {
 
     const listbox = el.renderRoot.querySelector("[role='listbox']");
     const options = el.renderRoot.querySelectorAll("[role='option']");
+    expect(listbox).to.equal(el.shadowRoot.activeElement);
+    expect(listbox.getAttribute("tabindex")).to.equal("-1");
     expect(listbox.getAttribute("aria-activedescendant")).to.equal(options[0].id);
     expect(options[0].getAttribute("aria-selected")).to.equal("true");
     expect(options[1].dataset.address).to.equal("bob@example.com");

@@ -26,6 +26,18 @@ describe("<task-metadata-popover>", () => {
     expect(assignee).to.equal(el.shadowRoot.activeElement);
   });
 
+  it("generates unique heading ids for multiple task dialogs", async () => {
+    const first = await fixture(html`<task-metadata-popover open></task-metadata-popover>`);
+    const second = await fixture(html`<task-metadata-popover open></task-metadata-popover>`);
+
+    expect(first.renderRoot.querySelector("h2").id).to.not.equal(
+      second.renderRoot.querySelector("h2").id
+    );
+    expect(first.renderRoot.querySelector("[role='dialog']").getAttribute("aria-labelledby")).to.equal(
+      first.renderRoot.querySelector("h2").id
+    );
+  });
+
   it("submits semantic task metadata on Enter", async () => {
     const el = await fixture(html`
       <task-metadata-popover
