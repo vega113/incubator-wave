@@ -202,6 +202,36 @@ public final class SocialAuthServletTest {
   }
 
   @Test
+  public void loggedInLinkingRechecksFeatureFlagBeforePersisting() throws Exception {
+    Fixture fixture = newFixture(true);
+    ParticipantId alice = ParticipantId.ofUnsafe("alice@example.com");
+    HumanAccountDataImpl aliceAccount = new HumanAccountDataImpl(alice);
+    aliceAccount.setEmail("octo@example.com");
+    aliceAccount.setEmailConfirmed(true);
+    fixture.accountStore.putAccount(aliceAccount);
+    when(fixture.sessionManager.getLoggedInUser(any(WebSession.class))).thenReturn(alice);
+    Map<String, Object> sessionAttributes = new HashMap<>();
+    HttpSession session = newSession(sessionAttributes);
+    RequestContext start = request("/github", Map.of(), session);
+    ResponseContext startResponse = response();
+    fixture.servlet.doGet(start.req, startResponse.resp);
+
+    fixture.featureFlagStore.save(new FeatureFlag(
+        "social-auth", "Social sign-in", false, Map.of()));
+    featureFlagService.refreshCache();
+
+    RequestContext callback = request("/callback/github",
+        Map.of("state", queryParam(startResponse.redirect, "state"), "code", "provider-code"),
+        session);
+    ResponseContext callbackResponse = response();
+    fixture.servlet.doGet(callback.req, callbackResponse.resp);
+
+    assertEquals(HttpServletResponse.SC_FORBIDDEN, callbackResponse.status);
+    assertEquals(0, aliceAccount.getSocialIdentities().size());
+    verify(fixture.sessionManager, never()).setLoggedInUser(any(WebSession.class), eq(alice));
+  }
+
+  @Test
   public void linkedAccountDenylistOverridesGlobalFlag() throws Exception {
     ParticipantId bob = ParticipantId.ofUnsafe("bob@example.com");
     Fixture fixture = newFixture(true, Map.of(bob.getAddress(), false));
@@ -333,7 +363,7 @@ public final class SocialAuthServletTest {
         new SecureRandom(new byte[] {1, 2, 3, 4}),
         DOMAIN,
         config);
-    return new Fixture(servlet, accountStore, sessionManager);
+    return new Fixture(servlet, accountStore, sessionManager, featureFlagStore);
   }
 
   private static HttpSession newSession(Map<String, Object> attributes) {
@@ -411,11 +441,14 @@ public final class SocialAuthServletTest {
     final SocialAuthServlet servlet;
     final MemoryStore accountStore;
     final SessionManager sessionManager;
+    final MemoryFeatureFlagStore featureFlagStore;
 
-    Fixture(SocialAuthServlet servlet, MemoryStore accountStore, SessionManager sessionManager) {
+    Fixture(SocialAuthServlet servlet, MemoryStore accountStore, SessionManager sessionManager,
+        MemoryFeatureFlagStore featureFlagStore) {
       this.servlet = servlet;
       this.accountStore = accountStore;
       this.sessionManager = sessionManager;
+      this.featureFlagStore = featureFlagStore;
     }
   }
 

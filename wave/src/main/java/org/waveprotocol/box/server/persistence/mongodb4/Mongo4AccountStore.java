@@ -230,6 +230,12 @@ final class Mongo4AccountStore implements AccountStore {
   }
 
   @Override
+  public void putAccountWithUniqueSocialIdentity(AccountData account, SocialIdentity socialIdentity)
+      throws PersistenceException {
+    putAccount(account);
+  }
+
+  @Override
   public List<AccountData> getAllAccounts() throws PersistenceException {
     try {
       List<AccountData> result = new ArrayList<>();

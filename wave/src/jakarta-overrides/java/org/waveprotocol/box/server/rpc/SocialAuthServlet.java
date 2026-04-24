@@ -224,6 +224,11 @@ public final class SocialAuthServlet extends HttpServlet {
       }
       if (pending.loggedInUser != null) {
         ParticipantId id = ParticipantId.ofUnsafe(pending.loggedInUser);
+        if (!featureFlagService.isEnabled(SOCIAL_AUTH_FLAG, id.getAddress())) {
+          clearSocialSession(session);
+          renderFailure(resp, HttpServletResponse.SC_FORBIDDEN, DEFAULT_FAILURE);
+          return;
+        }
         AccountData account = accountStore.getAccount(id);
         if (account != null && account.isHuman() && verifiedEmailMatches(account.asHuman(), profile)) {
           accountStore.linkSocialIdentity(id, toSocialIdentity(profile));
@@ -290,22 +295,18 @@ public final class SocialAuthServlet extends HttpServlet {
       return;
     }
     try {
-      if (accountStore.getAccountBySocialIdentity(pending.provider, pending.subject) != null) {
-        clearSocialSession(session);
-        renderFailure(resp, HttpServletResponse.SC_FORBIDDEN, DEFAULT_FAILURE);
-        return;
-      }
       HumanAccountDataImpl account = new HumanAccountDataImpl(id);
       account.setEmail(pending.email);
       account.setEmailConfirmed(true);
       account.setRegistrationTime(System.currentTimeMillis());
-      account.addOrReplaceSocialIdentity(new SocialIdentity(
+      SocialIdentity socialIdentity = new SocialIdentity(
           pending.provider, pending.subject, pending.email, pending.displayName,
-          System.currentTimeMillis()));
+          System.currentTimeMillis());
+      account.addOrReplaceSocialIdentity(socialIdentity);
       if (accountStore.getAccountCount() == 0) {
         account.setRole(HumanAccountData.ROLE_OWNER);
       }
-      accountStore.putAccount(account);
+      accountStore.putAccountWithUniqueSocialIdentity(account, socialIdentity);
       try {
         analyticsRecorder.incrementUsersRegistered(System.currentTimeMillis());
       } catch (RuntimeException e) {

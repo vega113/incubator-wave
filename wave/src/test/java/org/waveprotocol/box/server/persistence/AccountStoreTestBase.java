@@ -49,6 +49,9 @@ public abstract class AccountStoreTestBase extends TestCase {
 
   private static final ParticipantId HUMAN_ID = ParticipantId.ofUnsafe("human@example.com");
 
+  private static final ParticipantId SECOND_HUMAN_ID =
+      ParticipantId.ofUnsafe("second@example.com");
+
   private static final ParticipantId ROBOT_ID = ParticipantId.ofUnsafe("robot@example.com");
 
   private RobotAccountData robotAccount;
@@ -112,16 +115,36 @@ public abstract class AccountStoreTestBase extends TestCase {
   public final void testRoundtripHumanAccountWithSocialIdentityLookup() throws Exception {
     AccountStore accountStore = newAccountStore();
     HumanAccountDataImpl account = new HumanAccountDataImpl(HUMAN_ID);
-    account.addOrReplaceSocialIdentity(
-        new SocialIdentity("google", "google-sub-123", "human@example.com", "Human User", 1234L));
+    SocialIdentity identity =
+        new SocialIdentity("google", "google-sub-123", "human@example.com", "Human User", 1234L);
+    account.addOrReplaceSocialIdentity(identity);
 
-    accountStore.putAccount(account);
+    accountStore.putAccountWithUniqueSocialIdentity(account, identity);
 
     AccountData retrievedAccount =
         accountStore.getAccountBySocialIdentity("google", "google-sub-123");
     assertNotNull(retrievedAccount);
     assertEquals(HUMAN_ID, retrievedAccount.getId());
     assertEquals(1, retrievedAccount.asHuman().getSocialIdentities().size());
+  }
+
+  public final void testPutAccountWithUniqueSocialIdentityRejectsDuplicate() throws Exception {
+    AccountStore accountStore = newAccountStore();
+    SocialIdentity identity =
+        new SocialIdentity("google", "google-sub-123", "human@example.com", "Human User", 1234L);
+    HumanAccountDataImpl first = new HumanAccountDataImpl(HUMAN_ID);
+    first.addOrReplaceSocialIdentity(identity);
+    accountStore.putAccountWithUniqueSocialIdentity(first, identity);
+
+    HumanAccountDataImpl second = new HumanAccountDataImpl(SECOND_HUMAN_ID);
+    second.addOrReplaceSocialIdentity(identity);
+    try {
+      accountStore.putAccountWithUniqueSocialIdentity(second, identity);
+      fail("Expected duplicate social identity to be rejected");
+    } catch (PersistenceException expected) {
+      assertEquals(HUMAN_ID,
+          accountStore.getAccountBySocialIdentity("google", "google-sub-123").getId());
+    }
   }
 
   public final void testEmailLookupMatchesLegacyMixedCaseEmail() throws Exception {

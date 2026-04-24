@@ -25,6 +25,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.security.MessageDigest;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import org.apache.commons.text.StringEscapeUtils;
@@ -2014,13 +2015,20 @@ public final class HtmlRenderer {
       sb.append("      <div class=\"msg\" id=\"messageLbl\"></div>\n");
       sb.append("      <input type=\"submit\" class=\"btn-primary\" name=\"signIn\" id=\"signIn\" value=\"Sign in\" style=\"width:100%;\">\n");
       sb.append("    </form>\n");
-      if (socialProviderLinks != null && !socialProviderLinks.isEmpty()) {
-        sb.append("    <div class=\"social-auth-options\" aria-label=\"Social sign in options\">\n");
-        sb.append("      <div class=\"social-auth-divider\"><span>or</span></div>\n");
+      List<SocialProviderLink> validSocialProviderLinks = new ArrayList<>();
+      if (socialProviderLinks != null) {
         for (SocialProviderLink link : socialProviderLinks) {
-          if (link == null || link.getLabel() == null || link.getUrl() == null) {
+          if (link == null || link.getLabel() == null || link.getUrl() == null
+              || link.getLabel().trim().isEmpty() || link.getUrl().trim().isEmpty()) {
             continue;
           }
+          validSocialProviderLinks.add(link);
+        }
+      }
+      if (!validSocialProviderLinks.isEmpty()) {
+        sb.append("    <div class=\"social-auth-options\" aria-label=\"Social sign in options\">\n");
+        sb.append("      <div class=\"social-auth-divider\"><span>or</span></div>\n");
+        for (SocialProviderLink link : validSocialProviderLinks) {
           sb.append("      <a class=\"btn-secondary social-auth-button\" href=\"")
               .append(escapeHtml(link.getUrl())).append("\">Continue with ")
               .append(escapeHtml(link.getLabel())).append("</a>\n");

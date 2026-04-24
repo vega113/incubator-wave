@@ -62,6 +62,24 @@ public final class HtmlRendererAuthStateTest {
   }
 
   @Test
+  public void signInPageFiltersBlankSocialButtons() {
+    String html = HtmlRenderer.renderAuthenticationPage(
+        "example.com",
+        "",
+        AuthenticationServlet.RESPONSE_STATUS_NONE,
+        false,
+        "",
+        true,
+        false,
+        List.of(
+            new HtmlRenderer.SocialProviderLink("", "/auth/social/google"),
+            new HtmlRenderer.SocialProviderLink("GitHub", "")));
+
+    assertFalse(html.contains("<div class=\"social-auth-options\""));
+    assertFalse(html.contains("Continue with"));
+  }
+
+  @Test
   public void socialUsernamePageRequiresSupaWaveUsername() {
     String html = HtmlRenderer.renderSocialUsernamePage(
         "example.com",

@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-24-social-auth",
-  "version": "PR #995",
+  "version": "PR #1000",
   "date": "2026-04-24",
   "title": "Social Sign-In",
   "summary": "Google and GitHub sign-in can now be enabled behind the social-auth feature flag.",

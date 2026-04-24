@@ -181,12 +181,38 @@ public interface AccountStore {
    */
   default void linkSocialIdentity(ParticipantId id, SocialIdentity socialIdentity)
       throws PersistenceException {
-    AccountData account = getAccount(id);
-    if (account == null || !account.isHuman()) {
-      throw new PersistenceException("No human account found for " + id);
+    synchronized (this) {
+      AccountData existing = getAccountBySocialIdentity(
+          socialIdentity.getProvider(), socialIdentity.getSubject());
+      if (existing != null && !existing.getId().equals(id)) {
+        throw new PersistenceException("Social identity is already linked");
+      }
+      AccountData account = getAccount(id);
+      if (account == null || !account.isHuman()) {
+        throw new PersistenceException("No human account found for " + id);
+      }
+      account.asHuman().addOrReplaceSocialIdentity(socialIdentity);
+      putAccount(account);
     }
-    account.asHuman().addOrReplaceSocialIdentity(socialIdentity);
-    putAccount(account);
+  }
+
+  /**
+   * Persists a new human account whose social identity must be unique.
+   *
+   * <p>The default implementation is atomic within one store instance. Stores
+   * backed by external databases should override this with backend-level
+   * uniqueness guarantees.
+   */
+  default void putAccountWithUniqueSocialIdentity(AccountData account,
+      SocialIdentity socialIdentity) throws PersistenceException {
+    synchronized (this) {
+      AccountData existing = getAccountBySocialIdentity(
+          socialIdentity.getProvider(), socialIdentity.getSubject());
+      if (existing != null && !existing.getId().equals(account.getId())) {
+        throw new PersistenceException("Social identity is already linked");
+      }
+      putAccount(account);
+    }
   }
 
   /**
