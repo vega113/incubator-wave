@@ -90,4 +90,22 @@ describe("<reaction-picker-popover>", () => {
 
     expect(second.open).to.equal(true);
   });
+
+  it("clears the active picker reference when closed by property update", async () => {
+    const first = await fixture(html`
+      <reaction-picker-popover blip-id="b+1" .emojis=${["tada"]} open></reaction-picker-popover>
+    `);
+    let firstCloseCount = 0;
+    first.addEventListener("overlay-close", () => {
+      firstCloseCount += 1;
+    });
+
+    first.open = false;
+    await first.updateComplete;
+    await fixture(html`
+      <reaction-picker-popover blip-id="b+2" .emojis=${["wave"]} open></reaction-picker-popover>
+    `);
+
+    expect(firstCloseCount).to.equal(0);
+  });
 });

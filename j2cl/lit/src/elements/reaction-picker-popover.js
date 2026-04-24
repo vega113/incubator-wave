@@ -52,12 +52,19 @@ export class ReactionPickerPopover extends LitElement {
   }
 
   updated(changed) {
-    if (changed.has("open") && this.open) {
+    if (!changed.has("open")) {
+      return;
+    }
+    if (this.open) {
       if (activePicker && activePicker !== this) {
         activePicker.close("superseded");
       }
       activePicker = this;
       queueMicrotask(() => this.renderRoot.querySelector("button")?.focus());
+      return;
+    }
+    if (activePicker === this) {
+      activePicker = null;
     }
   }
 
