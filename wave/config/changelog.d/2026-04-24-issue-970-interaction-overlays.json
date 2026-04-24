@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-24-issue-970-interaction-overlays",
+  "version": "Issue #970",
+  "date": "2026-04-24",
+  "title": "Prepare J2CL interaction overlay metadata",
+  "summary": "The opt-in J2CL selected-wave path now carries mention, task, and reaction metadata through its transport and projection layers so Lit interaction overlays can reach GWT parity in the follow-up UI slices.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Decoded selected-wave mention and task annotation ranges for the J2CL interaction overlay pipeline",
+        "Decoded per-blip reaction data documents and preserved reaction metadata across metadata-only selected-wave updates"
+      ]
+    }
+  ]
+}
