@@ -568,25 +568,25 @@ Expected:
   - `wave/src/test/java/org/waveprotocol/box/server/frontend/WaveClientRpcViewportHintsTest.java`
   - existing fragments/open tests that inspect the initial `ProtocolWaveletUpdate`
 
-- [ ] Gate initial selected-wave snapshot emission when viewport hints are active and fragments are available
+- [x] Gate initial selected-wave snapshot emission when viewport hints are active and fragments are available
   - the gate must be conditional on request-level viewport hints (`viewportStartBlipId`, `viewportDirection`, or `viewportLimit`)
   - hint detection must use field presence (`hasViewportStartBlipId()`, `hasViewportDirection()`, `hasViewportLimit()`), not positive numeric values
   - no-hint open requests, including existing GWT/legacy callers, must continue receiving the current whole-wave snapshot payload
-- [ ] Preserve the fields the J2CL selected-wave path still needs on initial open:
+- [x] Preserve the fields the J2CL selected-wave path still needs on initial open:
   - wavelet name
   - channel id
   - resulting version / hash
   - fragments payload
-- [ ] Add a regression assertion that a viewport-hinted selected-wave open no longer includes a whole-wave snapshot payload
-- [ ] Add a regression assertion that a no-hint selected-wave open still includes the current whole-wave snapshot payload
-- [ ] Record a warning/metric only when the server truly has to fall back to full snapshot bootstrap
+- [x] Add a regression assertion that a viewport-hinted selected-wave open no longer includes a whole-wave snapshot payload
+- [x] Add a regression assertion that a no-hint selected-wave open still includes the current whole-wave snapshot payload
+- [x] Record a warning/metric only when the server truly has to fall back to full snapshot bootstrap
   - metric: `FragmentsMetrics.j2clViewportSnapshotFallbacks`
   - warning marker: `J2CL_VIEWPORT_FULL_SNAPSHOT_FALLBACK`
-  - this counter is incremented server-side at the snapshot gate decision only; the client must not double-count it
-- [ ] Add a regression test for viewport-hinted open with fragments unavailable:
+  - this counter is incremented server-side once per wavelet after attempted callback delivery; the client must not double-count it
+- [x] Add a regression test for viewport-hinted open with fragments unavailable:
   - server falls back to the whole-wave snapshot
   - `FragmentsMetrics.j2clViewportSnapshotFallbacks` increments exactly once
-  - one `J2CL_VIEWPORT_FULL_SNAPSHOT_FALLBACK` warning is emitted
+  - one `J2CL_VIEWPORT_FULL_SNAPSHOT_FALLBACK` warning is emitted with an operator-facing reason
 
 Run:
 ```bash
@@ -598,6 +598,14 @@ Expected:
 - no-hint GWT/legacy open remains snapshot-compatible
 - viewport-hinted no-fragments fallback is observable through the named metric/log marker
 - tests prove `R-7.4` instead of only rendering-level virtualization
+
+Task 6 result:
+
+- `WaveClientRpcImpl` now defers full snapshot serialization until after the fragments decision and suppresses the full snapshot only for viewport-hinted opens that attach a non-empty fragments payload.
+- Viewport initial-window metrics count any viewport-window delivery once per wavelet, including snapshot-less synthetic/dev fragments; snapshot fallback metrics count full-snapshot fallback once per wavelet after attempted callback delivery.
+- `WaveClientRpcViewportHintsTest` covers success suppression, no-hint compatibility, snapshot fallback, snapshot-less no-fragments behavior, snapshot-less fragments metrics, repeated same-wavelet metric de-duplication, multi-wavelet metric counting, and fallback reason labels.
+- Verification passed: `sbt -batch "testOnly org.waveprotocol.box.server.frontend.WaveClientRpcViewportHintsTest org.waveprotocol.box.server.frontend.WaveClientRpcFragmentsTest" && git diff --check && python3 scripts/validate-changelog.py`.
+- Claude Opus 4.7 implementation review cleared in round 7 with no blockers, important concerns, required nits, or required coverage gaps. Final output: `/tmp/claude-review-967-task6-r7.out`.
 
 ### Task 7: Browser verification and issue evidence
 

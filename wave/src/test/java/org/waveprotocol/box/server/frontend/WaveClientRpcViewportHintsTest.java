@@ -36,17 +36,27 @@ import org.waveprotocol.wave.model.id.WaveletName;
 import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.data.ReadableWaveletData;
+import org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics;
 
 /** Tests viewport limit clamping and direction normalization. */
 public final class WaveClientRpcViewportHintsTest {
 
   private int prevDefault;
   private int prevMax;
+  private boolean prevMetricsEnabled;
+  private long prevSnapshotFallbacks;
+  private long prevInitialWindows;
 
   @Before
   public void setUp() {
     prevDefault = WaveClientRpcImpl.getDefaultViewportLimit();
     prevMax = WaveClientRpcImpl.getMaxViewportLimit();
+    prevMetricsEnabled = FragmentsMetrics.isEnabled();
+    prevSnapshotFallbacks = FragmentsMetrics.j2clViewportSnapshotFallbacks.get();
+    prevInitialWindows = FragmentsMetrics.j2clViewportInitialWindows.get();
+    FragmentsMetrics.setEnabled(true);
+    FragmentsMetrics.j2clViewportSnapshotFallbacks.set(0L);
+    FragmentsMetrics.j2clViewportInitialWindows.set(0L);
     // Enable fragments handler with RPC fetch enabled
     WaveletProvider provider = providerWithBlips(15);
     WaveClientRpcImpl.setFragmentsHandler(new FragmentsViewChannelHandler(provider,
@@ -57,6 +67,9 @@ public final class WaveClientRpcViewportHintsTest {
   public void tearDown() {
     WaveClientRpcImpl.setViewportLimits(prevDefault, prevMax);
     WaveClientRpcImpl.setFragmentsHandler(null);
+    FragmentsMetrics.j2clViewportSnapshotFallbacks.set(prevSnapshotFallbacks);
+    FragmentsMetrics.j2clViewportInitialWindows.set(prevInitialWindows);
+    FragmentsMetrics.setEnabled(prevMetricsEnabled);
   }
 
   @Test
@@ -86,6 +99,109 @@ public final class WaveClientRpcViewportHintsTest {
     assertTrue("Expected fragments payload present", update.hasFragments());
   }
 
+  @Test
+  public void viewportHintsSuppressWholeSnapshotWhenFragmentsAvailable() {
+    ProtocolWaveletUpdate update = openWithHints("b+1", "forward", 5);
+
+    assertTrue("Expected fragments payload present", update.hasFragments());
+    assertFalse("Viewport-hinted open should not include full snapshot", update.hasSnapshot());
+    assertTrue("Expected resulting version for write-session coupling", update.hasResultingVersion());
+    assertTrue("Expected commit notice for selected-wave bootstrap", update.hasCommitNotice());
+    assertEquals(1L, FragmentsMetrics.j2clViewportInitialWindows.get());
+    assertEquals(0L, FragmentsMetrics.j2clViewportSnapshotFallbacks.get());
+  }
+
+  @Test
+  public void noHintOpenKeepsWholeSnapshotForLegacyClients() {
+    ProtocolWaveletUpdate update = openWithoutHints();
+
+    assertTrue("Legacy no-hint open keeps snapshot bootstrap", update.hasSnapshot());
+    assertTrue("Fragments can still be attached for legacy clients", update.hasFragments());
+    assertEquals(0L, FragmentsMetrics.j2clViewportInitialWindows.get());
+    assertEquals(0L, FragmentsMetrics.j2clViewportSnapshotFallbacks.get());
+  }
+
+  @Test
+  public void viewportHintsFallbackToSnapshotWhenFragmentsUnavailable() {
+    WaveClientRpcImpl.setFragmentsHandler(null);
+
+    ProtocolWaveletUpdate update = openWithHints("b+1", "forward", 5);
+
+    assertFalse("No fragments should be attached without a handler", update.hasFragments());
+    assertTrue("Viewport-hinted open must fall back to snapshot if fragments are unavailable",
+        update.hasSnapshot());
+    assertEquals(0L, FragmentsMetrics.j2clViewportInitialWindows.get());
+    assertEquals(1L, FragmentsMetrics.j2clViewportSnapshotFallbacks.get());
+  }
+
+  @Test
+  public void viewportHintsWithoutSnapshotOrFragmentsOnlyPreserveCommitNotice() {
+    WaveClientRpcImpl.setFragmentsHandler(null);
+
+    ProtocolWaveletUpdate update =
+        openWithRpc(makeWaveClientRpcWithoutSnapshot(), viewportHintRequest("b+1", "forward", 5));
+
+    assertFalse("No snapshot should be attached when the frontend has none", update.hasSnapshot());
+    assertFalse("No fragments should be attached without a handler", update.hasFragments());
+    assertTrue("Commit notice should still preserve the update version", update.hasCommitNotice());
+    assertEquals(0L, FragmentsMetrics.j2clViewportInitialWindows.get());
+    assertEquals(0L, FragmentsMetrics.j2clViewportSnapshotFallbacks.get());
+  }
+
+  @Test
+  public void snapshotlessViewportFragmentsCountAsInitialWindow() {
+    WaveClientRpcImpl.setForceClientFragments(true);
+    try {
+      ProtocolWaveletUpdate update =
+          openWithRpc(makeWaveClientRpcWithoutSnapshot(), viewportHintRequest("b+1", "forward", 5));
+
+      assertFalse("No full snapshot should be attached", update.hasSnapshot());
+      assertTrue("Synthetic viewport fragments should be attached", update.hasFragments());
+      assertEquals(1L, FragmentsMetrics.j2clViewportInitialWindows.get());
+      assertEquals(0L, FragmentsMetrics.j2clViewportSnapshotFallbacks.get());
+    } finally {
+      WaveClientRpcImpl.setForceClientFragments(false);
+    }
+  }
+
+  @Test
+  public void viewportInitialWindowMetricCountsOncePerOpen() {
+    openWithRpc(makeWaveClientRpcWithTwoSnapshotUpdates(),
+        viewportHintRequest("b+1", "forward", 5));
+
+    assertEquals(1L, FragmentsMetrics.j2clViewportInitialWindows.get());
+    assertEquals(0L, FragmentsMetrics.j2clViewportSnapshotFallbacks.get());
+  }
+
+  @Test
+  public void viewportInitialWindowMetricCountsEachWaveletOnce() {
+    openWithRpc(makeWaveClientRpcWithTwoWavelets(),
+        viewportHintRequest("b+1", "forward", 5));
+
+    assertEquals(2L, FragmentsMetrics.j2clViewportInitialWindows.get());
+    assertEquals(0L, FragmentsMetrics.j2clViewportSnapshotFallbacks.get());
+  }
+
+  @Test
+  public void viewportSnapshotFallbackReasonLabelsOperatorPaths() {
+    FragmentsViewChannelHandler disabledHandler = new FragmentsViewChannelHandler(
+        providerWithBlips(1), ConfigFactory.parseString("server.enableFetchFragmentsRpc=false"));
+    FragmentsViewChannelHandler enabledHandler = new FragmentsViewChannelHandler(
+        providerWithBlips(1), ConfigFactory.parseString("server.enableFetchFragmentsRpc=true"));
+
+    assertEquals("fragments-handler-absent",
+        WaveClientRpcImpl.viewportSnapshotFallbackReason(null, testWaveletName("conv+root")));
+    assertEquals("fragments-handler-disabled",
+        WaveClientRpcImpl.viewportSnapshotFallbackReason(
+            disabledHandler, testWaveletName("conv+root")));
+    assertEquals("dummy-wavelet",
+        WaveClientRpcImpl.viewportSnapshotFallbackReason(
+            enabledHandler, testWaveletName("dummy+root")));
+    assertEquals("no-fragments-emitted",
+        WaveClientRpcImpl.viewportSnapshotFallbackReason(
+            enabledHandler, testWaveletName("conv+root")));
+  }
+
   private static int countBlipRanges(WaveClientRpc.ProtocolFragments f) {
     int c = 0;
     for (WaveClientRpc.ProtocolFragmentRange r : f.getRangeList()) {
@@ -95,15 +211,38 @@ public final class WaveClientRpcViewportHintsTest {
   }
 
   private static ProtocolWaveletUpdate openWithHints(String startId, String dir, int limit) {
-    WaveClientRpcImpl rpc = makeWaveClientRpc();
-    ProtocolOpenRequest.Builder b = ProtocolOpenRequest.newBuilder()
+    return openWithRequest(viewportHintRequest(startId, dir, limit));
+  }
+
+  private static ProtocolWaveletUpdate openWithoutHints() {
+    return openWithRequest(baseOpenRequestBuilder().build());
+  }
+
+  private static ProtocolOpenRequest.Builder baseOpenRequestBuilder() {
+    return ProtocolOpenRequest.newBuilder()
         .setParticipantId("user@example.com")
         .setWaveId(ModernIdSerialiser.INSTANCE.serialiseWaveId(WaveId.of("example.com", "w+vh")));
+  }
+
+  private static WaveletName testWaveletName(String waveletId) {
+    WaveId waveId = WaveId.of("example.com", "w+vh");
+    return WaveletName.of(waveId, WaveletId.of(waveId.getDomain(), waveletId));
+  }
+
+  private static ProtocolOpenRequest viewportHintRequest(String startId, String dir, int limit) {
+    ProtocolOpenRequest.Builder b = baseOpenRequestBuilder();
     if (startId != null) b.setViewportStartBlipId(startId);
     if (dir != null) b.setViewportDirection(dir);
     b.setViewportLimit(limit);
-    ProtocolOpenRequest request = b.build();
+    return b.build();
+  }
 
+  private static ProtocolWaveletUpdate openWithRequest(ProtocolOpenRequest request) {
+    return openWithRpc(makeWaveClientRpc(), request);
+  }
+
+  private static ProtocolWaveletUpdate openWithRpc(
+      WaveClientRpcImpl rpc, ProtocolOpenRequest request) {
     final ProtocolWaveletUpdate[] holder = new ProtocolWaveletUpdate[1];
     RpcCallback<ProtocolWaveletUpdate> cb = update -> {
       holder[0] = update;
@@ -135,6 +274,52 @@ public final class WaveClientRpcViewportHintsTest {
         ReadableWaveletData data = providerDataWithBlips(waveId, wid, 20);
         CommittedWaveletSnapshot snap = new CommittedWaveletSnapshot(data, HashedVersion.unsigned(100));
         listener.onUpdate(wn, snap, java.util.Collections.emptyList(), HashedVersion.unsigned(100), null, "ch-vh");
+      }
+    };
+    return WaveClientRpcImpl.create(frontend, false);
+  }
+
+  private static WaveClientRpcImpl makeWaveClientRpcWithoutSnapshot() {
+    ClientFrontend frontend = new ClientFrontend() {
+      @Override public void submitRequest(ParticipantId u, WaveletName wn, org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta d, String c, WaveletProvider.SubmitRequestListener l) {}
+      @Override public void openRequest(ParticipantId u, WaveId waveId, org.waveprotocol.wave.model.id.IdFilter f, java.util.Collection<WaveClientRpc.WaveletVersion> k, String searchQuery, OpenListener listener) {
+        WaveletId wid = WaveletId.of(waveId.getDomain(), "conv+root");
+        WaveletName wn = WaveletName.of(waveId, wid);
+        listener.onUpdate(wn, null, java.util.Collections.emptyList(), HashedVersion.unsigned(100), null, "ch-vh");
+      }
+    };
+    return WaveClientRpcImpl.create(frontend, false);
+  }
+
+  private static WaveClientRpcImpl makeWaveClientRpcWithTwoSnapshotUpdates() {
+    ClientFrontend frontend = new ClientFrontend() {
+      @Override public void submitRequest(ParticipantId u, WaveletName wn, org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta d, String c, WaveletProvider.SubmitRequestListener l) {}
+      @Override public void openRequest(ParticipantId u, WaveId waveId, org.waveprotocol.wave.model.id.IdFilter f, java.util.Collection<WaveClientRpc.WaveletVersion> k, String searchQuery, OpenListener listener) {
+        WaveletId wid = WaveletId.of(waveId.getDomain(), "conv+root");
+        WaveletName wn = WaveletName.of(waveId, wid);
+        ReadableWaveletData data = providerDataWithBlips(waveId, wid, 20);
+        CommittedWaveletSnapshot snap = new CommittedWaveletSnapshot(data, HashedVersion.unsigned(100));
+        listener.onUpdate(wn, snap, java.util.Collections.emptyList(), HashedVersion.unsigned(100), null, "ch-vh");
+        listener.onUpdate(wn, snap, java.util.Collections.emptyList(), HashedVersion.unsigned(100), null, "ch-vh");
+      }
+    };
+    return WaveClientRpcImpl.create(frontend, false);
+  }
+
+  private static WaveClientRpcImpl makeWaveClientRpcWithTwoWavelets() {
+    ClientFrontend frontend = new ClientFrontend() {
+      @Override public void submitRequest(ParticipantId u, WaveletName wn, org.waveprotocol.wave.federation.Proto.ProtocolWaveletDelta d, String c, WaveletProvider.SubmitRequestListener l) {}
+      @Override public void openRequest(ParticipantId u, WaveId waveId, org.waveprotocol.wave.model.id.IdFilter f, java.util.Collection<WaveClientRpc.WaveletVersion> k, String searchQuery, OpenListener listener) {
+        WaveletId first = WaveletId.of(waveId.getDomain(), "conv+root");
+        WaveletId second = WaveletId.of(waveId.getDomain(), "conv+thread");
+        listener.onUpdate(WaveletName.of(waveId, first),
+            new CommittedWaveletSnapshot(providerDataWithBlips(waveId, first, 20),
+                HashedVersion.unsigned(100)),
+            java.util.Collections.emptyList(), HashedVersion.unsigned(100), null, "ch-vh-1");
+        listener.onUpdate(WaveletName.of(waveId, second),
+            new CommittedWaveletSnapshot(providerDataWithBlips(waveId, second, 20),
+                HashedVersion.unsigned(100)),
+            java.util.Collections.emptyList(), HashedVersion.unsigned(100), null, "ch-vh-2");
       }
     };
     return WaveClientRpcImpl.create(frontend, false);

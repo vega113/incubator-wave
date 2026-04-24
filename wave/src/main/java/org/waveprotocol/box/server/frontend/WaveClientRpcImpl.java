@@ -51,9 +51,11 @@ import org.waveprotocol.wave.util.logging.Log;
 import org.waveprotocol.box.server.persistence.blocks.VersionRange;
 import org.slf4j.MDC;
 
-import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
 
@@ -66,6 +68,8 @@ import javax.annotation.Nullable;
 public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
 
   private static final Log LOG = Log.get(WaveClientRpcImpl.class);
+  private static final String J2CL_VIEWPORT_FULL_SNAPSHOT_FALLBACK =
+      "J2CL_VIEWPORT_FULL_SNAPSHOT_FALLBACK";
   /** Config hook to adjust viewport limits at runtime (eager-read at startup). */
   public static void setViewportLimits(int defaultLimit, int maxLimit) {
     ViewportLimitPolicy.setLimits(defaultLimit, maxLimit);
@@ -162,136 +166,197 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
           request.getKnownWaveletList(),
           searchQuery,
           new ClientFrontend.OpenListener() {
-          @Override
-          public void onFailure(String errorMessage) {
-            LOG.warning("openRequest failure: " + errorMessage);
-            controller.setFailed(errorMessage);
-          }
+            private final Set<String> viewportInitialWindowMetricWavelets =
+                newConcurrentStringSet();
+            private final Set<String> viewportSnapshotFallbackMetricWavelets =
+                newConcurrentStringSet();
 
-          @Override
-          public void onUpdate(WaveletName waveletName,
-              @Nullable CommittedWaveletSnapshot snapshot, List<TransformedWaveletDelta> deltas,
-              @Nullable HashedVersion committedVersion, Boolean hasMarker, String channel_id) {
-            ProtocolWaveletUpdate.Builder builder = ProtocolWaveletUpdate.newBuilder();
-            if (hasMarker != null) {
-              builder.setMarker(hasMarker.booleanValue());
+            @Override
+            public void onFailure(String errorMessage) {
+              LOG.warning("openRequest failure: " + errorMessage);
+              controller.setFailed(errorMessage);
             }
-            if (channel_id != null) {
-              builder.setChannelId(channel_id);
-            }
-            builder.setWaveletName(ModernIdSerialiser.INSTANCE.serialiseWaveletName(waveletName));
-            for (TransformedWaveletDelta d : deltas) {
-              // TODO(anorth): Add delta application metadata to the result
-              // when the c/s protocol supports it.
-              builder.addAppliedDelta(CoreWaveletOperationSerializer.serialize(d));
-            }
-            if (!deltas.isEmpty()) {
-              builder.setResultingVersion(CoreWaveletOperationSerializer.serialize(
-                  deltas.get((deltas.size() - 1)).getResultingVersion()));
-            }
-            boolean includeSnapshot = snapshot != null;
-            if (includeSnapshot) {
-              Preconditions.checkState(committedVersion.equals(snapshot.committedVersion),
-                  "Mismatched commit versions, snapshot: " + snapshot.committedVersion
-                      + " expected: " + committedVersion);
-              builder.setSnapshot(SnapshotSerializer.serializeWavelet(snapshot.snapshot,
-                  snapshot.committedVersion));
-              builder.setResultingVersion(CoreWaveletOperationSerializer.serialize(
-                  snapshot.snapshot.getHashedVersion()));
-              builder.setCommitNotice(CoreWaveletOperationSerializer.serialize(
-                  snapshot.committedVersion));
-            } else {
-              if (committedVersion != null) {
-                builder.setCommitNotice(
-                    CoreWaveletOperationSerializer.serialize(committedVersion));
+
+            @Override
+            public void onUpdate(WaveletName waveletName,
+                @Nullable CommittedWaveletSnapshot snapshot, List<TransformedWaveletDelta> deltas,
+                @Nullable HashedVersion committedVersion, Boolean hasMarker, String channel_id) {
+              ProtocolWaveletUpdate.Builder builder = ProtocolWaveletUpdate.newBuilder();
+              String serializedWaveletName =
+                  ModernIdSerialiser.INSTANCE.serialiseWaveletName(waveletName);
+              if (hasMarker != null) {
+                builder.setMarker(hasMarker.booleanValue());
               }
-            }
-            FragmentsViewChannelHandler fh = fragmentsHandler;
-            if (fh != null && fh.isEnabled() && !isDummyWavelet(waveletName)) {
-              long startV = computeStartVersion(snapshot, committedVersion);
-              long endV = startV;
+              if (channel_id != null) {
+                builder.setChannelId(channel_id);
+              }
+              builder.setWaveletName(serializedWaveletName);
 
-              List<SegmentId> segs = selectVisibleSegments(fh, waveletName, snapshot, request);
+              for (TransformedWaveletDelta d : deltas) {
+                // TODO(anorth): Add delta application metadata to the result
+                // when the c/s protocol supports it.
+                builder.addAppliedDelta(CoreWaveletOperationSerializer.serialize(d));
+              }
+              if (!deltas.isEmpty()) {
+                builder.setResultingVersion(CoreWaveletOperationSerializer.serialize(
+                    deltas.get((deltas.size() - 1)).getResultingVersion()));
+              }
+              boolean hasViewportHints = hasViewportHints(request);
+              boolean snapshotAvailable = snapshot != null;
+              if (snapshotAvailable) {
+                Preconditions.checkState(committedVersion.equals(snapshot.committedVersion),
+                    "Mismatched commit versions, snapshot: " + snapshot.committedVersion
+                        + " expected: " + committedVersion);
+                builder.setResultingVersion(CoreWaveletOperationSerializer.serialize(
+                    snapshot.snapshot.getHashedVersion()));
+                builder.setCommitNotice(CoreWaveletOperationSerializer.serialize(
+                    snapshot.committedVersion));
+              } else {
+                if (committedVersion != null) {
+                  builder.setCommitNotice(
+                      CoreWaveletOperationSerializer.serialize(committedVersion));
+                }
+              }
+              FragmentsViewChannelHandler fh = fragmentsHandler;
+              boolean fragmentsAttached = false;
+              if (fh != null && fh.isEnabled() && !isDummyWavelet(waveletName)) {
+                long startV = computeStartVersion(snapshot, committedVersion);
+                long endV = startV;
 
-              try {
-                java.util.Map<SegmentId, VersionRange> ranges = fh.fetchFragments(waveletName, segs, startV, endV);
-                org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragments.Builder fb =
-                    org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragments.newBuilder()
-                        .setSnapshotVersion(startV)
-                        .setStartVersion(startV)
-                        .setEndVersion(endV);
-                int emitted = 0;
-                for (java.util.Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
-                  long from = e.getValue().from(); long to = e.getValue().to();
-                  if (from > to) {
-                    LOG.warning("Skipping invalid fragment range (from>to) for " + e.getKey() + " wavelet=" + waveletName);
-                    continue;
+                List<SegmentId> segs = selectVisibleSegments(fh, waveletName, snapshot, request);
+
+                try {
+                  java.util.Map<SegmentId, VersionRange> ranges =
+                      fh.fetchFragments(waveletName, segs, startV, endV);
+                  org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragments.Builder fb =
+                      org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragments.newBuilder()
+                          .setSnapshotVersion(startV)
+                          .setStartVersion(startV)
+                          .setEndVersion(endV);
+                  int emitted = 0;
+                  for (java.util.Map.Entry<SegmentId, VersionRange> e : ranges.entrySet()) {
+                    long from = e.getValue().from();
+                    long to = e.getValue().to();
+                    if (from > to) {
+                      LOG.warning("Skipping invalid fragment range (from>to) for " + e.getKey()
+                          + " wavelet=" + waveletName);
+                      continue;
+                    }
+                    org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange r =
+                        org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange.newBuilder()
+                            .setSegment(e.getKey().asString())
+                            .setFrom(from)
+                            .setTo(to)
+                            .build();
+                    fb.addRange(r);
+                    emitted++;
                   }
-                  org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange r =
-                      org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange.newBuilder()
-                          .setSegment(e.getKey().asString())
-                          .setFrom(from)
-                          .setTo(to)
-                          .build();
-                  fb.addRange(r);
-                  emitted++;
-                }
-                if (emitted == 0 && forceFragmentsWithoutSnapshot) {
-                  long syntheticFrom = startV;
-                  long syntheticTo = (endV <= syntheticFrom) ? (syntheticFrom + 1) : endV;
-                  fb.setEndVersion(syntheticTo);
-                  fb.addRange(org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange.newBuilder()
-                      .setSegment(SegmentId.INDEX_ID.asString())
-                      .setFrom(syntheticFrom)
-                      .setTo(syntheticTo)
-                      .build());
-                  emitted = 1;
-                }
-                ReadableWaveletData fragmentData = (snapshot != null) ? snapshot.snapshot : null;
-                List<FragmentsPayload.Fragment> rawFragments = RawFragmentsBuilder.build(fragmentData, ranges);
-                for (FragmentsPayload.Fragment fragment : rawFragments) {
-                  org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragment.Builder fragmentBuilder =
-                      org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragment.newBuilder()
-                          .setSegment(fragment.segment.asString());
-                  if (fragment.rawSnapshot != null && !fragment.rawSnapshot.isEmpty()) {
-                    fragmentBuilder.setSnapshot(
-                        org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentSnapshot.newBuilder()
-                            .setRawSnapshot(fragment.rawSnapshot)
+                  if (emitted == 0 && forceFragmentsWithoutSnapshot) {
+                    // The dev/test force flag intentionally treats its synthetic INDEX range as an
+                    // attached fragments window so snapshotless bootstrap can be exercised. Production
+                    // opens reach that branch only when the operator explicitly enables the flag.
+                    long syntheticFrom = startV;
+                    long syntheticTo = (endV <= syntheticFrom) ? (syntheticFrom + 1) : endV;
+                    fb.setEndVersion(syntheticTo);
+                    fb.addRange(
+                        org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentRange
+                            .newBuilder()
+                            .setSegment(SegmentId.INDEX_ID.asString())
+                            .setFrom(syntheticFrom)
+                            .setTo(syntheticTo)
                             .build());
+                    emitted = 1;
                   }
-                  for (FragmentsPayload.Operation op : fragment.adjustOperations) {
-                    fragmentBuilder.addAdjustOperation(toProto(op));
+                  fragmentsAttached = emitted > 0;
+                  if (fragmentsAttached) {
+                    ReadableWaveletData fragmentData = (snapshot != null) ? snapshot.snapshot : null;
+                    List<FragmentsPayload.Fragment> rawFragments =
+                        RawFragmentsBuilder.build(fragmentData, ranges);
+                    for (FragmentsPayload.Fragment fragment : rawFragments) {
+                      org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragment.Builder fragmentBuilder =
+                          org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragment.newBuilder()
+                              .setSegment(fragment.segment.asString());
+                      if (fragment.rawSnapshot != null && !fragment.rawSnapshot.isEmpty()) {
+                        fragmentBuilder.setSnapshot(
+                            org.waveprotocol.box.common.comms.WaveClientRpc.ProtocolFragmentSnapshot.newBuilder()
+                                .setRawSnapshot(fragment.rawSnapshot)
+                                .build());
+                      }
+                      for (FragmentsPayload.Operation op : fragment.adjustOperations) {
+                        fragmentBuilder.addAdjustOperation(toProto(op));
+                      }
+                      for (FragmentsPayload.Operation op : fragment.diffOperations) {
+                        fragmentBuilder.addDiffOperation(toProto(op));
+                      }
+                      fb.addFragment(fragmentBuilder.build());
+                    }
+                    builder.setFragments(fb.build());
+                    LOG.info("Emitting fragments for " + waveletName + ": ranges="
+                        + fb.getRangeCount() + " snapshotVersion=" + fb.getSnapshotVersion()
+                        + " endVersion=" + fb.getEndVersion());
+                    if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+                      org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+                          .emissionCount.incrementAndGet();
+                      org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+                          .emissionRanges.addAndGet(emitted);
+                      if (segs.size() <= 2) {
+                        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+                            .emissionFallbacks.incrementAndGet();
+                      }
+                    }
                   }
-                  for (FragmentsPayload.Operation op : fragment.diffOperations) {
-                    fragmentBuilder.addDiffOperation(toProto(op));
+                } catch (org.waveprotocol.box.server.waveserver.WaveServerException wse) {
+                  LOG.warning("WaveServerException fetching fragments for " + waveletName + ": "
+                      + wse.getMessage(), wse);
+                  if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+                    org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+                        .emissionErrors.incrementAndGet();
                   }
-                  fb.addFragment(fragmentBuilder.build());
+                } catch (Exception ex) {
+                  LOG.warning("Unexpected error fetching fragments for " + waveletName, ex);
+                  if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+                    org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+                        .emissionErrors.incrementAndGet();
+                  }
                 }
-                builder.setFragments(fb.build());
-                LOG.info("Emitting fragments for " + waveletName + ": ranges=" + fb.getRangeCount()
-                    + " snapshotVersion=" + fb.getSnapshotVersion() + " endVersion=" + fb.getEndVersion());
+              }
+              boolean viewportWindowAttached = hasViewportHints && fragmentsAttached;
+              boolean suppressSnapshot = snapshotAvailable && viewportWindowAttached;
+              // This is set only when a whole snapshot was actually available to use as fallback.
+              // Snapshot-less updates have no full bootstrap payload to report.
+              boolean snapshotFallback = false;
+              if (suppressSnapshot) {
+                // The viewport window is already present in fragments; keep the wire payload windowed.
+              } else if (snapshotAvailable) {
+                if (hasViewportHints) {
+                  snapshotFallback = true;
+                  LOG.warning(
+                      J2CL_VIEWPORT_FULL_SNAPSHOT_FALLBACK
+                          + " wavelet="
+                          + waveletName
+                          + " reason="
+                          + viewportSnapshotFallbackReason(fh, waveletName));
+                }
+                builder.setSnapshot(SnapshotSerializer.serializeWavelet(snapshot.snapshot,
+                    snapshot.committedVersion));
+              }
+              try {
+                done.run(builder.build());
+              } finally {
                 if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
-                  org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionCount.incrementAndGet();
-                  org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionRanges.addAndGet(emitted);
-                  if (segs.size() <= 2) {
-                    org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionFallbacks.incrementAndGet();
+                  if (viewportWindowAttached
+                      && viewportInitialWindowMetricWavelets.add(serializedWaveletName)) {
+                    org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+                        .j2clViewportInitialWindows.incrementAndGet();
+                  } else if (snapshotFallback
+                      && viewportSnapshotFallbackMetricWavelets.add(serializedWaveletName)) {
+                    org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+                        .j2clViewportSnapshotFallbacks.incrementAndGet();
                   }
-                }
-              } catch (org.waveprotocol.box.server.waveserver.WaveServerException wse) {
-                LOG.warning("WaveServerException fetching fragments for " + waveletName + ": " + wse.getMessage(), wse);
-                if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
-                  org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionErrors.incrementAndGet();
-                }
-              } catch (Exception ex) {
-                LOG.warning("Unexpected error fetching fragments for " + waveletName, ex);
-                if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
-                  org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.emissionErrors.incrementAndGet();
                 }
               }
             }
-            done.run(builder.build());
-          }
-        });
+          });
     } finally {
       MDC.remove("waveId");
       MDC.remove("participantId");
@@ -371,6 +436,24 @@ public class WaveClientRpcImpl implements ProtocolWaveClientRpc.Interface {
   /** Returns true if any viewport hint is present on the request. */
   private static boolean hasViewportHints(ProtocolOpenRequest request) {
     return request.hasViewportStartBlipId() || request.hasViewportDirection() || request.hasViewportLimit();
+  }
+
+  static String viewportSnapshotFallbackReason(
+      @Nullable FragmentsViewChannelHandler handler, WaveletName waveletName) {
+    if (handler == null) {
+      return "fragments-handler-absent";
+    }
+    if (!handler.isEnabled()) {
+      return "fragments-handler-disabled";
+    }
+    if (isDummyWavelet(waveletName)) {
+      return "dummy-wavelet";
+    }
+    return "no-fragments-emitted";
+  }
+
+  private static Set<String> newConcurrentStringSet() {
+    return Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
   }
 
   /** Resolves viewport limit with validation and clamping. */
