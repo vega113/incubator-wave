@@ -93,7 +93,7 @@ public final class GoogleIdTokenVerifier {
           break;
         }
       }
-      return contains && clientId.equals(azp);
+      return contains;
     }
     return false;
   }

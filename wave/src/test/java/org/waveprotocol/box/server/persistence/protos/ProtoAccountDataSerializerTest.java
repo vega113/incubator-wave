@@ -184,6 +184,12 @@ public class ProtoAccountDataSerializerTest extends TestCase {
         deserialized.asHuman().getSocialIdentities().get(0).getProvider());
     assertEquals("google-sub-123",
         deserialized.asHuman().getSocialIdentities().get(0).getSubject());
+    assertEquals("human@example.com",
+        deserialized.asHuman().getSocialIdentities().get(0).getEmail());
+    assertEquals("Human User",
+        deserialized.asHuman().getSocialIdentities().get(0).getDisplayName());
+    assertEquals(1234L,
+        deserialized.asHuman().getSocialIdentities().get(0).getTimestamp());
   }
 
   public final void testRobotAccountWithCapabilities() {

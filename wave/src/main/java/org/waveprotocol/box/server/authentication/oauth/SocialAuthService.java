@@ -154,9 +154,6 @@ public final class SocialAuthService {
     @Override
     public synchronized String refreshJwksJson() throws SocialAuthException {
       long now = clock.millis();
-      if (cachedJwks != null && now - lastRefreshAtMillis < GOOGLE_JWKS_MIN_REFRESH_MILLIS) {
-        return cachedJwks;
-      }
       cachedJwks = httpClient.get(GOOGLE_JWKS_URL, Map.of());
       lastRefreshAtMillis = now;
       expiresAtMillis = now + GOOGLE_JWKS_CACHE_MILLIS;
