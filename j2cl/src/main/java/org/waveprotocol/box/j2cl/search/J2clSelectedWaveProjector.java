@@ -237,7 +237,7 @@ public final class J2clSelectedWaveProjector {
       J2clSelectedWaveModel previous) {
     J2clSelectedWaveViewportState fragmentState =
         J2clSelectedWaveViewportState.fromFragments(update.getFragments());
-    if (!fragmentState.isEmpty()) {
+    if (fragmentState.hasBlipEntries()) {
       return fragmentState.appendMissingDocuments(update.getDocuments());
     }
     if (previousMatchesWave && previous != null && !previous.getViewportState().isEmpty()) {

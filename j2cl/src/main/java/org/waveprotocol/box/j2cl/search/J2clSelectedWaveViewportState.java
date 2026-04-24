@@ -240,6 +240,16 @@ public final class J2clSelectedWaveViewportState {
     return entries.isEmpty();
   }
 
+  // Metadata-only fragment deltas are state updates, not selected-wave read windows.
+  boolean hasBlipEntries() {
+    for (Entry entry : entries) {
+      if (entry.isBlip()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public List<String> getLoadedContentEntries() {
     List<String> contentEntries = new ArrayList<String>();
     List<String> fallbackEntries = new ArrayList<String>();

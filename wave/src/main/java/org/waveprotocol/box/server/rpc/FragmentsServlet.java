@@ -79,9 +79,20 @@ public final class FragmentsServlet extends HttpServlet {
     boolean j2clViewportRequest = isJ2clViewportRequest(req);
     if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
       org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.httpRequests.incrementAndGet();
+      if (j2clViewportRequest) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportExtensionRequests.incrementAndGet();
+      }
     }
     ParticipantId user = sessionManager.getLoggedInUser(WebSessions.from(req, false));
-    if (user == null) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return; }
+    if (user == null) {
+      if (j2clViewportRequest && org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportExtensionErrors.incrementAndGet();
+      }
+      resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+      return;
+    }
 
     String ref = req.getParameter("ref");
     WaveletName wn = null;
@@ -101,10 +112,13 @@ public final class FragmentsServlet extends HttpServlet {
         }
       }
     }
-    if (wn == null) { resp.setStatus(HttpServletResponse.SC_BAD_REQUEST); return; }
-    if (j2clViewportRequest && org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
-      org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
-          .j2clViewportExtensionRequests.incrementAndGet();
+    if (wn == null) {
+      if (j2clViewportRequest && org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportExtensionErrors.incrementAndGet();
+      }
+      resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+      return;
     }
 
     String start = req.getParameter("startBlipId");
