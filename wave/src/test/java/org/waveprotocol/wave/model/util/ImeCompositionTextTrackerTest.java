@@ -71,6 +71,12 @@ public class ImeCompositionTextTrackerTest extends TestCase {
     assertImeSequence("\u00e1", "\u00e1", "a", "\u00e1", "\u00e1");
   }
 
+  public void testConsecutiveSingleCharReplacementsAvoidStalePrefix() {
+    // 'b' was never confirmed (no duplicate/extension), so it must not appear in
+    // the reconstruction — only 'a' (key 1) and confirmed 'c' (key 2) are kept.
+    assertImeSequence("ac", "c", "a", "b", "c", "c");
+  }
+
   public void testNullObservedValueIsIgnored() {
     ImeCompositionTextTracker tracker = new ImeCompositionTextTracker();
     tracker.observe("n");

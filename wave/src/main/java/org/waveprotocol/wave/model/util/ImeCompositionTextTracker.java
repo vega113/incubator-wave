@@ -80,12 +80,13 @@ public final class ImeCompositionTextTracker {
     if (!pendingReplacementValue.isEmpty()
         && value.length() == 1
         && isAsciiLetterOrDigit(value.charAt(0))) {
-      confirmPendingReplacement();
+      // Another single-char revision of the composing position — don't confirm the
+      // previous pending (it was never extended/duplicated) and keep the original base.
+      pendingReplacementValue = value;
+      lastObserved = value;
+      return;
     }
     if (isSingleCharacterReplacement(value)) {
-      if (!pendingReplacementValue.isEmpty()) {
-        confirmPendingReplacement();
-      }
       pendingReplacementBase = reconstructed;
       pendingReplacementValue = value;
       lastObserved = value;
