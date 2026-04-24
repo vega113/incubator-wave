@@ -4,7 +4,7 @@
 
 **Goal:** Fix the remaining Android Chrome IME failure where typing `new blip` in a blip can display or persist as `ewlip`/`ew` after the keyboard Done action removes the temporary sibling text that carried the missing leading characters.
 
-**Root Cause:** The previous Android IME recovery path kept captured ghost text only when the final adjacent DOM sibling still existed and had returned to the content-model baseline. The phone repro shows a harsher teardown path: Android Chrome can remove the adjacent sibling entirely before `flushPendingInput()` commits the composition. In that state the captured `n` / ` b` was no longer trusted, so only the scratch text (`ew` or `lip`) was committed.
+**Root Cause:** The previous Android IME recovery path kept captured ghost text only when the final adjacent DOM sibling still existed and had returned to the content-model baseline. The phone repro shows a harsher teardown path: Android Chrome can remove the adjacent sibling entirely before `flushPendingInput()` commits the composition. In that state the captured `"n"` / `" b"` was no longer trusted, so only the scratch text (`ew` or `lip`) was committed.
 
 **Files:**
 - `wave/src/main/java/org/waveprotocol/wave/model/util/GhostTextReconciler.java`
@@ -24,6 +24,6 @@
 
 - `sbt "wave/testOnly org.waveprotocol.wave.model.util.GhostTextReconcilerTest"`
 - `sbt "wave/testOnly org.waveprotocol.wave.client.editor.integration.MobileImeFlushGwtTest"`
-- `bash scripts/worktree-boot.sh --port 9930`
-- `PORT=9930 bash scripts/wave-smoke.sh check`
-- Playwright Chromium with `devices['Galaxy S9+']` against `http://127.0.0.1:9930`: register/login, create wave, type `new blip`, tap Done, reload, assert body contains `new blip` and not an `ew`-only collapse.
+- `bash scripts/worktree-boot.sh --port 9931`
+- `PORT=9931 bash scripts/wave-smoke.sh check`
+- Playwright Chromium with `devices['Galaxy S9+']` against `http://127.0.0.1:9931`: register/login, create wave, type `new blip`, tap Done, reload, assert body contains `new blip` and not an `ew`-only collapse.
