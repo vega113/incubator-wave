@@ -397,8 +397,12 @@ public final class SidecarTransportCodec {
           }
         } else if ("user".equals(type) && currentReactionEmoji != null) {
           String address = getAttribute(elementStart, "address");
-          if (address != null && !address.isEmpty()) {
-            reactionAddressesByEmoji.get(currentReactionEmoji).add(address);
+          List<String> reactionAddresses = reactionAddressesByEmoji.get(currentReactionEmoji);
+          if (address != null
+              && !address.isEmpty()
+              && reactionAddresses != null
+              && !reactionAddresses.contains(address)) {
+            reactionAddresses.add(address);
           }
         }
         if ("line".equals(type) && text.length() > 0 && text.charAt(text.length() - 1) != '\n') {
@@ -497,7 +501,10 @@ public final class SidecarTransportCodec {
     }
     List<SidecarReactionEntry> entries = new ArrayList<SidecarReactionEntry>();
     for (Map.Entry<String, List<String>> entry : reactionAddressesByEmoji.entrySet()) {
-      if (entry.getKey() == null || entry.getKey().isEmpty()) {
+      if (entry.getKey() == null
+          || entry.getKey().isEmpty()
+          || entry.getValue() == null
+          || entry.getValue().isEmpty()) {
         continue;
       }
       entries.add(new SidecarReactionEntry(entry.getKey(), entry.getValue()));

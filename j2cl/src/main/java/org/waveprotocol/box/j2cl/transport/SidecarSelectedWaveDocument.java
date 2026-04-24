@@ -83,7 +83,9 @@ public final class SidecarSelectedWaveDocument {
   }
 
   public boolean isReactionDataDocument() {
-    return documentId != null && documentId.startsWith(REACTION_DATA_DOCUMENT_PREFIX);
+    return documentId != null
+        && documentId.startsWith(REACTION_DATA_DOCUMENT_PREFIX)
+        && documentId.length() > REACTION_DATA_DOCUMENT_PREFIX.length();
   }
 
   public String getReactionTargetBlipId() {

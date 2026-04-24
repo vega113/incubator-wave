@@ -304,6 +304,61 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void reactionDataDocumentRejectsPrefixOnlyDocumentId() {
+    SidecarSelectedWaveDocument document =
+        new SidecarSelectedWaveDocument("react+", "user@example.com", 5L, 6L, "");
+
+    Assert.assertFalse(document.isReactionDataDocument());
+    Assert.assertEquals("", document.getReactionTargetBlipId());
+  }
+
+  @Test
+  public void decodeSelectedWaveUpdateSkipsReactionEntriesWithoutUsers() {
+    String json =
+        "{\"sequenceNumber\":20,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"react+b+abc123\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"reactions\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"reaction\",\"2\":[{\"1\":\"emoji\",\"2\":\"thumbs_up\"}]}},"
+            + "{\"4\":true},{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[5,0],\"6\":[6,0]}]},"
+            + "\"6\":true,\"7\":\"ch5\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    SidecarSelectedWaveDocument document = update.getDocuments().get(0);
+    Assert.assertTrue(document.isReactionDataDocument());
+    Assert.assertEquals("b+abc123", document.getReactionTargetBlipId());
+    Assert.assertEquals(0, document.getReactionEntries().size());
+  }
+
+  @Test
+  public void decodeSelectedWaveUpdateDeduplicatesReactionAddresses() {
+    String json =
+        "{\"sequenceNumber\":21,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"react+b+abc123\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"reactions\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"reaction\",\"2\":[{\"1\":\"emoji\",\"2\":\"thumbs_up\"}]}},"
+            + "{\"3\":{\"1\":\"user\",\"2\":[{\"1\":\"address\",\"2\":\"alice@example.com\"}]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"user\",\"2\":[{\"1\":\"address\",\"2\":\"alice@example.com\"}]}},"
+            + "{\"4\":true},{\"4\":true},{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[5,0],\"6\":[6,0]}]},"
+            + "\"6\":true,\"7\":\"ch5\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    SidecarSelectedWaveDocument document = update.getDocuments().get(0);
+    Assert.assertEquals(1, document.getReactionEntries().size());
+    SidecarReactionEntry reaction = document.getReactionEntries().get(0);
+    Assert.assertEquals("thumbs_up", reaction.getEmoji());
+    Assert.assertEquals(Arrays.asList("alice@example.com"), reaction.getAddresses());
+  }
+
+  @Test
   public void decodeSelectedWaveUpdateMarksMissingFragmentSnapshotVersionAsAbsent() {
     String json =
         "{\"sequenceNumber\":14,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
