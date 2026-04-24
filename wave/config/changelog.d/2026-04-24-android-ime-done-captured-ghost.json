@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-24-android-ime-done-captured-ghost",
+  "version": "Unreleased",
+  "date": "2026-04-24",
+  "title": "Keep Android IME text visible after Done",
+  "summary": "Android Chrome can move the first composed character into a neighboring text node before the editor snapshots the IME scratch, then remove that neighboring text again when the keyboard Done button closes composition. The editor now carries the activation-time ghost text through the final commit, so the visible blip and persisted content keep the leading characters.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Typing into a blip from Android Chrome now preserves leading characters even when the keyboard Done button removes the browser's temporary adjacent DOM text before the editor flushes the composition."
+      ]
+    }
+  ]
+}

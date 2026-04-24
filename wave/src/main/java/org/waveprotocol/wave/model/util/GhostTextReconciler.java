@@ -39,8 +39,9 @@ package org.waveprotocol.wave.model.util;
  * unit-tested without a browser. The caller (see the
  * {@code ImeExtractor} in the editor's client package) is responsible for
  * capturing the adjacent text-node contents at {@code activate()} time and
- * feeding the before/after pairs to {@link #combine(String, String, String,
- * String, String)} at {@code compositionEnd} time.
+ * feeding the before/after pairs to {@link #combineWithCapturedGhosts(String,
+ * String, String, String, String, String, String)} at {@code compositionEnd}
+ * time.
  */
 public final class GhostTextReconciler {
 
@@ -81,6 +82,41 @@ public final class GhostTextReconciler {
       return scratchContent;
     }
     return ghostBefore + scratchContent + ghostAfter;
+  }
+
+  /**
+   * Combines scratch content with ghost text that may have existed before the
+   * activation-time DOM snapshot and ghost text that appeared after it.
+   *
+   * <p>Android Chrome's keyboard Done path can remove or relocate the first
+   * composition character from the adjacent DOM sibling before the editor
+   * flushes the IME scratch. This method therefore treats the captured DOM
+   * snapshot itself as a possible ghost carrier over the model baseline. It
+   * then compares that captured ghost with the final DOM state and keeps the
+   * longest model-relative ghost, covering both Android removing the captured
+   * text before Done and Android adding more ghost text after activation.
+   */
+  public static String combineWithCapturedGhosts(String scratchContent,
+      String previousModelBaseline, String capturedPrevious, String currentPrevious,
+      String nextModelBaseline, String capturedNext, String currentNext) {
+    if (scratchContent == null) {
+      throw new NullPointerException("scratchContent must not be null");
+    }
+    String ghostBefore = longer(
+        extractGhostSuffix(previousModelBaseline, capturedPrevious),
+        extractGhostSuffix(previousModelBaseline, currentPrevious));
+    String ghostAfter = longer(
+        extractGhostPrefix(nextModelBaseline, capturedNext),
+        extractGhostPrefix(nextModelBaseline, currentNext));
+
+    if (ghostBefore.isEmpty() && ghostAfter.isEmpty()) {
+      return scratchContent;
+    }
+    return ghostBefore + scratchContent + ghostAfter;
+  }
+
+  private static String longer(String first, String second) {
+    return second.length() > first.length() ? second : first;
   }
 
   /**

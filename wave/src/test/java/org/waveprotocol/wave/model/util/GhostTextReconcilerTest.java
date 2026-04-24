@@ -142,6 +142,41 @@ public class GhostTextReconcilerTest extends TestCase {
         "new", "bNEW"));
   }
 
+  public void testCapturedPreviousGhostSurvivesDoneWhenDomNoLongerHasIt() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "ew", "", "n", "", null, null, null));
+  }
+
+  public void testCapturedPreviousGhostIsNotDoubleCountedWhenStillPresent() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "ew", "", "n", "n", null, null, null));
+  }
+
+  public void testCapturedSecondWordGhostSurvivesDoneWhenDomNoLongerHasIt() {
+    assertEquals(" blip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "new b", "new", null, null, null));
+  }
+
+  public void testCapturedGhostKeepsPostCaptureGrowthSupport() {
+    assertEquals(" blip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "new", "new b", null, null, null));
+  }
+
+  public void testCapturedNextGhostSurvivesDoneWhenDomNoLongerHasIt() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "ne", null, null, null, "world", "wworld", "world"));
+  }
+
+  public void testCapturedNextGhostKeepsPostCaptureGrowthSupport() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "n", null, null, null, "world", "eworld", "ewworld"));
+  }
+
+  public void testCapturedGhostFallsBackWhenCapturedDomDoesNotContainModel() {
+    assertEquals("lip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "NEW b", "NEW b", null, null, null));
+  }
+
   public void testNullScratchThrows() {
     try {
       GhostTextReconciler.combine(null, null, null, null, null);
