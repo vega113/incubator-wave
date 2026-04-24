@@ -62,6 +62,7 @@ public final class J2clComposeSurfaceController {
   private String replyDraft = "";
   private boolean replySubmitting;
   private boolean replyStaleBasis;
+  private String replyStaleWaveId;
   private String replyStatusText = "Open a wave before replying.";
   private String replyErrorText = "";
   private int createGeneration;
@@ -139,6 +140,7 @@ public final class J2clComposeSurfaceController {
     replyDraft = normalizeDraft(draft);
     replyErrorText = "";
     replyStaleBasis = false;
+    replyStaleWaveId = null;
     render();
   }
 
@@ -156,14 +158,23 @@ public final class J2clComposeSurfaceController {
       if (replySubmitting) {
         replyErrorText = STALE_REPLY_MESSAGE;
         replyStaleBasis = true;
+        replyStaleWaveId = writeSession == null ? null : writeSession.getSelectedWaveId();
       } else {
         replyErrorText = "";
-        replyStaleBasis = false;
       }
       replySubmitting = false;
       replyStatusText = "";
-      if (selectedWaveChanged(nextWriteSession) && !replyStaleBasis) {
-        replyDraft = "";
+      if (selectedWaveChanged(nextWriteSession)) {
+        String nextWaveId = nextWriteSession == null ? null : nextWriteSession.getSelectedWaveId();
+        // Preserve a stale draft through null (disconnected) and same-wave reconnect transitions.
+        // Only clear when navigating to a different non-null wave.
+        boolean clearDraft = !replyStaleBasis
+            || (nextWaveId != null && !safeEquals(replyStaleWaveId, nextWaveId));
+        if (clearDraft) {
+          replyDraft = "";
+          replyStaleBasis = false;
+          replyStaleWaveId = null;
+        }
       }
     }
     writeSession = nextWriteSession;
@@ -307,6 +318,7 @@ public final class J2clComposeSurfaceController {
     replyStatusText = "Reply submitted. Waiting for the opened wave to update.";
     replyErrorText = "";
     replyStaleBasis = false;
+    replyStaleWaveId = null;
     render();
     if (replySuccessHandler != null
         && submitSession != null
@@ -324,6 +336,7 @@ public final class J2clComposeSurfaceController {
     replyStatusText = "";
     replyErrorText = error == null || error.isEmpty() ? "Reply failed." : error;
     replyStaleBasis = false;
+    replyStaleWaveId = null;
     render();
   }
 
