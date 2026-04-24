@@ -41,7 +41,7 @@ public final class J2clComposerDocument {
   public static final class Builder {
     private final List<Component> components = new ArrayList<Component>();
 
-    /** Appends literal text when non-empty; null or empty loop inputs are treated as no-ops. */
+    /** Appends literal text when non-empty; null or empty inputs are treated as no-ops. */
     public Builder text(String text) {
       if (text != null && !text.isEmpty()) {
         components.add(new Component(ComponentType.TEXT, text, "", "", "", ""));
@@ -53,10 +53,13 @@ public final class J2clComposerDocument {
     public Builder annotatedText(String annotationKey, String annotationValue, String text) {
       String key = requireNonEmpty(annotationKey, "Missing annotation key.");
       String value = requireNonEmpty(annotationValue, "Missing annotation value.");
+      if (text == null || text.trim().isEmpty()) {
+        throw new IllegalArgumentException("Missing annotated text.");
+      }
       components.add(
           new Component(
               ComponentType.ANNOTATED_TEXT,
-              requireNonEmpty(text, "Missing annotated text."),
+              text,
               key,
               value,
               "",

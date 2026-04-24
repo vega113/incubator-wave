@@ -143,9 +143,9 @@ git diff --stat origin/main..HEAD
 
 ### Task 2: Add Structured Rich-Content Operation Builder
 
-- [ ] Write failing tests for a builder that emits create/reply DocOp JSON containing text, annotation boundaries for daily inline styles, and `<image attachment="..."><caption>...</caption></image>` element components.
-- [ ] Preserve the atomic basis contract from the existing write session: reply operations must use `J2clSidecarWriteSession.getBaseVersion()`, `getHistoryHash()`, and `getChannelId()`.
-- [ ] Implement the builder with a typed command input rather than string concatenation at call sites. Suggested minimum API:
+- [x] Write failing tests for a builder that emits create/reply DocOp JSON containing text, annotation boundaries for daily inline styles, and `<image attachment="..."><caption>...</caption></image>` element components.
+- [x] Preserve the atomic basis contract from the existing write session: reply operations must use `J2clSidecarWriteSession.getBaseVersion()`, `getHistoryHash()`, and `getChannelId()`.
+- [x] Implement the builder with a typed command input rather than string concatenation at call sites. Suggested minimum API:
 
 ```java
 J2clRichContentDeltaFactory.CreateWaveRequest createWaveRequest(
@@ -155,8 +155,8 @@ SidecarSubmitRequest createReplyRequest(
     String address, J2clSidecarWriteSession session, J2clComposerDocument document);
 ```
 
-- [ ] Keep plain-text create/reply behavior as a compatibility path by representing plain text as one `J2clComposerTextSegment`.
-- [ ] Commit after tests pass.
+- [x] Keep plain-text create/reply behavior as a compatibility path by representing plain text as one `J2clComposerTextSegment`.
+- [x] Commit after tests pass.
 
 Target tests:
 
