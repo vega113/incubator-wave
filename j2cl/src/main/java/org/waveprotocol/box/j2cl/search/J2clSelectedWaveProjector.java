@@ -3,8 +3,10 @@ package org.waveprotocol.box.j2cl.search;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
 import org.waveprotocol.box.j2cl.transport.SidecarReactionEntry;
@@ -385,10 +387,11 @@ public final class J2clSelectedWaveProjector {
       List<SidecarSelectedWaveDocument> documents,
       List<J2clInteractionBlipModel> previousBlips) {
     Map<String, List<SidecarReactionEntry>> reactionsByBlip = extractReactionsByBlip(documents);
+    Map<String, J2clInteractionBlipModel> previousByBlip = indexInteractionBlips(previousBlips);
     List<J2clInteractionBlipModel> merged = new ArrayList<J2clInteractionBlipModel>();
-    List<String> seenBlipIds = new ArrayList<String>();
+    Set<String> seenBlipIds = new LinkedHashSet<String>();
     for (J2clInteractionBlipModel projected : projectedBlips) {
-      J2clInteractionBlipModel previous = findInteractionBlip(previousBlips, projected.getBlipId());
+      J2clInteractionBlipModel previous = previousByBlip.get(projected.getBlipId());
       List<SidecarReactionEntry> reactions = projected.getReactionEntries();
       if (reactions.isEmpty()
           && previous != null
@@ -437,21 +440,20 @@ public final class J2clSelectedWaveProjector {
     return reactionsByBlip;
   }
 
-  private static J2clInteractionBlipModel findInteractionBlip(
-      List<J2clInteractionBlipModel> blips, String blipId) {
+  private static Map<String, J2clInteractionBlipModel> indexInteractionBlips(
+      List<J2clInteractionBlipModel> blips) {
+    Map<String, J2clInteractionBlipModel> indexed =
+        new LinkedHashMap<String, J2clInteractionBlipModel>();
     if (blips == null) {
-      return null;
+      return indexed;
     }
     for (J2clInteractionBlipModel blip : blips) {
-      if (blip != null && equals(blipId, blip.getBlipId())) {
-        return blip;
+      if (blip == null || blip.getBlipId() == null) {
+        continue;
       }
+      indexed.put(blip.getBlipId(), blip);
     }
-    return null;
-  }
-
-  private static boolean equals(String left, String right) {
-    return left == null ? right == null : left.equals(right);
+    return indexed;
   }
 
   private static String buildDetailText(SidecarSelectedWaveUpdate update) {
