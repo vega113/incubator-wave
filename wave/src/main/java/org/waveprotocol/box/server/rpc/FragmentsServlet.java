@@ -62,6 +62,7 @@ import java.util.Set;
  */
 public final class FragmentsServlet extends HttpServlet {
   private static final Log LOG = Log.get(FragmentsServlet.class);
+  private static final Gson GSON = new Gson();
 
   private final WaveletProvider waveletProvider;
   private final SessionManager sessionManager;
@@ -381,7 +382,7 @@ public final class FragmentsServlet extends HttpServlet {
       }
       out.put("fragments", fragments);
     }
-    return new Gson().toJson(out);
+    return GSON.toJson(out);
   }
 
   private static Map<String, Object> fragmentOp(FragmentsPayload.Operation op) {
