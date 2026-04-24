@@ -102,10 +102,10 @@ public final class GhostTextReconciler {
     if (scratchContent == null) {
       throw new NullPointerException("scratchContent must not be null");
     }
-    String ghostBefore = longer(
+    String ghostBefore = longerOrCurrentOnTie(
         extractGhostSuffix(previousModelBaseline, capturedPrevious),
         extractGhostSuffix(previousModelBaseline, currentPrevious));
-    String ghostAfter = longer(
+    String ghostAfter = longerOrCurrentOnTie(
         extractGhostPrefix(nextModelBaseline, capturedNext),
         extractGhostPrefix(nextModelBaseline, currentNext));
 
@@ -115,8 +115,8 @@ public final class GhostTextReconciler {
     return ghostBefore + scratchContent + ghostAfter;
   }
 
-  private static String longer(String first, String second) {
-    return second.length() > first.length() ? second : first;
+  private static String longerOrCurrentOnTie(String capturedGhost, String currentGhost) {
+    return currentGhost.length() >= capturedGhost.length() ? currentGhost : capturedGhost;
   }
 
   /**
