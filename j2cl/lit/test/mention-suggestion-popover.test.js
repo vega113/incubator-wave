@@ -175,6 +175,21 @@ describe("<mention-suggestion-popover>", () => {
     expect((await eventPromise).detail.address).to.equal("solo@example.com");
   });
 
+  it("wraps active selection for negative active indexes below the candidate count", async () => {
+    const el = await fixture(html`
+      <mention-suggestion-popover
+        .candidates=${candidates}
+        active-index="-3"
+        open
+      ></mention-suggestion-popover>
+    `);
+    const options = el.renderRoot.querySelectorAll("[role='option']");
+
+    expect(el.renderRoot.querySelector("[role='listbox']").getAttribute("aria-activedescendant")).to.equal(
+      options[1].id
+    );
+  });
+
   it("filters malformed candidate entries before rendering", async () => {
     const el = await fixture(html`
       <mention-suggestion-popover
