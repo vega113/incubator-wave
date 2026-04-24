@@ -96,7 +96,12 @@ public final class J2clRootShellView implements J2clRootLiveSurfaceController.Sh
       return null;
     }
     if (!isCurrentStatusNode(liveStatus, statusStrip, rootShell)) {
-      liveStatus = firstElementOwnedByRootShell(statusStrip, "#" + LIVE_STATUS_ID, rootShell);
+      HTMLElement nextLiveStatus =
+          firstElementOwnedByRootShell(statusStrip, "#" + LIVE_STATUS_ID, rootShell);
+      if (nextLiveStatus != liveStatus) {
+        lastPublishedLiveStatusText = null;
+      }
+      liveStatus = nextLiveStatus;
     }
     if (!isCurrentStatusNode(liveStatusSeparator, statusStrip, rootShell)) {
       liveStatusSeparator =
@@ -117,6 +122,7 @@ public final class J2clRootShellView implements J2clRootLiveSurfaceController.Sh
       liveStatus = (HTMLElement) DomGlobal.document.createElement("span");
       liveStatus.id = LIVE_STATUS_ID;
       statusStrip.appendChild(liveStatus);
+      lastPublishedLiveStatusText = null;
     }
     return liveStatus;
   }

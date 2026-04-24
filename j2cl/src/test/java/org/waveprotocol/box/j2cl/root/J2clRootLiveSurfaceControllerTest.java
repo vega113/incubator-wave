@@ -282,6 +282,7 @@ public class J2clRootLiveSurfaceControllerTest {
     routeStateHandler.onRouteStateChanged(
         new J2clSidecarRouteState("after-stop", "example.com/w+456"), null, false);
     selectedWaveController.onWaveSelected("example.com/w+789", null);
+    Assert.assertEquals(1, shell.models.size());
     shell.clear();
 
     controller.start();

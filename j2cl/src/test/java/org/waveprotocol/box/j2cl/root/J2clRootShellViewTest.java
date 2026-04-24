@@ -123,8 +123,22 @@ public class J2clRootShellViewTest {
     Assert.assertEquals(
         "/?view=j2cl-root&q=in%3Ainbox",
         ((HTMLElement) outerRoot.querySelector("#j2cl-root-brand-link")).getAttribute("href"));
+    Assert.assertEquals(
+        "/auth/signin?r=/%3Fview%3Dj2cl-root%26q%3Din%253Ainbox",
+        ((HTMLElement) outerRoot.querySelector("[data-j2cl-root-signin='true']"))
+            .getAttribute("href"));
+    Assert.assertEquals(
+        "/auth/signout?r=/%3Fview%3Dj2cl-root%26q%3Din%253Ainbox",
+        ((HTMLElement) outerRoot.querySelector("[data-j2cl-root-signout='true']"))
+            .getAttribute("href"));
     Assert.assertNull(
         ((HTMLElement) innerRoot.querySelector("#j2cl-root-brand-link")).getAttribute("href"));
+    Assert.assertNull(
+        ((HTMLElement) innerRoot.querySelector("[data-j2cl-root-signin='true']"))
+            .getAttribute("href"));
+    Assert.assertNull(
+        ((HTMLElement) innerRoot.querySelector("[data-j2cl-root-signout='true']"))
+            .getAttribute("href"));
     Assert.assertEquals(
         "Return target: /?view=j2cl-root&q=in%3Ainbox",
         ((HTMLElement) outerRoot.querySelector("#j2cl-root-return-target-text")).textContent);
@@ -243,7 +257,8 @@ public class J2clRootShellViewTest {
     J2clRootShellView secondView = new J2clRootShellView(workflowHost);
     secondView.publishLiveStatus(J2clRootLiveSurfaceModel.starting());
 
-    Assert.assertEquals(1, statusStrip.querySelectorAll("#j2cl-root-live-status-separator").length);
+    Assert.assertEquals(
+        1, statusStrip.querySelectorAll("#j2cl-root-live-status-separator").length);
     Assert.assertEquals(1, statusStrip.querySelectorAll("#j2cl-root-live-status-text").length);
     Assert.assertEquals(
         "Loading workspace.",
@@ -269,6 +284,29 @@ public class J2clRootShellViewTest {
     Assert.assertEquals(1, statusStrip.querySelectorAll("#j2cl-root-live-status-separator").length);
     Assert.assertEquals(restoredSeparator.nextSibling, liveStatus);
     Assert.assertEquals("Loading workspace.", liveStatus.textContent);
+  }
+
+  @Test
+  public void publishLiveStatusUpdatesRediscoveredNodeWhenStatusStripIsReplaced() {
+    assumeBrowserDom();
+    host = (HTMLDivElement) DomGlobal.document.createElement("div");
+    DomGlobal.document.body.appendChild(host);
+    HTMLElement rootShell = createRootShell();
+    HTMLElement oldStatusStrip = appendStatusStrip(rootShell);
+    HTMLElement workflowHost = appendWorkflowHost(rootShell);
+    J2clRootShellView view = new J2clRootShellView(workflowHost);
+    J2clRootLiveSurfaceModel inboxModel = queryStatusModel("in:inbox");
+
+    view.publishLiveStatus(inboxModel);
+    rootShell.removeChild(oldStatusStrip);
+    HTMLElement newStatusStrip = appendStatusStrip(rootShell);
+    HTMLElement existingLiveStatus = (HTMLElement) DomGlobal.document.createElement("span");
+    existingLiveStatus.id = "j2cl-root-live-status-text";
+    newStatusStrip.appendChild(existingLiveStatus);
+    view.publishLiveStatus(inboxModel);
+
+    Assert.assertEquals("Showing search results for in:inbox.", existingLiveStatus.textContent);
+    Assert.assertEquals(1, newStatusStrip.querySelectorAll("#j2cl-root-live-status-text").length);
   }
 
   private J2clRootShellView createViewWithStatusStrip() {
