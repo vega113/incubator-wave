@@ -62,8 +62,7 @@ public class J2clComposeSurfaceControllerTest {
     Assert.assertEquals("Draft", view.model.getReplyDraft());
     Assert.assertTrue(view.model.isReplyStaleBasis());
     Assert.assertEquals(
-        "Selection changed before submit completed. Review the draft and retry.",
-        view.model.getReplyErrorText());
+        J2clComposeSurfaceController.STALE_REPLY_MESSAGE, view.model.getReplyErrorText());
     Assert.assertEquals(0, gateway.submitCalls);
   }
 
@@ -84,6 +83,40 @@ public class J2clComposeSurfaceControllerTest {
   }
 
   @Test
+  public void missingSelectedWaveRejectsReplyWithoutFetchingBootstrap() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(new J2clSidecarWriteSession(null, "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplySubmitting());
+    Assert.assertEquals("Open a wave before sending a reply.", view.model.getReplyErrorText());
+    Assert.assertEquals(0, gateway.fetchBootstrapCalls);
+  }
+
+  @Test
+  public void emptySelectedWaveRejectsReplyWithoutFetchingBootstrap() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(new J2clSidecarWriteSession("", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplySubmitting());
+    Assert.assertEquals("Open a wave before sending a reply.", view.model.getReplyErrorText());
+    Assert.assertEquals(0, gateway.fetchBootstrapCalls);
+  }
+
+  @Test
   public void differentWaveSelectionDuringStaleSubmitPreservesDraft() {
     FakeGateway gateway = new FakeGateway();
     gateway.autoResolveBootstrap = false;
@@ -100,6 +133,297 @@ public class J2clComposeSurfaceControllerTest {
 
     Assert.assertEquals("Draft", view.model.getReplyDraft());
     Assert.assertTrue(view.model.isReplyStaleBasis());
+  }
+
+  @Test
+  public void laterDifferentWaveSelectionAfterStaleSubmitClearsDraft() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 45L, "BCDE", "b+root"));
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertTrue(view.model.isReplyStaleBasis());
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+3", "chan-3", 46L, "CDEF", "b+root"));
+
+    Assert.assertEquals("", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+  }
+
+  @Test
+  public void nullWriteSessionAfterStaleSubmitPreservesDraftUntilDifferentWaveReconnect() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(null);
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertTrue(view.model.isReplyStaleBasis());
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 45L, "BCDE", "b+root"));
+
+    Assert.assertEquals("", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("", view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void nullWriteSessionAfterStaleSubmitPreservesDraftThroughSameWaveReconnect() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(null);
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertTrue(view.model.isReplyStaleBasis());
+    Assert.assertEquals(
+        J2clComposeSurfaceController.STALE_REPLY_MESSAGE, view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void sameWaveRefreshesAfterStaleSubmitKeepDraftAndErrorUntilRetry() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-3", 46L, "CDEF", "b+root"));
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertTrue(view.model.isReplyStaleBasis());
+    Assert.assertEquals(
+        J2clComposeSurfaceController.STALE_REPLY_MESSAGE, view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void editingStaleDraftThenNavigatingToDifferentWaveClearsEditedDraft() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 45L, "BCDE", "b+root"));
+    controller.onReplyDraftChanged("Edited draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+3", "chan-3", 46L, "CDEF", "b+root"));
+
+    Assert.assertEquals("", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("", view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void returningToOriginalWaveAfterStaleDifferentWaveKeepsDraftForReview() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 45L, "BCDE", "b+root"));
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-3", 46L, "CDEF", "b+root"));
+
+    Assert.assertEquals("Draft", view.model.getReplyDraft());
+    Assert.assertTrue(view.model.isReplyStaleBasis());
+    Assert.assertEquals(J2clComposeSurfaceController.STALE_REPLY_MESSAGE, view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void staleDraftRetrySuccessClearsStaleState() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeFactory factory = new FakeFactory();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, factory, new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    gateway.autoResolveBootstrap = true;
+    controller.onReplyDraftChanged("Edited draft");
+    controller.onReplySubmitted("Edited draft");
+
+    Assert.assertEquals("", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("", view.model.getReplyErrorText());
+    Assert.assertEquals("Edited draft", factory.lastReplyText);
+  }
+
+  @Test
+  public void retryInvalidatedByAnotherSessionChangeReparksStaleDraft() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    controller.onReplyDraftChanged("Retry draft");
+    controller.onReplySubmitted("Retry draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-3", 46L, "CDEF", "b+root"));
+
+    Assert.assertEquals("Retry draft", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplySubmitting());
+    Assert.assertTrue(view.model.isReplyStaleBasis());
+    Assert.assertEquals(
+        J2clComposeSurfaceController.STALE_REPLY_MESSAGE, view.model.getReplyErrorText());
+    Assert.assertEquals(0, gateway.submitCalls);
+  }
+
+  @Test
+  public void staleDraftRetryFailureClearsStaleStateAndKeepsDraftEditable() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    gateway.submitResponse = new SidecarSubmitResponse(1, "server rejected", 45L);
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    gateway.autoResolveBootstrap = true;
+    controller.onReplyDraftChanged("Edited draft");
+    controller.onReplySubmitted("Edited draft");
+
+    Assert.assertEquals("Edited draft", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplySubmitting());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("server rejected", view.model.getReplyErrorText());
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-3", 46L, "CDEF", "b+root"));
+
+    Assert.assertEquals("", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+  }
+
+  @Test
+  public void staleDraftRetryBootstrapFailureClearsStaleStateAndKeepsDraftEditable() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    gateway.bootstrapError = "bootstrap unavailable";
+    controller.onReplyDraftChanged("Edited draft");
+    controller.onReplySubmitted("Edited draft");
+
+    Assert.assertEquals("Edited draft", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplySubmitting());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("bootstrap unavailable", view.model.getReplyErrorText());
+    Assert.assertEquals(0, gateway.submitCalls);
+  }
+
+  @Test
+  public void sameWaveRefreshAfterEditingStaleDraftKeepsDraftWithoutStaleBanner() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    controller.onReplyDraftChanged("Edited draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-3", 46L, "CDEF", "b+root"));
+
+    Assert.assertEquals("Edited draft", view.model.getReplyDraft());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("", view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void signOutWhileReplyStaleClearsStaleMarkersAndError() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-2", 45L, "BCDE", "b+root"));
+    controller.onSignedOut();
+
+    Assert.assertFalse(view.model.isReplyAvailable());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("", view.model.getReplyErrorText());
+    Assert.assertEquals(
+        "Sign in to create or reply in the J2CL root shell.", view.model.getReplyStatusText());
   }
 
   @Test
@@ -155,6 +479,30 @@ public class J2clComposeSurfaceControllerTest {
     Assert.assertEquals(0, gateway.submitCalls);
     Assert.assertTrue(created.isEmpty());
     Assert.assertFalse(view.model.isCreateEnabled());
+  }
+
+  @Test
+  public void signedOutMidFlightReplyAbandonsPendingCallbackAndClearsStaleState() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    List<String> refreshed = new ArrayList<String>();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), refreshed);
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onSignedOut();
+    gateway.resolveBootstrap();
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertTrue(refreshed.isEmpty());
+    Assert.assertFalse(view.model.isReplyAvailable());
+    Assert.assertFalse(view.model.isReplySubmitting());
+    Assert.assertFalse(view.model.isReplyStaleBasis());
+    Assert.assertEquals("", view.model.getReplyErrorText());
   }
 
   @Test

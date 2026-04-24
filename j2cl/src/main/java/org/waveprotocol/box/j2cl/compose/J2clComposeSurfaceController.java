@@ -46,8 +46,9 @@ public final class J2clComposeSurfaceController {
     void onReplySubmitted(String waveId);
   }
 
-  private static final String STALE_REPLY_MESSAGE =
-      "Selection changed before submit completed. Review the draft and retry.";
+  static final String STALE_REPLY_MESSAGE =
+      "The wave changed before your reply was sent. Review it, then retry if it still belongs"
+          + " here.";
 
   private final Gateway gateway;
   private final View view;
@@ -120,6 +121,9 @@ public final class J2clComposeSurfaceController {
     createSubmitting = false;
     replySubmitting = false;
     writeSession = null;
+    replyStaleBasis = false;
+    replyStaleWaveId = null;
+    replyErrorText = "";
     createStatusText = "Sign in to create or reply in the J2CL root shell.";
     replyStatusText = createStatusText;
     render();
@@ -154,12 +158,16 @@ public final class J2clComposeSurfaceController {
       return;
     }
     if (sessionChanged(nextWriteSession)) {
+      boolean wasReplySubmitting = replySubmitting;
       replyGeneration++;
-      if (replySubmitting) {
+      if (wasReplySubmitting) {
         replyErrorText = STALE_REPLY_MESSAGE;
         replyStaleBasis = true;
+        // submitReply() guarantees a non-empty selected wave id here, but stay defensive.
         replyStaleWaveId = writeSession == null ? null : writeSession.getSelectedWaveId();
-      } else {
+      } else if (!replyStaleBasis) {
+        // Stale explanations stay visible across benign reconnect/version refreshes until
+        // the user edits/retries or navigates to a different wave.
         replyErrorText = "";
       }
       replySubmitting = false;
@@ -167,11 +175,15 @@ public final class J2clComposeSurfaceController {
       if (selectedWaveChanged(nextWriteSession)) {
         String nextWaveId = nextWriteSession == null ? null : nextWriteSession.getSelectedWaveId();
         // Preserve a stale draft through null (disconnected) and same-wave reconnect transitions.
-        // Only clear when navigating to a different non-null wave.
+        // Also preserve the first transition that invalidates an in-flight submit so the user
+        // can review the unsent text instead of losing it.
         boolean clearDraft = !replyStaleBasis
-            || (nextWaveId != null && !safeEquals(replyStaleWaveId, nextWaveId));
+            || (!wasReplySubmitting
+                && nextWaveId != null
+                && !safeEquals(replyStaleWaveId, nextWaveId));
         if (clearDraft) {
           replyDraft = "";
+          replyErrorText = "";
           replyStaleBasis = false;
           replyStaleWaveId = null;
         }
@@ -260,7 +272,7 @@ public final class J2clComposeSurfaceController {
       render();
       return;
     }
-    if (writeSession == null) {
+    if (writeSession == null || isEmpty(writeSession.getSelectedWaveId())) {
       replyStatusText = "";
       replyErrorText = "Open a wave before sending a reply.";
       render();
@@ -274,6 +286,7 @@ public final class J2clComposeSurfaceController {
     }
     replySubmitting = true;
     replyStaleBasis = false;
+    replyStaleWaveId = null;
     replyStatusText = "Bootstrapping the root-shell submit session.";
     replyErrorText = "";
     final String submittedDraft = replyDraft;
@@ -391,5 +404,9 @@ public final class J2clComposeSurfaceController {
       return right == null;
     }
     return left.equals(right);
+  }
+
+  private static boolean isEmpty(String value) {
+    return value == null || value.isEmpty();
   }
 }
