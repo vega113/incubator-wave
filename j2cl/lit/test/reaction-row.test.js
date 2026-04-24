@@ -109,4 +109,9 @@ describe("<reaction-row>", () => {
     expect(chips.length).to.equal(1);
     expect(chips[0].dataset.emoji).to.equal("wave");
   });
+
+  it("falls back to empty when reactions is not an array", async () => {
+    const el = await fixture(html`<reaction-row blip-id="b+non-array" .reactions=${"not-an-array"}></reaction-row>`);
+    expect(el.renderRoot.querySelectorAll("[data-reaction-chip]").length).to.equal(0);
+  });
 });

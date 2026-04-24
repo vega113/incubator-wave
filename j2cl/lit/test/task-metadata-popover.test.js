@@ -137,7 +137,10 @@ describe("<task-metadata-popover>", () => {
 
     el.renderRoot.querySelector("button[type='button']").click();
 
-    expect((await closePromise).detail).to.deep.equal({
+    const event = await closePromise;
+    expect(event.bubbles).to.equal(true);
+    expect(event.composed).to.equal(true);
+    expect(event.detail).to.deep.equal({
       reason: "cancel",
       focusTargetId: "task-trigger-1"
     });
@@ -164,7 +167,10 @@ describe("<task-metadata-popover>", () => {
 
     const closePromise = oneEvent(el, "overlay-close");
     el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    expect((await closePromise).detail).to.deep.equal({
+    const escapeEvent = await closePromise;
+    expect(escapeEvent.bubbles).to.equal(true);
+    expect(escapeEvent.composed).to.equal(true);
+    expect(escapeEvent.detail).to.deep.equal({
       reason: "escape",
       focusTargetId: "task-trigger-1"
     });
