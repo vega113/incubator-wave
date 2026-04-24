@@ -97,8 +97,8 @@ public final class EditorEventHandler {
         }
 
         @Override
-        public void compositionUpdate() {
-          EditorEventHandler.this.compositionUpdate();
+        public void compositionUpdate(EditorEvent event) {
+          EditorEventHandler.this.compositionUpdate(event);
         }
 
         @Override
@@ -138,6 +138,8 @@ public final class EditorEventHandler {
 
   private final DelayedCompositionMutationGuard delayedCompositionMutationGuard =
       new DelayedCompositionMutationGuard();
+
+  private boolean androidImeStandaloneTextInputExpected;
 
   /**
    * We keep track of whether selection affinity is up to date. When we receive
@@ -248,6 +250,7 @@ public final class EditorEventHandler {
 
     // TODO(danilatos): IE IME keycode thingy!!
     invalidateSelection();
+    updateAndroidImeStandaloneTextInputExpectation(event);
 
     // NOTE(patcoleman): special cases FTW!
     // 1) click can be while the editor isn't editing, so needs to avoid needing content selection.
@@ -290,6 +293,12 @@ public final class EditorEventHandler {
       return handleKeyEvent(event);
     } else if (event.isCompositionEvent()) {
       if (useCompositionEvents) {
+        if (shouldHandleStandaloneAndroidTextInput(event)) {
+          return handleStandaloneAndroidTextInput(event);
+        }
+        if (BrowserEvents.TEXTINPUT.equals(event.getType())) {
+          androidImeStandaloneTextInputExpected = false;
+        }
         return handleCompositionEvent(event);
       } else {
         return false;
@@ -465,6 +474,7 @@ public final class EditorEventHandler {
   }
 
   private void compositionStart(EditorEvent event) {
+    androidImeStandaloneTextInputExpected = false;
     if (state == State.COMPOSITION) {
       logger.error().log("State was already IME during a compositionstart event!");
     }
@@ -483,7 +493,7 @@ public final class EditorEventHandler {
     // On mobile browsers (e.g. Android Chrome), keydown with keyCode 229 fires
     // before compositionstart. That keydown activates the typing extractor.
     // We must flush it here so that the typing extractor and the IME composition
-    // handler are not both active simultaneously — otherwise the typing
+    // handler are not both active simultaneously - otherwise the typing
     // extractor's stale DOM tracking causes characters to be lost.
     editorInteractor.forceFlush();
     cachedSelection = editorInteractor.getSelectionPoints();
@@ -534,11 +544,64 @@ public final class EditorEventHandler {
   }
 
 
-  private void compositionUpdate() {
+  private void compositionUpdate(EditorEvent event) {
     if (ImeDebugTracer.isEnabled()) {
-      ImeDebugTracer.trace("EEH.compositionUpdate");
+      ImeDebugTracer.start("EEH.compositionUpdate")
+          .add("data", event.getData())
+          .emit();
     }
-    editorInteractor.compositionUpdate();
+    editorInteractor.compositionUpdate(event.getData());
+  }
+
+  private boolean shouldHandleStandaloneAndroidTextInput(EditorEvent event) {
+    return state == State.NORMAL
+        && UserAgent.isAndroid()
+        && androidImeStandaloneTextInputExpected
+        && BrowserEvents.TEXTINPUT.equals(event.getType())
+        && event.getData() != null
+        && !event.getData().isEmpty();
+  }
+
+  private void updateAndroidImeStandaloneTextInputExpectation(EditorEvent event) {
+    if (!androidImeStandaloneTextInputExpected) {
+      return;
+    }
+    if (BrowserEvents.TEXTINPUT.equals(event.getType()) || event.isImeKeyEvent()) {
+      return;
+    }
+    androidImeStandaloneTextInputExpected = false;
+  }
+
+  private boolean handleStandaloneAndroidTextInput(EditorEvent event)
+      throws SelectionLostException {
+    androidImeStandaloneTextInputExpected = false;
+    if (cachedSelection == null) {
+      refreshEditorWithCaret(event);
+    }
+    if (cachedSelection == null) {
+      return false;
+    }
+
+    Point<ContentNode> caret;
+    boolean isReplace = false;
+    if (cachedSelection.isCollapsed()) {
+      caret = cachedSelection.getFocus();
+    } else {
+      caret = deleteCachedSelectionRangeAndInvalidate(true);
+      isReplace = true;
+    }
+
+    caret = editorInteractor.insertText(caret, event.getData(), isReplace);
+    caret = editorInteractor.normalizePoint(caret);
+    setCaret(caret);
+    editorInteractor.rebiasSelection(CursorDirection.FROM_LEFT);
+    event.preventDefault();
+    if (ImeDebugTracer.isEnabled()) {
+      ImeDebugTracer.start("EEH.androidTextInput.insert")
+          .add("data", event.getData())
+          .emit();
+    }
+    return true;
   }
 
 
@@ -552,6 +615,7 @@ public final class EditorEventHandler {
     // into compositionStart()
     cachedSelection = editorInteractor.compositionEnd();
     state = State.NORMAL;
+    androidImeStandaloneTextInputExpected = UserAgent.isAndroid();
     // Only suppress the trailing DOM mutation when compositionEnd() produced a
     // real editor selection. If compositionEnd() returns null, that same
     // mutation is the fallback path that can still materialize browser-only
@@ -711,7 +775,7 @@ public final class EditorEventHandler {
     // issues when deleting around annotation boundaries.
     //
     // When composition events are enabled and the key is IME (keyCode 229),
-    // let the composition handler manage the input — compositionstart will
+    // let the composition handler manage the input - compositionstart will
     // follow this keydown. Activating the typing extractor here would
     // conflict with the IME composition flow and cause character loss on
     // mobile browsers (Android Chrome) where every soft keyboard key
