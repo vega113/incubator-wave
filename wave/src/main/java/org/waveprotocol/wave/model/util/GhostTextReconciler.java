@@ -39,8 +39,9 @@ package org.waveprotocol.wave.model.util;
  * unit-tested without a browser. The caller (see the
  * {@code ImeExtractor} in the editor's client package) is responsible for
  * capturing the adjacent text-node contents at {@code activate()} time and
- * feeding the before/after pairs to {@link #combine(String, String, String,
- * String, String)} at {@code compositionEnd} time.
+ * feeding the before/after pairs to {@link #combineWithCapturedGhosts(String,
+ * String, String, String, String, String, String)} at {@code compositionEnd}
+ * time.
  */
 public final class GhostTextReconciler {
 
@@ -81,6 +82,79 @@ public final class GhostTextReconciler {
       return scratchContent;
     }
     return ghostBefore + scratchContent + ghostAfter;
+  }
+
+  /**
+   * Combines scratch content with ghost text that may have existed before the
+   * activation-time DOM snapshot and ghost text that appeared after it.
+   *
+   * <p>Android Chrome's keyboard Done path can remove or relocate the first
+   * composition character from the adjacent DOM sibling before the editor
+   * flushes the IME scratch. This method therefore treats the captured DOM
+   * snapshot itself as a possible ghost carrier over the model baseline. It
+   * then compares that captured ghost with the final DOM state. If the final
+   * DOM still has a model-relative ghost, the final DOM wins because it may
+   * contain IME rewrites made after activation. If the final DOM has returned
+   * exactly to the model baseline, the captured ghost is kept so Android's
+   * Done path cannot drop the first character by deleting the temporary
+   * sibling text. If the final DOM no longer matches the model baseline, the
+   * captured ghost is not trusted.
+   */
+  public static String combineWithCapturedGhosts(String scratchContent,
+      String previousModelBaseline, String capturedPrevious, String currentPrevious,
+      String nextModelBaseline, String capturedNext, String currentNext) {
+    if (scratchContent == null) {
+      throw new NullPointerException("scratchContent must not be null");
+    }
+    String ghostBefore = withoutSuffixAlreadyAtScratchStart(
+        currentOrCapturedFallback(
+            extractGhostSuffix(previousModelBaseline, capturedPrevious),
+            extractGhostSuffix(previousModelBaseline, currentPrevious),
+            previousModelBaseline, currentPrevious),
+        scratchContent);
+    String ghostAfter = withoutPrefixAlreadyAtScratchEnd(
+        currentOrCapturedFallback(
+            extractGhostPrefix(nextModelBaseline, capturedNext),
+            extractGhostPrefix(nextModelBaseline, currentNext),
+            nextModelBaseline, currentNext),
+        scratchContent);
+
+    if (ghostBefore.isEmpty() && ghostAfter.isEmpty()) {
+      return scratchContent;
+    }
+    return ghostBefore + scratchContent + ghostAfter;
+  }
+
+  private static String currentOrCapturedFallback(String capturedGhost, String currentGhost,
+      String modelBaseline, String currentText) {
+    if (!currentGhost.isEmpty()) {
+      return currentGhost;
+    }
+    return isAtModelBaseline(modelBaseline, currentText) ? capturedGhost : "";
+  }
+
+  private static boolean isAtModelBaseline(String modelBaseline, String currentText) {
+    return modelBaseline != null && modelBaseline.equals(currentText);
+  }
+
+  private static String withoutSuffixAlreadyAtScratchStart(String ghost, String scratchContent) {
+    int overlap = suffixPrefixOverlap(ghost, scratchContent);
+    return ghost.substring(0, ghost.length() - overlap);
+  }
+
+  private static String withoutPrefixAlreadyAtScratchEnd(String ghost, String scratchContent) {
+    int overlap = suffixPrefixOverlap(scratchContent, ghost);
+    return ghost.substring(overlap);
+  }
+
+  private static int suffixPrefixOverlap(String left, String right) {
+    int max = Math.min(left.length(), right.length());
+    for (int length = max; length > 0; length--) {
+      if (left.regionMatches(left.length() - length, right, 0, length)) {
+        return length;
+      }
+    }
+    return 0;
   }
 
   /**

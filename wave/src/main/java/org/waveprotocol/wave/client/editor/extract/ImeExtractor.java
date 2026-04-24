@@ -75,9 +75,11 @@ public class ImeExtractor {
    * {@link #deactivate(LocalDocument)}.
    */
   private Node ghostPreviousSibling;
-  private String ghostPreviousSiblingBaseline;
+  private String ghostPreviousSiblingModelBaseline;
+  private String ghostPreviousSiblingCapturedText;
   private Node ghostNextSibling;
-  private String ghostNextSiblingBaseline;
+  private String ghostNextSiblingModelBaseline;
+  private String ghostNextSiblingCapturedText;
 
   private static final String WRAPPER_TAGNAME = "l:ime";
 
@@ -153,15 +155,17 @@ public class ImeExtractor {
     }
     String currentPrev = readText(ghostPreviousSibling);
     String currentNext = readText(ghostNextSibling);
-    String result = GhostTextReconciler.combine(scratchContent,
-        ghostPreviousSiblingBaseline, currentPrev,
-        ghostNextSiblingBaseline, currentNext);
+    String result = GhostTextReconciler.combineWithCapturedGhosts(scratchContent,
+        ghostPreviousSiblingModelBaseline, ghostPreviousSiblingCapturedText, currentPrev,
+        ghostNextSiblingModelBaseline, ghostNextSiblingCapturedText, currentNext);
     if (ImeDebugTracer.isEnabled()) {
       ImeDebugTracer.start("ImeExtractor.getEffectiveContent")
           .add("scratch", scratchContent)
-          .add("prevBaseline", ghostPreviousSiblingBaseline)
+          .add("prevModelBaseline", ghostPreviousSiblingModelBaseline)
+          .add("prevCaptured", ghostPreviousSiblingCapturedText)
           .add("currentPrev", currentPrev)
-          .add("nextBaseline", ghostNextSiblingBaseline)
+          .add("nextModelBaseline", ghostNextSiblingModelBaseline)
+          .add("nextCaptured", ghostNextSiblingCapturedText)
           .add("currentNext", currentNext)
           .add("result", result)
           .emit();
@@ -210,9 +214,11 @@ public class ImeExtractor {
       Element anchor = imeContainer.getParentElement();
       ImeDebugTracer.start("ImeExtractor.activate")
           .add("prevSibling", ImeDebugTracer.describe(ghostPreviousSibling))
-          .add("prevBaseline", ghostPreviousSiblingBaseline)
+          .add("prevModelBaseline", ghostPreviousSiblingModelBaseline)
+          .add("prevCaptured", ghostPreviousSiblingCapturedText)
           .add("nextSibling", ImeDebugTracer.describe(ghostNextSibling))
-          .add("nextBaseline", ghostNextSiblingBaseline)
+          .add("nextModelBaseline", ghostNextSiblingModelBaseline)
+          .add("nextCaptured", ghostNextSiblingCapturedText)
           .add("anchorParent", ImeDebugTracer.describe(anchor == null ? null : anchor.getParentElement()))
           .add("anchorInnerText", ImeDebugTracer.innerText(anchor == null ? null : anchor.getParentElement()))
           .emit();
@@ -230,17 +236,19 @@ public class ImeExtractor {
     Element scratchDomAnchor = imeContainer.getParentElement();
     if (scratchDomAnchor == null) {
       ghostPreviousSibling = null;
-      ghostPreviousSiblingBaseline = null;
+      ghostPreviousSiblingModelBaseline = null;
+      ghostPreviousSiblingCapturedText = null;
       ghostNextSibling = null;
-      ghostNextSiblingBaseline = null;
+      ghostNextSiblingModelBaseline = null;
+      ghostNextSiblingCapturedText = null;
       return;
     }
     ghostPreviousSibling = scratchDomAnchor.getPreviousSibling();
-    ghostPreviousSiblingBaseline = GhostTextReconciler.modelAwarePreviousBaseline(
-        previousModelBaseline, readText(ghostPreviousSibling));
+    ghostPreviousSiblingModelBaseline = previousModelBaseline;
+    ghostPreviousSiblingCapturedText = readText(ghostPreviousSibling);
     ghostNextSibling = scratchDomAnchor.getNextSibling();
-    ghostNextSiblingBaseline = GhostTextReconciler.modelAwareNextBaseline(
-        nextModelBaseline, readText(ghostNextSibling));
+    ghostNextSiblingModelBaseline = nextModelBaseline;
+    ghostNextSiblingCapturedText = readText(ghostNextSibling);
   }
 
   /**
@@ -255,10 +263,12 @@ public class ImeExtractor {
           .add("scratch", imeContainer.getInnerText())
           .add("prevSibling", ImeDebugTracer.describe(ghostPreviousSibling))
           .add("prevCurrent", ImeDebugTracer.readText(ghostPreviousSibling))
-          .add("prevBaseline", ghostPreviousSiblingBaseline)
+          .add("prevModelBaseline", ghostPreviousSiblingModelBaseline)
+          .add("prevCaptured", ghostPreviousSiblingCapturedText)
           .add("nextSibling", ImeDebugTracer.describe(ghostNextSibling))
           .add("nextCurrent", ImeDebugTracer.readText(ghostNextSibling))
-          .add("nextBaseline", ghostNextSiblingBaseline)
+          .add("nextModelBaseline", ghostNextSiblingModelBaseline)
+          .add("nextCaptured", ghostNextSiblingCapturedText)
           .emit();
     }
     // Restore any ghost text back to its baseline BEFORE we tear down the
@@ -275,12 +285,14 @@ public class ImeExtractor {
   }
 
   private void restoreGhostBaseline() {
-    restorePreviousTextNode(ghostPreviousSibling, ghostPreviousSiblingBaseline);
-    restoreNextTextNode(ghostNextSibling, ghostNextSiblingBaseline);
+    restorePreviousTextNode(ghostPreviousSibling, ghostPreviousSiblingModelBaseline);
+    restoreNextTextNode(ghostNextSibling, ghostNextSiblingModelBaseline);
     ghostPreviousSibling = null;
-    ghostPreviousSiblingBaseline = null;
+    ghostPreviousSiblingModelBaseline = null;
+    ghostPreviousSiblingCapturedText = null;
     ghostNextSibling = null;
-    ghostNextSiblingBaseline = null;
+    ghostNextSiblingModelBaseline = null;
+    ghostNextSiblingCapturedText = null;
   }
 
   private static void restorePreviousTextNode(Node node, String baseline) {

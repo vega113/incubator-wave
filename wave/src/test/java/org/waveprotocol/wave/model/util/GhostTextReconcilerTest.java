@@ -142,9 +142,104 @@ public class GhostTextReconcilerTest extends TestCase {
         "new", "bNEW"));
   }
 
+  public void testCapturedPreviousGhostSurvivesDoneWhenDomNoLongerHasIt() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "ew", "", "n", "", null, null, null));
+  }
+
+  public void testCapturedPreviousGhostDoesNotDuplicateWhenMovedIntoScratch() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "new", "", "n", "", null, null, null));
+  }
+
+  public void testCapturedPreviousGhostOnlyAddsPartNotMovedIntoScratch() {
+    assertEquals("abc", GhostTextReconciler.combineWithCapturedGhosts(
+        "bc", "", "ab", "", null, null, null));
+  }
+
+  public void testCapturedPreviousGhostIsNotDoubleCountedWhenStillPresent() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "ew", "", "n", "n", null, null, null));
+  }
+
+  public void testCapturedPreviousGhostTiePrefersCurrentDomText() {
+    assertEquals("mew", GhostTextReconciler.combineWithCapturedGhosts(
+        "ew", "", "n", "m", null, null, null));
+  }
+
+  public void testCapturedPreviousGhostShrinkPrefersCurrentDomText() {
+    assertEquals("cx", GhostTextReconciler.combineWithCapturedGhosts(
+        "x", "", "ab", "c", null, null, null));
+  }
+
+  public void testCapturedPreviousGhostFallsBackOnlyWhenCurrentReturnedToModel() {
+    assertEquals("lip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "new b", "NEW b", null, null, null));
+  }
+
+  public void testCapturedSecondWordGhostSurvivesDoneWhenDomNoLongerHasIt() {
+    assertEquals(" blip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "new b", "new", null, null, null));
+  }
+
+  public void testCapturedGhostKeepsPostCaptureGrowthSupport() {
+    assertEquals(" blip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "new", "new b", null, null, null));
+  }
+
+  public void testCapturedNextGhostSurvivesDoneWhenDomNoLongerHasIt() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "ne", null, null, null, "world", "wworld", "world"));
+  }
+
+  public void testCapturedNextGhostDoesNotDuplicateWhenMovedIntoScratch() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "new", null, null, null, "world", "wworld", "world"));
+  }
+
+  public void testCapturedNextGhostOnlyAddsPartNotMovedIntoScratch() {
+    assertEquals("abc", GhostTextReconciler.combineWithCapturedGhosts(
+        "ab", null, null, null, "world", "bcworld", "world"));
+  }
+
+  public void testCapturedNextGhostKeepsPostCaptureGrowthSupport() {
+    assertEquals("new", GhostTextReconciler.combineWithCapturedGhosts(
+        "n", null, null, null, "world", "eworld", "ewworld"));
+  }
+
+  public void testCapturedNextGhostTiePrefersCurrentDomText() {
+    assertEquals("nem", GhostTextReconciler.combineWithCapturedGhosts(
+        "ne", null, null, null, "world", "wworld", "mworld"));
+  }
+
+  public void testCapturedNextGhostShrinkPrefersCurrentDomText() {
+    assertEquals("xc", GhostTextReconciler.combineWithCapturedGhosts(
+        "x", null, null, null, "world", "abworld", "cworld"));
+  }
+
+  public void testCapturedNextGhostFallsBackOnlyWhenCurrentReturnedToModel() {
+    assertEquals("x", GhostTextReconciler.combineWithCapturedGhosts(
+        "x", null, null, null, "world", "bworld", "bWORLD"));
+  }
+
+  public void testCapturedGhostFallsBackWhenCapturedDomDoesNotContainModel() {
+    assertEquals("lip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "NEW b", "NEW b", null, null, null));
+  }
+
   public void testNullScratchThrows() {
     try {
       GhostTextReconciler.combine(null, null, null, null, null);
+      fail("Expected NullPointerException for null scratchContent");
+    } catch (NullPointerException expected) {
+      // pass
+    }
+  }
+
+  public void testCombineWithCapturedGhostsNullScratchThrows() {
+    try {
+      GhostTextReconciler.combineWithCapturedGhosts(
+          null, null, null, null, null, null, null);
       fail("Expected NullPointerException for null scratchContent");
     } catch (NullPointerException expected) {
       // pass
