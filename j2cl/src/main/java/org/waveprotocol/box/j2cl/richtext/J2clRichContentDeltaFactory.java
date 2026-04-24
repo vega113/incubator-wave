@@ -157,7 +157,7 @@ public final class J2clRichContentDeltaFactory {
   }
 
   private static void appendElementEnd(StringBuilder builder) {
-    builder.append("{\"4\":{}}");
+    builder.append("{\"4\":true}");
   }
 
   private String buildDeltaJson(

@@ -109,7 +109,7 @@ public class J2clRichContentDeltaFactoryTest {
 
     assertContains(
         request.getDeltaJson(),
-        "\"3\":{\"1\":\"caption\"}},{\"4\":{}},{\"4\":{}}",
+        "\"3\":{\"1\":\"caption\"}},{\"4\":true},{\"4\":true}",
         "{\"1\":\"display-size\",\"2\":\"small\"}");
   }
 
