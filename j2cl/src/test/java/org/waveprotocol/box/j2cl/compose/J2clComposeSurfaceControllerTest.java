@@ -496,6 +496,26 @@ public class J2clComposeSurfaceControllerTest {
   }
 
   @Test
+  public void signOutAfterCreateFailureClearsCreateError() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.submitResponse = new SidecarSubmitResponse(1, "server rejected", 45L);
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onCreateSubmitted("Hello");
+
+    Assert.assertEquals("server rejected", view.model.getCreateErrorText());
+    Assert.assertEquals("", view.model.getCreateStatusText());
+    controller.onSignedOut();
+
+    Assert.assertFalse(view.model.isCreateEnabled());
+    Assert.assertEquals("", view.model.getCreateErrorText());
+    Assert.assertEquals("Sign in to create or reply in the J2CL root shell.", view.model.getCreateStatusText());
+  }
+
+  @Test
   public void signedOutMidFlightReplyAbandonsPendingCallbackAndClearsStaleState() {
     FakeGateway gateway = new FakeGateway();
     gateway.autoResolveBootstrap = false;
