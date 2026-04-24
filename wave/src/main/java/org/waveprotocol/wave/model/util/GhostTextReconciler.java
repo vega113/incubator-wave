@@ -94,9 +94,11 @@ public final class GhostTextReconciler {
    * snapshot itself as a possible ghost carrier over the model baseline. It
    * then compares that captured ghost with the final DOM state. If the final
    * DOM still has a model-relative ghost, the final DOM wins because it may
-   * contain IME rewrites made after activation. If the final DOM no longer
-   * has a ghost, the captured ghost is kept so Android's Done path cannot
-   * drop the first character by deleting the temporary sibling text.
+   * contain IME rewrites made after activation. If the final DOM has returned
+   * exactly to the model baseline, the captured ghost is kept so Android's
+   * Done path cannot drop the first character by deleting the temporary
+   * sibling text. If the final DOM no longer matches the model baseline, the
+   * captured ghost is not trusted.
    */
   public static String combineWithCapturedGhosts(String scratchContent,
       String previousModelBaseline, String capturedPrevious, String currentPrevious,
@@ -106,10 +108,12 @@ public final class GhostTextReconciler {
     }
     String ghostBefore = currentOrCapturedFallback(
         extractGhostSuffix(previousModelBaseline, capturedPrevious),
-        extractGhostSuffix(previousModelBaseline, currentPrevious));
+        extractGhostSuffix(previousModelBaseline, currentPrevious),
+        previousModelBaseline, currentPrevious);
     String ghostAfter = currentOrCapturedFallback(
         extractGhostPrefix(nextModelBaseline, capturedNext),
-        extractGhostPrefix(nextModelBaseline, currentNext));
+        extractGhostPrefix(nextModelBaseline, currentNext),
+        nextModelBaseline, currentNext);
 
     if (ghostBefore.isEmpty() && ghostAfter.isEmpty()) {
       return scratchContent;
@@ -117,8 +121,16 @@ public final class GhostTextReconciler {
     return ghostBefore + scratchContent + ghostAfter;
   }
 
-  private static String currentOrCapturedFallback(String capturedGhost, String currentGhost) {
-    return currentGhost.isEmpty() ? capturedGhost : currentGhost;
+  private static String currentOrCapturedFallback(String capturedGhost, String currentGhost,
+      String modelBaseline, String currentText) {
+    if (!currentGhost.isEmpty()) {
+      return currentGhost;
+    }
+    return isAtModelBaseline(modelBaseline, currentText) ? capturedGhost : "";
+  }
+
+  private static boolean isAtModelBaseline(String modelBaseline, String currentText) {
+    return modelBaseline != null && modelBaseline.equals(currentText);
   }
 
   /**

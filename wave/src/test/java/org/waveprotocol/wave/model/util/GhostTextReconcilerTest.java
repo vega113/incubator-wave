@@ -162,6 +162,11 @@ public class GhostTextReconcilerTest extends TestCase {
         "x", "", "ab", "c", null, null, null));
   }
 
+  public void testCapturedPreviousGhostFallsBackOnlyWhenCurrentReturnedToModel() {
+    assertEquals("lip", GhostTextReconciler.combineWithCapturedGhosts(
+        "lip", "new", "new b", "NEW b", null, null, null));
+  }
+
   public void testCapturedSecondWordGhostSurvivesDoneWhenDomNoLongerHasIt() {
     assertEquals(" blip", GhostTextReconciler.combineWithCapturedGhosts(
         "lip", "new", "new b", "new", null, null, null));
@@ -190,6 +195,11 @@ public class GhostTextReconcilerTest extends TestCase {
   public void testCapturedNextGhostShrinkPrefersCurrentDomText() {
     assertEquals("xc", GhostTextReconciler.combineWithCapturedGhosts(
         "x", null, null, null, "world", "abworld", "cworld"));
+  }
+
+  public void testCapturedNextGhostFallsBackOnlyWhenCurrentReturnedToModel() {
+    assertEquals("x", GhostTextReconciler.combineWithCapturedGhosts(
+        "x", null, null, null, "world", "bworld", "bWORLD"));
   }
 
   public void testCapturedGhostFallsBackWhenCapturedDomDoesNotContainModel() {
