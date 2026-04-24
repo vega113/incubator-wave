@@ -104,6 +104,7 @@ export class TaskMetadataPopover extends LitElement {
           Assignee
           <select name="assignee">
             <option value="">Unassigned</option>
+            ${this.assigneeFallbackOption()}
             ${this.safeParticipants().map(
               participant => html`
                 <option
@@ -239,6 +240,17 @@ export class TaskMetadataPopover extends LitElement {
         composed: true
       })
     );
+  }
+
+  assigneeFallbackOption() {
+    if (!this.assigneeAddress) {
+      return "";
+    }
+    const inList = this.safeParticipants().some(p => p.address === this.assigneeAddress);
+    if (inList) {
+      return "";
+    }
+    return html`<option value=${this.assigneeAddress} selected>${this.assigneeAddress}</option>`;
   }
 
   safeParticipants() {

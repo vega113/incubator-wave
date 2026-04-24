@@ -199,6 +199,25 @@ describe("<task-metadata-popover>", () => {
     ).to.equal(el.renderRoot.querySelector("[role='alert']").id);
   });
 
+  it("preserves the current assignee when they are absent from participants", async () => {
+    const el = await fixture(html`
+      <task-metadata-popover
+        open
+        task-id="task-1"
+        assignee-address="carol@example.com"
+        .participants=${participants}
+      ></task-metadata-popover>
+    `);
+
+    const select = el.renderRoot.querySelector("select[name='assignee']");
+    expect(select.value).to.equal("carol@example.com");
+
+    const eventPromise = oneEvent(el, "task-metadata-submit");
+    el.renderRoot.querySelector("button[type='submit']").click();
+    const { detail } = await eventPromise;
+    expect(detail.assigneeAddress).to.equal("carol@example.com");
+  });
+
   it("clears stale validation errors across close and reopen", async () => {
     const el = await fixture(html`
       <task-metadata-popover open task-id="task-1"></task-metadata-popover>
