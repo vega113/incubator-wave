@@ -217,7 +217,7 @@ public final class J2clComposeSurfaceController {
         gateway,
         view,
         deltaFactory,
-        attachmentControllerFactory(LEGACY_ATTACHMENT_SESSION_SEED),
+        attachmentControllerFactory(LEGACY_ATTACHMENT_SESSION_SEED, telemetrySink),
         createSuccessHandler,
         replySuccessHandler,
         telemetrySink);
@@ -794,6 +794,12 @@ public final class J2clComposeSurfaceController {
     return attachmentControllerFactory(sessionSeed, () -> new J2clAttachmentUploadClient());
   }
 
+  public static AttachmentControllerFactory attachmentControllerFactory(
+      String sessionSeed, J2clClientTelemetry.Sink telemetrySink) {
+    return attachmentControllerFactory(
+        sessionSeed, () -> new J2clAttachmentUploadClient(), telemetrySink);
+  }
+
   static AttachmentControllerFactory attachmentControllerFactory(
       String sessionSeed, J2clAttachmentUploadClient uploadClient) {
     // Test seam: reuse one injected client so tests can observe all generated upload requests.
@@ -804,8 +810,18 @@ public final class J2clComposeSurfaceController {
 
   static AttachmentControllerFactory attachmentControllerFactory(
       String sessionSeed, AttachmentUploadClientFactory uploadClientFactory) {
+    return attachmentControllerFactory(
+        sessionSeed, uploadClientFactory, J2clClientTelemetry.noop());
+  }
+
+  static AttachmentControllerFactory attachmentControllerFactory(
+      String sessionSeed,
+      AttachmentUploadClientFactory uploadClientFactory,
+      J2clClientTelemetry.Sink telemetrySink) {
     AttachmentUploadClientFactory clientFactory =
         requirePresent(uploadClientFactory, "Attachment upload client factory is required.");
+    J2clClientTelemetry.Sink sink =
+        requirePresent(telemetrySink, "Attachment telemetry sink is required.");
     Map<String, J2clAttachmentIdGenerator> idGeneratorsByDomain =
         new HashMap<String, J2clAttachmentIdGenerator>();
     return (waveRef, domain, insertionCallback, stateChangeCallback) -> {
@@ -814,7 +830,7 @@ public final class J2clComposeSurfaceController {
       J2clAttachmentUploadClient uploadClient =
           requirePresent(clientFactory.create(), "Attachment upload client is required.");
       return new J2clAttachmentComposerController(
-          waveRef, uploadClient, idGenerator, insertionCallback, stateChangeCallback);
+          waveRef, uploadClient, idGenerator, insertionCallback, stateChangeCallback, sink);
     };
   }
 
