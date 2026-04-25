@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-25-issue-1026-staged-server-lifecycle",
+  "version": "Unreleased",
+  "date": "2026-04-25",
+  "title": "Staged worktree servers stay alive after readiness",
+  "summary": "Worktree browser-verification starts now keep the staged server alive for delayed checks until the smoke stop command runs.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "The staged smoke helper now detaches the launched server correctly, records the live listener PID, and lets Jakarta server shutdown release the joined process without leaving orphan listeners."
+      ]
+    }
+  ]
+}

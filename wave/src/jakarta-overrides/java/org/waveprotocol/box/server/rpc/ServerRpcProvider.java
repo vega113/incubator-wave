@@ -973,12 +973,27 @@ public class ServerRpcProvider {
         throw new IllegalStateException("No connectors bound; WebSocket address unavailable");
     }
 
-    public void stopServer() throws IOException {
+    public void stopServer() {
         try {
             if (httpServer != null) httpServer.stop();
         } catch (Exception e) {
             LOG.warning("Error stopping Jakarta http server", e);
         }
+    }
+
+    /**
+     * Blocks the launcher thread until the Jakarta HTTP server is stopped.
+     *
+     * <p>The staged native-packager launcher expects the main Java process to
+     * stay alive after Jetty readiness. Without an explicit join, lifecycle
+     * ownership depends on Jetty thread details rather than the launcher
+     * contract used by worktree smoke and browser verification flows.</p>
+     */
+    public void joinServer() throws InterruptedException {
+        if (httpServer == null) {
+            throw new IllegalStateException("Jakarta server not started; cannot join");
+        }
+        httpServer.join();
     }
 
     /**

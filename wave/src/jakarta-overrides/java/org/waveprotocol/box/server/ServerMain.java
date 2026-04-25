@@ -107,6 +107,9 @@ public class ServerMain {
     }
   }
 
+  /**
+   * Starts the Jakarta server and blocks until the registered shutdown path stops it.
+   */
   public static void run(Module coreSettings) throws PersistenceException, WaveServerException {
     Injector injector = Guice.createInjector(coreSettings);
     Config config = injector.getInstance(Config.class);
@@ -149,6 +152,13 @@ public class ServerMain {
 
     LOG.info("Starting server");
     server.startWebSocketServer(injector);
+    try {
+      server.joinServer();
+    } catch (InterruptedException e) {
+      LOG.warning("Jakarta server join interrupted; stopping server", e);
+      server.stopServer();
+      Thread.currentThread().interrupt();
+    }
   }
 
   static Config loadCoreConfig() {
