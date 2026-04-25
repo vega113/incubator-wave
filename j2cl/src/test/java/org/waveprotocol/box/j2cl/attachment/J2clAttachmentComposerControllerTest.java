@@ -122,6 +122,10 @@ public class J2clAttachmentComposerControllerTest {
     J2clAttachmentComposerController.UploadItem item = controller.getQueueSnapshot().get(0);
     Assert.assertEquals(J2clAttachmentComposerController.UploadStatus.UPLOADING, item.getStatus());
     Assert.assertEquals(47, item.getProgressPercent());
+
+    transport.requests.get(0).getProgressCallback().onProgress(68);
+
+    Assert.assertEquals(68, controller.getQueueSnapshot().get(0).getProgressPercent());
   }
 
   @Test
@@ -342,8 +346,8 @@ public class J2clAttachmentComposerControllerTest {
   @Test
   public void insertionCallbackFailureStillStartsNextUpload() {
     FakeUploadTransport transport = new FakeUploadTransport();
-    ThrowingThenRecordingInsertionCallback insertionCallback =
-        new ThrowingThenRecordingInsertionCallback();
+    OneShotThrowingInsertionCallback insertionCallback =
+        new OneShotThrowingInsertionCallback();
     J2clAttachmentComposerController controller = newController(transport, insertionCallback);
 
     controller.selectFiles(
@@ -367,6 +371,10 @@ public class J2clAttachmentComposerControllerTest {
     }
 
     Assert.assertEquals(2, transport.requests.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.INSERT_FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals("INSERTION", controller.getQueueSnapshot().get(0).getErrorCode());
     Assert.assertEquals(
         J2clAttachmentComposerController.UploadStatus.UPLOADING,
         controller.getQueueSnapshot().get(1).getStatus());
@@ -495,8 +503,8 @@ public class J2clAttachmentComposerControllerTest {
   @Test
   public void insertionCallbackFailureOnPasteStillStartsNextUpload() {
     FakeUploadTransport transport = new FakeUploadTransport();
-    ThrowingThenRecordingInsertionCallback insertionCallback =
-        new ThrowingThenRecordingInsertionCallback();
+    OneShotThrowingInsertionCallback insertionCallback =
+        new OneShotThrowingInsertionCallback();
     J2clAttachmentComposerController controller = newController(transport, insertionCallback);
 
     controller.pasteImage(new Object(), "first", J2clAttachmentComposerController.DisplaySize.SMALL);
@@ -510,6 +518,10 @@ public class J2clAttachmentComposerControllerTest {
     }
 
     Assert.assertEquals(2, transport.requests.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.INSERT_FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals("INSERTION", controller.getQueueSnapshot().get(0).getErrorCode());
     Assert.assertEquals(
         J2clAttachmentComposerController.UploadStatus.UPLOADING,
         controller.getQueueSnapshot().get(1).getStatus());
@@ -673,7 +685,7 @@ public class J2clAttachmentComposerControllerTest {
     }
   }
 
-  private static final class ThrowingThenRecordingInsertionCallback
+  private static final class OneShotThrowingInsertionCallback
       implements J2clAttachmentComposerController.DocumentInsertionCallback {
     private boolean shouldThrow = true;
 

@@ -30,6 +30,13 @@ public class J2clAttachmentIdGeneratorTest {
   }
 
   @Test
+  public void defaultsNullSeedToJ2cl() {
+    J2clAttachmentIdGenerator generator = new J2clAttachmentIdGenerator("example.com", null);
+
+    Assert.assertEquals("example.com/j2clA", generator.nextAttachmentId());
+  }
+
+  @Test
   public void rejectsDomainContainingAttachmentSeparator() {
     try {
       new J2clAttachmentIdGenerator("example.com/bad", "seed");
@@ -56,6 +63,21 @@ public class J2clAttachmentIdGeneratorTest {
     assertIdAtCounter(63, "example.com/seed_");
     assertIdAtCounter(64, "example.com/seedBA");
     assertIdAtCounter(4095, "example.com/seed__");
+  }
+
+  @Test
+  public void throwsOnCounterOverflow() {
+    J2clAttachmentIdGenerator generator =
+        new J2clAttachmentIdGenerator("example.com", "seed", Integer.MAX_VALUE);
+
+    Assert.assertEquals("example.com/seedB_____", generator.nextAttachmentId());
+
+    try {
+      generator.nextAttachmentId();
+      Assert.fail("Expected counter overflow to fail.");
+    } catch (IllegalStateException expected) {
+      Assert.assertTrue(expected.getMessage().contains("overflow"));
+    }
   }
 
   private static void assertIdAtCounter(int targetIndex, String expectedId) {

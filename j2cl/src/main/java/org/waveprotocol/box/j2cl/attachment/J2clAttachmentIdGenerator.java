@@ -16,8 +16,13 @@ public final class J2clAttachmentIdGenerator {
   private int counter;
 
   public J2clAttachmentIdGenerator(String domain, String seed) {
+    this(domain, seed, 0);
+  }
+
+  J2clAttachmentIdGenerator(String domain, String seed, int initialCounter) {
     this.domain = requireDomain(domain);
     this.seed = sanitizeSeed(seed);
+    this.counter = initialCounter;
   }
 
   public String nextAttachmentId() {

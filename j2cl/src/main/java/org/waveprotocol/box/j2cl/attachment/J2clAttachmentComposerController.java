@@ -31,7 +31,8 @@ public final class J2clAttachmentComposerController {
     QUEUED,
     UPLOADING,
     COMPLETE,
-    FAILED
+    FAILED,
+    INSERT_FAILED
   }
 
   public static final class AttachmentSelection {
@@ -222,6 +223,7 @@ public final class J2clAttachmentComposerController {
   }
 
   public void pasteImage(Object imagePayload, String caption, DisplaySize displaySize) {
+    // Keep the browser payload opaque here; Task 5's Lit wiring owns the File/Blob boundary.
     AttachmentSelection selection =
         AttachmentSelection.pastedImage(imagePayload, caption, displaySize);
     queue.add(
@@ -293,15 +295,24 @@ public final class J2clAttachmentComposerController {
 
   private void handleUploadComplete(
       int generation, QueueItem item, J2clAttachmentUploadClient.UploadResult result) {
-    if (generation != resetGeneration || !queue.contains(item)) {
+    if (generation != resetGeneration) {
       return;
     }
     uploadInProgress = false;
     try {
       if (result != null && result.isSuccess()) {
-        item.status = UploadStatus.COMPLETE;
-        item.progressPercent = 100;
-        insertAttachment(item);
+        try {
+          insertAttachment(item);
+          item.status = UploadStatus.COMPLETE;
+          item.progressPercent = 100;
+        } catch (RuntimeException e) {
+          item.status = UploadStatus.INSERT_FAILED;
+          item.progressPercent = 100;
+          item.errorCode = "INSERTION";
+          item.errorMessage =
+              e.getMessage() == null ? "Attachment insertion failed." : e.getMessage();
+          throw e;
+        }
       } else {
         item.status = UploadStatus.FAILED;
         J2clAttachmentUploadClient.ErrorType errorType =
