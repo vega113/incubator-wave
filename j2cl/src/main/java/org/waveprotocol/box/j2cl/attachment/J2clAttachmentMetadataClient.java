@@ -91,8 +91,7 @@ public final class J2clAttachmentMetadataClient {
           ErrorType.HTTP_STATUS,
           "HTTP " + response.getStatusCode() + " while fetching attachment metadata.");
     }
-    if (response.getContentType() == null
-        || !response.getContentType().toLowerCase(Locale.ROOT).startsWith("application/json")) {
+    if (!isJsonContentType(response.getContentType())) {
       return MetadataResult.failure(
           ErrorType.UNEXPECTED_CONTENT_TYPE,
           "Attachment metadata endpoint did not return JSON.");
@@ -106,6 +105,14 @@ public final class J2clAttachmentMetadataClient {
               ? "Unable to parse attachment metadata."
               : e.getMessage());
     }
+  }
+
+  private static boolean isJsonContentType(String contentType) {
+    if (contentType == null) {
+      return false;
+    }
+    String mediaType = contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+    return "application/json".equals(mediaType);
   }
 
   private static MetadataResult parseMetadataResult(List<String> requestedIds, String json) {
@@ -222,6 +229,10 @@ public final class J2clAttachmentMetadataClient {
       return requireIntegralLong((Number) value, key);
     }
     List<Object> words = asList(value);
+    if (words.size() != 2) {
+      throw new IllegalArgumentException(
+          "Expected two-word attachment metadata field " + key + ".");
+    }
     int lowWord = getIntValue(words.get(0), key + "[0]");
     int highWord = getIntValue(words.get(1), key + "[1]");
     return (((long) highWord) << 32) | (lowWord & 0xffffffffL);
