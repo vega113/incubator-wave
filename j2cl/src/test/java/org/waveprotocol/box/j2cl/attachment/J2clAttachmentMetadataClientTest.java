@@ -271,6 +271,23 @@ public class J2clAttachmentMetadataClientTest {
   }
 
   @Test
+  public void nearJsonContentTypeReturnsTypedErrorWithoutParsing() {
+    FakeMetadataTransport transport = new FakeMetadataTransport();
+    J2clAttachmentMetadataClient client = new J2clAttachmentMetadataClient(transport);
+    RecordingMetadataCallback callback = new RecordingMetadataCallback();
+
+    client.fetchMetadata(Arrays.asList("a+1"), callback);
+    transport.complete(
+        new J2clAttachmentMetadataClient.HttpResponse(
+            200, "application/jsonp", "{\"1\":[]}", null));
+
+    Assert.assertFalse(callback.result.isSuccess());
+    Assert.assertEquals(
+        J2clAttachmentMetadataClient.ErrorType.UNEXPECTED_CONTENT_TYPE,
+        callback.result.getErrorType());
+  }
+
+  @Test
   public void malformedJsonReturnsTypedParseErrorWithoutThrowing() {
     FakeMetadataTransport transport = new FakeMetadataTransport();
     J2clAttachmentMetadataClient client = new J2clAttachmentMetadataClient(transport);
@@ -336,6 +353,27 @@ public class J2clAttachmentMetadataClientTest {
             "application/json",
             "{\"1\":[{\"1\":\"a+1\",\"2\":\"wave/ref\",\"3\":\"doc.txt\","
                 + "\"4\":\"text/plain\",\"5\":[1],\"6\":\"alice@example.com\","
+                + "\"7\":\"/attachment/a+1\",\"8\":\"/thumbnail/a+1\"}]}",
+            null));
+
+    Assert.assertFalse(callback.result.isSuccess());
+    Assert.assertEquals(
+        J2clAttachmentMetadataClient.ErrorType.PARSE_ERROR, callback.result.getErrorType());
+  }
+
+  @Test
+  public void extraLongWordsReturnTypedParseError() {
+    FakeMetadataTransport transport = new FakeMetadataTransport();
+    J2clAttachmentMetadataClient client = new J2clAttachmentMetadataClient(transport);
+    RecordingMetadataCallback callback = new RecordingMetadataCallback();
+
+    client.fetchMetadata(Arrays.asList("a+1"), callback);
+    transport.complete(
+        new J2clAttachmentMetadataClient.HttpResponse(
+            200,
+            "application/json",
+            "{\"1\":[{\"1\":\"a+1\",\"2\":\"wave/ref\",\"3\":\"doc.txt\","
+                + "\"4\":\"text/plain\",\"5\":[1,2,3],\"6\":\"alice@example.com\","
                 + "\"7\":\"/attachment/a+1\",\"8\":\"/thumbnail/a+1\"}]}",
             null));
 
