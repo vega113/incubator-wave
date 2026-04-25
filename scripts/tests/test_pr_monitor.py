@@ -1,8 +1,12 @@
+import io
 import pathlib
 import subprocess
 import unittest
+from contextlib import redirect_stderr
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
+from scripts.pr_monitor import EXIT_POLLER_FATAL
 from scripts.pr_monitor import LauncherConfig
 from scripts.pr_monitor import build_codex_command
 from scripts.pr_monitor import build_monitor_paths
@@ -14,6 +18,7 @@ from scripts.pr_monitor import classify_pr_snapshot
 from scripts.pr_monitor import list_window_panes
 from scripts.pr_monitor import parse_args
 from scripts.pr_monitor import render_prompt
+from scripts.pr_monitor import wait_for_actionable_pr_state
 
 
 class PrMonitorTest(unittest.TestCase):
@@ -82,10 +87,30 @@ class PrMonitorTest(unittest.TestCase):
         self.assertIn("Codex failed; waiting", script)
         self.assertIn('if [ "$exit_code" -ne 0 ]; then', script)
         self.assertIn("sleep \"$RESTART_DELAY_SECONDS\"", script)
+        self.assertIn("GitHub state poller hit a fatal error", script)
         self.assertLess(
-            script.index("wait_for_actionable_or_done"),
+            script.index("  wait_for_actionable_or_done\n"),
             script.index("Starting Codex monitor attempt"),
         )
+
+    def test_wait_for_actionable_returns_fatal_after_repeated_poll_errors(self) -> None:
+        with (
+            patch(
+                "scripts.pr_monitor.fetch_pr_snapshot",
+                side_effect=RuntimeError("bad gh auth"),
+            ) as fetch_snapshot,
+            patch("scripts.pr_monitor.time.sleep"),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(io.StringIO()),
+        ):
+            exit_code = wait_for_actionable_pr_state(
+                "vega113/supawave",
+                405,
+                poll_delay_seconds=1,
+            )
+
+        self.assertEqual(EXIT_POLLER_FATAL, exit_code)
+        self.assertEqual(5, fetch_snapshot.call_count)
 
     def test_classify_pr_snapshot_treats_pending_checks_as_idle(self) -> None:
         decision = classify_pr_snapshot(

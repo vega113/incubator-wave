@@ -21,6 +21,8 @@ DEFAULT_REASONING = "high"
 EXIT_ACTIONABLE = 0
 EXIT_MERGED = 10
 EXIT_CLOSED = 11
+EXIT_POLLER_FATAL = 12
+POLL_FAILURE_FATAL_THRESHOLD = 5
 REVIEW_GATE_CHECK_NAMES = {"Codex Review Gate", "PR Review Gate"}
 REVIEW_GATE_WORKFLOW = "Codex Review Gate"
 
@@ -366,11 +368,21 @@ def wait_for_actionable_pr_state(
     pr_number: int,
     poll_delay_seconds: int,
 ) -> int:
+    consecutive_failures = 0
     while True:
         try:
             pr, checks, unresolved_review_threads = fetch_pr_snapshot(repo, pr_number)
             decision = classify_pr_snapshot(pr, checks, unresolved_review_threads)
         except Exception as exc:
+            consecutive_failures += 1
+            if consecutive_failures >= POLL_FAILURE_FATAL_THRESHOLD:
+                print(
+                    f"[{_timestamp()}] GitHub polling failed {consecutive_failures} "
+                    f"times without Codex tokens: {exc}. Stopping monitor lane.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return EXIT_POLLER_FATAL
             print(
                 f"[{_timestamp()}] Unable to inspect GitHub state without Codex tokens: {exc}. "
                 f"Retrying in {poll_delay_seconds}s.",
@@ -378,6 +390,7 @@ def wait_for_actionable_pr_state(
             )
             time.sleep(poll_delay_seconds)
             continue
+        consecutive_failures = 0
 
         if decision.state == "idle":
             print(
@@ -433,7 +446,7 @@ resolve_monitor_script_path() {{
 }}
 
 wait_for_actionable_or_done() {{
-  monitor_script="$(resolve_monitor_script_path)"
+  monitor_script="$(resolve_monitor_script_path)" || return {EXIT_POLLER_FATAL}
   python3 "$monitor_script" wait-for-actionable \\
     --repo "$REPO" \\
     --pr-number "$PR_NUMBER" \\
@@ -455,6 +468,10 @@ while true; do
   if [ "$wait_exit" -eq {EXIT_CLOSED} ]; then
     printf '[%s] PR closed without merge; treating monitor as blocked.\\n' "$(print_timestamp)"
     exit 0
+  fi
+  if [ "$wait_exit" -eq {EXIT_POLLER_FATAL} ]; then
+    printf '[%s] GitHub state poller hit a fatal error; stopping lane.\\n' "$(print_timestamp)"
+    exit 1
   fi
   if [ "$wait_exit" -ne 0 ]; then
     printf '[%s] GitHub state poller exited with code %s. Retrying in %ss.\\n' "$(print_timestamp)" "$wait_exit" "$RESTART_DELAY_SECONDS"
