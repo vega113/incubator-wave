@@ -299,17 +299,28 @@ public final class J2clAttachmentComposerController {
         };
     J2clAttachmentUploadClient.UploadCallback uploadCallback =
         result -> handleUploadComplete(generation, item, result);
-    if (item.pastedImage) {
-      uploadClient.uploadPastedImage(
-          item.attachmentId, waveRef, item.payload, progressCallback, uploadCallback);
-    } else {
-      uploadClient.uploadFile(
-          item.attachmentId,
-          waveRef,
-          item.payload,
-          item.fileName,
-          progressCallback,
-          uploadCallback);
+    try {
+      if (item.pastedImage) {
+        uploadClient.uploadPastedImage(
+            item.attachmentId, waveRef, item.payload, progressCallback, uploadCallback);
+      } else {
+        uploadClient.uploadFile(
+            item.attachmentId,
+            waveRef,
+            item.payload,
+            item.fileName,
+            progressCallback,
+            uploadCallback);
+      }
+    } catch (RuntimeException e) {
+      handleUploadComplete(
+          generation,
+          item,
+          J2clAttachmentUploadClient.UploadResult.failure(
+              J2clAttachmentUploadClient.ErrorType.NETWORK,
+              e.getMessage() == null
+                  ? "Attachment upload failed before the request was sent."
+                  : e.getMessage()));
     }
   }
 

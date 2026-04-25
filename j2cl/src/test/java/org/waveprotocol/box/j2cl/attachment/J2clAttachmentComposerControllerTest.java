@@ -388,6 +388,42 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void synchronousFileUploadStartFailureMarksFailedAndStartsNextQueuedItem() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    transport.failNextPost(new IllegalStateException("transport unavailable"));
+    J2clAttachmentComposerController controller =
+        newController(transport, new RecordingInsertionCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL),
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "second.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    Assert.assertEquals(1, transport.requests.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals(
+        J2clAttachmentUploadClient.ErrorType.NETWORK.name(),
+        controller.getQueueSnapshot().get(0).getErrorCode());
+    Assert.assertEquals(
+        "transport unavailable",
+        controller.getQueueSnapshot().get(0).getErrorMessage());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.UPLOADING,
+        controller.getQueueSnapshot().get(1).getStatus());
+    Assert.assertEquals("/attachment/example.com/seedB", transport.requests.get(0).getUrl());
+  }
+
+  @Test
   public void failedUploadStartsNextQueuedItem() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =
@@ -1160,6 +1196,31 @@ public class J2clAttachmentComposerControllerTest {
         controller.getQueueSnapshot().get(0).getErrorCode());
   }
 
+  @Test
+  public void synchronousPastedImageUploadStartFailureMarksFailed() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    transport.failNextPost(new IllegalStateException("transport unavailable"));
+    RecordingInsertionCallback insertionCallback = new RecordingInsertionCallback();
+    J2clAttachmentComposerController controller = newController(transport, insertionCallback);
+
+    controller.pasteImage(
+        new Object(),
+        "paste caption",
+        J2clAttachmentComposerController.DisplaySize.MEDIUM);
+
+    Assert.assertTrue(transport.requests.isEmpty());
+    Assert.assertTrue(insertionCallback.insertions.isEmpty());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals(
+        J2clAttachmentUploadClient.ErrorType.NETWORK.name(),
+        controller.getQueueSnapshot().get(0).getErrorCode());
+    Assert.assertEquals(
+        "transport unavailable",
+        controller.getQueueSnapshot().get(0).getErrorMessage());
+  }
+
   private static void assertInvalidFileSelection(
       Object payload,
       String fileName,
@@ -1215,13 +1276,23 @@ public class J2clAttachmentComposerControllerTest {
         new ArrayList<J2clAttachmentUploadClient.MultipartUploadRequest>();
     private final List<J2clAttachmentUploadClient.ResponseHandler> handlers =
         new ArrayList<J2clAttachmentUploadClient.ResponseHandler>();
+    private RuntimeException nextPostFailure;
 
     @Override
     public void post(
         J2clAttachmentUploadClient.MultipartUploadRequest request,
         J2clAttachmentUploadClient.ResponseHandler handler) {
+      if (nextPostFailure != null) {
+        RuntimeException failure = nextPostFailure;
+        nextPostFailure = null;
+        throw failure;
+      }
       requests.add(request);
       handlers.add(handler);
+    }
+
+    void failNextPost(RuntimeException failure) {
+      nextPostFailure = failure;
     }
 
     void complete(int index, J2clAttachmentUploadClient.HttpResponse response) {
