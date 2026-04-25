@@ -451,6 +451,38 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void synchronousUploadStartFailureContinuesInlineDrain() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    transport.failNextPost(new IllegalStateException("transport unavailable"));
+    transport.completePostsInline(new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    RecordingInsertionCallback insertionCallback = new RecordingInsertionCallback();
+    J2clAttachmentComposerController controller = newController(transport, insertionCallback);
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL),
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "second.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    Assert.assertEquals(1, transport.requests.size());
+    Assert.assertEquals(1, insertionCallback.insertions.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
+        controller.getQueueSnapshot().get(1).getStatus());
+    Assert.assertEquals(1, transport.maxPostDepth);
+  }
+
+  @Test
   public void failedUploadStartsNextQueuedItem() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =
@@ -804,6 +836,31 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void reentrantSelectionDuringSynchronousDrainStartsAfterCurrentPostReturns() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    transport.completePostsInline(new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    ReentrantSelectingInsertionCallback insertionCallback =
+        new ReentrantSelectingInsertionCallback();
+    J2clAttachmentComposerController controller = newController(transport, insertionCallback);
+    insertionCallback.setController(controller);
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    Assert.assertEquals(2, transport.requests.size());
+    Assert.assertEquals(2, insertionCallback.insertions.size());
+    Assert.assertEquals(1, transport.maxPostDepth);
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
+        controller.getQueueSnapshot().get(1).getStatus());
+  }
+
+  @Test
   public void reentrantPasteFromInsertionCallbackStartsSingleNextUpload() {
     FakeUploadTransport transport = new FakeUploadTransport();
     ReentrantPastingInsertionCallback insertionCallback = new ReentrantPastingInsertionCallback();
@@ -937,6 +994,33 @@ public class J2clAttachmentComposerControllerTest {
     Assert.assertEquals(
         J2clAttachmentComposerController.UploadStatus.UPLOADING,
         controller.getQueueSnapshot().get(0).getStatus());
+  }
+
+  @Test
+  public void cancelResetDuringSynchronousDrainClearsQueueAndStopsDrain() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    transport.completePostsInline(new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    CancelingInsertionCallback insertionCallback = new CancelingInsertionCallback();
+    J2clAttachmentComposerController controller = newController(transport, insertionCallback);
+    insertionCallback.setController(controller);
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL),
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "second.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    Assert.assertEquals(1, insertionCallback.insertCalls);
+    Assert.assertTrue(controller.getQueueSnapshot().isEmpty());
+    Assert.assertEquals(1, transport.requests.size());
+    Assert.assertEquals(1, transport.maxPostDepth);
   }
 
   @Test
@@ -1303,6 +1387,7 @@ public class J2clAttachmentComposerControllerTest {
         new ArrayList<J2clAttachmentUploadClient.MultipartUploadRequest>();
     private final List<J2clAttachmentUploadClient.ResponseHandler> handlers =
         new ArrayList<J2clAttachmentUploadClient.ResponseHandler>();
+    // When set, post() completes uploads before returning to simulate browser/client fakes.
     private J2clAttachmentUploadClient.HttpResponse inlineResponse;
     private RuntimeException nextPostFailure;
     private int postDepth;

@@ -216,6 +216,7 @@ public final class J2clAttachmentComposerController {
   // explicit clear; this keeps status/error reporting available to the Lit wiring task.
   private final List<QueueItem> queue = new ArrayList<QueueItem>();
   private boolean uploadInProgress;
+  // True while startNextUpload is iterating; suppresses re-entrant recursive dispatch.
   private boolean drainingQueue;
   // Cursor avoids rescanning terminal items retained for status/error display.
   private int nextQueueIndex;
@@ -290,7 +291,7 @@ public final class J2clAttachmentComposerController {
       while (!uploadInProgress) {
         QueueItem item = firstQueuedItem();
         if (item == null) {
-          return;
+          break;
         }
         startUpload(item);
       }
