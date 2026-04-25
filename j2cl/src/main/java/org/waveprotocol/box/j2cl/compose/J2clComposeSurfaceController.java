@@ -1080,7 +1080,7 @@ public final class J2clComposeSurfaceController {
               .field("commandId", action.id())
               .field("result", result)
               .build());
-    } catch (Throwable ignored) {
+    } catch (Exception ignored) {
       // Telemetry must never affect composer editing behavior.
     }
   }
