@@ -202,6 +202,13 @@ public final class J2clToolbarSurfaceController {
     addEdit(actions, J2clDailyToolbarAction.LINK);
     addEdit(actions, J2clDailyToolbarAction.UNLINK);
     addEdit(actions, J2clDailyToolbarAction.CLEAR_FORMATTING);
+    addEdit(actions, J2clDailyToolbarAction.ATTACHMENT_INSERT);
+    addEdit(actions, J2clDailyToolbarAction.ATTACHMENT_UPLOAD_QUEUE);
+    addEdit(actions, J2clDailyToolbarAction.ATTACHMENT_CANCEL);
+    addEdit(actions, J2clDailyToolbarAction.ATTACHMENT_PASTE_IMAGE);
+    addEdit(actions, J2clDailyToolbarAction.ATTACHMENT_SIZE_SMALL);
+    addEdit(actions, J2clDailyToolbarAction.ATTACHMENT_SIZE_MEDIUM);
+    addEdit(actions, J2clDailyToolbarAction.ATTACHMENT_SIZE_LARGE);
   }
 
   private void addEdit(

@@ -246,6 +246,21 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void constructorRejectsNullStateChangeCallback() {
+    try {
+      new J2clAttachmentComposerController(
+          WAVE_REF,
+          new J2clAttachmentUploadClient(new FakeUploadTransport()),
+          new J2clAttachmentIdGenerator("example.com", "seed"),
+          new RecordingInsertionCallback(),
+          null);
+      Assert.fail("Expected null state change callback to fail.");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("state change callback"));
+    }
+  }
+
+  @Test
   public void progressUpdatesActiveItemState() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =

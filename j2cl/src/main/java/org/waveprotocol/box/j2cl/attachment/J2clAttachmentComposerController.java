@@ -22,6 +22,10 @@ public final class J2clAttachmentComposerController {
     void onInsert(J2clComposerDocument document, AttachmentInsertion insertion);
   }
 
+  public interface StateChangeCallback {
+    void onStateChanged();
+  }
+
   public enum DisplaySize {
     SMALL("small"),
     MEDIUM("medium"),
@@ -212,6 +216,7 @@ public final class J2clAttachmentComposerController {
   private final J2clAttachmentUploadClient uploadClient;
   private final J2clAttachmentIdGenerator idGenerator;
   private final DocumentInsertionCallback insertionCallback;
+  private final StateChangeCallback stateChangeCallback;
   // Terminal items stay visible until the composer lifecycle calls cancelAndReset or a future
   // explicit clear; this keeps status/error reporting available to the Lit wiring task.
   private final List<QueueItem> queue = new ArrayList<QueueItem>();
@@ -228,11 +233,22 @@ public final class J2clAttachmentComposerController {
       J2clAttachmentUploadClient uploadClient,
       J2clAttachmentIdGenerator idGenerator,
       DocumentInsertionCallback insertionCallback) {
+    this(waveRef, uploadClient, idGenerator, insertionCallback, () -> {});
+  }
+
+  public J2clAttachmentComposerController(
+      String waveRef,
+      J2clAttachmentUploadClient uploadClient,
+      J2clAttachmentIdGenerator idGenerator,
+      DocumentInsertionCallback insertionCallback,
+      StateChangeCallback stateChangeCallback) {
     this.waveRef = requireNonEmpty(waveRef, "Wave ref is required.");
     this.uploadClient = requirePresent(uploadClient, "Attachment upload client is required.");
     this.idGenerator = requirePresent(idGenerator, "Attachment id generator is required.");
     this.insertionCallback =
         requirePresent(insertionCallback, "Attachment insertion callback is required.");
+    this.stateChangeCallback =
+        requirePresent(stateChangeCallback, "Attachment state change callback is required.");
   }
 
   public void selectFiles(List<AttachmentSelection> selections) {
@@ -281,6 +297,7 @@ public final class J2clAttachmentComposerController {
     uploadInProgress = false;
     nextQueueIndex = 0;
     queue.clear();
+    notifyStateChanged();
   }
 
   private void startNextUpload() {
@@ -304,11 +321,13 @@ public final class J2clAttachmentComposerController {
   private void startUpload(QueueItem item) {
     uploadInProgress = true;
     item.status = UploadStatus.UPLOADING;
+    notifyStateChanged();
     int generation = resetGeneration;
     J2clAttachmentUploadClient.UploadProgressCallback progressCallback =
         percent -> {
           if (generation == resetGeneration && item.status == UploadStatus.UPLOADING) {
             item.progressPercent = clampPercent(percent);
+            notifyStateChanged();
           }
         };
     J2clAttachmentUploadClient.UploadCallback uploadCallback =
@@ -381,6 +400,7 @@ public final class J2clAttachmentComposerController {
       }
     } finally {
       item.payload = null;
+      notifyStateChanged();
       // Synchronous upload completions are drained by the active loop to avoid recursive dispatch.
       if (!drainingQueue) {
         startNextUpload();
@@ -399,6 +419,10 @@ public final class J2clAttachmentComposerController {
                 insertion.getDisplaySize().getDocumentValue())
             .build();
     insertionCallback.onInsert(document, insertion);
+  }
+
+  private void notifyStateChanged() {
+    stateChangeCallback.onStateChanged();
   }
 
   private static String requireNonEmpty(String value, String message) {

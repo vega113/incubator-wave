@@ -6,9 +6,13 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentComposerController;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentIdGenerator;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentUploadClient;
 import org.waveprotocol.box.j2cl.search.J2clPlainTextDeltaFactory;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelController;
 import org.waveprotocol.box.j2cl.search.J2clSidecarWriteSession;
+import org.waveprotocol.box.j2cl.toolbar.J2clDailyToolbarAction;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitResponse;
@@ -477,6 +481,983 @@ public class J2clComposeSurfaceControllerTest {
   }
 
   @Test
+  public void toolbarBoldCommandEmitsStructuredRichReplyAnnotation() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    List<String> refreshed = new ArrayList<String>();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            refreshed::add);
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+    Assert.assertEquals("bold", view.model.getActiveCommandId());
+    Assert.assertEquals("Bold applied to the current draft.", view.model.getCommandStatusText());
+    controller.onReplySubmitted("Bold reply");
+
+    Assert.assertEquals(Arrays.asList("example.com/w+1"), refreshed);
+    assertContains(
+        gateway.lastSubmitRequest.getDeltaJson(),
+        "{\"1\":{\"3\":[{\"1\":\"fontWeight\",\"3\":\"bold\"}]}}",
+        "\"2\":\"Bold reply\"",
+        "{\"1\":{\"2\":[\"fontWeight\"]}}");
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+  }
+
+  @Test
+  public void toolbarRichCommandTogglesOffBeforeSubmit() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    controller.onReplySubmitted("Plain reply");
+
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertFalse(gateway.lastSubmitRequest.getDeltaJson().contains("fontWeight"));
+  }
+
+  @Test
+  public void clearFormattingCommandRemovesStructuredInlineAnnotation() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onToolbarAction(J2clDailyToolbarAction.BOLD);
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.CLEAR_FORMATTING));
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("Formatting cleared.", view.model.getCommandStatusText());
+    controller.onReplySubmitted("Plain reply");
+
+    Assert.assertFalse(gateway.lastSubmitRequest.getDeltaJson().contains("fontWeight"));
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+  }
+
+  @Test
+  public void unsupportedRichToolbarActionFallsBackToToolbarUnavailable() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+
+    Assert.assertFalse(controller.onToolbarAction(J2clDailyToolbarAction.HEADING_H1));
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+    Assert.assertEquals("", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void unsupportedToolbarActionFallsBackEvenBeforeWaveIsOpen() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+
+    Assert.assertFalse(controller.onToolbarAction(J2clDailyToolbarAction.HEADING_H1));
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void unsupportedToolbarActionDoesNotClearExistingCommandError() {
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onPastedImage(new Object());
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(202, "accepted", null));
+    String existingError = view.model.getCommandErrorText();
+
+    Assert.assertFalse(controller.onToolbarAction(J2clDailyToolbarAction.HEADING_H1));
+
+    Assert.assertEquals(existingError, view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void inlineRichToolbarActionRequiresSelectedWave() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+    Assert.assertEquals(
+        "Open a wave before using rich-edit toolbar actions.", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void signedOutToolbarActionShowsNeutralToolbarCopy() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onSignedOut();
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_INSERT));
+
+    Assert.assertEquals("Sign in before using toolbar actions.", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void attachmentToolbarCommandDoesNotPretendToInsertWithoutSelection() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_INSERT));
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+    controller.onReplySubmitted("Attach later");
+
+    Assert.assertFalse(gateway.lastSubmitRequest.getDeltaJson().contains("\"1\":\"image\""));
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+  }
+
+  @Test
+  public void pastedImageRequiresSelectedWave() {
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onPastedImage(new Object());
+
+    Assert.assertTrue(transport.requests.isEmpty());
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("Open a wave before pasting an image.", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void selectedAttachmentRequiresSelectedWaveWithoutLeavingActiveCommand() {
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "now.png")));
+
+    Assert.assertTrue(transport.requests.isEmpty());
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("Open a wave before attaching files.", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void attachmentInsertRequiresSelectedWaveWithoutLeavingActiveCommand() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_INSERT));
+
+    Assert.assertEquals(0, view.openAttachmentPickerCalls);
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("Open a wave before attaching files.", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void nonSurfacedAttachmentToolbarIdsFallBackToToolbarUnavailable() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+
+    Assert.assertFalse(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_CAPTION));
+    Assert.assertFalse(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_OPEN));
+    Assert.assertFalse(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_DOWNLOAD));
+  }
+
+  @Test
+  public void nonSurfacedAttachmentToolbarIdsDoNotClearExistingCommandError() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onPastedImage(null);
+    String existingError = view.model.getCommandErrorText();
+
+    Assert.assertFalse(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_OPEN));
+
+    Assert.assertEquals(existingError, view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void nullPastedImageShowsAttachmentErrorWithoutStartingUpload() {
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onPastedImage(null);
+
+    Assert.assertTrue(transport.requests.isEmpty());
+    Assert.assertEquals("attachment-error-state", view.model.getActiveCommandId());
+    Assert.assertEquals("Pasted image payload is required.", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void attachmentInsertToolbarOpensPickerAndRestoresReplyFocus() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_INSERT));
+
+    Assert.assertEquals(1, view.openAttachmentPickerCalls);
+    Assert.assertEquals(1, view.focusReplyComposerCalls);
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+  }
+
+  @Test
+  public void emptyAttachmentSelectionStaysQuietAfterPickerCancel() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_INSERT);
+    controller.onAttachmentFilesSelected(
+        new ArrayList<J2clComposeSurfaceController.AttachmentFileSelection>());
+
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+    Assert.assertEquals("", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void emptyAttachmentSelectionClearsExistingCommandError() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onPastedImage(null);
+    Assert.assertFalse(view.model.getCommandErrorText().isEmpty());
+
+    controller.onAttachmentFilesSelected(
+        new ArrayList<J2clComposeSurfaceController.AttachmentFileSelection>());
+
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+    Assert.assertEquals("", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void attachmentToolbarInsertIsBlockedWhileReplyIsSubmitting() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_INSERT));
+
+    Assert.assertEquals(0, view.openAttachmentPickerCalls);
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals(
+        "Wait for the current reply to finish before attaching files.",
+        view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void attachmentSizeCanChangeWhileReplyIsSubmitting() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_SIZE_LARGE));
+
+    Assert.assertEquals("attachment-size-large", view.model.getActiveCommandId());
+    Assert.assertEquals("Large attachment size selected.", view.model.getCommandStatusText());
+    Assert.assertEquals("", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void selectedAttachmentIsBlockedWhileReplyIsSubmitting() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "busy.png")));
+
+    Assert.assertTrue(transport.requests.isEmpty());
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals(
+        "Wait for the current reply to finish before attaching files.",
+        view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void pastedImageIsBlockedWhileReplyIsSubmitting() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Draft");
+    controller.onPastedImage(new Object());
+
+    Assert.assertTrue(transport.requests.isEmpty());
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals(
+        "Wait for the current reply to finish before attaching files.",
+        view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void pasteImageToolbarActionDocumentsPasteHintAndRestoresFocus() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(new FakeAttachmentTransport()),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_PASTE_IMAGE));
+
+    Assert.assertEquals("attachment-paste-image", view.model.getActiveCommandId());
+    Assert.assertEquals("Paste an image into the reply box.", view.model.getCommandStatusText());
+    Assert.assertEquals(1, view.focusReplyComposerCalls);
+  }
+
+  @Test
+  public void clearFormattingPreservesActiveUploadStatusPriority() {
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "busy.png")));
+
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.CLEAR_FORMATTING));
+
+    Assert.assertEquals("attachment-upload-queue", view.model.getActiveCommandId());
+    Assert.assertEquals("Uploading busy.png (0%).", view.model.getCommandStatusText());
+  }
+
+  @Test
+  public void selectedAttachmentUploadsAndSubmitsStructuredReplyContent() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    List<String> refreshed = new ArrayList<String>();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            refreshed::add);
+    Object payload = new Object();
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_SIZE_LARGE);
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(payload, "diagram.png")));
+
+    Assert.assertEquals(1, transport.requests.size());
+    Assert.assertEquals("/attachment/example.com/seedA", transport.requests.get(0).getUrl());
+    Assert.assertSame(payload, transport.requests.get(0).getPart(2).getPayload());
+    Assert.assertEquals("Uploading diagram.png (0%).", view.model.getCommandStatusText());
+
+    transport.requests.get(0).getProgressCallback().onProgress(37);
+
+    Assert.assertEquals("Uploading diagram.png (37%).", view.model.getCommandStatusText());
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals(Arrays.asList("example.com/w+1"), refreshed);
+    assertContains(
+        gateway.lastSubmitRequest.getDeltaJson(),
+        "{\"1\":\"attachment\",\"2\":\"example.com/seedA\"}",
+        "{\"1\":\"display-size\",\"2\":\"large\"}",
+        "\"2\":\"diagram.png\"");
+    Assert.assertEquals("", view.model.getActiveCommandId());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+  }
+
+  @Test
+  public void replySubmitWaitsForInFlightAttachmentUploadBeforeBuildingRequest() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "late.png")));
+
+    controller.onReplySubmitted("Draft with late file");
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertFalse(view.model.isReplySubmitting());
+    Assert.assertEquals(
+        "Wait for attachment uploads to finish before replying.", view.model.getReplyErrorText());
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    controller.onReplySubmitted("Draft with late file");
+
+    Assert.assertEquals(1, gateway.submitCalls);
+    assertContains(
+        gateway.lastSubmitRequest.getDeltaJson(),
+        "{\"1\":\"attachment\",\"2\":\"example.com/seedA\"}",
+        "\"2\":\"late.png\"");
+  }
+
+  @Test
+  public void submitWaitThenCancelFallsBackToEmptyReplyGuard() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "cancel.png")));
+    controller.onReplySubmitted("");
+    Assert.assertEquals(
+        "Wait for attachment uploads to finish before replying.", view.model.getReplyErrorText());
+
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_CANCEL));
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertEquals("Enter text or attach a file before replying.", view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void blankAttachmentFileNameFallsBackToGenericCaption() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "   ")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    controller.onReplySubmitted("");
+
+    assertContains(gateway.lastSubmitRequest.getDeltaJson(), "\"2\":\"attachment\"");
+  }
+
+  @Test
+  public void waveChangeResetsAttachmentDisplaySizeToMedium() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_SIZE_LARGE);
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 50L, "BCDE", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "medium.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    controller.onReplySubmitted("");
+
+    assertContains(gateway.lastSubmitRequest.getDeltaJson(), "{\"1\":\"display-size\",\"2\":\"medium\"}");
+  }
+
+  @Test
+  public void pastedImageFailureShowsAttachmentErrorAndDoesNotSubmitEmptyReply() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onPastedImage(new Object());
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(202, "accepted", null));
+
+    Assert.assertEquals("attachment-error-state", view.model.getActiveCommandId());
+    Assert.assertTrue(view.model.getCommandErrorText().contains("pasted-image.png"));
+    Assert.assertTrue(view.model.getCommandErrorText().contains("unexpected HTTP 202"));
+
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertEquals("Enter text or attach a file before replying.", view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void latestAttachmentFailureIsSurfacedWhenFailuresAccumulate() {
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "first.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(500, "first", null));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "second.png")));
+    transport.complete(1, new J2clAttachmentUploadClient.HttpResponse(500, "second", null));
+
+    Assert.assertTrue(view.model.getCommandErrorText().contains("second.png"));
+  }
+
+  @Test
+  public void failedReplyPreservesUploadedAttachmentForRetry() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.submitResponse = new SidecarSubmitResponse(1, "conflict", 45L);
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "retry.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals("conflict", view.model.getReplyErrorText());
+    Assert.assertEquals("", view.model.getCommandStatusText());
+    Assert.assertEquals(1, gateway.submitCalls);
+
+    gateway.submitResponse = new SidecarSubmitResponse(1, "", 46L);
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals(2, gateway.submitCalls);
+    assertContains(
+        gateway.lastSubmitRequest.getDeltaJson(),
+        "{\"1\":\"attachment\",\"2\":\"example.com/seedA\"}",
+        "\"2\":\"retry.png\"");
+  }
+
+  @Test
+  public void cancelAttachmentToolbarActionClearsUploadQueueState() {
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            new FakeGateway(),
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "cancel.png")));
+    Assert.assertEquals("Uploading cancel.png (0%).", view.model.getCommandStatusText());
+
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_CANCEL));
+
+    Assert.assertEquals("attachment-cancel", view.model.getActiveCommandId());
+    Assert.assertEquals("Attachment upload queue cancelled.", view.model.getCommandStatusText());
+    Assert.assertEquals("", view.model.getCommandErrorText());
+  }
+
+  @Test
+  public void cancelAttachmentToolbarActionKeepsAlreadyInsertedAttachments() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "kept.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_CANCEL));
+    Assert.assertEquals("Pending uploads cancelled. Attached files kept.", view.model.getCommandStatusText());
+    controller.onReplySubmitted("");
+
+    assertContains(
+        gateway.lastSubmitRequest.getDeltaJson(),
+        "{\"1\":\"attachment\",\"2\":\"example.com/seedA\"}",
+        "\"2\":\"kept.png\"");
+  }
+
+  @Test
+  public void lateAttachmentCompletionAfterCancelIsIgnored() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "late.png")));
+    controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_CANCEL);
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertEquals("Enter text or attach a file before replying.", view.model.getReplyErrorText());
+  }
+
+  @Test
+  public void signOutMidAttachmentUploadIgnoresLateCompletion() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "signout.png")));
+    controller.onSignedOut();
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertFalse(view.model.isReplyAvailable());
+  }
+
+  @Test
+  public void waveChangeMidAttachmentUploadIgnoresLateCompletionForNewWave() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    FakeAttachmentTransport transport = new FakeAttachmentTransport();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            testAttachmentControllerFactory(transport),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onAttachmentFilesSelected(
+        Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "old.png")));
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+2", "chan-2", 50L, "BCDE", "b+root"));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    controller.onReplySubmitted("");
+
+    Assert.assertEquals(0, gateway.submitCalls);
+    Assert.assertEquals("Enter text or attach a file before replying.", view.model.getReplyErrorText());
+  }
+
+  @Test
   public void signedOutMidFlightCreateAbandonsPendingCallback() {
     FakeGateway gateway = new FakeGateway();
     gateway.autoResolveBootstrap = false;
@@ -568,12 +1549,32 @@ public class J2clComposeSurfaceControllerTest {
         gateway, view, factory, created::add, refreshed::add);
   }
 
+  private static J2clComposeSurfaceController.AttachmentControllerFactory
+      testAttachmentControllerFactory(FakeAttachmentTransport transport) {
+    return (waveRef, domain, insertionCallback, stateChangeCallback) ->
+        new J2clAttachmentComposerController(
+            waveRef,
+            new J2clAttachmentUploadClient(transport),
+            new J2clAttachmentIdGenerator(domain, "seed"),
+            insertionCallback,
+            stateChangeCallback);
+  }
+
+  private static void assertContains(String value, String... expectedSubstrings) {
+    for (String expectedSubstring : expectedSubstrings) {
+      Assert.assertTrue(
+          "Expected to find <" + expectedSubstring + "> in <" + value + ">",
+          value.contains(expectedSubstring));
+    }
+  }
+
   private static final class FakeGateway implements J2clComposeSurfaceController.Gateway {
     private int fetchBootstrapCalls;
     private int submitCalls;
     private boolean autoResolveBootstrap = true;
     private String bootstrapError;
     private SidecarSubmitResponse submitResponse = new SidecarSubmitResponse(1, "", 45L);
+    private SidecarSubmitRequest lastSubmitRequest;
     private J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> pendingBootstrapSuccess;
     private J2clSearchPanelController.ErrorCallback pendingBootstrapError;
 
@@ -601,6 +1602,7 @@ public class J2clComposeSurfaceControllerTest {
         J2clSearchPanelController.SuccessCallback<SidecarSubmitResponse> onSuccess,
         J2clSearchPanelController.ErrorCallback onError) {
       submitCalls++;
+      lastSubmitRequest = request;
       onSuccess.accept(submitResponse);
     }
 
@@ -618,6 +1620,8 @@ public class J2clComposeSurfaceControllerTest {
 
   private static final class FakeView implements J2clComposeSurfaceController.View {
     private J2clComposeSurfaceModel model;
+    private int openAttachmentPickerCalls;
+    private int focusReplyComposerCalls;
 
     @Override
     public void bind(J2clComposeSurfaceController.Listener listener) {
@@ -626,6 +1630,36 @@ public class J2clComposeSurfaceControllerTest {
     @Override
     public void render(J2clComposeSurfaceModel model) {
       this.model = model;
+    }
+
+    @Override
+    public void openAttachmentPicker() {
+      openAttachmentPickerCalls++;
+    }
+
+    @Override
+    public void focusReplyComposer() {
+      focusReplyComposerCalls++;
+    }
+  }
+
+  private static final class FakeAttachmentTransport
+      implements J2clAttachmentUploadClient.UploadTransport {
+    private final List<J2clAttachmentUploadClient.MultipartUploadRequest> requests =
+        new ArrayList<J2clAttachmentUploadClient.MultipartUploadRequest>();
+    private final List<J2clAttachmentUploadClient.ResponseHandler> handlers =
+        new ArrayList<J2clAttachmentUploadClient.ResponseHandler>();
+
+    @Override
+    public void post(
+        J2clAttachmentUploadClient.MultipartUploadRequest request,
+        J2clAttachmentUploadClient.ResponseHandler handler) {
+      requests.add(request);
+      handlers.add(handler);
+    }
+
+    void complete(int index, J2clAttachmentUploadClient.HttpResponse response) {
+      handlers.get(index).onResponse(response);
     }
   }
 

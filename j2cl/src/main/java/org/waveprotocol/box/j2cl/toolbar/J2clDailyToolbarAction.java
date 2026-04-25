@@ -18,6 +18,12 @@ public enum J2clDailyToolbarAction {
   UNDERLINE("underline", "Underline", "Edit", true, true),
   STRIKETHROUGH("strikethrough", "Strikethrough", "Edit", true, true),
   HEADING("heading", "Heading", "Edit", false, true),
+  // Stable IDs reserved for follow-up rich block controls; Task 5 does not surface them.
+  HEADING_DEFAULT("heading-default", "Default heading", "Edit", false, true),
+  HEADING_H1("heading-h1", "Heading 1", "Edit", false, true),
+  HEADING_H2("heading-h2", "Heading 2", "Edit", false, true),
+  HEADING_H3("heading-h3", "Heading 3", "Edit", false, true),
+  HEADING_H4("heading-h4", "Heading 4", "Edit", false, true),
   UNORDERED_LIST("unordered-list", "Bulleted list", "Edit", true, true),
   ORDERED_LIST("ordered-list", "Numbered list", "Edit", true, true),
   ALIGN_LEFT("align-left", "Align left", "Edit", true, true),
@@ -26,7 +32,20 @@ public enum J2clDailyToolbarAction {
   RTL("rtl", "Right-to-left", "Edit", true, true),
   LINK("link", "Create link", "Edit", false, true),
   UNLINK("unlink", "Remove link", "Edit", false, true),
-  CLEAR_FORMATTING("clear-formatting", "Clear formatting", "Edit", false, true);
+  CLEAR_FORMATTING("clear-formatting", "Clear formatting", "Edit", false, true),
+  INDENT("indent", "Indent", "Edit", false, true),
+  OUTDENT("outdent", "Outdent", "Edit", false, true),
+  ATTACHMENT_INSERT("attachment-insert", "Attach file", "Attachments", false, true),
+  ATTACHMENT_UPLOAD_QUEUE("attachment-upload-queue", "Upload queue", "Attachments", false, true),
+  ATTACHMENT_CANCEL("attachment-cancel", "Cancel upload", "Attachments", false, true),
+  ATTACHMENT_PASTE_IMAGE("attachment-paste-image", "Paste image", "Attachments", false, true),
+  // Stable IDs reserved for follow-up attachment controls; Task 5 does not surface them.
+  ATTACHMENT_CAPTION("attachment-caption", "Attachment caption", "Attachments", false, true),
+  ATTACHMENT_SIZE_SMALL("attachment-size-small", "Small attachment", "Attachments", false, true),
+  ATTACHMENT_SIZE_MEDIUM("attachment-size-medium", "Medium attachment", "Attachments", false, true),
+  ATTACHMENT_SIZE_LARGE("attachment-size-large", "Large attachment", "Attachments", false, true),
+  ATTACHMENT_OPEN("attachment-open", "Open attachment", "Attachments", false, true),
+  ATTACHMENT_DOWNLOAD("attachment-download", "Download attachment", "Attachments", false, true);
 
   private final String id;
   private final String label;
