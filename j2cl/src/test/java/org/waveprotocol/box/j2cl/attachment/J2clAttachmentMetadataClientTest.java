@@ -61,6 +61,21 @@ public class J2clAttachmentMetadataClientTest {
   }
 
   @Test
+  public void missingMetadataReportsTrimmedAttachmentId() {
+    FakeMetadataTransport transport = new FakeMetadataTransport();
+    J2clAttachmentMetadataClient client = new J2clAttachmentMetadataClient(transport);
+    RecordingMetadataCallback callback = new RecordingMetadataCallback();
+
+    client.fetchMetadata(Arrays.asList("  miss+1  "), callback);
+    transport.complete(
+        new J2clAttachmentMetadataClient.HttpResponse(
+            200, "application/json", "{\"1\":[]}", null));
+
+    Assert.assertTrue(callback.result.isSuccess());
+    Assert.assertEquals(Arrays.asList("miss+1"), callback.result.getMissingAttachmentIds());
+  }
+
+  @Test
   public void parsesImageNonImageMalwareAndMissingMetadataFromNumericProtoJson() {
     FakeMetadataTransport transport = new FakeMetadataTransport();
     J2clAttachmentMetadataClient client = new J2clAttachmentMetadataClient(transport);

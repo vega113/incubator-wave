@@ -171,10 +171,11 @@ public final class J2clAttachmentUploadClient {
   }
 
   private static String requireNonEmpty(String value, String message) {
-    if (value == null || value.trim().isEmpty()) {
+    String trimmed = value == null ? "" : value.trim();
+    if (trimmed.isEmpty()) {
       throw new IllegalArgumentException(message);
     }
-    return value.trim();
+    return trimmed;
   }
 
   public static final class MultipartUploadRequest {
