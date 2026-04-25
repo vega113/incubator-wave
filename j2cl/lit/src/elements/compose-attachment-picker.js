@@ -297,6 +297,7 @@ export class ComposeAttachmentPicker extends LitElement {
 
   onFilesSelected(event) {
     const files = Array.from(event.target.files || []);
+    event.target.value = "";
     if (files.length === 0) {
       return;
     }
@@ -312,8 +313,6 @@ export class ComposeAttachmentPicker extends LitElement {
         composed: true
       })
     );
-    // Reset so selecting the same file(s) again fires another change event.
-    event.target.value = "";
   }
 
   normalizedProgress() {

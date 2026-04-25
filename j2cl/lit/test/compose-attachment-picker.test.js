@@ -100,6 +100,25 @@ describe("<compose-attachment-picker>", () => {
       caption: "Updated caption",
       displaySize: "large"
     });
+    expect(fileInput.value).to.equal("");
+  });
+
+  it("does not emit selected files when the file input is empty", async () => {
+    const el = await fixture(html`<compose-attachment-picker open></compose-attachment-picker>`);
+    const fileInput = el.renderRoot.querySelector("input[type='file']");
+    let selectedEvents = 0;
+    el.addEventListener("attachment-files-selected", () => {
+      selectedEvents += 1;
+    });
+
+    Object.defineProperty(fileInput, "files", {
+      value: [],
+      configurable: true
+    });
+    fileInput.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+
+    expect(selectedEvents).to.equal(0);
+    expect(fileInput.value).to.equal("");
   });
 
   it("does not re-emit display size when clicking the selected size", async () => {
