@@ -8,6 +8,8 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.waveprotocol.box.j2cl.richtext.J2clComposerDocument;
 import org.waveprotocol.box.j2cl.richtext.J2clRichContentDeltaFactory;
+import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
+import org.waveprotocol.box.j2cl.telemetry.RecordingTelemetrySink;
 
 @J2clTestInput(J2clAttachmentComposerControllerTest.class)
 public class J2clAttachmentComposerControllerTest {
@@ -327,6 +329,147 @@ public class J2clAttachmentComposerControllerTest {
         J2clAttachmentComposerController.UploadStatus.COMPLETE,
         controller.getQueueSnapshot().get(0).getStatus());
     Assert.assertEquals(100, controller.getQueueSnapshot().get(0).getProgressPercent());
+  }
+
+  @Test
+  public void uploadTelemetryRecordsStartedSucceededAndFailedEvents() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingInsertionCallback insertionCallback = new RecordingInsertionCallback();
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(transport, insertionCallback, telemetry);
+
+    controller.selectFiles(Arrays.asList(singleFile("diagram.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertEquals("attachment.upload.started", telemetry.events().get(0).getName());
+    Assert.assertEquals("file-picker", telemetry.events().get(0).getFields().get("source"));
+    Assert.assertEquals("medium", telemetry.events().get(0).getFields().get("displaySize"));
+    Assert.assertEquals("1", telemetry.events().get(0).getFields().get("queueSize"));
+    Assert.assertEquals("attachment.upload.succeeded", telemetry.events().get(1).getName());
+    Assert.assertEquals("1", telemetry.events().get(1).getFields().get("queueSize"));
+
+    controller.selectFiles(Arrays.asList(singleFile("fail.png")));
+    transport.complete(1, new J2clAttachmentUploadClient.HttpResponse(500, "fail", null));
+
+    J2clClientTelemetry.Event failed = telemetry.lastEvent();
+    Assert.assertEquals("attachment.upload.failed", failed.getName());
+    Assert.assertEquals("server", failed.getFields().get("reason"));
+    Assert.assertEquals("5xx", failed.getFields().get("statusBucket"));
+    Assert.assertEquals("2", failed.getFields().get("queueSize"));
+  }
+
+  @Test
+  public void cancelEmitsUploadFailedCancelledWithoutPayloadData() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(transport, new RecordingInsertionCallback(), telemetry);
+
+    controller.selectFiles(Arrays.asList(singleFile("cancel.png")));
+    controller.cancelAndReset();
+
+    J2clClientTelemetry.Event event = telemetry.lastEvent();
+    Assert.assertEquals("attachment.upload.failed", event.getName());
+    Assert.assertEquals("cancelled", event.getFields().get("reason"));
+    Assert.assertEquals("medium", event.getFields().get("displaySize"));
+    Assert.assertFalse(event.getFields().containsKey("fileName"));
+    Assert.assertFalse(event.getFields().containsKey("attachmentId"));
+  }
+
+  @Test
+  public void cancelWithEmptyQueueDoesNotEmitTelemetry() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(transport, new RecordingInsertionCallback(), telemetry);
+
+    controller.cancelAndReset();
+
+    Assert.assertTrue(telemetry.events().isEmpty());
+  }
+
+  @Test
+  public void uploadTelemetryMapsEveryAllowedUploadReason() {
+    assertUploadReason(J2clAttachmentUploadClient.HttpResponse.networkError("offline"), "network", "other");
+    assertUploadReason(
+        new J2clAttachmentUploadClient.HttpResponse(403, "forbidden", null), "forbidden", "4xx");
+    assertUploadReason(
+        new J2clAttachmentUploadClient.HttpResponse(415, "unsupported", null),
+        "unsupported-file",
+        "4xx");
+    assertUploadReason(
+        new J2clAttachmentUploadClient.HttpResponse(500, "server", null), "server", "5xx");
+    assertInsertionFailureReason("client-error");
+  }
+
+  @Test
+  public void pastedImageTelemetryUsesPastedImageSource() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(transport, new RecordingInsertionCallback(), telemetry);
+
+    controller.pasteImage(
+        new Object(), "", J2clAttachmentComposerController.DisplaySize.MEDIUM);
+
+    Assert.assertEquals("attachment.upload.started", telemetry.lastEvent().getName());
+    Assert.assertEquals("pasted-image", telemetry.lastEvent().getFields().get("source"));
+  }
+
+  @Test
+  public void throwingTelemetrySinkDoesNotBreakUploadCompletion() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(
+            transport,
+            new RecordingInsertionCallback(),
+            event -> {
+              throw new RuntimeException("telemetry boom");
+            });
+
+    controller.selectFiles(Arrays.asList(singleFile("diagram.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
+        controller.getQueueSnapshot().get(0).getStatus());
+  }
+
+  @Test
+  public void throwingTelemetrySinkDoesNotBreakUploadFailure() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(
+            transport,
+            new RecordingInsertionCallback(),
+            event -> {
+              throw new RuntimeException("telemetry boom");
+            });
+
+    controller.selectFiles(Arrays.asList(singleFile("fail.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(500, "fail", null));
+
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+  }
+
+  @Test
+  public void queuedUploadsEmitStartedAndTerminalEventsInOrder() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(transport, new RecordingInsertionCallback(), telemetry);
+
+    controller.selectFiles(Arrays.asList(singleFile("one.png"), singleFile("two.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    transport.complete(1, new J2clAttachmentUploadClient.HttpResponse(500, "fail", null));
+
+    Assert.assertEquals("attachment.upload.started", telemetry.events().get(0).getName());
+    Assert.assertEquals("attachment.upload.succeeded", telemetry.events().get(1).getName());
+    Assert.assertEquals("attachment.upload.started", telemetry.events().get(2).getName());
+    Assert.assertEquals("attachment.upload.failed", telemetry.events().get(3).getName());
   }
 
   @Test
@@ -1579,6 +1722,57 @@ public class J2clAttachmentComposerControllerTest {
         new J2clAttachmentIdGenerator("example.com", "seed"),
         insertionCallback,
         stateChangeCallback);
+  }
+
+  private static J2clAttachmentComposerController newControllerWithTelemetry(
+      FakeUploadTransport transport,
+      J2clAttachmentComposerController.DocumentInsertionCallback insertionCallback,
+      J2clClientTelemetry.Sink telemetrySink) {
+    return new J2clAttachmentComposerController(
+        WAVE_REF,
+        new J2clAttachmentUploadClient(transport),
+        new J2clAttachmentIdGenerator("example.com", "seed"),
+        insertionCallback,
+        () -> {},
+        telemetrySink);
+  }
+
+  private static J2clAttachmentComposerController.AttachmentSelection singleFile(
+      String fileName) {
+    return J2clAttachmentComposerController.AttachmentSelection.file(
+        new Object(), fileName, "", J2clAttachmentComposerController.DisplaySize.MEDIUM);
+  }
+
+  private static void assertUploadReason(
+      J2clAttachmentUploadClient.HttpResponse response,
+      String reason,
+      String statusBucket) {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(transport, new RecordingInsertionCallback(), telemetry);
+
+    controller.selectFiles(Arrays.asList(singleFile("failure.png")));
+    transport.complete(0, response);
+
+    J2clClientTelemetry.Event event = telemetry.lastEvent();
+    Assert.assertEquals("attachment.upload.failed", event.getName());
+    Assert.assertEquals(reason, event.getFields().get("reason"));
+    Assert.assertEquals(statusBucket, event.getFields().get("statusBucket"));
+  }
+
+  private static void assertInsertionFailureReason(String reason) {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    J2clAttachmentComposerController controller =
+        newControllerWithTelemetry(transport, new AlwaysThrowingInsertionCallback(), telemetry);
+
+    controller.selectFiles(Arrays.asList(singleFile("insert-fail.png")));
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    J2clClientTelemetry.Event event = telemetry.lastEvent();
+    Assert.assertEquals("attachment.upload.failed", event.getName());
+    Assert.assertEquals(reason, event.getFields().get("reason"));
   }
 
   private static J2clAttachmentComposerController.StateChangeCallback throwingStateCallback() {

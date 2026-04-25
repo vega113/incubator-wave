@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.waveprotocol.box.j2cl.richtext.J2clComposerDocument;
+import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 
 /** Controller-domain layer for composer attachment selection, upload, and insertion callbacks. */
 public final class J2clAttachmentComposerController {
@@ -221,6 +222,7 @@ public final class J2clAttachmentComposerController {
   private final J2clAttachmentIdGenerator idGenerator;
   private final DocumentInsertionCallback insertionCallback;
   private final StateChangeCallback stateChangeCallback;
+  private final J2clClientTelemetry.Sink telemetrySink;
   // Terminal items stay visible until the composer lifecycle calls cancelAndReset or a future
   // explicit clear; this keeps status/error reporting available to the Lit wiring task.
   private final List<QueueItem> queue = new ArrayList<QueueItem>();
@@ -237,7 +239,13 @@ public final class J2clAttachmentComposerController {
       J2clAttachmentUploadClient uploadClient,
       J2clAttachmentIdGenerator idGenerator,
       DocumentInsertionCallback insertionCallback) {
-    this(waveRef, uploadClient, idGenerator, insertionCallback, () -> {});
+    this(
+        waveRef,
+        uploadClient,
+        idGenerator,
+        insertionCallback,
+        () -> {},
+        J2clClientTelemetry.noop());
   }
 
   public J2clAttachmentComposerController(
@@ -246,6 +254,22 @@ public final class J2clAttachmentComposerController {
       J2clAttachmentIdGenerator idGenerator,
       DocumentInsertionCallback insertionCallback,
       StateChangeCallback stateChangeCallback) {
+    this(
+        waveRef,
+        uploadClient,
+        idGenerator,
+        insertionCallback,
+        stateChangeCallback,
+        J2clClientTelemetry.noop());
+  }
+
+  public J2clAttachmentComposerController(
+      String waveRef,
+      J2clAttachmentUploadClient uploadClient,
+      J2clAttachmentIdGenerator idGenerator,
+      DocumentInsertionCallback insertionCallback,
+      StateChangeCallback stateChangeCallback,
+      J2clClientTelemetry.Sink telemetrySink) {
     this.waveRef = requireNonEmpty(waveRef, "Wave ref is required.");
     this.uploadClient = requirePresent(uploadClient, "Attachment upload client is required.");
     this.idGenerator = requirePresent(idGenerator, "Attachment id generator is required.");
@@ -253,6 +277,7 @@ public final class J2clAttachmentComposerController {
         requirePresent(insertionCallback, "Attachment insertion callback is required.");
     this.stateChangeCallback =
         requirePresent(stateChangeCallback, "Attachment state change callback is required.");
+    this.telemetrySink = requirePresent(telemetrySink, "Attachment telemetry sink is required.");
   }
 
   public void selectFiles(List<AttachmentSelection> selections) {
@@ -297,6 +322,11 @@ public final class J2clAttachmentComposerController {
    * unique ids.
    */
   public void cancelAndReset() {
+    for (QueueItem item : queue) {
+      if (item.status == UploadStatus.QUEUED || item.status == UploadStatus.UPLOADING) {
+        emitUploadFailed(item, "cancelled", "other");
+      }
+    }
     resetGeneration++;
     uploadInProgress = false;
     nextQueueIndex = 0;
@@ -325,6 +355,7 @@ public final class J2clAttachmentComposerController {
   private void startUpload(QueueItem item) {
     uploadInProgress = true;
     item.status = UploadStatus.UPLOADING;
+    emitUploadStarted(item);
     notifyStateChanged();
     int generation = resetGeneration;
     J2clAttachmentUploadClient.UploadProgressCallback progressCallback =
@@ -387,6 +418,7 @@ public final class J2clAttachmentComposerController {
       if (result != null && result.isSuccess()) {
         item.status = UploadStatus.COMPLETE;
         item.progressPercent = 100;
+        emitUploadSucceeded(item);
         try {
           insertAttachment(item);
         } catch (RuntimeException e) {
@@ -395,6 +427,7 @@ public final class J2clAttachmentComposerController {
             item.errorCode = INSERT_FAILED_ERROR_CODE;
             item.errorMessage =
                 e.getMessage() == null ? "Attachment insertion failed." : e.getMessage();
+            emitUploadFailed(item, "client-error", "other");
           }
         }
       } else {
@@ -404,6 +437,7 @@ public final class J2clAttachmentComposerController {
         item.errorCode = errorType == null ? "" : errorType.name();
         item.errorMessage =
             result == null ? "Attachment upload failed without a result." : result.getMessage();
+        emitUploadFailed(item, uploadFailureReason(result), statusBucket(result));
       }
     } finally {
       item.payload = null;
@@ -434,6 +468,82 @@ public final class J2clAttachmentComposerController {
     } catch (RuntimeException ignored) {
       // Keep upload state transitions resilient to observer failures.
     }
+  }
+
+  private void emitUploadStarted(QueueItem item) {
+    emit(
+        uploadEvent("attachment.upload.started", item)
+            .field("queueSize", Integer.toString(queue.size()))
+            .build());
+  }
+
+  private void emitUploadSucceeded(QueueItem item) {
+    emit(
+        uploadEvent("attachment.upload.succeeded", item)
+            .field("queueSize", Integer.toString(queue.size()))
+            .build());
+  }
+
+  private void emitUploadFailed(QueueItem item, String reason, String statusBucket) {
+    emit(
+        uploadEvent("attachment.upload.failed", item)
+            .field("queueSize", Integer.toString(queue.size()))
+            .field("reason", reason)
+            .field("statusBucket", statusBucket)
+            .build());
+  }
+
+  private J2clClientTelemetry.Builder uploadEvent(String name, QueueItem item) {
+    return J2clClientTelemetry.event(name)
+        .field("source", item.pastedImage ? "pasted-image" : "file-picker")
+        .field("displaySize", item.displaySize.getDocumentValue());
+  }
+
+  private void emit(J2clClientTelemetry.Event event) {
+    try {
+      telemetrySink.record(event);
+    } catch (Throwable ignored) {
+      // Telemetry is best-effort and must not alter upload behavior.
+    }
+  }
+
+  private static String uploadFailureReason(J2clAttachmentUploadClient.UploadResult result) {
+    if (result == null || result.getErrorType() == null) {
+      return "network";
+    }
+    switch (result.getErrorType()) {
+      case INVALID_REQUEST:
+        return "validation";
+      case NETWORK:
+        return "network";
+      case HTTP_STATUS:
+        int statusCode = result.getStatusCode();
+        if (statusCode == 401 || statusCode == 403) {
+          return "forbidden";
+        }
+        if (statusCode == 415) {
+          return "unsupported-file";
+        }
+        return "server";
+      case UNEXPECTED_RESPONSE:
+        return "server";
+      default:
+        return "client-error";
+    }
+  }
+
+  private static String statusBucket(J2clAttachmentUploadClient.UploadResult result) {
+    if (result == null) {
+      return "other";
+    }
+    int statusCode = result.getStatusCode();
+    if (statusCode >= 400 && statusCode < 500) {
+      return "4xx";
+    }
+    if (statusCode >= 500 && statusCode < 600) {
+      return "5xx";
+    }
+    return "other";
   }
 
   private static String requireNonEmpty(String value, String message) {
