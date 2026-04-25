@@ -7,8 +7,6 @@ import org.waveprotocol.box.j2cl.richtext.J2clComposerDocument;
 
 /** Controller-domain layer for composer attachment selection, upload, and insertion callbacks. */
 public final class J2clAttachmentComposerController {
-  private static final String PASTED_IMAGE_FILENAME = "pasted-image.png";
-
   public interface DocumentInsertionCallback {
     void onInsert(J2clComposerDocument document, AttachmentInsertion insertion);
   }
@@ -67,7 +65,7 @@ public final class J2clAttachmentComposerController {
     public static AttachmentSelection pastedImage(
         Object payload, String caption, DisplaySize displaySize) {
       return new AttachmentSelection(
-          payload, PASTED_IMAGE_FILENAME, caption, displaySize, true);
+          payload, J2clAttachmentUploadClient.PASTED_IMAGE_FILENAME, caption, displaySize, true);
     }
 
     public Object getPayload() {
@@ -239,6 +237,12 @@ public final class J2clAttachmentComposerController {
     return Collections.unmodifiableList(snapshot);
   }
 
+  /**
+   * Clears controller queue state and ignores late callbacks from the active upload generation.
+   *
+   * <p>This does not abort the underlying browser transport request; the current upload may
+   * continue on the network, but its eventual progress or completion callback will be ignored.
+   */
   public void cancelAndReset() {
     resetGeneration++;
     uploadInProgress = false;
@@ -293,19 +297,22 @@ public final class J2clAttachmentComposerController {
       return;
     }
     uploadInProgress = false;
-    if (result != null && result.isSuccess()) {
-      item.status = UploadStatus.COMPLETE;
-      item.progressPercent = 100;
-      insertAttachment(item);
-    } else {
-      item.status = UploadStatus.FAILED;
-      J2clAttachmentUploadClient.ErrorType errorType =
-          result == null ? J2clAttachmentUploadClient.ErrorType.NETWORK : result.getErrorType();
-      item.errorCode = errorType == null ? "" : errorType.name();
-      item.errorMessage =
-          result == null ? "Attachment upload failed without a result." : result.getMessage();
+    try {
+      if (result != null && result.isSuccess()) {
+        item.status = UploadStatus.COMPLETE;
+        item.progressPercent = 100;
+        insertAttachment(item);
+      } else {
+        item.status = UploadStatus.FAILED;
+        J2clAttachmentUploadClient.ErrorType errorType =
+            result == null ? J2clAttachmentUploadClient.ErrorType.NETWORK : result.getErrorType();
+        item.errorCode = errorType == null ? "" : errorType.name();
+        item.errorMessage =
+            result == null ? "Attachment upload failed without a result." : result.getMessage();
+      }
+    } finally {
+      startNextUpload();
     }
-    startNextUpload();
   }
 
   private void insertAttachment(QueueItem item) {

@@ -30,6 +30,16 @@ public class J2clAttachmentIdGeneratorTest {
   }
 
   @Test
+  public void rejectsDomainContainingAttachmentSeparator() {
+    try {
+      new J2clAttachmentIdGenerator("example.com/bad", "seed");
+      Assert.fail("Expected invalid domain to fail.");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("domain"));
+    }
+  }
+
+  @Test
   public void encodesBase64Boundaries() {
     assertIdAtCounter(0, "example.com/seedA");
     assertIdAtCounter(62, "example.com/seed-");

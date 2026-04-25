@@ -11,7 +11,7 @@ public final class J2clAttachmentIdGenerator {
   private int counter;
 
   public J2clAttachmentIdGenerator(String domain, String seed) {
-    this.domain = requireNonEmpty(domain, "Attachment id domain is required.");
+    this.domain = requireDomain(domain);
     this.seed = sanitizeSeed(seed);
   }
 
@@ -25,6 +25,15 @@ public final class J2clAttachmentIdGenerator {
       throw new IllegalArgumentException(message);
     }
     return trimmed;
+  }
+
+  private static String requireDomain(String value) {
+    String normalized = requireNonEmpty(value, "Attachment id domain is required.");
+    if (normalized.indexOf('/') >= 0) {
+      throw new IllegalArgumentException(
+          "Attachment id domain cannot contain '/': " + normalized);
+    }
+    return normalized;
   }
 
   private static String sanitizeSeed(String rawSeed) {
