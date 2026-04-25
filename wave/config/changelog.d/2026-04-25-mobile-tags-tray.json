@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-25-mobile-tags-tray",
+  "version": "Unreleased",
+  "date": "2026-04-25",
+  "title": "Mobile wave controls are clearer",
+  "summary": "The mobile wave view no longer keeps obscure pin controls or the tags tray floating over the conversation by default.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Mobile wave pages now show a labeled Tags control instead of separate floating pin buttons, and the tags tray stays hidden until opened."
+      ]
+    }
+  ]
+}

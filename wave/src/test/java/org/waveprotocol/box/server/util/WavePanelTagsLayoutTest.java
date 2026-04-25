@@ -144,9 +144,11 @@ public final class WavePanelTagsLayoutTest extends TestCase {
     String css = read("wave/src/main/java/org/waveprotocol/wave/client/wavepanel/view/dom/full/Tags.css");
 
     assertTrue(css.contains("body.mobile-tags-open [data-mobile-role='wave-tags']"));
-    assertTrue(css.contains("body.mobile-tags-pinned [data-mobile-role='wave-tags']"));
-    assertTrue(css.contains("max-height: 32px;"));
-    assertTrue(css.contains("transition: max-height 180ms ease-out;"));
+    assertFalse(css.contains("body.mobile-tags-pinned [data-mobile-role='wave-tags']"));
+    assertTrue(css.contains("transform: translateY(100%);"));
+    assertTrue(css.contains("pointer-events: none;"));
+    assertTrue(css.contains("transform: translateY(0);"));
+    assertTrue(css.contains("transition: transform 180ms ease-out, max-height 180ms ease-out;"));
   }
 
   public void testPersistentToastSupportsManualCloseAction() throws Exception {

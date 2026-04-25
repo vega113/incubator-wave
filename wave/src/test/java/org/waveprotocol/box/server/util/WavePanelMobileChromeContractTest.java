@@ -51,16 +51,16 @@ public final class WavePanelMobileChromeContractTest extends TestCase {
         "wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/HtmlRenderer.java");
 
     assertTrue(html.contains("mobile-wave-chrome-hidden"));
-    assertTrue(html.contains("mobile-wave-chrome-pinned"));
     assertTrue(html.contains("mobile-tags-open"));
-    assertTrue(html.contains("mobile-tags-pinned"));
     assertTrue(html.contains("mobileWaveChromeReveal"));
-    assertTrue(html.contains("mobileWaveChromePin"));
     assertTrue(html.contains("mobileTagsToggle"));
+    assertFalse(html.contains("id=\\\"mobileWaveChromePin\\\""));
+    assertFalse(html.contains("id=\\\"mobileTagsPin\\\""));
     assertTrue(html.contains("body.mobile-wave-open #mobileWaveChromeReveal { display: none; }"));
     assertTrue(
         html.contains(
             "body.mobile-wave-open.mobile-wave-chrome-hidden #mobileWaveChromeReveal { display: inline-flex; }"));
+    assertTrue(html.contains("body.mobile-wave-open #mobileTagsToggle { display: inline-flex; }"));
     assertTrue(html.contains("aria-pressed=\\\"false\\\""));
     assertTrue(html.contains("function syncMobileChromeButtons()"));
     assertTrue(html.contains("function setToggleState(button, pressed, label)"));
@@ -69,12 +69,36 @@ public final class WavePanelMobileChromeContractTest extends TestCase {
     assertTrue(html.contains("hiddenLabel.textContent = label"));
     assertTrue(html.contains("mobile-control-svg"));
     assertTrue(html.contains("mobile-control-label"));
-    assertTrue(html.contains("setToggleState(mobileWaveChromePin, chromePinned"));
     assertTrue(html.contains("setToggleState(mobileTagsToggle, tagsOpen"));
-    assertTrue(html.contains("setToggleState(mobileTagsPin, tagsPinned"));
+    assertTrue(html.contains("mobile-control-text"));
+    assertFalse(html.contains("setToggleState(mobileWaveChromePin"));
+    assertFalse(html.contains("setToggleState(mobileTagsPin"));
+    assertFalse(html.contains("tagsPinned"));
+    assertFalse(html.contains("chromePinned"));
+    assertFalse(html.contains("getTagsPinned()"));
+    assertFalse(html.contains("setTagsPinned("));
+    assertFalse(html.contains("__waveChromePrefsRefresh"));
+    assertFalse(html.contains("refreshPinnedStateFromBridge"));
+    assertFalse(html.contains("Pin tags tray"));
+    assertFalse(html.contains("Pin wave controls"));
     assertTrue(html.contains("document.addEventListener('focusin'"));
+    assertTrue(html.contains("setTagsOpen(false);"));
     assertTrue(html.contains(".mobile-wave-chrome-control { display: none; }"));
     assertFalse(html.contains(".mobile-wave-chrome-control { display: none !important; }"));
+  }
+
+  public void testStageThreeDoesNotExportRemovedMobilePinPreferenceBridge() throws Exception {
+    String stageThree = read(
+        "wave/src/main/java/org/waveprotocol/wave/client/StageThree.java");
+
+    assertFalse(stageThree.contains("__waveMobileChromePrefs"));
+    assertFalse(stageThree.contains("__waveChromePrefsRefresh"));
+    assertFalse(stageThree.contains("setChromePinned"));
+    assertFalse(stageThree.contains("setTagsPinned"));
+    assertFalse(stageThree.contains("getChromePinned"));
+    assertFalse(stageThree.contains("getTagsPinned"));
+    assertFalse(stageThree.contains("installMobileChromePreferenceBridge"));
+    assertFalse(stageThree.contains("clearMobileChromePreferenceBridge"));
   }
 
   public void testConversationAndTagsCssSwitchToOverlayOnMobile() throws Exception {
@@ -92,7 +116,10 @@ public final class WavePanelMobileChromeContractTest extends TestCase {
     assertTrue(
         conversationCss.contains(
             "body.mobile-wave-open.mobile-wave-chrome-hidden [data-mobile-role='wave-thread']"));
+    assertTrue(tagsCss.contains("transform: translateY(100%);"));
+    assertTrue(tagsCss.contains("pointer-events: none;"));
     assertTrue(tagsCss.contains("body.mobile-tags-open [data-mobile-role='wave-tags']"));
+    assertTrue(tagsCss.contains("transform: translateY(0);"));
     assertTrue(tagsCss.contains("position: fixed"));
   }
 
