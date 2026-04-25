@@ -53,7 +53,7 @@ public final class J2clRootShellController {
             gateway,
             new J2clComposeSurfaceView(searchView.getComposeHost(), selectedReplyHost),
             J2clComposeSurfaceController.richContentDeltaFactory(rootShellSessionSeed),
-            J2clComposeSurfaceController.attachmentControllerFactory(rootShellSessionSeed),
+            J2clComposeSurfaceController.attachmentControllerFactory(rootShellSessionSeed, telemetrySink),
             waveId -> routeControllerRef[0].selectWave(waveId),
             waveId -> {
               if (selectedWaveControllerRef[0] != null) {
