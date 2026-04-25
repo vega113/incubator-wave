@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { DISPLAY_SIZES } from "./attachment-display-sizes.js";
 
 export class ComposeAttachmentCard extends LitElement {
   static properties = {
@@ -119,7 +120,7 @@ export class ComposeAttachmentCard extends LitElement {
     const blocked = this.malwareBlocked || Boolean(this.error);
     const openDisabled = blocked || !this.openUrl;
     const downloadDisabled = blocked || !(this.downloadUrl || this.openUrl);
-    const displaySize = ["small", "medium", "large"].includes(this.displaySize)
+    const displaySize = DISPLAY_SIZES.includes(this.displaySize)
       ? this.displaySize
       : "medium";
     return html`

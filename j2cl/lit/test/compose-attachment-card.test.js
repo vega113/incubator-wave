@@ -1,8 +1,8 @@
 import { fixture, expect, html, oneEvent } from "@open-wc/testing";
-import "../src/index.js";
+import "../src/elements/compose-attachment-card.js";
 
 describe("<compose-attachment-card>", () => {
-  it("is registered by the Lit shell bundle", () => {
+  it("is registered as a custom element", () => {
     expect(customElements.get("compose-attachment-card")).to.be.a("function");
   });
 

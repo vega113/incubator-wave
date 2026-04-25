@@ -1,7 +1,6 @@
 import { LitElement, css, html } from "lit";
 import "./interaction-overlay-layer.js";
-
-const DISPLAY_SIZES = ["small", "medium", "large"];
+import { DISPLAY_SIZES } from "./attachment-display-sizes.js";
 
 export class ComposeAttachmentPicker extends LitElement {
   static properties = {
@@ -210,6 +209,12 @@ export class ComposeAttachmentPicker extends LitElement {
     `;
   }
 
+  updated(changedProperties) {
+    if (changedProperties.has("open") && this.open) {
+      this.renderRoot.querySelector("input[type='file']")?.focus();
+    }
+  }
+
   openPicker() {
     if (this.open) {
       return;
@@ -222,9 +227,6 @@ export class ComposeAttachmentPicker extends LitElement {
         composed: true
       })
     );
-    this.updateComplete.then(() => {
-      this.renderRoot.querySelector("input[type='file']")?.focus();
-    });
   }
 
   cancel() {
@@ -283,7 +285,7 @@ export class ComposeAttachmentPicker extends LitElement {
     if (!["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(event.key)) {
       return;
     }
-    const currentIndex = DISPLAY_SIZES.indexOf(this.displaySize);
+    const currentIndex = Math.max(0, DISPLAY_SIZES.indexOf(this.displaySize));
     const offset = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
     const nextIndex = (currentIndex + offset + DISPLAY_SIZES.length) % DISPLAY_SIZES.length;
     event.preventDefault();
@@ -307,6 +309,8 @@ export class ComposeAttachmentPicker extends LitElement {
         composed: true
       })
     );
+    // Reset so selecting the same file(s) again fires another change event.
+    event.target.value = "";
   }
 
   normalizedProgress() {
