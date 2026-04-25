@@ -525,7 +525,7 @@ public final class J2clComposeSurfaceController {
           try {
             request =
                 deltaFactory.createWaveRequest(
-                    bootstrap.getAddress(), submittedDraft, buildDocument(submittedDraft, false, false));
+                    bootstrap.getAddress(), submittedDraft, buildDocument(submittedDraft, false, ""));
           } catch (RuntimeException e) {
             handleCreateFailure(generation, messageOrDefault(e, "Unable to build the create request."));
             return;
@@ -605,6 +605,7 @@ public final class J2clComposeSurfaceController {
     replyStatusText = "Bootstrapping the root-shell submit session.";
     replyErrorText = "";
     final String submittedDraft = replyDraft;
+    final String submittedAnnotationCommandId = annotationCommandId;
     final int generation = ++replyGeneration;
     final J2clSidecarWriteSession submitSession = writeSession;
     render();
@@ -620,7 +621,7 @@ public final class J2clComposeSurfaceController {
                     bootstrap.getAddress(),
                     submitSession,
                     submittedDraft,
-                    buildDocument(submittedDraft, true, true));
+                    buildDocument(submittedDraft, true, submittedAnnotationCommandId));
           } catch (RuntimeException e) {
             handleReplyFailure(generation, messageOrDefault(e, "Unable to build the reply request."));
             return;
@@ -712,12 +713,11 @@ public final class J2clComposeSurfaceController {
   }
 
   private J2clComposerDocument buildDocument(
-      String draftText, boolean includeAttachments, boolean includeAnnotation) {
+      String draftText, boolean includeAttachments, String annotationCommandId) {
     J2clComposerDocument.Builder builder = J2clComposerDocument.builder();
     // Only apply the reply-toolbar annotation on the reply path; create-wave submits must not
     // inherit a Bold/Italic toggle the user set in the reply editor.
-    J2clDailyToolbarAction action =
-        includeAnnotation ? J2clDailyToolbarAction.fromId(annotationCommandId) : null;
+    J2clDailyToolbarAction action = J2clDailyToolbarAction.fromId(annotationCommandId);
     String annotationKey = annotationKey(action);
     String annotationValue = annotationValue(action);
     if (annotationKey != null

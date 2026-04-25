@@ -530,6 +530,35 @@ public class J2clComposeSurfaceControllerTest {
   }
 
   @Test
+  public void replySubmitUsesFormattingSnapshotFromSubmitClick() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false;
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+    controller.onReplySubmitted("Snapshot reply");
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.ITALIC));
+
+    gateway.resolveBootstrap();
+
+    assertContains(
+        gateway.lastSubmitRequest.getDeltaJson(),
+        "{\"1\":{\"3\":[{\"1\":\"fontWeight\",\"3\":\"bold\"}]}}",
+        "\"2\":\"Snapshot reply\"");
+    Assert.assertFalse(gateway.lastSubmitRequest.getDeltaJson().contains("fontStyle"));
+  }
+
+  @Test
   public void replyToolbarFormattingDoesNotAffectCreateWaveSubmit() {
     FakeGateway gateway = new FakeGateway();
     FakeView view = new FakeView();
