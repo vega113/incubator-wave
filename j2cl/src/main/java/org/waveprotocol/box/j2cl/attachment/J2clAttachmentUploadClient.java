@@ -174,7 +174,7 @@ public final class J2clAttachmentUploadClient {
     if (value == null || value.trim().isEmpty()) {
       throw new IllegalArgumentException(message);
     }
-    return value;
+    return value.trim();
   }
 
   public static final class MultipartUploadRequest {

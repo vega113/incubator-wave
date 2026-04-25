@@ -171,7 +171,7 @@ public final class J2clAttachmentMetadataClient {
     if (value == null || value.trim().isEmpty()) {
       throw new IllegalArgumentException(message);
     }
-    return value;
+    return value.trim();
   }
 
   private static String requireString(Map<String, Object> object, String key, String name) {
