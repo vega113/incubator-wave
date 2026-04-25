@@ -352,6 +352,14 @@ public final class J2clComposeSurfaceController {
   }
 
   public void onAttachmentFilesSelected(List<AttachmentFileSelection> selections) {
+    if (signedOut) {
+      activeCommandId = "";
+      commandStatusText = "";
+      commandErrorText = "Sign in before attaching files.";
+      render();
+      view.focusReplyComposer();
+      return;
+    }
     commandErrorText = "";
     if (replySubmitting) {
       blockAttachmentWhileReplySubmitting();
@@ -394,6 +402,14 @@ public final class J2clComposeSurfaceController {
   }
 
   public void onPastedImage(Object imagePayload) {
+    if (signedOut) {
+      activeCommandId = "";
+      commandStatusText = "";
+      commandErrorText = "Sign in before pasting an image.";
+      render();
+      view.focusReplyComposer();
+      return;
+    }
     commandErrorText = "";
     if (replySubmitting) {
       blockAttachmentWhileReplySubmitting();
@@ -870,15 +886,18 @@ public final class J2clComposeSurfaceController {
       J2clComposerDocument document,
       J2clAttachmentComposerController.AttachmentInsertion insertion) {
     insertedAttachments.add(insertion);
+    replyErrorText = "";
     activeCommandId = J2clDailyToolbarAction.ATTACHMENT_UPLOAD_QUEUE.id();
-    String label = insertion.getCaption().isEmpty() ? "image" : insertion.getCaption();
-    commandStatusText = "Attached " + label + ".";
+    commandStatusText = "Attached " + attachmentStatusLabel(insertion) + ".";
     commandErrorText = "";
     render();
   }
 
   private void onAttachmentStateChanged() {
     refreshAttachmentCommandState();
+    if (!hasPendingAttachmentUpload() && replyErrorText.startsWith("Wait for attachment")) {
+      replyErrorText = "";
+    }
     render();
   }
 
@@ -922,10 +941,15 @@ public final class J2clComposeSurfaceController {
       J2clAttachmentComposerController.AttachmentInsertion insertion =
           insertedAttachments.get(insertedAttachments.size() - 1);
       activeCommandId = J2clDailyToolbarAction.ATTACHMENT_UPLOAD_QUEUE.id();
-      String insertedLabel = insertion.getCaption().isEmpty() ? "image" : insertion.getCaption();
-      commandStatusText = "Attached " + insertedLabel + ".";
+      commandStatusText = "Attached " + attachmentStatusLabel(insertion) + ".";
       commandErrorText = "";
     }
+  }
+
+  private static String attachmentStatusLabel(
+      J2clAttachmentComposerController.AttachmentInsertion insertion) {
+    String caption = insertion.getCaption();
+    return caption == null || caption.isEmpty() ? "attachment" : caption;
   }
 
   private boolean hasPendingAttachmentUpload() {

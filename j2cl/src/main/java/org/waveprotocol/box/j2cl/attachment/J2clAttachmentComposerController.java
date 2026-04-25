@@ -23,6 +23,10 @@ public final class J2clAttachmentComposerController {
   }
 
   public interface StateChangeCallback {
+    /**
+     * Runtime exceptions are best-effort observer failures and are contained so upload queue state
+     * can keep moving. VM errors are not contained and may leave the controller unusable.
+     */
     void onStateChanged();
   }
 

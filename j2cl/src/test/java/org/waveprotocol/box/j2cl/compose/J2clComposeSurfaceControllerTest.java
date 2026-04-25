@@ -1284,6 +1284,7 @@ public class J2clComposeSurfaceControllerTest {
     controller.onAttachmentFilesSelected(
         Arrays.asList(new J2clComposeSurfaceController.AttachmentFileSelection(new Object(), "   ")));
     transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    Assert.assertEquals("Attached attachment.", view.model.getCommandStatusText());
     controller.onReplySubmitted("");
 
     assertContains(gateway.lastSubmitRequest.getDeltaJson(), "\"2\":\"attachment\"");
