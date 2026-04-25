@@ -151,7 +151,7 @@ def _summarize_checks(checks: list[dict[str, Any]]) -> str:
 
 
 def _all_checks_finished_successfully(checks: list[dict[str, Any]]) -> bool:
-    return bool(checks) and all(
+    return all(
         _check_bucket(check) in {"pass", "skipping"} for check in checks
     )
 

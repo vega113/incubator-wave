@@ -190,6 +190,23 @@ class PrMonitorTest(unittest.TestCase):
         self.assertEqual("actionable", decision.state)
         self.assertIn("auto-merge is not armed", decision.reason)
 
+    def test_classify_pr_snapshot_treats_clean_pr_without_checks_as_actionable(self) -> None:
+        decision = classify_pr_snapshot(
+            {
+                "state": "OPEN",
+                "mergedAt": "",
+                "isDraft": False,
+                "mergeable": "MERGEABLE",
+                "mergeStateStatus": "CLEAN",
+                "autoMergeRequest": None,
+            },
+            [],
+            unresolved_review_threads=0,
+        )
+
+        self.assertEqual("actionable", decision.state)
+        self.assertIn("auto-merge is not armed", decision.reason)
+
     def test_classify_pr_snapshot_reports_merged_pr_done(self) -> None:
         decision = classify_pr_snapshot(
             {
