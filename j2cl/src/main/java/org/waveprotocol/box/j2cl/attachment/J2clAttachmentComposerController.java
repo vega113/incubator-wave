@@ -8,10 +8,14 @@ import org.waveprotocol.box.j2cl.richtext.J2clComposerDocument;
 /** Controller-domain layer for composer attachment selection, upload, and insertion callbacks. */
 public final class J2clAttachmentComposerController {
   /** Error code used when upload succeeds but composer document insertion fails. */
-  public static final String INSERT_FAILED_ERROR_CODE = "INSERTION";
+  public static final String INSERT_FAILED_ERROR_CODE = "INSERT_FAILED";
 
   public interface DocumentInsertionCallback {
-    /** Runtime exceptions are contained as {@link UploadStatus#INSERT_FAILED}; VM errors are not. */
+    /**
+     * Runtime exceptions escaping the callback, including from re-entrant controller calls, are
+     * contained as {@link UploadStatus#INSERT_FAILED}. VM errors are not contained; completion
+     * cleanup still runs, so a queued upload can start before the error reaches the caller.
+     */
     void onInsert(J2clComposerDocument document, AttachmentInsertion insertion);
   }
 
@@ -162,7 +166,7 @@ public final class J2clAttachmentComposerController {
 
     /**
      * Returns an empty string when there is no error, an upload {@code ErrorType.name()}, or
-     * {@link #INSERT_FAILED_ERROR_CODE} when document insertion fails after upload success.
+     * {@code "INSERT_FAILED"} when document insertion fails after upload success.
      */
     public String getErrorCode() {
       return errorCode;

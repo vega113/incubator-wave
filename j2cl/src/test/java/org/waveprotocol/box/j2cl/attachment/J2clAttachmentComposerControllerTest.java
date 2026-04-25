@@ -141,6 +141,28 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void fileSelectionAndWaveRefWhitespaceIsTrimmedBeforeUpload() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        new J2clAttachmentComposerController(
+            "  " + WAVE_REF + "  ",
+            new J2clAttachmentUploadClient(transport),
+            new J2clAttachmentIdGenerator("example.com", "seed"),
+            new RecordingInsertionCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "  spaced.png  ",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    Assert.assertEquals(WAVE_REF, transport.requests.get(0).getPart(1).getStringValue());
+    Assert.assertEquals("spaced.png", transport.requests.get(0).getPart(2).getFileName());
+  }
+
+  @Test
   public void progressUpdatesActiveItemState() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =
@@ -249,6 +271,13 @@ public class J2clAttachmentComposerControllerTest {
         J2clAttachmentUploadClient.ErrorType.HTTP_STATUS.name(), item.getErrorCode());
     Assert.assertTrue(item.getErrorMessage().contains("HTTP 500"));
     Assert.assertTrue(insertionCallback.insertions.isEmpty());
+
+    transport.requests.get(0).getProgressCallback().onProgress(88);
+
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals(0, controller.getQueueSnapshot().get(0).getProgressPercent());
   }
 
   @Test
@@ -333,6 +362,18 @@ public class J2clAttachmentComposerControllerTest {
     Assert.assertEquals(2, transport.requests.size());
     Assert.assertEquals("/attachment/example.com/seedB", transport.requests.get(1).getUrl());
     Assert.assertEquals(1, controller.getQueueSnapshot().size());
+  }
+
+  @Test
+  public void cancelResetWhileIdleIsNoOp() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newController(transport, new RecordingInsertionCallback());
+
+    controller.cancelAndReset();
+
+    Assert.assertTrue(controller.getQueueSnapshot().isEmpty());
+    Assert.assertTrue(transport.requests.isEmpty());
   }
 
   @Test
@@ -445,6 +486,29 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void progressAfterInsertFailedStatusIsIgnored() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newController(transport, new AlwaysThrowingInsertionCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+    transport.requests.get(0).getProgressCallback().onProgress(12);
+
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.INSERT_FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals(100, controller.getQueueSnapshot().get(0).getProgressPercent());
+  }
+
+  @Test
   public void cancelResetFromInsertionCallbackClearsQueueAndDoesNotStartNextUpload() {
     FakeUploadTransport transport = new FakeUploadTransport();
     CancelingInsertionCallback insertionCallback = new CancelingInsertionCallback();
@@ -499,6 +563,70 @@ public class J2clAttachmentComposerControllerTest {
 
     Assert.assertEquals(2, insertionCallback.insertions.size());
     Assert.assertEquals(2, transport.requests.size());
+  }
+
+  @Test
+  public void invalidReentrantSelectionFromInsertionCallbackMarksCurrentItemInsertFailed() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    InvalidReentrantSelectingInsertionCallback insertionCallback =
+        new InvalidReentrantSelectingInsertionCallback();
+    J2clAttachmentComposerController controller = newController(transport, insertionCallback);
+    insertionCallback.setController(controller);
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.INSERT_FAILED,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.INSERT_FAILED_ERROR_CODE,
+        controller.getQueueSnapshot().get(0).getErrorCode());
+    Assert.assertTrue(
+        controller.getQueueSnapshot().get(0).getErrorMessage().contains("selections"));
+    Assert.assertEquals(1, transport.requests.size());
+  }
+
+  @Test
+  public void insertionCallbackErrorPropagatesAfterStartingNextQueuedUpload() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    ErrorThrowingInsertionCallback insertionCallback = new ErrorThrowingInsertionCallback();
+    J2clAttachmentComposerController controller = newController(transport, insertionCallback);
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL),
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "second.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    try {
+      transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+      Assert.fail("Expected insertion callback error to propagate.");
+    } catch (AssertionError expected) {
+      Assert.assertEquals("fatal", expected.getMessage());
+    }
+
+    Assert.assertEquals(2, transport.requests.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
+        controller.getQueueSnapshot().get(0).getStatus());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.UPLOADING,
+        controller.getQueueSnapshot().get(1).getStatus());
   }
 
   @Test
@@ -878,6 +1006,42 @@ public class J2clAttachmentComposerControllerTest {
                     "",
                     J2clAttachmentComposerController.DisplaySize.SMALL)));
       }
+    }
+  }
+
+  private static final class InvalidReentrantSelectingInsertionCallback
+      implements J2clAttachmentComposerController.DocumentInsertionCallback {
+    private J2clAttachmentComposerController controller;
+
+    private void setController(J2clAttachmentComposerController controller) {
+      this.controller = controller;
+    }
+
+    @Override
+    public void onInsert(
+        J2clComposerDocument document,
+        J2clAttachmentComposerController.AttachmentInsertion insertion) {
+      controller.selectFiles(null);
+    }
+  }
+
+  private static final class AlwaysThrowingInsertionCallback
+      implements J2clAttachmentComposerController.DocumentInsertionCallback {
+    @Override
+    public void onInsert(
+        J2clComposerDocument document,
+        J2clAttachmentComposerController.AttachmentInsertion insertion) {
+      throw new IllegalStateException("boom");
+    }
+  }
+
+  private static final class ErrorThrowingInsertionCallback
+      implements J2clAttachmentComposerController.DocumentInsertionCallback {
+    @Override
+    public void onInsert(
+        J2clComposerDocument document,
+        J2clAttachmentComposerController.AttachmentInsertion insertion) {
+      throw new AssertionError("fatal");
     }
   }
 
