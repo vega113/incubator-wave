@@ -363,20 +363,23 @@ public class J2clAttachmentComposerControllerTest {
                 "",
                 J2clAttachmentComposerController.DisplaySize.SMALL)));
 
-    try {
-      transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
-      Assert.fail("Expected insertion callback failure.");
-    } catch (IllegalStateException expected) {
-      // Expected.
-    }
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
 
     Assert.assertEquals(2, transport.requests.size());
     Assert.assertEquals(
         J2clAttachmentComposerController.UploadStatus.INSERT_FAILED,
         controller.getQueueSnapshot().get(0).getStatus());
     Assert.assertEquals("INSERTION", controller.getQueueSnapshot().get(0).getErrorCode());
+    Assert.assertEquals("boom", controller.getQueueSnapshot().get(0).getErrorMessage());
     Assert.assertEquals(
         J2clAttachmentComposerController.UploadStatus.UPLOADING,
+        controller.getQueueSnapshot().get(1).getStatus());
+
+    transport.complete(1, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertEquals(1, insertionCallback.insertions.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
         controller.getQueueSnapshot().get(1).getStatus());
   }
 
@@ -489,7 +492,10 @@ public class J2clAttachmentComposerControllerTest {
     RecordingInsertionCallback insertionCallback = new RecordingInsertionCallback();
     J2clAttachmentComposerController controller = newController(transport, insertionCallback);
 
-    controller.pasteImage(new Object(), "   ", J2clAttachmentComposerController.DisplaySize.SMALL);
+    controller.pasteImage(
+        new Object(),
+        "   ",
+        J2clAttachmentComposerController.DisplaySize.SMALL);
     transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(201, "stored", null));
 
     Assert.assertEquals("pasted-image.png", insertionCallback.insertions.get(0).getCaption());
@@ -510,20 +516,23 @@ public class J2clAttachmentComposerControllerTest {
     controller.pasteImage(new Object(), "first", J2clAttachmentComposerController.DisplaySize.SMALL);
     controller.pasteImage(new Object(), "second", J2clAttachmentComposerController.DisplaySize.SMALL);
 
-    try {
-      transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(201, "stored", null));
-      Assert.fail("Expected insertion callback failure.");
-    } catch (IllegalStateException expected) {
-      // Expected.
-    }
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(201, "stored", null));
 
     Assert.assertEquals(2, transport.requests.size());
     Assert.assertEquals(
         J2clAttachmentComposerController.UploadStatus.INSERT_FAILED,
         controller.getQueueSnapshot().get(0).getStatus());
     Assert.assertEquals("INSERTION", controller.getQueueSnapshot().get(0).getErrorCode());
+    Assert.assertEquals("boom", controller.getQueueSnapshot().get(0).getErrorMessage());
     Assert.assertEquals(
         J2clAttachmentComposerController.UploadStatus.UPLOADING,
+        controller.getQueueSnapshot().get(1).getStatus());
+
+    transport.complete(1, new J2clAttachmentUploadClient.HttpResponse(201, "stored", null));
+
+    Assert.assertEquals(1, insertionCallback.insertions.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
         controller.getQueueSnapshot().get(1).getStatus());
   }
 
@@ -687,6 +696,8 @@ public class J2clAttachmentComposerControllerTest {
 
   private static final class OneShotThrowingInsertionCallback
       implements J2clAttachmentComposerController.DocumentInsertionCallback {
+    private final List<J2clAttachmentComposerController.AttachmentInsertion> insertions =
+        new ArrayList<J2clAttachmentComposerController.AttachmentInsertion>();
     private boolean shouldThrow = true;
 
     @Override
@@ -697,6 +708,7 @@ public class J2clAttachmentComposerControllerTest {
         shouldThrow = false;
         throw new IllegalStateException("boom");
       }
+      insertions.add(insertion);
     }
   }
 }
