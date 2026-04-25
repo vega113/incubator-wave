@@ -713,11 +713,10 @@ public final class J2clComposeSurfaceController {
   }
 
   private J2clComposerDocument buildDocument(
-      String draftText, boolean includeAttachments, String annotationCommandId) {
+      String draftText, boolean includeAttachments, String submittedAnnotationCommandId) {
     J2clComposerDocument.Builder builder = J2clComposerDocument.builder();
-    // Only apply the reply-toolbar annotation on the reply path; create-wave submits must not
-    // inherit a Bold/Italic toggle the user set in the reply editor.
-    J2clDailyToolbarAction action = J2clDailyToolbarAction.fromId(annotationCommandId);
+    // Reply submits pass the snapshotted command id; create submits pass an empty id.
+    J2clDailyToolbarAction action = J2clDailyToolbarAction.fromId(submittedAnnotationCommandId);
     String annotationKey = annotationKey(action);
     String annotationValue = annotationValue(action);
     if (annotationKey != null
