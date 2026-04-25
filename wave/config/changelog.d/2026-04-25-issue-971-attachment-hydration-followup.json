@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-25-issue-971-attachment-hydration-followup",
+  "version": "Unreleased",
+  "date": "2026-04-25",
+  "title": "J2CL selected-wave attachments hydrate metadata",
+  "summary": "Selected-wave attachments in the J2CL read surface now hydrate server metadata after the initial render so read-only waves can expose real preview, open, and download actions.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "J2CL selected-wave attachment placeholders now resolve to hydrated attachment models, preserve resolved metadata across unchanged viewport fragment merges, and avoid losing later attachments when self-closing image tags appear before normal image tags."
+      ]
+    }
+  ]
+}
