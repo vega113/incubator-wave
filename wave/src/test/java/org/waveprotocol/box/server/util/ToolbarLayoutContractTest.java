@@ -280,10 +280,14 @@ public final class ToolbarLayoutContractTest extends TestCase {
     assertTrue(javaSource.indexOf("if (channel == null || idGenerator == null) {")
         < javaSource.indexOf("Timing.startRequest(\"Open Wave\")"));
     assertTrue(javaSource.contains("final SelectElement select = (SelectElement)"));
-    assertTrue(javaSource.contains("if (select == null) {"));
-    assertTrue(javaSource.contains("return;"));
-    assertTrue(javaSource.indexOf("if (select == null) {")
-        < javaSource.indexOf("select.add(option, null);"));
+    int selectNullGuardIndex = javaSource.indexOf("if (select == null) {");
+    int selectNullReturnIndex = javaSource.indexOf("return;", selectNullGuardIndex);
+    int selectAddIndex = javaSource.indexOf("select.add(option, null);");
+    assertTrue(selectNullGuardIndex != -1);
+    assertTrue(selectNullReturnIndex != -1);
+    assertTrue(selectAddIndex != -1);
+    assertTrue(selectNullGuardIndex < selectNullReturnIndex);
+    assertTrue(selectNullReturnIndex < selectAddIndex);
     assertTrue(javaSource.contains("Element signout = Document.get().getElementById(\"signout\");"));
     assertTrue(javaSource.contains("if (signout != null) {"));
     assertTrue(javaSource.indexOf("if (signout != null) {")
