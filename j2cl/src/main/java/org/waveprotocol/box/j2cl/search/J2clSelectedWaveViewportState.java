@@ -1,7 +1,9 @@
 package org.waveprotocol.box.j2cl.search;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -671,11 +673,16 @@ public final class J2clSelectedWaveViewportState {
                 Collections.<J2clAttachmentRenderModel>emptyList(),
                 content);
       }
-      Map<String, J2clAttachmentRenderModel> currentById =
-          new HashMap<String, J2clAttachmentRenderModel>();
+      Map<String, Deque<J2clAttachmentRenderModel>> currentQueuesById =
+          new HashMap<String, Deque<J2clAttachmentRenderModel>>();
       for (J2clAttachmentRenderModel current : attachmentOverrides) {
         if (!current.getAttachmentId().isEmpty()) {
-          currentById.put(current.getAttachmentId(), current);
+          Deque<J2clAttachmentRenderModel> queue = currentQueuesById.get(current.getAttachmentId());
+          if (queue == null) {
+            queue = new ArrayDeque<J2clAttachmentRenderModel>();
+            currentQueuesById.put(current.getAttachmentId(), queue);
+          }
+          queue.add(current);
         }
       }
       List<J2clAttachmentRenderModel> nextAttachments =
@@ -699,7 +706,8 @@ public final class J2clSelectedWaveViewportState {
               J2clAttachmentRenderModel.metadataFailure(
                   attachmentId, parsed.getCaption(), parsed.getDisplaySize(), failureReason));
         } else {
-          J2clAttachmentRenderModel current = currentById.get(attachmentId);
+          Deque<J2clAttachmentRenderModel> queue = currentQueuesById.get(attachmentId);
+          J2clAttachmentRenderModel current = queue != null ? queue.poll() : null;
           nextAttachments.add(current == null ? parsed : current);
         }
       }
