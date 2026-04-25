@@ -58,6 +58,41 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void invalidSelectionBatchDoesNotPartiallyQueueOrConsumeIds() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newController(transport, new RecordingInsertionCallback());
+
+    try {
+      controller.selectFiles(
+          Arrays.asList(
+              J2clAttachmentComposerController.AttachmentSelection.file(
+                  new Object(),
+                  "partial.png",
+                  "",
+                  J2clAttachmentComposerController.DisplaySize.SMALL),
+              null));
+      Assert.fail("Expected invalid selection batch to fail.");
+    } catch (IllegalArgumentException expected) {
+      // Expected.
+    }
+
+    Assert.assertTrue(controller.getQueueSnapshot().isEmpty());
+    Assert.assertTrue(transport.requests.isEmpty());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "next.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    Assert.assertEquals(
+        "/attachment/example.com/attachment+seedA", transport.requests.get(0).getUrl());
+  }
+
+  @Test
   public void progressUpdatesActiveItemState() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =

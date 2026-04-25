@@ -186,11 +186,13 @@ public final class J2clAttachmentComposerController {
     if (selections == null) {
       throw new IllegalArgumentException("Attachment selections are required.");
     }
+    List<AttachmentSelection> validatedSelections =
+        new ArrayList<AttachmentSelection>(selections.size());
     for (AttachmentSelection selection : selections) {
-      queue.add(
-          new QueueItem(
-              idGenerator.nextAttachmentId(),
-              requirePresent(selection, "Attachment selection is required.")));
+      validatedSelections.add(requirePresent(selection, "Attachment selection is required."));
+    }
+    for (AttachmentSelection selection : validatedSelections) {
+      queue.add(new QueueItem(idGenerator.nextAttachmentId(), selection));
     }
     startNextUpload();
   }
