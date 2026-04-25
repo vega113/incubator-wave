@@ -8,14 +8,16 @@ import org.waveprotocol.box.j2cl.richtext.J2clComposerDocument;
 /** Controller-domain layer for composer attachment selection, upload, and insertion callbacks. */
 public final class J2clAttachmentComposerController {
   /** Error code value used when upload succeeds but composer document insertion fails. */
-  public static final String INSERT_FAILED_ERROR_CODE = "INSERT_FAILED";
+  public static final String INSERT_FAILED_ERROR_CODE = UploadStatus.INSERT_FAILED.name();
 
   public interface DocumentInsertionCallback {
     /**
      * Runtime exceptions escaping the callback, including from re-entrant controller calls, are
      * contained as {@link UploadStatus#INSERT_FAILED}. VM errors are not contained; completion
      * cleanup still runs, so a queued upload can start before the error reaches the caller. If
-     * the callback resets the controller before throwing, stale item mutations are dropped.
+     * the callback resets the controller before throwing, stale item mutations are dropped. The
+     * item is already marked {@link UploadStatus#COMPLETE} while this callback runs because the
+     * upload itself finished before document insertion starts.
      */
     void onInsert(J2clComposerDocument document, AttachmentInsertion insertion);
   }
@@ -313,6 +315,7 @@ public final class J2clAttachmentComposerController {
 
   private QueueItem firstQueuedItem() {
     while (nextQueueIndex < queue.size()) {
+      // Items at or after nextQueueIndex are expected to be QUEUED; keep the guard defensive.
       QueueItem item = queue.get(nextQueueIndex++);
       if (item.status == UploadStatus.QUEUED) {
         return item;
