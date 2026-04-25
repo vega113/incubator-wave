@@ -32,6 +32,24 @@ public class J2clAttachmentUploadClientTest {
   }
 
   @Test
+  public void filePickerUploadTrimsRequestIdentifiersBeforeSending() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentUploadClient client = new J2clAttachmentUploadClient(transport);
+
+    client.uploadFile(
+        "  example.com/attachment+ABC  ",
+        "  example.com/wave+1/~/conv+root  ",
+        new Object(),
+        "  wave.png  ",
+        result -> {});
+
+    Assert.assertEquals("/attachment/example.com/attachment+ABC", transport.request.getUrl());
+    Assert.assertEquals("example.com/attachment+ABC", transport.request.getPart(0).getStringValue());
+    Assert.assertEquals("example.com/wave+1/~/conv+root", transport.request.getPart(1).getStringValue());
+    Assert.assertEquals("wave.png", transport.request.getPart(2).getFileName());
+  }
+
+  @Test
   public void filePickerUploadRequiresOkSentinelInTwoHundredResponse() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentUploadClient client = new J2clAttachmentUploadClient(transport);
