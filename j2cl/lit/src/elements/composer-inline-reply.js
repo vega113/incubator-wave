@@ -9,7 +9,10 @@ export class ComposerInlineReply extends LitElement {
     submitting: { type: Boolean, reflect: true },
     staleBasis: { type: Boolean, attribute: "stale-basis", reflect: true },
     status: { type: String },
-    error: { type: String }
+    error: { type: String },
+    activeCommand: { type: String, attribute: "active-command" },
+    commandStatus: { type: String, attribute: "command-status" },
+    commandError: { type: String, attribute: "command-error" }
   };
 
   static styles = css`
@@ -47,6 +50,20 @@ export class ComposerInlineReply extends LitElement {
     this.staleBasis = false;
     this.status = "";
     this.error = "";
+    this.activeCommand = "";
+    this.commandStatus = "";
+    this.commandError = "";
+    this._handleFocusRequest = () => this.focusComposer();
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener("composer-focus-request", this._handleFocusRequest);
+  }
+
+  disconnectedCallback() {
+    this.removeEventListener("composer-focus-request", this._handleFocusRequest);
+    super.disconnectedCallback();
   }
 
   render() {
@@ -60,6 +77,7 @@ export class ComposerInlineReply extends LitElement {
           .value=${this.draft}
           ?disabled=${textareaDisabled}
           @input=${this.onInput}
+          @paste=${this.onPaste}
         ></textarea>
         <composer-submit-affordance
           label="Send reply"
@@ -72,6 +90,24 @@ export class ComposerInlineReply extends LitElement {
           : ""}
         ${this.error
           ? html`<p class="target" role="alert" aria-live="assertive">${this.error}</p>`
+          : ""}
+        ${this.commandStatus
+          ? html`<p
+              class="target"
+              data-command-status
+              data-active-command=${this.activeCommand}
+              role="status"
+              aria-live="polite"
+            >${this.commandStatus}</p>`
+          : ""}
+        ${this.commandError
+          ? html`<p
+              class="target"
+              data-command-error
+              data-active-command=${this.activeCommand}
+              role="alert"
+              aria-live="assertive"
+            >${this.commandError}</p>`
           : ""}
       </div>
     `;
@@ -90,6 +126,45 @@ export class ComposerInlineReply extends LitElement {
 
   onSubmit() {
     this.dispatchEvent(new CustomEvent("reply-submit", { bubbles: true, composed: true }));
+  }
+
+  onPaste(event) {
+    const items = Array.from(event.clipboardData?.items || []);
+    let file = items
+      .filter((item) => item.type?.startsWith("image/"))
+      .map((item) => this.fileFromClipboardItem(item))
+      .find(Boolean);
+    // Fallback for browsers (common mobile path) that expose pasted images via files
+    if (!file) {
+      const files = Array.from(event.clipboardData?.files || []);
+      file = files.find((f) => f.type?.startsWith("image/")) ?? null;
+    }
+    if (!file) {
+      return;
+    }
+    const hasText = items.some((item) => item.type?.startsWith("text/"));
+    if (!hasText) {
+      event.preventDefault();
+    }
+    this.dispatchEvent(
+      new CustomEvent("attachment-paste-image", {
+        detail: { file },
+        bubbles: true,
+        composed: true
+      })
+    );
+  }
+
+  fileFromClipboardItem(item) {
+    try {
+      return item.getAsFile?.();
+    } catch {
+      return null;
+    }
+  }
+
+  focusComposer() {
+    this.renderRoot.querySelector("textarea")?.focus();
   }
 }
 

@@ -1,0 +1,17 @@
+{
+  "releaseId": "2026-04-25-issue-971-composer-toolbar-wiring",
+  "version": "Issue #971",
+  "date": "2026-04-25",
+  "title": "Wire J2CL composer toolbar actions to rich content and attachments",
+  "summary": "The opt-in J2CL root shell now routes daily rich-edit and attachment toolbar actions into the Lit composer surface, including structured rich reply deltas, file-picker uploads, pasted-image upload safety, upload live-region status, and focus restoration.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Connected J2CL rich-edit toolbar commands to the composer submit path so inline formatting emits structured rich-content deltas instead of plain text only",
+        "Connected J2CL attachment commands to the attachment composer controller for file-picker uploads, pasted-image uploads, upload progress, upload errors, display-size choices, and attachment-only replies",
+        "Added Lit composer paste and focus hooks so pasted image uploads and attachment picker close paths return focus to the reply composer"
+      ]
+    }
+  ]
+}

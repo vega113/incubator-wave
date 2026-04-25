@@ -3,7 +3,6 @@ package org.waveprotocol.box.j2cl.root;
 import elemental2.dom.HTMLElement;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceView;
-import org.waveprotocol.box.j2cl.search.J2clPlainTextDeltaFactory;
 import org.waveprotocol.box.j2cl.search.J2clSearchGateway;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelController;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelView;
@@ -46,11 +45,13 @@ public final class J2clRootShellController {
         createChildHost(selectedWaveComposeHost, "j2cl-root-toolbar-host");
     HTMLElement selectedReplyHost =
         createChildHost(selectedWaveComposeHost, "j2cl-root-reply-host");
+    String rootShellSessionSeed = buildRootShellSessionSeed();
     J2clComposeSurfaceController composeController =
         new J2clComposeSurfaceController(
             gateway,
             new J2clComposeSurfaceView(searchView.getComposeHost(), selectedReplyHost),
-            new J2clPlainTextDeltaFactory(buildRootShellSessionSeed()),
+            J2clComposeSurfaceController.richContentDeltaFactory(rootShellSessionSeed),
+            J2clComposeSurfaceController.attachmentControllerFactory(rootShellSessionSeed),
             waveId -> routeControllerRef[0].selectWave(waveId),
             waveId -> {
               if (selectedWaveControllerRef[0] != null) {
@@ -60,9 +61,12 @@ public final class J2clRootShellController {
     J2clToolbarSurfaceController toolbarController =
         new J2clToolbarSurfaceController(
             new J2clToolbarSurfaceView(selectedToolbarHost),
-            action ->
+            action -> {
+              if (!composeController.onToolbarAction(action)) {
                 toolbarControllerRef[0].onActionUnavailable(
-                    action, "This toolbar action is not wired in the J2CL root shell yet."));
+                    action, "This toolbar action is not wired in the J2CL root shell yet.");
+              }
+            });
     toolbarControllerRef[0] = toolbarController;
     J2clSelectedWaveController selectedWaveController =
         new J2clSelectedWaveController(

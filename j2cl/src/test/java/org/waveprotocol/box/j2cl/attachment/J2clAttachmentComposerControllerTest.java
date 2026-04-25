@@ -246,6 +246,21 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void constructorRejectsNullStateChangeCallback() {
+    try {
+      new J2clAttachmentComposerController(
+          WAVE_REF,
+          new J2clAttachmentUploadClient(new FakeUploadTransport()),
+          new J2clAttachmentIdGenerator("example.com", "seed"),
+          new RecordingInsertionCallback(),
+          null);
+      Assert.fail("Expected null state change callback to fail.");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("state change callback"));
+    }
+  }
+
+  @Test
   public void progressUpdatesActiveItemState() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =
@@ -809,6 +824,135 @@ public class J2clAttachmentComposerControllerTest {
         J2clAttachmentComposerController.UploadStatus.INSERT_FAILED,
         controller.getQueueSnapshot().get(0).getStatus());
     Assert.assertEquals(100, controller.getQueueSnapshot().get(0).getProgressPercent());
+  }
+
+  @Test
+  public void stateChangeCallbackFailureDoesNotPreventUploadStartOrCompletion() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingInsertionCallback insertionCallback = new RecordingInsertionCallback();
+    J2clAttachmentComposerController controller =
+        newControllerWithStateCallback(
+            transport,
+            insertionCallback,
+            throwingStateCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "observer.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    Assert.assertEquals(1, transport.requests.size());
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertEquals(1, insertionCallback.insertions.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
+        controller.getQueueSnapshot().get(0).getStatus());
+  }
+
+  @Test
+  public void stateChangeCallbackFailureDoesNotStopNextQueuedUpload() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    RecordingInsertionCallback insertionCallback = new RecordingInsertionCallback();
+    J2clAttachmentComposerController controller =
+        newControllerWithStateCallback(
+            transport,
+            insertionCallback,
+            throwingStateCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "first.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL),
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "second.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertEquals(2, transport.requests.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.UPLOADING,
+        controller.getQueueSnapshot().get(1).getStatus());
+  }
+
+  @Test
+  public void stateChangeCallbackFailureDuringProgressDoesNotBlockStateUpdate() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newControllerWithStateCallback(
+            transport,
+            new RecordingInsertionCallback(),
+            throwingStateCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "progress.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+    transport.requests.get(0).getProgressCallback().onProgress(64);
+
+    Assert.assertEquals(64, controller.getQueueSnapshot().get(0).getProgressPercent());
+  }
+
+  @Test
+  public void stateChangeCallbackErrorIsNotSwallowed() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newControllerWithStateCallback(
+            transport,
+            new RecordingInsertionCallback(),
+            () -> {
+              throw new FatalObserverError("fatal observer failure");
+            });
+
+    try {
+      controller.selectFiles(
+          Arrays.asList(
+              J2clAttachmentComposerController.AttachmentSelection.file(
+                  new Object(),
+                  "fatal.png",
+                  "",
+                  J2clAttachmentComposerController.DisplaySize.SMALL)));
+      Assert.fail("Expected fatal observer failure to propagate.");
+    } catch (FatalObserverError expected) {
+      Assert.assertEquals("fatal observer failure", expected.getMessage());
+    }
+
+    Assert.assertTrue(transport.requests.isEmpty());
+  }
+
+  @Test
+  public void stateChangeCallbackFailureDoesNotPreventCancelReset() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newControllerWithStateCallback(
+            transport,
+            new RecordingInsertionCallback(),
+            throwingStateCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "cancel.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+
+    controller.cancelAndReset();
+
+    Assert.assertTrue(controller.getQueueSnapshot().isEmpty());
   }
 
   @Test
@@ -1425,6 +1569,24 @@ public class J2clAttachmentComposerControllerTest {
         insertionCallback);
   }
 
+  private static J2clAttachmentComposerController newControllerWithStateCallback(
+      FakeUploadTransport transport,
+      J2clAttachmentComposerController.DocumentInsertionCallback insertionCallback,
+      J2clAttachmentComposerController.StateChangeCallback stateChangeCallback) {
+    return new J2clAttachmentComposerController(
+        WAVE_REF,
+        new J2clAttachmentUploadClient(transport),
+        new J2clAttachmentIdGenerator("example.com", "seed"),
+        insertionCallback,
+        stateChangeCallback);
+  }
+
+  private static J2clAttachmentComposerController.StateChangeCallback throwingStateCallback() {
+    return () -> {
+      throw new RuntimeException("observer failed");
+    };
+  }
+
   private static void assertDocumentContainsAttachment(
       J2clComposerDocument document, String attachmentId, String caption, String displaySize) {
     String deltaJson =
@@ -1521,6 +1683,12 @@ public class J2clAttachmentComposerControllerTest {
         J2clAttachmentComposerController.AttachmentInsertion insertion) {
       documents.add(document);
       insertions.add(insertion);
+    }
+  }
+
+  private static final class FatalObserverError extends Error {
+    private FatalObserverError(String message) {
+      super(message);
     }
   }
 

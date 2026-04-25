@@ -13,6 +13,9 @@ public final class J2clComposeSurfaceModel {
   private final boolean replyStaleBasis;
   private final String replyStatusText;
   private final String replyErrorText;
+  private final String activeCommandId;
+  private final String commandStatusText;
+  private final String commandErrorText;
 
   public J2clComposeSurfaceModel(
       boolean createEnabled,
@@ -26,7 +29,10 @@ public final class J2clComposeSurfaceModel {
       boolean replySubmitting,
       boolean replyStaleBasis,
       String replyStatusText,
-      String replyErrorText) {
+      String replyErrorText,
+      String activeCommandId,
+      String commandStatusText,
+      String commandErrorText) {
     this.createEnabled = createEnabled;
     this.createDraft = nullToEmpty(createDraft);
     this.createSubmitting = createSubmitting;
@@ -39,6 +45,9 @@ public final class J2clComposeSurfaceModel {
     this.replyStaleBasis = replyStaleBasis;
     this.replyStatusText = nullToEmpty(replyStatusText);
     this.replyErrorText = nullToEmpty(replyErrorText);
+    this.activeCommandId = nullToEmpty(activeCommandId);
+    this.commandStatusText = nullToEmpty(commandStatusText);
+    this.commandErrorText = nullToEmpty(commandErrorText);
   }
 
   public boolean isCreateEnabled() {
@@ -87,6 +96,18 @@ public final class J2clComposeSurfaceModel {
 
   public String getReplyErrorText() {
     return replyErrorText;
+  }
+
+  public String getActiveCommandId() {
+    return activeCommandId;
+  }
+
+  public String getCommandStatusText() {
+    return commandStatusText;
+  }
+
+  public String getCommandErrorText() {
+    return commandErrorText;
   }
 
   private static String nullToEmpty(String value) {
