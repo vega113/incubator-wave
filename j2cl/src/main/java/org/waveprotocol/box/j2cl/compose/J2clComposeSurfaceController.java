@@ -651,7 +651,7 @@ public final class J2clComposeSurfaceController {
     commandStatusText = "";
     commandErrorText = "";
     if (attachmentController != null) {
-      // Keep the controller so its id generator counter continues across reply batches.
+      // Reuse the controller so reply batches do not rebuild attachment lifecycle state.
       attachmentController.cancelAndReset();
     }
     replyStatusText = "Reply submitted. Waiting for the opened wave to update.";
