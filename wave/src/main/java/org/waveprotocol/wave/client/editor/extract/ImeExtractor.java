@@ -96,7 +96,7 @@ public class ImeExtractor {
   private static final String LIVE_PREVIEW_CSS =
       "." + LIVE_PREVIEW_CLASS + " {"
       + " color: transparent !important;"
-      + " caret-color: transparent;"
+      + " caret-color: var(" + LIVE_PREVIEW_COLOR_PROPERTY + ", #111);"
       + " display: inline-block;"
       + " position: relative;"
       + "}"
