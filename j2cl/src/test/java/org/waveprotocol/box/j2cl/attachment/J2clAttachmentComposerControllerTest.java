@@ -125,6 +125,28 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void progressIsClampedToValidPercentRange() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newController(transport, new RecordingInsertionCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "progress.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.MEDIUM)));
+    transport.requests.get(0).getProgressCallback().onProgress(-3);
+
+    Assert.assertEquals(0, controller.getQueueSnapshot().get(0).getProgressPercent());
+
+    transport.requests.get(0).getProgressCallback().onProgress(200);
+
+    Assert.assertEquals(100, controller.getQueueSnapshot().get(0).getProgressPercent());
+  }
+
+  @Test
   public void progressAfterCancelResetIsIgnored() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =
@@ -402,6 +424,30 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void queueSnapshotItemsAreValueSnapshots() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newController(transport, new RecordingInsertionCallback());
+
+    controller.selectFiles(
+        Arrays.asList(
+            J2clAttachmentComposerController.AttachmentSelection.file(
+                new Object(),
+                "snapshot.png",
+                "",
+                J2clAttachmentComposerController.DisplaySize.SMALL)));
+    List<J2clAttachmentComposerController.UploadItem> snapshot = controller.getQueueSnapshot();
+
+    transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(200, "OK", null));
+
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.UPLOADING, snapshot.get(0).getStatus());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.COMPLETE,
+        controller.getQueueSnapshot().get(0).getStatus());
+  }
+
+  @Test
   public void pastedImageUploadCapturesIntentAndMutatesOnlyAfterSuccess() {
     FakeUploadTransport transport = new FakeUploadTransport();
     RecordingInsertionCallback insertionCallback = new RecordingInsertionCallback();
@@ -447,6 +493,29 @@ public class J2clAttachmentComposerControllerTest {
   }
 
   @Test
+  public void insertionCallbackFailureOnPasteStillStartsNextUpload() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    ThrowingThenRecordingInsertionCallback insertionCallback =
+        new ThrowingThenRecordingInsertionCallback();
+    J2clAttachmentComposerController controller = newController(transport, insertionCallback);
+
+    controller.pasteImage(new Object(), "first", J2clAttachmentComposerController.DisplaySize.SMALL);
+    controller.pasteImage(new Object(), "second", J2clAttachmentComposerController.DisplaySize.SMALL);
+
+    try {
+      transport.complete(0, new J2clAttachmentUploadClient.HttpResponse(201, "stored", null));
+      Assert.fail("Expected insertion callback failure.");
+    } catch (IllegalStateException expected) {
+      // Expected.
+    }
+
+    Assert.assertEquals(2, transport.requests.size());
+    Assert.assertEquals(
+        J2clAttachmentComposerController.UploadStatus.UPLOADING,
+        controller.getQueueSnapshot().get(1).getStatus());
+  }
+
+  @Test
   public void invalidPastedImageDoesNotQueueStartUploadOrConsumeIds() {
     FakeUploadTransport transport = new FakeUploadTransport();
     J2clAttachmentComposerController controller =
@@ -471,6 +540,23 @@ public class J2clAttachmentComposerControllerTest {
         J2clAttachmentComposerController.DisplaySize.MEDIUM);
 
     Assert.assertEquals("/attachment/example.com/seedA", transport.requests.get(0).getUrl());
+  }
+
+  @Test
+  public void invalidPastedImageDisplaySizeDoesNotQueueStartUploadOrConsumeIds() {
+    FakeUploadTransport transport = new FakeUploadTransport();
+    J2clAttachmentComposerController controller =
+        newController(transport, new RecordingInsertionCallback());
+
+    try {
+      controller.pasteImage(new Object(), null, null);
+      Assert.fail("Expected invalid pasted image display size to fail.");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("display size"));
+    }
+
+    Assert.assertTrue(controller.getQueueSnapshot().isEmpty());
+    Assert.assertTrue(transport.requests.isEmpty());
   }
 
   @Test

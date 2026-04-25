@@ -263,7 +263,7 @@ public final class J2clAttachmentComposerController {
     J2clAttachmentUploadClient.UploadProgressCallback progressCallback =
         percent -> {
           if (generation == resetGeneration && item.status == UploadStatus.UPLOADING) {
-            item.progressPercent = percent;
+            item.progressPercent = clampPercent(percent);
           }
         };
     J2clAttachmentUploadClient.UploadCallback uploadCallback =
@@ -334,6 +334,16 @@ public final class J2clAttachmentComposerController {
       throw new IllegalArgumentException(message);
     }
     return trimmed;
+  }
+
+  private static int clampPercent(int percent) {
+    if (percent < 0) {
+      return 0;
+    }
+    if (percent > 100) {
+      return 100;
+    }
+    return percent;
   }
 
   private static <T> T requirePresent(T value, String message) {

@@ -40,6 +40,16 @@ public class J2clAttachmentIdGeneratorTest {
   }
 
   @Test
+  public void rejectsNullDomain() {
+    try {
+      new J2clAttachmentIdGenerator(null, "seed");
+      Assert.fail("Expected null domain to fail.");
+    } catch (IllegalArgumentException expected) {
+      Assert.assertTrue(expected.getMessage().contains("domain"));
+    }
+  }
+
+  @Test
   public void encodesBase64Boundaries() {
     assertIdAtCounter(0, "example.com/seedA");
     assertIdAtCounter(62, "example.com/seed-");

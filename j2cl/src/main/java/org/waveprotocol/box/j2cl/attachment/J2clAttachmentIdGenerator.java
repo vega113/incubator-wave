@@ -1,6 +1,11 @@
 package org.waveprotocol.box.j2cl.attachment;
 
-/** Deterministic attachment id generator for J2CL composer uploads. */
+/**
+ * Deterministic attachment id generator for J2CL composer uploads.
+ *
+ * <p>Callers should pass the same unpredictable per-session seed used by the legacy
+ * {@code IdGeneratorImpl} path.
+ */
 public final class J2clAttachmentIdGenerator {
   private static final String DEFAULT_SEED = "j2cl";
   private static final char[] WEB64_ALPHABET =
@@ -16,6 +21,9 @@ public final class J2clAttachmentIdGenerator {
   }
 
   public String nextAttachmentId() {
+    if (counter < 0) {
+      throw new IllegalStateException("Attachment id counter overflow.");
+    }
     return domain + "/" + seed + base64Encode(counter++);
   }
 
@@ -55,7 +63,9 @@ public final class J2clAttachmentIdGenerator {
   }
 
   private static String base64Encode(int intValue) {
-    assert intValue >= 0;
+    if (intValue < 0) {
+      throw new IllegalArgumentException("Attachment id counter must be non-negative.");
+    }
     if (intValue == 0) {
       return "A";
     }
