@@ -6,7 +6,6 @@
 @eval panelHeight org.waveprotocol.wave.client.wavepanel.view.dom.full.TagsViewBuilder.CssConstants.PANEL_HEIGHT_CSS;
 @external .mobile-wave-open;
 @external .mobile-tags-open;
-@external .mobile-tags-pinned;
 
 .panel {
   border-top: 1px solid #B8C6D9;
@@ -234,14 +233,19 @@ body.mobile-wave-open [data-mobile-role='wave-tags'] {
   left: 0;
   right: 0;
   bottom: 0;
-  max-height: 32px;
+  max-height: 40vh;
   overflow: hidden;
-  transition: max-height 180ms ease-out;
+  transform: translateY(100%);
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform 180ms ease-out, max-height 180ms ease-out;
   z-index: 120;
 }
 
-body.mobile-tags-open [data-mobile-role='wave-tags'],
-body.mobile-tags-pinned [data-mobile-role='wave-tags'] {
+body.mobile-tags-open [data-mobile-role='wave-tags'] {
+  transform: translateY(0);
+  pointer-events: auto;
+  visibility: visible;
   max-height: 40vh;
 }
 

@@ -33,11 +33,15 @@ public final class MobileChromeControlsContractTest extends TestCase {
 
     assertContains(source, "mobile-control-svg");
     assertContains(source, "mobile-control-label");
-    assertContains(source, "width: 44px");
+    assertContains(source, "min-width: 44px");
     assertContains(source, "height: 44px");
     assertContains(source, "border-radius: 12px");
     assertContains(source, "title=\\\"Show tags tray\\\"");
-    assertContains(source, "title=\\\"Pin tags tray\\\"");
+    assertContains(source, "mobile-control-text");
+    assertFalse("Mobile wave chrome should not expose unclear persistent pin buttons",
+        source.contains("id=\\\"mobileWaveChromePin\\\""));
+    assertFalse("Mobile tags should be opened deliberately instead of pinned onscreen",
+        source.contains("id=\\\"mobileTagsPin\\\""));
   }
 
   public void testMobileControlStateSyncPreservesIconMarkup() throws Exception {
@@ -52,6 +56,16 @@ public final class MobileChromeControlsContractTest extends TestCase {
         source.contains("aria-pressed=\\\"false\\\">Tags</button>"));
     assertFalse("Tag pin control should not render as a visible text pill",
         source.contains("aria-pressed=\\\"false\\\">Tag Pin</button>"));
+    assertFalse("Pin state sync should not keep the tags tray onscreen",
+        source.contains("setToggleState(mobileTagsPin"));
+    assertFalse("Removed pin controls must not leave a stale tagsPinned reference",
+        source.contains("tagsPinned"));
+    assertFalse("Removed pin controls must not leave a stale server refresh bridge",
+        source.contains("__waveChromePrefsRefresh"));
+    assertFalse("Removed pin controls must not leave a stale server refresh bridge",
+        source.contains("refreshPinnedStateFromBridge"));
+    assertFalse("Removed pin controls must not leave visible pin copy",
+        source.contains("Pin tags tray"));
   }
 
   private static String readHtmlRendererSource() throws Exception {

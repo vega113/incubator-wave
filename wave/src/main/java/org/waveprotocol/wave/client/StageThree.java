@@ -256,10 +256,8 @@ public interface StageThree {
 
         @Override
         public void onReset() {
-          clearMobileChromePreferenceBridge();
         }
       });
-      installMobileChromePreferenceBridge(stageTwo.getSupplement());
       TagController.install(panel, models);
       TagUpdateRenderer.create(models, new TagUpdateRenderer.TagReader() {
         @Override
@@ -273,29 +271,5 @@ public interface StageThree {
       stageTwo.getDiffController().upgrade(edit);
     }
 
-    private static native void clearMobileChromePreferenceBridge() /*-{
-      $wnd.__waveMobileChromePrefs = null;
-    }-*/;
-
-    private static native void installMobileChromePreferenceBridge(
-        org.waveprotocol.wave.client.wave.LocalSupplementedWave supplement) /*-{
-      $wnd.__waveMobileChromePrefs = {
-        getChromePinned: function() {
-          return !!supplement.@org.waveprotocol.wave.model.supplement.ReadableSupplementedWave::isMobileChromePinned()();
-        },
-        setChromePinned: function(pinned) {
-          supplement.@org.waveprotocol.wave.model.supplement.WritableSupplementedWave::setMobileChromePinned(Z)(!!pinned);
-        },
-        getTagsPinned: function() {
-          return !!supplement.@org.waveprotocol.wave.model.supplement.ReadableSupplementedWave::isMobileTagsPinned()();
-        },
-        setTagsPinned: function(pinned) {
-          supplement.@org.waveprotocol.wave.model.supplement.WritableSupplementedWave::setMobileTagsPinned(Z)(!!pinned);
-        }
-      };
-      if ($wnd.__waveChromePrefsRefresh) {
-        $wnd.__waveChromePrefsRefresh();
-      }
-    }-*/;
   }
 }
