@@ -431,6 +431,30 @@ public final class J2clSelectedWaveModel {
         readStateStale);
   }
 
+  J2clSelectedWaveModel withReadBlips(List<J2clReadBlip> newReadBlips) {
+    return new J2clSelectedWaveModel(
+        hasSelection,
+        loading,
+        error,
+        selectedWaveId,
+        titleText,
+        snippetText,
+        unreadText,
+        statusText,
+        detailText,
+        reconnectCount,
+        participantIds,
+        contentEntries,
+        newReadBlips,
+        viewportState,
+        interactionBlips,
+        writeSession,
+        unreadCount,
+        read,
+        readStateKnown,
+        readStateStale);
+  }
+
   J2clSelectedWaveModel withStatus(String nextStatusText, String nextDetailText) {
     // Soft status updates keep the selected-wave card interactive and avoid the blocking error
     // presentation used for bootstrap/stream failures.

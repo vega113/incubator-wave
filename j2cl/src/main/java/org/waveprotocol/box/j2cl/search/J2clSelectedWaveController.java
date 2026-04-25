@@ -1,8 +1,16 @@
 package org.waveprotocol.box.j2cl.search;
 
 import elemental2.dom.DomGlobal;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadata;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadataClient;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.read.J2clReadBlip;
 import org.waveprotocol.box.j2cl.transport.SidecarFragmentsResponse;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
@@ -59,6 +67,19 @@ public final class J2clSelectedWaveController
         long endVersion,
         J2clSearchPanelController.SuccessCallback<SidecarFragmentsResponse> onSuccess,
         J2clSearchPanelController.ErrorCallback onError);
+
+    /**
+     * Fetches attachment metadata for the given attachment IDs and delivers the
+     * result to {@code onComplete}. Implementations that do not support metadata
+     * hydration may leave the callback un-invoked; attachments will remain in the
+     * {@code metadataPending} state for those implementations (e.g. test doubles).
+     */
+    default void fetchAttachmentMetadata(
+        List<String> attachmentIds,
+        J2clSearchPanelController.SuccessCallback<J2clAttachmentMetadataClient.MetadataResult>
+            onComplete) {
+      // Default no-op: leaves pending attachments in their pending state.
+    }
   }
 
   public interface View {
@@ -241,6 +262,7 @@ public final class J2clSelectedWaveController
                 readStateStale);
         view.render(currentModel);
         publishWriteSession();
+        hydrateAttachmentsIfNeeded(currentModel);
       }
       return;
     }
@@ -342,6 +364,7 @@ public final class J2clSelectedWaveController
                       readStateStale);
               view.render(currentModel);
               publishWriteSession();
+              hydrateAttachmentsIfNeeded(currentModel);
               activeReconnectCount[0] = 0;
               this.reconnectCount = projectedReconnectCount;
               scheduleReadStateFetch(generation);
@@ -442,6 +465,7 @@ public final class J2clSelectedWaveController
           }
           view.render(currentModel);
           publishWriteSession();
+          hydrateAttachmentsIfNeeded(currentModel);
           fragmentFetchesInFlight.remove(edgeKey);
         },
         error -> {
@@ -632,6 +656,7 @@ public final class J2clSelectedWaveController
             currentModel, selectedDigestItem, currentReadState, readStateStale);
     view.render(currentModel);
     publishWriteSession();
+    hydrateAttachmentsIfNeeded(currentModel);
   }
 
   private void resetReadStateFetchTracking() {
@@ -667,5 +692,111 @@ public final class J2clSelectedWaveController
                 onVisible.run();
               }
             });
+  }
+
+  // --- Attachment metadata hydration -----------------------------------------
+
+  /**
+   * After a render cycle, collects all {@code metadataPending} attachments from
+   * the current read blips and triggers a single metadata fetch through the
+   * gateway. On success, re-renders with {@code fromMetadata}-hydrated models;
+   * on failure (or for IDs missing from the response), falls back to
+   * {@code metadataFailure} display. Only one hydration pass is performed per
+   * render — if the selected wave changes while the fetch is in-flight the
+   * result is discarded.
+   */
+  private void hydrateAttachmentsIfNeeded(J2clSelectedWaveModel model) {
+    List<J2clReadBlip> readBlips = model.getReadBlips();
+    if (readBlips.isEmpty()) {
+      return;
+    }
+    // Collect all pending attachment IDs across all blips.
+    List<String> pendingIds = new ArrayList<String>();
+    for (J2clReadBlip blip : readBlips) {
+      for (J2clAttachmentRenderModel attachment : blip.getAttachments()) {
+        if (attachment.isMetadataPending()) {
+          pendingIds.add(attachment.getAttachmentId());
+        }
+      }
+    }
+    if (pendingIds.isEmpty()) {
+      return;
+    }
+    final int hydrationGeneration = requestGeneration;
+    final String hydrationWaveId = selectedWaveId;
+    gateway.fetchAttachmentMetadata(
+        pendingIds,
+        result -> {
+          // Discard if the wave selection has changed since the fetch started.
+          if (hydrationGeneration != requestGeneration
+              || !equalsNullSafe(hydrationWaveId, selectedWaveId)) {
+            return;
+          }
+          // Build a lookup map from attachmentId -> metadata for successful results.
+          Map<String, J2clAttachmentMetadata> metadataById =
+              new HashMap<String, J2clAttachmentMetadata>();
+          if (result.isSuccess()) {
+            for (J2clAttachmentMetadata metadata : result.getAttachments()) {
+              metadataById.put(metadata.getAttachmentId(), metadata);
+            }
+          }
+          // Re-build each blip's attachment list, hydrating pending entries.
+          List<J2clReadBlip> hydratedBlips = new ArrayList<J2clReadBlip>(currentModel.getReadBlips().size());
+          for (J2clReadBlip blip : currentModel.getReadBlips()) {
+            boolean hasAnyPending = false;
+            for (J2clAttachmentRenderModel a : blip.getAttachments()) {
+              if (a.isMetadataPending()) {
+                hasAnyPending = true;
+                break;
+              }
+            }
+            if (!hasAnyPending) {
+              hydratedBlips.add(blip);
+              continue;
+            }
+            List<J2clAttachmentRenderModel> hydratedAttachments =
+                new ArrayList<J2clAttachmentRenderModel>(blip.getAttachments().size());
+            for (J2clAttachmentRenderModel attachment : blip.getAttachments()) {
+              if (!attachment.isMetadataPending()) {
+                hydratedAttachments.add(attachment);
+                continue;
+              }
+              String attachmentId = attachment.getAttachmentId();
+              J2clAttachmentMetadata metadata = metadataById.get(attachmentId);
+              if (!result.isSuccess()) {
+                // Whole-fetch failure: surface the error message from the result.
+                hydratedAttachments.add(
+                    J2clAttachmentRenderModel.metadataFailure(
+                        attachmentId,
+                        attachment.getCaption(),
+                        attachment.getDisplaySize(),
+                        result.getMessage()));
+              } else if (metadata != null) {
+                hydratedAttachments.add(
+                    J2clAttachmentRenderModel.fromMetadata(
+                        attachmentId,
+                        attachment.getCaption(),
+                        attachment.getDisplaySize(),
+                        metadata));
+              } else {
+                // ID was not returned by the server.
+                hydratedAttachments.add(
+                    J2clAttachmentRenderModel.metadataFailure(
+                        attachmentId,
+                        attachment.getCaption(),
+                        attachment.getDisplaySize(),
+                        "attachment not found"));
+              }
+            }
+            hydratedBlips.add(new J2clReadBlip(blip.getBlipId(), blip.getText(), hydratedAttachments));
+          }
+          currentModel = currentModel.withReadBlips(hydratedBlips);
+          view.render(currentModel);
+          publishWriteSession();
+        });
+  }
+
+  private static boolean equalsNullSafe(String a, String b) {
+    return a == null ? b == null : a.equals(b);
   }
 }

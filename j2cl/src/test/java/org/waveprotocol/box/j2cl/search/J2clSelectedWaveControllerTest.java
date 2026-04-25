@@ -10,6 +10,9 @@ import java.util.Collections;
 import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadataClient;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.read.J2clReadBlip;
 import org.waveprotocol.box.j2cl.transport.SidecarFragmentsResponse;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragment;
@@ -881,6 +884,126 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertEquals(2, harness.fragmentFetchAttempts.size());
   }
 
+  @Test
+  public void pendingAttachmentsInReadBlipsTriggerMetadataFetch() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    // Deliver a fragment update whose raw snapshot contains an image element — this causes
+    // J2clReadBlipContent.parseRawSnapshot to produce a metadataPending attachment model.
+    harness.deliverRawUpdate(0, updateWithImageAttachment("img-001", "My photo", "medium", "Body text"));
+
+    // The controller must have triggered a metadata fetch for the pending attachment.
+    Assert.assertEquals(1, harness.attachmentMetadataFetchAttempts.size());
+    Assert.assertEquals(Arrays.asList("img-001"), harness.attachmentMetadataFetchAttempts.get(0).attachmentIds);
+  }
+
+  @Test
+  public void successfulMetadataFetchReRendersWithHydratedAttachments() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithImageAttachment("img-002", "A picture", "small", "Hello"));
+
+    Assert.assertEquals(1, harness.attachmentMetadataFetchAttempts.size());
+
+    // Capture the render count before the hydration re-render.
+    int rendersBefore = harness.renderCount;
+
+    // Supply metadata for img-002: minimal well-formed JSON for the attachment info endpoint.
+    harness.resolveAttachmentMetadataFetch(0, buildSingleAttachmentResultJson("img-002",
+        "photo.jpg", "image/jpeg", "/attachments/img-002", "/thumbnails/img-002", false));
+
+    // The controller must have called view.render a second time.
+    Assert.assertEquals(rendersBefore + 1, harness.renderCount);
+
+    // The re-rendered blips must have a non-pending attachment for img-002.
+    @SuppressWarnings("unchecked")
+    List<J2clReadBlip> readBlips = (List<J2clReadBlip>) harness.modelValue("getReadBlips");
+    Assert.assertFalse(readBlips.isEmpty());
+    boolean foundHydrated = false;
+    for (J2clReadBlip blip : readBlips) {
+      for (J2clAttachmentRenderModel attachment : blip.getAttachments()) {
+        if ("img-002".equals(attachment.getAttachmentId())) {
+          Assert.assertFalse(
+              "Expected attachment to be hydrated (not metadataPending)",
+              attachment.isMetadataPending());
+          Assert.assertFalse(
+              "Expected attachment to not be metadataFailure after successful fetch",
+              attachment.isMetadataFailure());
+          foundHydrated = true;
+        }
+      }
+    }
+    Assert.assertTrue("No hydrated attachment for img-002 found in rendered model", foundHydrated);
+  }
+
+  @Test
+  public void failedMetadataFetchReRendersWithMetadataFailureAttachments() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithImageAttachment("img-003", "Broken", "small", ""));
+
+    int rendersBefore = harness.renderCount;
+    harness.rejectAttachmentMetadataFetch(0, "network error");
+
+    Assert.assertEquals(rendersBefore + 1, harness.renderCount);
+
+    @SuppressWarnings("unchecked")
+    List<J2clReadBlip> readBlips = (List<J2clReadBlip>) harness.modelValue("getReadBlips");
+    boolean foundFailure = false;
+    for (J2clReadBlip blip : readBlips) {
+      for (J2clAttachmentRenderModel attachment : blip.getAttachments()) {
+        if ("img-003".equals(attachment.getAttachmentId())) {
+          Assert.assertFalse("Expected not pending after failed fetch", attachment.isMetadataPending());
+          Assert.assertTrue("Expected metadataFailure after failed fetch", attachment.isMetadataFailure());
+          foundFailure = true;
+        }
+      }
+    }
+    Assert.assertTrue("No failure attachment for img-003 found", foundFailure);
+  }
+
+  @Test
+  public void staleAttachmentFetchIsDiscardedAfterWaveReselection() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithImageAttachment("img-004", "Wave 1 photo", "small", ""));
+    Assert.assertEquals(1, harness.attachmentMetadataFetchAttempts.size());
+
+    // Switch to a different wave before the attachment fetch completes.
+    harness.selectWave(controller, "example.com/w+2", null);
+
+    int renderCountAfterSwitch = harness.renderCount;
+    harness.resolveAttachmentMetadataFetch(0, buildSingleAttachmentResultJson("img-004",
+        "photo.jpg", "image/jpeg", "/attachments/img-004", "/thumbnails/img-004", false));
+
+    // The stale result must be discarded — no extra re-render for wave 2.
+    Assert.assertEquals(renderCountAfterSwitch, harness.renderCount);
+  }
+
+  @Test
+  public void blipsWithNoAttachmentsDoNotTriggerMetadataFetch() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Just plain text, no attachments");
+
+    Assert.assertEquals(0, harness.attachmentMetadataFetchAttempts.size());
+  }
+
   private static J2clSearchDigestItem digest(String title, String snippet, int unreadCount) {
     return new J2clSearchDigestItem(
         "example.com/w+1", title, snippet, "user@example.com", unreadCount, 2, 1234L, false);
@@ -889,6 +1012,7 @@ public class J2clSelectedWaveControllerTest {
   private static final class Harness {
     private int openCount;
     private int closedCount;
+    private int renderCount;
     private final List<Integer> scheduledDelays = new ArrayList<Integer>();
     private final List<Runnable> scheduledRetries = new ArrayList<Runnable>();
     private final List<BootstrapAttempt> bootstrapAttempts = new ArrayList<BootstrapAttempt>();
@@ -896,6 +1020,8 @@ public class J2clSelectedWaveControllerTest {
     private final List<ReadStateFetchAttempt> readStateAttempts = new ArrayList<ReadStateFetchAttempt>();
     private final List<FragmentFetchAttempt> fragmentFetchAttempts =
         new ArrayList<FragmentFetchAttempt>();
+    private final List<AttachmentMetadataFetchAttempt> attachmentMetadataFetchAttempts =
+        new ArrayList<AttachmentMetadataFetchAttempt>();
     private final List<Runnable> pendingReadStateDispatches = new ArrayList<Runnable>();
     private final List<Runnable> visibilityListeners = new ArrayList<Runnable>();
     private SidecarViewportHints initialViewportHints;
@@ -992,6 +1118,19 @@ public class J2clSelectedWaveControllerTest {
                           error));
                   return null;
                 }
+                if ("fetchAttachmentMetadata".equals(method.getName())) {
+                  @SuppressWarnings("unchecked")
+                  List<String> ids = (List<String>) args[0];
+                  @SuppressWarnings("unchecked")
+                  J2clSearchPanelController.SuccessCallback<J2clAttachmentMetadataClient.MetadataResult>
+                      callback =
+                          (J2clSearchPanelController.SuccessCallback<
+                                  J2clAttachmentMetadataClient.MetadataResult>)
+                              args[1];
+                  attachmentMetadataFetchAttempts.add(
+                      new AttachmentMetadataFetchAttempt(ids, callback));
+                  return null;
+                }
                 return null;
               });
 
@@ -1002,6 +1141,7 @@ public class J2clSelectedWaveControllerTest {
               (proxy, method, args) -> {
                 if ("render".equals(method.getName())) {
                   lastModel = args[0];
+                  renderCount++;
                   Runnable callback = onNextRender;
                   onNextRender = null;
                   if (callback != null) {
@@ -1155,6 +1295,35 @@ public class J2clSelectedWaveControllerTest {
       fragmentFetchAttempts.get(index).error.accept(message);
     }
 
+    /**
+     * Resolves the attachment metadata fetch at {@code index} by running a real
+     * {@link J2clAttachmentMetadataClient} with a synchronous fake transport that
+     * returns the given JSON string as a successful 200 application/json response.
+     */
+    private void resolveAttachmentMetadataFetch(int index, String json) {
+      AttachmentMetadataFetchAttempt attempt = attachmentMetadataFetchAttempts.get(index);
+      J2clAttachmentMetadataClient client =
+          new J2clAttachmentMetadataClient(
+              (url, handler) ->
+                  handler.onResponse(
+                      new J2clAttachmentMetadataClient.HttpResponse(
+                          200, "application/json", json, null)));
+      client.fetchMetadata(attempt.attachmentIds, result -> attempt.callback.accept(result));
+    }
+
+    /**
+     * Rejects the attachment metadata fetch at {@code index} by invoking the
+     * callback with a network-failure result.
+     */
+    private void rejectAttachmentMetadataFetch(int index, String errorMessage) {
+      AttachmentMetadataFetchAttempt attempt = attachmentMetadataFetchAttempts.get(index);
+      J2clAttachmentMetadataClient client =
+          new J2clAttachmentMetadataClient(
+              (url, handler) ->
+                  handler.onResponse(J2clAttachmentMetadataClient.HttpResponse.networkError(errorMessage)));
+      client.fetchMetadata(attempt.attachmentIds, result -> attempt.callback.accept(result));
+    }
+
     private void deliverUpdate(int index, String rawSnapshot) {
       deliverRawUpdate(index, update("example.com!w+1/example.com!conv+root", rawSnapshot));
     }
@@ -1294,6 +1463,69 @@ public class J2clSelectedWaveControllerTest {
         json.toString());
   }
 
+  /**
+   * Creates a selected-wave update whose root blip raw snapshot contains an {@code <image>}
+   * element so that {@link J2clReadBlipContent#parseRawSnapshot} produces a
+   * {@code metadataPending} attachment model.
+   */
+  private static SidecarSelectedWaveUpdate updateWithImageAttachment(
+      String attachmentId, String caption, String displaySize, String bodyText) {
+    String rawSnapshot =
+        bodyText
+            + "<image attachment=\""
+            + attachmentId
+            + "\" display-size=\""
+            + displaySize
+            + "\"><caption>"
+            + caption
+            + "</caption></image>";
+    return new SidecarSelectedWaveUpdate(
+        1,
+        "example.com!w+1/example.com!conv+root",
+        true,
+        "chan-1",
+        44L,
+        "ABCD",
+        Arrays.asList("user@example.com"),
+        Arrays.asList(
+            new SidecarSelectedWaveDocument(
+                "b+root", "user@example.com", 40L, 44L, rawSnapshot)),
+        new SidecarSelectedWaveFragments(
+            44L,
+            40L,
+            44L,
+            Arrays.asList(
+                new SidecarSelectedWaveFragmentRange("manifest", 40L, 44L),
+                new SidecarSelectedWaveFragmentRange("blip:b+root", 40L, 44L)),
+            Arrays.asList(
+                new SidecarSelectedWaveFragment("manifest", "conversation: Inbox wave", 0, 0),
+                new SidecarSelectedWaveFragment("blip:b+root", rawSnapshot, 0, 0))));
+  }
+
+  /**
+   * Builds a JSON string in the format expected by
+   * {@link J2clAttachmentMetadataClient} for a single attachment.
+   */
+  private static String buildSingleAttachmentResultJson(
+      String attachmentId,
+      String fileName,
+      String mimeType,
+      String attachmentUrl,
+      String thumbnailUrl,
+      boolean malware) {
+    return "{\"1\":[{"
+        + "\"1\":\"" + attachmentId + "\","
+        + "\"2\":\"example.com/w+1\","
+        + "\"3\":\"" + fileName + "\","
+        + "\"4\":\"" + mimeType + "\","
+        + "\"5\":1024,"
+        + "\"6\":\"user@example.com\","
+        + "\"7\":\"" + attachmentUrl + "\","
+        + "\"8\":\"" + thumbnailUrl + "\","
+        + "\"11\":" + malware
+        + "}]}";
+  }
+
   private static SidecarSelectedWaveUpdate snapshotOnlyUpdate(String textContent) {
     return new SidecarSelectedWaveUpdate(
         1,
@@ -1362,6 +1594,20 @@ public class J2clSelectedWaveControllerTest {
       this.endVersion = endVersion;
       this.success = success;
       this.error = error;
+    }
+  }
+
+  private static final class AttachmentMetadataFetchAttempt {
+    private final List<String> attachmentIds;
+    private final J2clSearchPanelController.SuccessCallback<J2clAttachmentMetadataClient.MetadataResult>
+        callback;
+
+    private AttachmentMetadataFetchAttempt(
+        List<String> attachmentIds,
+        J2clSearchPanelController.SuccessCallback<J2clAttachmentMetadataClient.MetadataResult>
+            callback) {
+      this.attachmentIds = attachmentIds;
+      this.callback = callback;
     }
   }
 

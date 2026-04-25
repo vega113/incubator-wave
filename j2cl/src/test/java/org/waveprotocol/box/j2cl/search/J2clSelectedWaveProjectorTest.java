@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Assert;
 import org.junit.Test;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
@@ -178,6 +179,49 @@ public class J2clSelectedWaveProjectorTest {
   }
 
   @Test
+  public void projectExtractsAttachmentModelsFromImageElementsInFragments() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                9L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Collections.<SidecarSelectedWaveDocument>emptyList(),
+                new SidecarSelectedWaveFragments(
+                    9L,
+                    0L,
+                    9L,
+                    Arrays.asList(new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 9L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment(
+                            "blip:b+root",
+                            "Intro <image attachment=\"example.com/att+hero\" display-size=\"medium\">"
+                                + "<caption>Hero diagram</caption></image> outro",
+                            0,
+                            0)))),
+            null,
+            0);
+
+    Assert.assertEquals(1, projected.getReadBlips().size());
+    J2clReadBlip blip = projected.getReadBlips().get(0);
+    Assert.assertEquals("Intro  outro", blip.getText());
+    Assert.assertEquals(1, blip.getAttachments().size());
+    J2clAttachmentRenderModel attachment = blip.getAttachments().get(0);
+    Assert.assertEquals("example.com/att+hero", attachment.getAttachmentId());
+    Assert.assertEquals("medium", attachment.getDisplaySize());
+    Assert.assertEquals("Hero diagram", attachment.getCaption());
+    Assert.assertTrue(attachment.isMetadataPending());
+    Assert.assertEquals(
+        1, projected.getViewportState().getReadWindowEntries().get(0).getAttachments().size());
+  }
+
+  @Test
   public void projectFallsBackToDocumentBlipsWhenFragmentsAreAbsent() {
     J2clSelectedWaveModel projected =
         J2clSelectedWaveProjector.project(
@@ -204,6 +248,130 @@ public class J2clSelectedWaveProjectorTest {
     J2clReadBlip blip = projected.getReadBlips().get(0);
     Assert.assertEquals("b+root", blip.getBlipId());
     Assert.assertEquals("Document text", blip.getText());
+  }
+
+  @Test
+  public void projectDocumentFallbackPreservesLiteralMarkupAndComparisons() {
+    String literalText =
+        "Literal 2 < 3 and <image attachment=\"example.com/att+literal\"> stays text";
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                9L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Arrays.asList(
+                    new SidecarSelectedWaveDocument(
+                        "b+root", "user@example.com", 7L, 8L, literalText)),
+                null),
+            null,
+            0);
+
+    Assert.assertEquals(1, projected.getReadBlips().size());
+    J2clReadBlip blip = projected.getReadBlips().get(0);
+    Assert.assertEquals(literalText, blip.getText());
+    Assert.assertTrue(blip.getAttachments().isEmpty());
+    Assert.assertEquals(
+        literalText, projected.getViewportState().getReadWindowEntries().get(0).getText());
+    Assert.assertTrue(
+        projected.getViewportState().getReadWindowEntries().get(0).getAttachments().isEmpty());
+  }
+
+  @Test
+  public void viewportDocumentMergeOverFragmentSwitchesBackToLiteralText() {
+    J2clSelectedWaveViewportState state =
+        J2clSelectedWaveViewportState.fromFragments(
+            new SidecarSelectedWaveFragments(
+                9L,
+                0L,
+                9L,
+                Arrays.asList(new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 9L)),
+                Arrays.asList(
+                    new SidecarSelectedWaveFragment(
+                        "blip:b+root",
+                        "<image attachment=\"example.com/att+hero\">"
+                            + "<caption>Hero</caption></image>",
+                        0,
+                        0))));
+    String literalText = "Literal 2 < 3 and <image attachment=\"example.com/att+literal\">";
+
+    state =
+        state.mergeDocuments(
+            Arrays.asList(
+                new SidecarSelectedWaveDocument(
+                    "b+root", "user@example.com", 7L, 10L, literalText)));
+
+    Assert.assertEquals(literalText, state.getLoadedReadBlips().get(0).getText());
+    Assert.assertTrue(state.getLoadedReadBlips().get(0).getAttachments().isEmpty());
+    Assert.assertEquals(literalText, state.getReadWindowEntries().get(0).getText());
+    Assert.assertTrue(state.getReadWindowEntries().get(0).getAttachments().isEmpty());
+  }
+
+  @Test
+  public void viewportFragmentMergeOverDocumentRestoresAttachmentParsing() {
+    J2clSelectedWaveViewportState state =
+        J2clSelectedWaveViewportState.fromDocuments(
+            Arrays.asList(
+                new SidecarSelectedWaveDocument(
+                    "b+root", "user@example.com", 7L, 8L, "Literal <image> text")));
+
+    state =
+        state.mergeFragments(
+            new SidecarSelectedWaveFragments(
+                10L,
+                0L,
+                10L,
+                Arrays.asList(new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 10L)),
+                Arrays.asList(
+                    new SidecarSelectedWaveFragment(
+                        "blip:b+root",
+                        "Intro <image attachment=\"example.com/att+hero\">"
+                            + "<caption>Hero</caption></image> outro",
+                        0,
+                        0))),
+            J2clViewportGrowthDirection.FORWARD);
+
+    Assert.assertEquals("Intro  outro", state.getLoadedReadBlips().get(0).getText());
+    Assert.assertEquals(1, state.getLoadedReadBlips().get(0).getAttachments().size());
+    Assert.assertEquals(1, state.getReadWindowEntries().get(0).getAttachments().size());
+  }
+
+  @Test
+  public void viewportPlaceholderMergePreservesFragmentAttachmentParsing() {
+    J2clSelectedWaveViewportState state =
+        J2clSelectedWaveViewportState.fromFragments(
+            new SidecarSelectedWaveFragments(
+                9L,
+                0L,
+                9L,
+                Arrays.asList(new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 9L)),
+                Arrays.asList(
+                    new SidecarSelectedWaveFragment(
+                        "blip:b+root",
+                        "Intro <image attachment=\"example.com/att+hero\">"
+                            + "<caption>Hero</caption></image> outro",
+                        0,
+                        0))));
+
+    state =
+        state.mergeFragments(
+            new SidecarSelectedWaveFragments(
+                10L,
+                0L,
+                10L,
+                Arrays.asList(new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 10L)),
+                Collections.<SidecarSelectedWaveFragment>emptyList()),
+            J2clViewportGrowthDirection.FORWARD);
+
+    Assert.assertEquals("Intro  outro", state.getLoadedReadBlips().get(0).getText());
+    Assert.assertEquals(1, state.getLoadedReadBlips().get(0).getAttachments().size());
+    Assert.assertEquals(1, state.getReadWindowEntries().get(0).getAttachments().size());
   }
 
   @Test
