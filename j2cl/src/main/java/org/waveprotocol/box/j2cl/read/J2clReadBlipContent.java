@@ -138,18 +138,38 @@ public final class J2clReadBlipContent {
     // This is intentionally not an XML parser; it handles the narrow debug-XML snapshots emitted
     // for selected-wave text and leaves malformed tags as best-effort visible text.
     StringBuilder stripped = new StringBuilder(value.length());
+    StringBuilder tagBuf = new StringBuilder();
     boolean insideTag = false;
     for (int i = 0; i < value.length(); i++) {
       char c = value.charAt(i);
       if (c == '<') {
         insideTag = true;
+        tagBuf.setLength(0);
       } else if (c == '>') {
         insideTag = false;
-      } else if (!insideTag) {
+        // <line/> and <line> are DocOp structural separators; insert a space so adjacent segments
+        // aren't concatenated (e.g. <line/>Hello<line/>World → "Hello World", not "HelloWorld").
+        if (isLineTag(tagBuf.toString())
+            && stripped.length() > 0
+            && stripped.charAt(stripped.length() - 1) != ' ') {
+          stripped.append(' ');
+        }
+        tagBuf.setLength(0);
+      } else if (insideTag) {
+        tagBuf.append(c);
+      } else {
         stripped.append(c);
       }
     }
     return stripped.toString();
+  }
+
+  private static boolean isLineTag(String tagContent) {
+    // Matches <line/>, <line>, <line attrs...> but not e.g. <linefeed>.
+    return tagContent.startsWith("line")
+        && (tagContent.length() == 4
+            || tagContent.charAt(4) == '/'
+            || tagContent.charAt(4) == ' ');
   }
 
   private static String decodeEntities(String value) {

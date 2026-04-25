@@ -86,6 +86,16 @@ public class J2clReadBlipContentTest {
   }
 
   @Test
+  public void lineTagsSeparateAdjacentTextSegments() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "<body><line/>Hello<line/>World</body>");
+
+    Assert.assertEquals("Hello World", parsed.getText());
+    Assert.assertTrue(parsed.getAttachments().isEmpty());
+  }
+
+  @Test
   public void selfClosingImageCreatesPendingAttachment() {
     J2clReadBlipContent parsed =
         J2clReadBlipContent.parseRawSnapshot(
