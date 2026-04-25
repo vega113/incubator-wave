@@ -144,7 +144,10 @@ public final class J2clAttachmentUploadClient {
     }
     int statusCode = response.getStatusCode();
     if (statusCode < 200 || statusCode >= 300) {
-      return UploadResult.failure(ErrorType.HTTP_STATUS, "HTTP " + statusCode + " while uploading attachment.");
+      return UploadResult.failure(
+          ErrorType.HTTP_STATUS,
+          "HTTP " + statusCode + " while uploading attachment.",
+          statusCode);
     }
     if (source == UploadSource.FILE_PICKER) {
       // Preserve the legacy GWT file-picker contract: any 2xx response containing "OK" succeeds.
@@ -154,14 +157,16 @@ public final class J2clAttachmentUploadClient {
       }
       return UploadResult.failure(
           ErrorType.UNEXPECTED_RESPONSE,
-          "Attachment upload did not return the expected OK sentinel.");
+          "Attachment upload did not return the expected OK sentinel.",
+          statusCode);
     }
     if (statusCode == 200 || statusCode == 201) {
       return UploadResult.success();
     }
     return UploadResult.failure(
         ErrorType.UNEXPECTED_RESPONSE,
-        "Pasted image upload returned an unexpected HTTP " + statusCode + " response.");
+        "Pasted image upload returned an unexpected HTTP " + statusCode + " response.",
+        statusCode);
   }
 
   private static void requireCallback(UploadCallback callback) {
@@ -292,19 +297,25 @@ public final class J2clAttachmentUploadClient {
     private final boolean success;
     private final ErrorType errorType;
     private final String message;
+    private final int statusCode;
 
-    private UploadResult(boolean success, ErrorType errorType, String message) {
+    private UploadResult(boolean success, ErrorType errorType, String message, int statusCode) {
       this.success = success;
       this.errorType = errorType;
       this.message = message == null ? "" : message;
+      this.statusCode = Math.max(0, statusCode);
     }
 
     static UploadResult success() {
-      return new UploadResult(true, null, "");
+      return new UploadResult(true, null, "", 0);
     }
 
     static UploadResult failure(ErrorType errorType, String message) {
-      return new UploadResult(false, errorType, message);
+      return failure(errorType, message, 0);
+    }
+
+    static UploadResult failure(ErrorType errorType, String message, int statusCode) {
+      return new UploadResult(false, errorType, message, statusCode);
     }
 
     public boolean isSuccess() {
@@ -317,6 +328,10 @@ public final class J2clAttachmentUploadClient {
 
     public String getMessage() {
       return message;
+    }
+
+    public int getStatusCode() {
+      return statusCode;
     }
   }
 

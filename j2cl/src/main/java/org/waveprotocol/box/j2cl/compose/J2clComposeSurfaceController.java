@@ -10,6 +10,7 @@ import org.waveprotocol.box.j2cl.attachment.J2clAttachmentUploadClient;
 import org.waveprotocol.box.j2cl.search.J2clPlainTextDeltaFactory;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelController;
 import org.waveprotocol.box.j2cl.search.J2clSidecarWriteSession;
+import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.richtext.J2clComposerDocument;
 import org.waveprotocol.box.j2cl.richtext.J2clRichContentDeltaFactory;
 import org.waveprotocol.box.j2cl.toolbar.J2clDailyToolbarAction;
@@ -145,6 +146,7 @@ public final class J2clComposeSurfaceController {
   private final AttachmentControllerFactory attachmentControllerFactory;
   private final CreateSuccessHandler createSuccessHandler;
   private final ReplySuccessHandler replySuccessHandler;
+  private final J2clClientTelemetry.Sink telemetrySink;
   private String createDraft = "";
   private boolean createSubmitting;
   private String createStatusText = "Create a self-owned wave inside the root shell.";
@@ -200,7 +202,25 @@ public final class J2clComposeSurfaceController {
         deltaFactory,
         attachmentControllerFactory(LEGACY_ATTACHMENT_SESSION_SEED),
         createSuccessHandler,
-        replySuccessHandler);
+        replySuccessHandler,
+        J2clClientTelemetry.noop());
+  }
+
+  public J2clComposeSurfaceController(
+      Gateway gateway,
+      View view,
+      DeltaFactory deltaFactory,
+      CreateSuccessHandler createSuccessHandler,
+      ReplySuccessHandler replySuccessHandler,
+      J2clClientTelemetry.Sink telemetrySink) {
+    this(
+        gateway,
+        view,
+        deltaFactory,
+        attachmentControllerFactory(LEGACY_ATTACHMENT_SESSION_SEED, telemetrySink),
+        createSuccessHandler,
+        replySuccessHandler,
+        telemetrySink);
   }
 
   public J2clComposeSurfaceController(
@@ -210,6 +230,24 @@ public final class J2clComposeSurfaceController {
       AttachmentControllerFactory attachmentControllerFactory,
       CreateSuccessHandler createSuccessHandler,
       ReplySuccessHandler replySuccessHandler) {
+    this(
+        gateway,
+        view,
+        deltaFactory,
+        attachmentControllerFactory,
+        createSuccessHandler,
+        replySuccessHandler,
+        J2clClientTelemetry.noop());
+  }
+
+  public J2clComposeSurfaceController(
+      Gateway gateway,
+      View view,
+      DeltaFactory deltaFactory,
+      AttachmentControllerFactory attachmentControllerFactory,
+      CreateSuccessHandler createSuccessHandler,
+      ReplySuccessHandler replySuccessHandler,
+      J2clClientTelemetry.Sink telemetrySink) {
     this.gateway = gateway;
     this.view = view;
     this.deltaFactory = deltaFactory;
@@ -217,6 +255,7 @@ public final class J2clComposeSurfaceController {
         requirePresent(attachmentControllerFactory, "Attachment controller factory is required.");
     this.createSuccessHandler = createSuccessHandler;
     this.replySuccessHandler = replySuccessHandler;
+    this.telemetrySink = requirePresent(telemetrySink, "Compose telemetry sink is required.");
   }
 
   public void start() {
@@ -344,6 +383,7 @@ public final class J2clComposeSurfaceController {
       }
       render();
       view.focusReplyComposer();
+      emitRichEditCommand(action, "cleared");
       return true;
     }
     if (safeEquals(annotationCommandId, action.id())) {
@@ -357,6 +397,7 @@ public final class J2clComposeSurfaceController {
       }
       render();
       view.focusReplyComposer();
+      emitRichEditCommand(action, "cleared");
       return true;
     }
     activeCommandId = action.id();
@@ -365,6 +406,7 @@ public final class J2clComposeSurfaceController {
     commandStatusText = action.label() + " applied to the current draft.";
     render();
     view.focusReplyComposer();
+    emitRichEditCommand(action, "applied");
     return true;
   }
 
@@ -752,6 +794,12 @@ public final class J2clComposeSurfaceController {
     return attachmentControllerFactory(sessionSeed, () -> new J2clAttachmentUploadClient());
   }
 
+  public static AttachmentControllerFactory attachmentControllerFactory(
+      String sessionSeed, J2clClientTelemetry.Sink telemetrySink) {
+    return attachmentControllerFactory(
+        sessionSeed, () -> new J2clAttachmentUploadClient(), telemetrySink);
+  }
+
   static AttachmentControllerFactory attachmentControllerFactory(
       String sessionSeed, J2clAttachmentUploadClient uploadClient) {
     // Test seam: reuse one injected client so tests can observe all generated upload requests.
@@ -762,8 +810,18 @@ public final class J2clComposeSurfaceController {
 
   static AttachmentControllerFactory attachmentControllerFactory(
       String sessionSeed, AttachmentUploadClientFactory uploadClientFactory) {
+    return attachmentControllerFactory(
+        sessionSeed, uploadClientFactory, J2clClientTelemetry.noop());
+  }
+
+  static AttachmentControllerFactory attachmentControllerFactory(
+      String sessionSeed,
+      AttachmentUploadClientFactory uploadClientFactory,
+      J2clClientTelemetry.Sink telemetrySink) {
     AttachmentUploadClientFactory clientFactory =
         requirePresent(uploadClientFactory, "Attachment upload client factory is required.");
+    J2clClientTelemetry.Sink sink =
+        requirePresent(telemetrySink, "Attachment telemetry sink is required.");
     Map<String, J2clAttachmentIdGenerator> idGeneratorsByDomain =
         new HashMap<String, J2clAttachmentIdGenerator>();
     return (waveRef, domain, insertionCallback, stateChangeCallback) -> {
@@ -772,7 +830,7 @@ public final class J2clComposeSurfaceController {
       J2clAttachmentUploadClient uploadClient =
           requirePresent(clientFactory.create(), "Attachment upload client is required.");
       return new J2clAttachmentComposerController(
-          waveRef, uploadClient, idGenerator, insertionCallback, stateChangeCallback);
+          waveRef, uploadClient, idGenerator, insertionCallback, stateChangeCallback, sink);
     };
   }
 
@@ -1013,6 +1071,18 @@ public final class J2clComposeSurfaceController {
       J2clAttachmentComposerController.AttachmentInsertion insertion) {
     String caption = insertion.getCaption();
     return caption == null || caption.isEmpty() ? "attachment" : caption;
+  }
+
+  private void emitRichEditCommand(J2clDailyToolbarAction action, String result) {
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("richEdit.command.applied")
+              .field("commandId", action.id())
+              .field("result", result)
+              .build());
+    } catch (Exception ignored) {
+      // Telemetry must never affect composer editing behavior.
+    }
   }
 
   private boolean hasPendingAttachmentUpload() {

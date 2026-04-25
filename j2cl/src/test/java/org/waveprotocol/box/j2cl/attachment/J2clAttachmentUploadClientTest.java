@@ -80,6 +80,7 @@ public class J2clAttachmentUploadClientTest {
     Assert.assertFalse(callback.result.isSuccess());
     Assert.assertEquals(
         J2clAttachmentUploadClient.ErrorType.HTTP_STATUS, callback.result.getErrorType());
+    Assert.assertEquals(500, callback.result.getStatusCode());
   }
 
   @Test
@@ -156,6 +157,7 @@ public class J2clAttachmentUploadClientTest {
     Assert.assertFalse(callback.result.isSuccess());
     Assert.assertEquals(J2clAttachmentUploadClient.ErrorType.NETWORK, callback.result.getErrorType());
     Assert.assertEquals("socket boom", callback.result.getMessage());
+    Assert.assertEquals(0, callback.result.getStatusCode());
   }
 
   @Test
