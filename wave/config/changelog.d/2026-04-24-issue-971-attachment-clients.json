@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-04-24-issue-971-attachment-clients",
+  "version": "Issue #971",
+  "date": "2026-04-24",
+  "title": "Prepare J2CL attachment upload and metadata clients",
+  "summary": "The opt-in J2CL shell now has tested attachment upload and metadata client primitives that mirror the GWT multipart and attachment-info contracts, preparing later Lit/J2CL composer wiring without changing the legacy GWT default route.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Added a J2CL attachment upload client that builds GWT-compatible multipart requests for file-picker and pasted-image flows",
+        "Added a J2CL attachment metadata client that reads numeric proto JSON, preserves missing-attachment reporting, and returns typed network, HTTP, content-type, and parse failures"
+      ]
+    }
+  ]
+}
