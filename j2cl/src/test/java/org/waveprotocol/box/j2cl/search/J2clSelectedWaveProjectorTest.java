@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Assert;
 import org.junit.Test;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
@@ -175,6 +176,49 @@ public class J2clSelectedWaveProjectorTest {
     Assert.assertEquals("Root text", projected.getReadBlips().get(0).getText());
     Assert.assertEquals("b+reply", projected.getReadBlips().get(1).getBlipId());
     Assert.assertEquals("Reply text", projected.getReadBlips().get(1).getText());
+  }
+
+  @Test
+  public void projectExtractsAttachmentModelsFromImageElementsInFragments() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                9L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Collections.<SidecarSelectedWaveDocument>emptyList(),
+                new SidecarSelectedWaveFragments(
+                    9L,
+                    0L,
+                    9L,
+                    Arrays.asList(new SidecarSelectedWaveFragmentRange("blip:b+root", 0L, 9L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment(
+                            "blip:b+root",
+                            "Intro <image attachment=\"example.com/att+hero\" display-size=\"medium\">"
+                                + "<caption>Hero diagram</caption></image> outro",
+                            0,
+                            0)))),
+            null,
+            0);
+
+    Assert.assertEquals(1, projected.getReadBlips().size());
+    J2clReadBlip blip = projected.getReadBlips().get(0);
+    Assert.assertEquals("Intro  outro", blip.getText());
+    Assert.assertEquals(1, blip.getAttachments().size());
+    J2clAttachmentRenderModel attachment = blip.getAttachments().get(0);
+    Assert.assertEquals("example.com/att+hero", attachment.getAttachmentId());
+    Assert.assertEquals("medium", attachment.getDisplaySize());
+    Assert.assertEquals("Hero diagram", attachment.getCaption());
+    Assert.assertTrue(attachment.isMetadataPending());
+    Assert.assertEquals(
+        1, projected.getViewportState().getReadWindowEntries().get(0).getAttachments().size());
   }
 
   @Test

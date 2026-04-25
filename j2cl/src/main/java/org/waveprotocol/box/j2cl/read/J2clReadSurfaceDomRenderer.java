@@ -10,6 +10,8 @@ import elemental2.dom.NodeList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
 import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
 
 public final class J2clReadSurfaceDomRenderer {
@@ -23,6 +25,7 @@ public final class J2clReadSurfaceDomRenderer {
 
   private final HTMLDivElement host;
   private final List<HTMLElement> renderedBlips = new ArrayList<HTMLElement>();
+  private List<J2clReadBlip> renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
   private List<J2clReadWindowEntry> renderedWindowEntries =
       Collections.<J2clReadWindowEntry>emptyList();
   private HTMLElement renderedSurface;
@@ -61,6 +64,7 @@ public final class J2clReadSurfaceDomRenderer {
       clearViewportScrollMemory();
       host.innerHTML = "";
       renderedBlips.clear();
+      renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
       renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
       renderedSurface = null;
       focusedBlip = null;
@@ -75,8 +79,10 @@ public final class J2clReadSurfaceDomRenderer {
     }
 
     clearViewportScrollMemory();
+    // Preserve scroll-growth direction across window rebuilds; placeholders may still need it.
     host.innerHTML = "";
     renderedBlips.clear();
+    renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
     renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
     renderedSurface = null;
     focusedBlip = null;
@@ -97,6 +103,7 @@ public final class J2clReadSurfaceDomRenderer {
     }
 
     host.appendChild(surface);
+    renderedLiveBlips = immutableBlipCopy(effectiveBlips);
     renderedSurface = surface;
     enhanceSurface(surface);
     restoreCollapsedThreads(previouslyCollapsedThreadIds);
@@ -109,6 +116,7 @@ public final class J2clReadSurfaceDomRenderer {
       clearViewportScrollMemory();
       host.innerHTML = "";
       renderedBlips.clear();
+      renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
       renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
       renderedSurface = null;
       focusedBlip = null;
@@ -126,6 +134,8 @@ public final class J2clReadSurfaceDomRenderer {
 
     host.innerHTML = "";
     renderedBlips.clear();
+    renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
+    renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
     renderedSurface = null;
     focusedBlip = null;
 
@@ -146,7 +156,10 @@ public final class J2clReadSurfaceDomRenderer {
       J2clReadWindowEntry entry = entries.get(i);
       if (entry.isLoaded()) {
         rootThread.appendChild(
-            renderBlip(new J2clReadBlip(entry.getBlipId(), entry.getText()), blipIndex++));
+            renderBlip(
+                new J2clReadBlip(
+                    entry.getBlipId(), entry.getText(), entry.getAttachments()),
+                blipIndex++));
       } else {
         hasPlaceholder = true;
         rootThread.appendChild(renderPlaceholder(entry));
@@ -160,6 +173,7 @@ public final class J2clReadSurfaceDomRenderer {
     host.appendChild(surface);
     renderedWindowEntries =
         Collections.unmodifiableList(new ArrayList<J2clReadWindowEntry>(entries));
+    renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
     renderedSurface = surface;
     enhanceSurface(surface);
     restoreCollapsedThreads(previouslyCollapsedThreadIds);
@@ -209,12 +223,14 @@ public final class J2clReadSurfaceDomRenderer {
     if (surface == null) {
       renderedSurface = null;
       renderedBlips.clear();
+      renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
       renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
       focusedBlip = null;
       return false;
     }
     HTMLElement previousFocusedBlip = focusedBlip;
     renderedBlips.clear();
+    renderedLiveBlips = Collections.<J2clReadBlip>emptyList();
     renderedWindowEntries = Collections.<J2clReadWindowEntry>emptyList();
     renderedSurface = surface;
     focusedBlip = null;
@@ -243,7 +259,137 @@ public final class J2clReadSurfaceDomRenderer {
     content.className = "blip-content j2cl-read-blip-content";
     content.textContent = blip.getText();
     article.appendChild(content);
+    if (!blip.getAttachments().isEmpty()) {
+      HTMLElement attachments = (HTMLElement) DomGlobal.document.createElement("div");
+      attachments.className = "j2cl-read-attachments";
+      for (J2clAttachmentRenderModel attachment : blip.getAttachments()) {
+        attachments.appendChild(renderAttachment(attachment));
+      }
+      article.appendChild(attachments);
+    }
     return article;
+  }
+
+  private HTMLElement renderAttachment(J2clAttachmentRenderModel model) {
+    HTMLElement attachment = (HTMLElement) DomGlobal.document.createElement("div");
+    attachment.className =
+        model.isInlineImage()
+            ? "j2cl-read-attachment j2cl-read-attachment-inline-image"
+            : "j2cl-read-attachment j2cl-read-attachment-card";
+    attachment.setAttribute("data-j2cl-read-attachment", "true");
+    attachment.setAttribute("role", "group");
+    attachment.setAttribute("aria-label", model.getCaption());
+    attachment.setAttribute("data-attachment-id", model.getAttachmentId());
+    attachment.setAttribute("data-display-size", model.getDisplaySize());
+    attachment.setAttribute("data-attachment-state", attachmentState(model));
+    if (model.isMetadataPending()) {
+      attachment.setAttribute("aria-busy", "true");
+    }
+
+    if (!model.getSourceUrl().isEmpty()) {
+      HTMLElement preview =
+          (HTMLElement)
+              DomGlobal.document.createElement(model.isInlineImage() ? "img" : "span");
+      preview.className = "j2cl-read-attachment-preview";
+      if (model.isInlineImage()) {
+        preview.setAttribute("src", model.getSourceUrl());
+        preview.setAttribute("alt", model.getCaption());
+        preview.setAttribute("loading", "lazy");
+      } else {
+        preview.setAttribute("aria-hidden", "true");
+        preview.textContent = "Attachment";
+      }
+      attachment.appendChild(preview);
+    }
+
+    HTMLElement label = (HTMLElement) DomGlobal.document.createElement("div");
+    label.className = "j2cl-read-attachment-label";
+    label.setAttribute("aria-hidden", "true");
+    label.textContent = model.getCaption();
+    attachment.appendChild(label);
+
+    if (!model.getStatusText().isEmpty()) {
+      HTMLElement status = (HTMLElement) DomGlobal.document.createElement("div");
+      status.className = "j2cl-read-attachment-status";
+      status.setAttribute(
+          "role", model.isBlocked() || model.isMetadataFailure() ? "alert" : "status");
+      status.textContent = model.getStatusText();
+      attachment.appendChild(status);
+    }
+
+    if (model.canOpen() || model.canDownload()) {
+      HTMLElement actions = (HTMLElement) DomGlobal.document.createElement("div");
+      actions.className = "j2cl-read-attachment-actions";
+      if (model.canOpen()) {
+        actions.appendChild(
+            renderAttachmentLink(
+                "Open",
+                model.getOpenUrl(),
+                model.getOpenLabel(),
+                "data-j2cl-attachment-open",
+                false,
+                model.getFileName()));
+      }
+      if (model.canDownload()) {
+        actions.appendChild(
+            renderAttachmentLink(
+                "Download",
+                model.getDownloadUrl(),
+                model.getDownloadLabel(),
+                "data-j2cl-attachment-download",
+                true,
+                model.getDownloadFileName()));
+      }
+      attachment.appendChild(actions);
+    }
+    return attachment;
+  }
+
+  private HTMLElement renderAttachmentLink(
+      String text,
+      String href,
+      String ariaLabel,
+      String dataAttribute,
+      boolean download,
+      String fileName) {
+    HTMLElement link = (HTMLElement) DomGlobal.document.createElement("a");
+    link.className = "j2cl-read-attachment-link";
+    link.textContent = text;
+    link.setAttribute("href", href);
+    link.setAttribute("aria-label", ariaLabel);
+    link.setAttribute("tabindex", "0");
+    link.setAttribute(dataAttribute, "true");
+    if (download) {
+      link.setAttribute("download", fileName);
+      if (isExternalHttpsUrl(href)) {
+        link.setAttribute("rel", "noopener noreferrer");
+        link.setAttribute("referrerpolicy", "no-referrer");
+        link.setAttribute("target", "_blank");
+      }
+    } else {
+      // Opening an attachment should never replace the selected-wave SPA.
+      link.setAttribute("rel", "noopener noreferrer");
+      link.setAttribute("referrerpolicy", "no-referrer");
+      link.setAttribute("target", "_blank");
+    }
+    return link;
+  }
+
+  private static boolean isExternalHttpsUrl(String href) {
+    return href != null && href.toLowerCase(Locale.ROOT).startsWith("https://");
+  }
+
+  private static String attachmentState(J2clAttachmentRenderModel model) {
+    if (model.isBlocked()) {
+      return "blocked";
+    }
+    if (model.isMetadataFailure()) {
+      return "metadata-failure";
+    }
+    if (model.isMetadataPending()) {
+      return "pending";
+    }
+    return "ready";
   }
 
   private HTMLElement renderPlaceholder(J2clReadWindowEntry entry) {
@@ -631,12 +777,16 @@ public final class J2clReadSurfaceDomRenderer {
     if (host.querySelector("[data-j2cl-viewport-placeholder='true']") != null) {
       return false;
     }
-    if (renderedBlips.size() != blips.size()) {
+    if (renderedBlips.size() != blips.size() || renderedLiveBlips.size() != blips.size()) {
       return false;
     }
     for (int i = 0; i < blips.size(); i++) {
       J2clReadBlip expected = blips.get(i);
+      J2clReadBlip previous = renderedLiveBlips.get(i);
       HTMLElement actual = renderedBlips.get(i);
+      if (!sameReadBlip(previous, expected)) {
+        return false;
+      }
       if (!expected.getBlipId().equals(actual.getAttribute("data-blip-id"))) {
         return false;
       }
@@ -645,6 +795,12 @@ public final class J2clReadSurfaceDomRenderer {
       }
     }
     return true;
+  }
+
+  private static boolean sameReadBlip(J2clReadBlip left, J2clReadBlip right) {
+    return left.getBlipId().equals(right.getBlipId())
+        && left.getText().equals(right.getText())
+        && left.getAttachments().equals(right.getAttachments());
   }
 
   private boolean matchesRenderedWindowEntries(List<J2clReadWindowEntry> entries) {
@@ -669,7 +825,8 @@ public final class J2clReadSurfaceDomRenderer {
         && left.getToVersion() == right.getToVersion()
         && left.getSegment().equals(right.getSegment())
         && left.getBlipId().equals(right.getBlipId())
-        && left.getText().equals(right.getText());
+        && left.getText().equals(right.getText())
+        && left.getAttachments().equals(right.getAttachments());
   }
 
   private HTMLElement renderedBlipById(String blipId) {
@@ -827,5 +984,9 @@ public final class J2clReadSurfaceDomRenderer {
       fallbackBlips.add(new J2clReadBlip("entry-" + (i + 1), fallbackEntries.get(i)));
     }
     return fallbackBlips;
+  }
+
+  private static List<J2clReadBlip> immutableBlipCopy(List<J2clReadBlip> blips) {
+    return Collections.unmodifiableList(new ArrayList<J2clReadBlip>(blips));
   }
 }

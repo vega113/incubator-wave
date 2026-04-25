@@ -1,0 +1,100 @@
+package org.waveprotocol.box.j2cl.read;
+
+import com.google.j2cl.junit.apt.J2clTestInput;
+import org.junit.Assert;
+import org.junit.Test;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+
+@J2clTestInput(J2clReadBlipContentTest.class)
+public class J2clReadBlipContentTest {
+  @Test
+  public void parsesSingleAndDoubleQuotedImageAttributesWithEntities() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "Before <image attachment='ex&amp;ample.com/att+1' display-size=\"large\">"
+                + "<caption>AT&amp;T &lt;diagram&gt;</caption></image> after");
+
+    Assert.assertEquals("Before  after", parsed.getText());
+    Assert.assertEquals(1, parsed.getAttachments().size());
+    J2clAttachmentRenderModel attachment = parsed.getAttachments().get(0);
+    Assert.assertEquals("ex&ample.com/att+1", attachment.getAttachmentId());
+    Assert.assertEquals("AT&T <diagram>", attachment.getCaption());
+    Assert.assertEquals("large", attachment.getDisplaySize());
+    Assert.assertTrue(attachment.isMetadataPending());
+  }
+
+  @Test
+  public void ignoresAttributeNameSubstrings() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "Before <image data-attachment=\"wrong\" data-note=\"x attachment=oops\" "
+                + "attachment=\"right\" "
+                + "data-display-size=\"large\" display-size=\"medium\">"
+                + "<caption>Caption</caption></image> after");
+
+    Assert.assertEquals(1, parsed.getAttachments().size());
+    J2clAttachmentRenderModel attachment = parsed.getAttachments().get(0);
+    Assert.assertEquals("right", attachment.getAttachmentId());
+    Assert.assertEquals("medium", attachment.getDisplaySize());
+  }
+
+  @Test
+  public void normalizesUppercaseDisplaySizeAttributeValues() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "<image ATTACHMENT=\"example.com/att+1\" DISPLAY-SIZE=\"MEDIUM\">"
+                + "<caption>Caption</caption></image>");
+
+    Assert.assertEquals(1, parsed.getAttachments().size());
+    Assert.assertEquals("medium", parsed.getAttachments().get(0).getDisplaySize());
+  }
+
+  @Test
+  public void malformedImageWithoutAttachmentRemainsVisibleText() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "Before <image display-size=\"large\"><caption>Visible</caption></image> after");
+
+    Assert.assertEquals("Before Visible after", parsed.getText());
+    Assert.assertTrue(parsed.getAttachments().isEmpty());
+  }
+
+  @Test
+  public void malformedImageWithoutAttachmentAdvancesToNextImage() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "Before <image display-size=\"large\"><caption>Visible</caption></image>"
+                + "<image attachment=\"example.com/att+2\"><caption>Second</caption></image>");
+
+    Assert.assertEquals("Before Visible", parsed.getText());
+    Assert.assertEquals(1, parsed.getAttachments().size());
+    Assert.assertEquals("example.com/att+2", parsed.getAttachments().get(0).getAttachmentId());
+  }
+
+  @Test
+  public void unclosedImageCreatesPendingAttachmentAndKeepsFollowingTextOutOfCaption() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "Before <image attachment=\"example.com/att+1\" display-size=\"medium\"> after");
+
+    Assert.assertEquals("Before  after", parsed.getText());
+    Assert.assertEquals(1, parsed.getAttachments().size());
+    J2clAttachmentRenderModel attachment = parsed.getAttachments().get(0);
+    Assert.assertEquals("example.com/att+1", attachment.getAttachmentId());
+    Assert.assertEquals("example.com/att+1", attachment.getCaption());
+    Assert.assertEquals("medium", attachment.getDisplaySize());
+  }
+
+  @Test
+  public void selfClosingImageCreatesPendingAttachment() {
+    J2clReadBlipContent parsed =
+        J2clReadBlipContent.parseRawSnapshot(
+            "Before <image attachment=\"example.com/att+self\" display-size=\"medium\" /> after");
+
+    Assert.assertEquals("Before  after", parsed.getText());
+    Assert.assertEquals(1, parsed.getAttachments().size());
+    J2clAttachmentRenderModel attachment = parsed.getAttachments().get(0);
+    Assert.assertEquals("example.com/att+self", attachment.getAttachmentId());
+    Assert.assertEquals("medium", attachment.getDisplaySize());
+  }
+}

@@ -16,6 +16,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadata;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
 import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
 
 @J2clTestInput(J2clReadSurfaceDomRendererTest.class)
@@ -289,6 +291,258 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertEquals("0", firstBlip(host).getAttribute("tabindex"));
     Assert.assertEquals(
         "ArrowUp ArrowDown Home End", firstBlip(host).getAttribute("aria-keyshortcuts"));
+  }
+
+  @Test
+  public void renderWindowEntriesIncludeKeyboardReachableAttachmentControls() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clAttachmentRenderModel attachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+hero",
+            "Hero diagram",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+hero",
+                "hero.png",
+                "image/png",
+                "/attachment/example.com/att+hero",
+                "/thumbnail/example.com/att+hero",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+
+    Assert.assertTrue(
+        new J2clReadSurfaceDomRenderer(host)
+            .renderWindow(
+                Arrays.asList(
+                    J2clReadWindowEntry.loaded(
+                        "blip:b+root",
+                        0L,
+                        9L,
+                        "b+root",
+                        "Root text",
+                        Arrays.asList(attachment)))));
+
+    HTMLElement tile =
+        (HTMLElement) host.querySelector("[data-j2cl-read-attachment='true']");
+    Assert.assertNotNull(tile);
+    Assert.assertEquals("example.com/att+hero", tile.getAttribute("data-attachment-id"));
+    Assert.assertEquals("medium", tile.getAttribute("data-display-size"));
+    Assert.assertNotNull(tile.querySelector("img"));
+
+    HTMLElement open =
+        (HTMLElement) tile.querySelector("[data-j2cl-attachment-open='true']");
+    HTMLElement download =
+        (HTMLElement) tile.querySelector("[data-j2cl-attachment-download='true']");
+    Assert.assertNotNull(open);
+    Assert.assertNotNull(download);
+    Assert.assertEquals("/attachment/example.com/att+hero", open.getAttribute("href"));
+    Assert.assertEquals("0", open.getAttribute("tabindex"));
+    Assert.assertEquals("noopener noreferrer", open.getAttribute("rel"));
+    Assert.assertEquals("no-referrer", open.getAttribute("referrerpolicy"));
+    Assert.assertNull(download.getAttribute("rel"));
+    Assert.assertNull(download.getAttribute("referrerpolicy"));
+    Assert.assertNull(download.getAttribute("target"));
+    Assert.assertEquals("hero.png", download.getAttribute("download"));
+    Assert.assertEquals("group", tile.getAttribute("role"));
+    Assert.assertEquals(
+        "true", tile.querySelector(".j2cl-read-attachment-label").getAttribute("aria-hidden"));
+    Assert.assertEquals("lazy", tile.querySelector("img").getAttribute("loading"));
+    Assert.assertEquals("Open attachment hero.png (image/png)", open.getAttribute("aria-label"));
+    Assert.assertEquals(
+        "Download attachment hero.png (image/png)", download.getAttribute("aria-label"));
+  }
+
+  @Test
+  public void crossOriginDownloadLinksOpenSafelyWhenDownloadAttributeIsIgnored() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clAttachmentRenderModel attachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+cdn",
+            "CDN image",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+cdn",
+                "cdn.png",
+                "image/png",
+                "https://cdn.example.test/attachment/cdn.png",
+                "https://cdn.example.test/thumbnail/cdn.png",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+
+    Assert.assertTrue(
+        new J2clReadSurfaceDomRenderer(host)
+            .render(
+                Arrays.asList(
+                    new J2clReadBlip(
+                        "b+root", "Root text", Arrays.asList(attachment))),
+                Collections.<String>emptyList()));
+
+    HTMLElement download =
+        (HTMLElement) host.querySelector("[data-j2cl-attachment-download='true']");
+    Assert.assertEquals("cdn.png", download.getAttribute("download"));
+    Assert.assertEquals("_blank", download.getAttribute("target"));
+    Assert.assertEquals("noopener noreferrer", download.getAttribute("rel"));
+    Assert.assertEquals("no-referrer", download.getAttribute("referrerpolicy"));
+  }
+
+  @Test
+  public void rerenderingSameAttachmentBlipsPreservesRenderedNodes() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clAttachmentRenderModel attachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+hero",
+            "Hero diagram",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+hero",
+                "hero.png",
+                "image/png",
+                "/attachment/example.com/att+hero",
+                "/thumbnail/example.com/att+hero",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+    List<J2clReadBlip> blips =
+        Arrays.asList(
+            new J2clReadBlip("b+root", "Root text", Arrays.asList(attachment)));
+
+    Assert.assertTrue(renderer.render(blips, Collections.<String>emptyList()));
+    HTMLElement tile =
+        (HTMLElement) host.querySelector("[data-j2cl-read-attachment='true']");
+
+    Assert.assertTrue(renderer.render(blips, Collections.<String>emptyList()));
+
+    Assert.assertSame(tile, host.querySelector("[data-j2cl-read-attachment='true']"));
+  }
+
+  @Test
+  public void rerenderingChangedAttachmentBlipsReplacesRenderedNodes() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clAttachmentRenderModel firstAttachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+first",
+            "First",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+first",
+                "first.png",
+                "image/png",
+                "/attachment/example.com/att+first",
+                "/thumbnail/example.com/att+first",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+    J2clAttachmentRenderModel secondAttachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+second",
+            "Second",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+second",
+                "second.png",
+                "image/png",
+                "/attachment/example.com/att+second",
+                "/thumbnail/example.com/att+second",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+
+    Assert.assertTrue(
+        renderer.render(
+            Arrays.asList(
+                new J2clReadBlip("b+root", "Root text", Arrays.asList(firstAttachment))),
+            Collections.<String>emptyList()));
+    HTMLElement tile =
+        (HTMLElement) host.querySelector("[data-j2cl-read-attachment='true']");
+    Assert.assertTrue(
+        renderer.render(
+            Arrays.asList(
+                new J2clReadBlip("b+root", "Root text", Arrays.asList(secondAttachment))),
+            Collections.<String>emptyList()));
+
+    Assert.assertNotSame(tile, host.querySelector("[data-j2cl-read-attachment='true']"));
+    Assert.assertNotNull(host.querySelector("[data-attachment-id='example.com/att+second']"));
+  }
+
+  @Test
+  public void renderLiveBlipsSurfacesBlockedAttachmentStateWithoutControls() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clAttachmentRenderModel attachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+blocked",
+            "Blocked",
+            "small",
+            attachmentMetadata(
+                "example.com/att+blocked",
+                "blocked.exe",
+                "application/octet-stream",
+                "/attachment/example.com/att+blocked",
+                "",
+                null,
+                true));
+
+    Assert.assertTrue(
+        new J2clReadSurfaceDomRenderer(host)
+            .render(
+                Arrays.asList(
+                    new J2clReadBlip(
+                        "b+root", "Root text", Arrays.asList(attachment))),
+                Collections.<String>emptyList()));
+
+    HTMLElement tile =
+        (HTMLElement) host.querySelector("[data-j2cl-read-attachment='true']");
+    Assert.assertNotNull(tile);
+    Assert.assertEquals("blocked", tile.getAttribute("data-attachment-state"));
+    Assert.assertNull(tile.querySelector("[data-j2cl-attachment-open='true']"));
+    Assert.assertTrue(
+        ((HTMLElement) tile.querySelector(".j2cl-read-attachment-status"))
+            .textContent
+            .contains("blocked"));
+    Assert.assertEquals(
+        "alert",
+        ((HTMLElement) tile.querySelector(".j2cl-read-attachment-status")).getAttribute("role"));
+  }
+
+  @Test
+  public void renderLiveBlipsSurfacesPendingAndFailureAttachmentStatesWithoutControls() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clAttachmentRenderModel pending =
+        J2clAttachmentRenderModel.metadataPending(
+            "example.com/att+pending", "Pending", "medium");
+    J2clAttachmentRenderModel failure =
+        J2clAttachmentRenderModel.metadataFailure(
+            "example.com/att+failure", "Failure", "medium", "metadata endpoint failed");
+
+    Assert.assertTrue(
+        new J2clReadSurfaceDomRenderer(host)
+            .render(
+                Arrays.asList(
+                    new J2clReadBlip(
+                        "b+root", "Root text", Arrays.asList(pending, failure))),
+                Collections.<String>emptyList()));
+
+    HTMLElement pendingTile =
+        (HTMLElement) host.querySelector("[data-attachment-id='example.com/att+pending']");
+    HTMLElement failureTile =
+        (HTMLElement) host.querySelector("[data-attachment-id='example.com/att+failure']");
+    Assert.assertEquals("pending", pendingTile.getAttribute("data-attachment-state"));
+    Assert.assertEquals("true", pendingTile.getAttribute("aria-busy"));
+    Assert.assertEquals(
+        "Attachment metadata loading...",
+        ((HTMLElement) pendingTile.querySelector(".j2cl-read-attachment-status")).textContent);
+    Assert.assertNull(pendingTile.querySelector("[data-j2cl-attachment-open='true']"));
+    Assert.assertNull(pendingTile.querySelector(".j2cl-read-attachment-preview"));
+    Assert.assertEquals("metadata-failure", failureTile.getAttribute("data-attachment-state"));
+    Assert.assertEquals(
+        "alert",
+        ((HTMLElement) failureTile.querySelector(".j2cl-read-attachment-status"))
+            .getAttribute("role"));
+    Assert.assertNull(failureTile.querySelector("[data-j2cl-attachment-open='true']"));
   }
 
   @Test
@@ -576,6 +830,187 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertEquals(root, DomGlobal.document.activeElement);
     Assert.assertEquals("0", root.getAttribute("tabindex"));
     Assert.assertEquals("true", root.getAttribute("aria-current"));
+  }
+
+  @Test
+  public void renderWindowPlaceholderUpgradeToLoadedAttachmentReplacesRenderedNodes() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clAttachmentRenderModel attachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+hero",
+            "Hero diagram",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+hero",
+                "hero.png",
+                "image/png",
+                "/attachment/example.com/att+hero",
+                "/thumbnail/example.com/att+hero",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+
+    Assert.assertTrue(
+        renderer.renderWindow(
+            Arrays.asList(
+                J2clReadWindowEntry.loaded("blip:b+root", 30L, 36L, "b+root", "Root text"),
+                J2clReadWindowEntry.placeholder("blip:b+reply", 36L, 40L, "b+reply"))));
+    HTMLElement root = blip(host, "b+root");
+    root.focus();
+
+    Assert.assertTrue(
+        renderer.renderWindow(
+            Arrays.asList(
+                J2clReadWindowEntry.loaded("blip:b+root", 30L, 36L, "b+root", "Root text"),
+                J2clReadWindowEntry.loaded(
+                    "blip:b+reply",
+                    36L,
+                    40L,
+                    "b+reply",
+                    "Reply text",
+                    Arrays.asList(attachment)))));
+
+    Assert.assertNotSame(root, blip(host, "b+root"));
+    Assert.assertNotNull(host.querySelector("[data-attachment-id='example.com/att+hero']"));
+    Assert.assertEquals(blip(host, "b+root"), DomGlobal.document.activeElement);
+  }
+
+  @Test
+  public void renderWindowMixedPlaceholderAndAttachmentMarksSurfaceLiveAndBusy() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clAttachmentRenderModel attachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+hero",
+            "Hero diagram",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+hero",
+                "hero.png",
+                "image/png",
+                "/attachment/example.com/att+hero",
+                "/thumbnail/example.com/att+hero",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+
+    Assert.assertTrue(
+        new J2clReadSurfaceDomRenderer(host)
+            .renderWindow(
+                Arrays.asList(
+                    J2clReadWindowEntry.loaded(
+                        "blip:b+root",
+                        30L,
+                        36L,
+                        "b+root",
+                        "Root text",
+                        Arrays.asList(attachment)),
+                    J2clReadWindowEntry.placeholder(
+                        "blip:b+missing", 36L, 40L, "b+missing"))));
+
+    Assert.assertEquals(
+        "polite", host.querySelector("[data-j2cl-read-surface]").getAttribute("aria-live"));
+    Assert.assertEquals(
+        "true", host.querySelector("[data-thread-id='root']").getAttribute("aria-busy"));
+    Assert.assertNotNull(host.querySelector("[data-attachment-id='example.com/att+hero']"));
+    Assert.assertNotNull(host.querySelector("[data-j2cl-viewport-placeholder='true']"));
+  }
+
+  @Test
+  public void rerenderingSameWindowEntryAttachmentsPreservesRenderedNodes() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clAttachmentRenderModel attachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+hero",
+            "Hero diagram",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+hero",
+                "hero.png",
+                "image/png",
+                "/attachment/example.com/att+hero",
+                "/thumbnail/example.com/att+hero",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+    List<J2clReadWindowEntry> entries =
+        Arrays.asList(
+            J2clReadWindowEntry.loaded(
+                "blip:b+root",
+                30L,
+                36L,
+                "b+root",
+                "Root text",
+                Arrays.asList(attachment)));
+
+    Assert.assertTrue(renderer.renderWindow(entries));
+    HTMLElement tile =
+        (HTMLElement) host.querySelector("[data-j2cl-read-attachment='true']");
+
+    Assert.assertTrue(renderer.renderWindow(entries));
+
+    Assert.assertSame(tile, host.querySelector("[data-j2cl-read-attachment='true']"));
+  }
+
+  @Test
+  public void rerenderingChangedWindowEntryAttachmentsReplacesRenderedNodes() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clAttachmentRenderModel firstAttachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+first",
+            "First",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+first",
+                "first.png",
+                "image/png",
+                "/attachment/example.com/att+first",
+                "/thumbnail/example.com/att+first",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+    J2clAttachmentRenderModel secondAttachment =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+second",
+            "Second",
+            "medium",
+            attachmentMetadata(
+                "example.com/att+second",
+                "second.png",
+                "image/png",
+                "/attachment/example.com/att+second",
+                "/thumbnail/example.com/att+second",
+                new J2clAttachmentMetadata.ImageMetadata(1200, 800),
+                false));
+
+    Assert.assertTrue(
+        renderer.renderWindow(
+            Arrays.asList(
+                J2clReadWindowEntry.loaded(
+                    "blip:b+root",
+                    30L,
+                    36L,
+                    "b+root",
+                    "Root text",
+                    Arrays.asList(firstAttachment)))));
+    HTMLElement tile =
+        (HTMLElement) host.querySelector("[data-j2cl-read-attachment='true']");
+
+    Assert.assertTrue(
+        renderer.renderWindow(
+            Arrays.asList(
+                J2clReadWindowEntry.loaded(
+                    "blip:b+root",
+                    30L,
+                    36L,
+                    "b+root",
+                    "Root text",
+                    Arrays.asList(secondAttachment)))));
+
+    Assert.assertNotSame(tile, host.querySelector("[data-j2cl-read-attachment='true']"));
+    Assert.assertNotNull(host.querySelector("[data-attachment-id='example.com/att+second']"));
   }
 
   @Test
@@ -1109,6 +1544,28 @@ public class J2clReadSurfaceDomRendererTest {
   private static String renderedText(HTMLElement blip) {
     HTMLElement content = (HTMLElement) blip.querySelector(".j2cl-read-blip-content");
     return content == null ? "" : content.textContent;
+  }
+
+  private static J2clAttachmentMetadata attachmentMetadata(
+      String attachmentId,
+      String fileName,
+      String mimeType,
+      String attachmentUrl,
+      String thumbnailUrl,
+      J2clAttachmentMetadata.ImageMetadata imageMetadata,
+      boolean malware) {
+    return new J2clAttachmentMetadata(
+        attachmentId,
+        "example.com/w+1/~/conv+root",
+        fileName,
+        mimeType,
+        1234L,
+        "user@example.com",
+        attachmentUrl,
+        thumbnailUrl,
+        imageMetadata,
+        null,
+        malware);
   }
 
   private static void setLastScrollDirection(

@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-25-issue-971-j2cl-attachment-rendering",
+  "version": "Unreleased",
+  "date": "2026-04-25",
+  "title": "J2CL read surface can show attachments",
+  "summary": "The Lit/J2CL selected-wave read surface now carries attachment render metadata from image elements and exposes attachment controls in the read UI.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Selected-wave attachment elements in the J2CL read surface now render as attachment cards or inline images with keyboard-reachable open and download actions, plus blocked or metadata-unavailable states."
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
+import org.waveprotocol.box.j2cl.read.J2clReadBlipContent;
 import org.waveprotocol.box.j2cl.read.J2clReadWindowEntry;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragment;
@@ -285,7 +286,9 @@ public final class J2clSelectedWaveViewportState {
       if (!entry.isLoaded() || !entry.isBlip()) {
         continue;
       }
-      readBlips.add(new J2clReadBlip(entry.getBlipId(), entry.getRawSnapshot()));
+      J2clReadBlipContent content = J2clReadBlipContent.parseRawSnapshot(entry.getRawSnapshot());
+      readBlips.add(
+          new J2clReadBlip(entry.getBlipId(), content.getText(), content.getAttachments()));
     }
     return readBlips;
   }
@@ -297,13 +300,16 @@ public final class J2clSelectedWaveViewportState {
         continue;
       }
       if (entry.isLoaded()) {
+        J2clReadBlipContent content =
+            J2clReadBlipContent.parseRawSnapshot(entry.getRawSnapshot());
         windowEntries.add(
             J2clReadWindowEntry.loaded(
                 entry.getSegment(),
                 entry.getFromVersion(),
                 entry.getToVersion(),
                 entry.getBlipId(),
-                entry.getRawSnapshot()));
+                content.getText(),
+                content.getAttachments()));
       } else {
         windowEntries.add(
             J2clReadWindowEntry.placeholder(

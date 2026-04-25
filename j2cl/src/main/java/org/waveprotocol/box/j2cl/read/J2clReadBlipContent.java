@@ -1,0 +1,166 @@
+package org.waveprotocol.box.j2cl.read;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+
+/** Parsed text and attachment placeholders extracted from a selected-wave blip snapshot. */
+public final class J2clReadBlipContent {
+  private final String text;
+  private final List<J2clAttachmentRenderModel> attachments;
+
+  private J2clReadBlipContent(String text, List<J2clAttachmentRenderModel> attachments) {
+    this.text = text == null ? "" : text;
+    this.attachments =
+        attachments == null
+            ? Collections.<J2clAttachmentRenderModel>emptyList()
+            : Collections.unmodifiableList(new ArrayList<J2clAttachmentRenderModel>(attachments));
+  }
+
+  public static J2clReadBlipContent parseRawSnapshot(String rawSnapshot) {
+    // Sidecar fragments currently provide DocOp debug XML, not a browser XML document. Keep this
+    // parser narrow to the Wave image doodad shape and treat malformed input as visible text.
+    String raw = rawSnapshot == null ? "" : rawSnapshot;
+    List<J2clAttachmentRenderModel> attachments =
+        new ArrayList<J2clAttachmentRenderModel>();
+    StringBuilder visibleText = new StringBuilder(raw.length());
+    int cursor = 0;
+    while (cursor < raw.length()) {
+      int imageStart = raw.indexOf("<image", cursor);
+      if (imageStart < 0) {
+        visibleText.append(raw.substring(cursor));
+        break;
+      }
+      int imageTagEnd = raw.indexOf('>', imageStart);
+      if (imageTagEnd < 0) {
+        visibleText.append(raw.substring(cursor));
+        break;
+      }
+      String startTag = raw.substring(imageStart, imageTagEnd + 1);
+      String attachmentId = attributeValue(startTag, "attachment");
+      if (attachmentId.isEmpty()) {
+        visibleText.append(raw.substring(cursor, imageTagEnd + 1));
+        cursor = imageTagEnd + 1;
+        continue;
+      }
+      visibleText.append(raw.substring(cursor, imageStart));
+      int imageClose = raw.indexOf("</image>", imageTagEnd + 1);
+      String inner = imageClose < 0 ? "" : raw.substring(imageTagEnd + 1, imageClose);
+      String displaySize = attributeValue(startTag, "display-size");
+      String caption = firstNonEmpty(captionText(inner), attachmentId);
+      attachments.add(
+          J2clAttachmentRenderModel.metadataPending(
+              decodeEntities(attachmentId),
+              decodeEntities(caption),
+              decodeEntities(displaySize)));
+      cursor = imageClose < 0 ? imageTagEnd + 1 : imageClose + "</image>".length();
+    }
+    return new J2clReadBlipContent(
+        decodeEntities(stripTags(visibleText.toString())), attachments);
+  }
+
+  public String getText() {
+    return text;
+  }
+
+  public List<J2clAttachmentRenderModel> getAttachments() {
+    return attachments;
+  }
+
+  private static String attributeValue(String tag, String name) {
+    int cursor = tag.indexOf(' ');
+    if (cursor < 0) {
+      return "";
+    }
+    while (cursor < tag.length()) {
+      cursor = skipWhitespace(tag, cursor);
+      if (cursor >= tag.length() || tag.charAt(cursor) == '>' || tag.charAt(cursor) == '/') {
+        return "";
+      }
+      int nameStart = cursor;
+      while (cursor < tag.length()
+          && !Character.isWhitespace(tag.charAt(cursor))
+          && tag.charAt(cursor) != '='
+          && tag.charAt(cursor) != '>'
+          && tag.charAt(cursor) != '/') {
+        cursor++;
+      }
+      String attributeName = tag.substring(nameStart, cursor);
+      cursor = skipWhitespace(tag, cursor);
+      if (cursor >= tag.length() || tag.charAt(cursor) != '=') {
+        continue;
+      }
+      int valueStart = skipWhitespace(tag, cursor + 1);
+      if (valueStart >= tag.length()) {
+        return "";
+      }
+      char quote = tag.charAt(valueStart);
+      if (quote != '"' && quote != '\'') {
+        // Unquoted attributes are outside the debug-XML shape; advance to avoid rescanning.
+        cursor = valueStart + 1;
+        continue;
+      }
+      int valueEnd = tag.indexOf(quote, valueStart + 1);
+      if (valueEnd < 0) {
+        return "";
+      }
+      if (name.equalsIgnoreCase(attributeName)) {
+        return tag.substring(valueStart + 1, valueEnd);
+      }
+      cursor = valueEnd + 1;
+    }
+    return "";
+  }
+
+  private static int skipWhitespace(String tag, int cursor) {
+    while (cursor < tag.length() && Character.isWhitespace(tag.charAt(cursor))) {
+      cursor++;
+    }
+    return cursor;
+  }
+
+  private static String captionText(String innerXml) {
+    int start = innerXml.indexOf("<caption>");
+    if (start < 0) {
+      return "";
+    }
+    start += "<caption>".length();
+    int end = innerXml.indexOf("</caption>", start);
+    if (end < 0) {
+      return "";
+    }
+    return stripTags(innerXml.substring(start, end));
+  }
+
+  private static String stripTags(String value) {
+    // This is intentionally not an XML parser; it handles the narrow debug-XML snapshots emitted
+    // for selected-wave text and leaves malformed tags as best-effort visible text.
+    StringBuilder stripped = new StringBuilder(value.length());
+    boolean insideTag = false;
+    for (int i = 0; i < value.length(); i++) {
+      char c = value.charAt(i);
+      if (c == '<') {
+        insideTag = true;
+      } else if (c == '>') {
+        insideTag = false;
+      } else if (!insideTag) {
+        stripped.append(c);
+      }
+    }
+    return stripped.toString();
+  }
+
+  private static String decodeEntities(String value) {
+    return value.replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&");
+  }
+
+  private static String firstNonEmpty(String first, String fallback) {
+    String normalized = first == null ? "" : first.trim();
+    return normalized.isEmpty() ? fallback : normalized;
+  }
+}
