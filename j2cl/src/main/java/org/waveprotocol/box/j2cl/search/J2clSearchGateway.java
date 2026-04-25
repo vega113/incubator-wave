@@ -3,9 +3,11 @@ package org.waveprotocol.box.j2cl.search;
 import elemental2.dom.DomGlobal;
 import elemental2.dom.WebSocket;
 import elemental2.dom.XMLHttpRequest;
+import java.util.List;
 import java.util.Map;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsPackage;
+import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadataClient;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController;
 import org.waveprotocol.box.j2cl.transport.SidecarFragmentsResponse;
 import org.waveprotocol.box.j2cl.transport.SidecarOpenRequest;
@@ -165,6 +167,14 @@ public final class J2clSearchGateway
           }
         },
         onError);
+  }
+
+  @Override
+  public void fetchAttachmentMetadata(
+      List<String> attachmentIds,
+      J2clSearchPanelController.SuccessCallback<J2clAttachmentMetadataClient.MetadataResult>
+          onComplete) {
+    new J2clAttachmentMetadataClient().fetchMetadata(attachmentIds, result -> onComplete.accept(result));
   }
 
   @Override
