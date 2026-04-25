@@ -286,18 +286,16 @@ public final class J2clReadSurfaceDomRenderer {
     }
 
     if (!model.getSourceUrl().isEmpty()) {
-      HTMLElement preview =
-          (HTMLElement)
-              DomGlobal.document.createElement(model.isInlineImage() ? "img" : "span");
+      HTMLElement preview = (HTMLElement) DomGlobal.document.createElement("img");
       preview.className = "j2cl-read-attachment-preview";
+      preview.setAttribute("src", model.getSourceUrl());
+      preview.setAttribute("referrerpolicy", "no-referrer");
       if (model.isInlineImage()) {
-        preview.setAttribute("src", model.getSourceUrl());
         preview.setAttribute("alt", model.getCaption());
         preview.setAttribute("loading", "lazy");
-        preview.setAttribute("referrerpolicy", "no-referrer");
       } else {
+        preview.setAttribute("alt", "");
         preview.setAttribute("aria-hidden", "true");
-        preview.textContent = "Attachment";
       }
       attachment.appendChild(preview);
     }

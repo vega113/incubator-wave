@@ -546,6 +546,46 @@ public class J2clReadSurfaceDomRendererTest {
   }
 
   @Test
+  public void cardStyleAttachmentWithThumbnailRendersImgPreview() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    // Small display size with an image mime type → card style (not inline), but sourceUrl is set
+    // to the thumbnail so the preview img must be rendered with src pointing to it.
+    J2clAttachmentRenderModel card =
+        J2clAttachmentRenderModel.fromMetadata(
+            "example.com/att+pdf",
+            "Report",
+            "small",
+            attachmentMetadata(
+                "example.com/att+pdf",
+                "report.pdf",
+                "application/pdf",
+                "/attachment/example.com/att+pdf",
+                "/thumbnail/example.com/att+pdf",
+                null,
+                false));
+
+    Assert.assertTrue(
+        new J2clReadSurfaceDomRenderer(host)
+            .render(
+                Arrays.asList(
+                    new J2clReadBlip("b+root", "Root text", Arrays.asList(card))),
+                Collections.<String>emptyList()));
+
+    HTMLElement tile =
+        (HTMLElement) host.querySelector("[data-attachment-id='example.com/att+pdf']");
+    Assert.assertNotNull(tile);
+    Assert.assertEquals("j2cl-read-attachment j2cl-read-attachment-card", tile.className);
+    HTMLElement preview = (HTMLElement) tile.querySelector(".j2cl-read-attachment-preview");
+    Assert.assertNotNull(preview);
+    Assert.assertEquals("IMG", preview.tagName);
+    Assert.assertEquals("/thumbnail/example.com/att+pdf", preview.getAttribute("src"));
+    Assert.assertEquals("no-referrer", preview.getAttribute("referrerpolicy"));
+    Assert.assertEquals("true", preview.getAttribute("aria-hidden"));
+    Assert.assertEquals("", preview.getAttribute("alt"));
+  }
+
+  @Test
   public void focusedBlipReceivesCurrentMarker() {
     assumeBrowserDom();
     HTMLDivElement host = createHost();
