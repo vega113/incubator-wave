@@ -149,6 +149,7 @@ public final class WavePanelTagsLayoutTest extends TestCase {
     assertTrue(css.contains("pointer-events: none;"));
     assertTrue(css.contains("visibility: hidden;"));
     assertTrue(css.contains("transform: translateY(0);"));
+    assertTrue(css.contains("pointer-events: auto;"));
     assertTrue(css.contains("visibility: visible;"));
     assertTrue(css.contains("transition: transform 180ms ease-out, max-height 180ms ease-out;"));
   }
