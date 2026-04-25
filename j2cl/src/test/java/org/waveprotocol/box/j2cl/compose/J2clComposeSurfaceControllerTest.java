@@ -13,6 +13,8 @@ import org.waveprotocol.box.j2cl.attachment.J2clAttachmentUploadClient;
 import org.waveprotocol.box.j2cl.search.J2clPlainTextDeltaFactory;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelController;
 import org.waveprotocol.box.j2cl.search.J2clSidecarWriteSession;
+import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
+import org.waveprotocol.box.j2cl.telemetry.RecordingTelemetrySink;
 import org.waveprotocol.box.j2cl.toolbar.J2clDailyToolbarAction;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
@@ -528,6 +530,83 @@ public class J2clComposeSurfaceControllerTest {
         "{\"1\":{\"2\":[\"fontWeight\"]}}");
     Assert.assertEquals("", view.model.getActiveCommandId());
     Assert.assertEquals("", view.model.getCommandStatusText());
+  }
+
+  @Test
+  public void richEditCommandAppliedEmitsTelemetry() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller = newControllerWithTelemetry(view, telemetry);
+
+    controller.start();
+    openWaveForReply(controller);
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+
+    J2clClientTelemetry.Event event = telemetry.lastEvent();
+    Assert.assertEquals("richEdit.command.applied", event.getName());
+    Assert.assertEquals("bold", event.getFields().get("commandId"));
+    Assert.assertEquals("applied", event.getFields().get("result"));
+  }
+
+  @Test
+  public void richEditCommandClearedEmitsTelemetry() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller = newControllerWithTelemetry(view, telemetry);
+
+    controller.start();
+    openWaveForReply(controller);
+    controller.onToolbarAction(J2clDailyToolbarAction.BOLD);
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+
+    J2clClientTelemetry.Event event = telemetry.lastEvent();
+    Assert.assertEquals("richEdit.command.applied", event.getName());
+    Assert.assertEquals("bold", event.getFields().get("commandId"));
+    Assert.assertEquals("cleared", event.getFields().get("result"));
+  }
+
+  @Test
+  public void clearFormattingAcceptedEmitsTelemetry() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller = newControllerWithTelemetry(view, telemetry);
+
+    controller.start();
+    openWaveForReply(controller);
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.CLEAR_FORMATTING));
+
+    Assert.assertEquals("richEdit.command.applied", telemetry.lastEvent().getName());
+    Assert.assertEquals("clear-formatting", telemetry.lastEvent().getFields().get("commandId"));
+    Assert.assertEquals("cleared", telemetry.lastEvent().getFields().get("result"));
+  }
+
+  @Test
+  public void richEditTelemetryDoesNotEmitForRejectedActions() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller = newControllerWithTelemetry(view, telemetry);
+
+    controller.start();
+    controller.onToolbarAction(J2clDailyToolbarAction.BOLD);
+    controller.onToolbarAction(J2clDailyToolbarAction.ATTACHMENT_INSERT);
+
+    Assert.assertTrue(telemetry.events().isEmpty());
+  }
+
+  @Test
+  public void throwingTelemetrySinkDoesNotBreakRichEditCommand() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newControllerWithTelemetry(
+            view,
+            event -> {
+              throw new RuntimeException("telemetry boom");
+            });
+
+    controller.start();
+    openWaveForReply(controller);
+    Assert.assertTrue(controller.onToolbarAction(J2clDailyToolbarAction.BOLD));
+    Assert.assertEquals("bold", view.model.getActiveCommandId());
   }
 
   @Test
@@ -2457,6 +2536,22 @@ public class J2clComposeSurfaceControllerTest {
       List<String> refreshed) {
     return new J2clComposeSurfaceController(
         gateway, view, factory, created::add, refreshed::add);
+  }
+
+  private static J2clComposeSurfaceController newControllerWithTelemetry(
+      FakeView view, J2clClientTelemetry.Sink telemetrySink) {
+    return new J2clComposeSurfaceController(
+        new FakeGateway(),
+        view,
+        J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+        waveId -> { },
+        waveId -> { },
+        telemetrySink);
+  }
+
+  private static void openWaveForReply(J2clComposeSurfaceController controller) {
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
   }
 
   private static J2clComposeSurfaceController.AttachmentControllerFactory
