@@ -404,7 +404,9 @@ Test / unmanagedSources := (Test / unmanagedSources).value.filterNot { f =>
   (p.contains("/org/waveprotocol/box/server/rpc/render/") &&
     !p.endsWith("/ServerHtmlRendererTest.java") &&
     !p.endsWith("/WaveContentRendererTest.java") &&
-    !p.endsWith("/J2clSelectedWaveSnapshotRendererTest.java")) ||
+    !p.endsWith("/WaveContentRendererWindowTest.java") &&
+    !p.endsWith("/J2clSelectedWaveSnapshotRendererTest.java") &&
+    !p.endsWith("/J2clSelectedWaveSnapshotRendererWindowTest.java")) ||
   p.contains("/wave/src/test/java/org/waveprotocol/wave/migration/") ||
   p.contains("/wave/src/test/java/org/waveprotocol/wave/model/document/util/") ||
   // MongoDB integration tests — require Testcontainers; run via Gradle itTest, not sbt test

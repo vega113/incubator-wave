@@ -47,6 +47,18 @@ public class J2clSelectedWaveSnapshotRenderer {
   static final long DEFAULT_RENDER_BUDGET_MS = 150L;
   static final int DEFAULT_PAYLOAD_LIMIT_BYTES = 131072;
 
+  /**
+   * Returns the initial visible-window size for the server-first first paint
+   * (R-7.1) by delegating to the same
+   * {@link org.waveprotocol.box.server.frontend.ViewportLimitPolicy} that
+   * governs the live socket-open / fragment-fetch path. Sharing the policy
+   * source keeps the server HTML and the live transport in lock-step when
+   * an operator overrides {@code wave.fragments.defaultViewportLimit}.
+   */
+  static int getInitialWindowSize() {
+    return org.waveprotocol.box.server.frontend.ViewportLimitPolicy.getDefaultLimit();
+  }
+
   interface CurrentTimeSource {
     long currentTimeMillis();
   }
@@ -138,6 +150,7 @@ public class J2clSelectedWaveSnapshotRenderer {
   private final WaveletProvider waveletProvider;
   private final long renderBudgetMs;
   private final int payloadLimitBytes;
+  private final int initialWindowSize;
   private final CurrentTimeSource currentTimeSource;
 
   @Inject
@@ -146,6 +159,7 @@ public class J2clSelectedWaveSnapshotRenderer {
         waveletProvider,
         DEFAULT_RENDER_BUDGET_MS,
         DEFAULT_PAYLOAD_LIMIT_BYTES,
+        getInitialWindowSize(),
         System::currentTimeMillis);
   }
 
@@ -154,9 +168,24 @@ public class J2clSelectedWaveSnapshotRenderer {
       long renderBudgetMs,
       int payloadLimitBytes,
       CurrentTimeSource currentTimeSource) {
+    this(
+        waveletProvider,
+        renderBudgetMs,
+        payloadLimitBytes,
+        getInitialWindowSize(),
+        currentTimeSource);
+  }
+
+  J2clSelectedWaveSnapshotRenderer(
+      WaveletProvider waveletProvider,
+      long renderBudgetMs,
+      int payloadLimitBytes,
+      int initialWindowSize,
+      CurrentTimeSource currentTimeSource) {
     this.waveletProvider = waveletProvider;
     this.renderBudgetMs = renderBudgetMs;
     this.payloadLimitBytes = payloadLimitBytes;
+    this.initialWindowSize = initialWindowSize;
     this.currentTimeSource = currentTimeSource;
   }
 
@@ -215,7 +244,8 @@ public class J2clSelectedWaveSnapshotRenderer {
       }
 
       String snapshotHtml =
-          WaveContentRenderer.renderWaveContent(waveView, viewer, () -> overBudget(startTimeMs));
+          WaveContentRenderer.renderWaveContent(
+              waveView, viewer, () -> overBudget(startTimeMs), initialWindowSize);
       if (overBudget(startTimeMs)) {
         LOG.info("Skipping server-first selected-wave snapshot because the render budget was exceeded after render for "
             + waveId.serialise());
@@ -226,6 +256,14 @@ public class J2clSelectedWaveSnapshotRenderer {
         LOG.info("Skipping server-first selected-wave snapshot because the payload cap was exceeded for "
             + waveId.serialise());
         return SnapshotResult.payloadExceeded();
+      }
+
+      // Snapshot path counts toward the J2CL viewport-initial-window
+      // observability stream so the audit's required `viewport.initial_window`
+      // counter advances even when the live socket open is still in flight.
+      if (org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics.isEnabled()) {
+        org.waveprotocol.wave.concurrencycontrol.channel.FragmentsMetrics
+            .j2clViewportInitialWindows.incrementAndGet();
       }
 
       return SnapshotResult.snapshot(waveId.serialise(), snapshotHtml);

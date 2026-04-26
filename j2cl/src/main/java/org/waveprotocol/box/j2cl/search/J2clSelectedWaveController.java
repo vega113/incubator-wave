@@ -385,18 +385,28 @@ public final class J2clSelectedWaveController
       return;
     }
     final boolean[] terminalStateHandled = new boolean[] {false};
+    // R-7.4: limit fallback observability to the very first non-establishment
+    // update for the open. A healthy viewport bootstrap is the first update
+    // that arrives after the channel handshake; subsequent metadata-only
+    // updates (participant changes, manifest-only deltas) can ship without
+    // blip ranges without that meaning the bootstrap fell back.
+    final boolean[] firstUpdateSeen = new boolean[] {false};
     // Mutable so successful updates reset the budget, keeping MAX_RECONNECT_ATTEMPTS per outage.
     final int[] activeReconnectCount = {reconnectCount};
+    SidecarViewportHints initialHints = resolveInitialViewportHints();
+    emitViewportInitialWindow(initialHints);
     currentSubscription =
         gateway.openSelectedWave(
             currentBootstrap,
             selectedWaveId,
-            resolveInitialViewportHints(),
+            initialHints,
             update -> {
               if (!isCurrentGeneration(generation) || isChannelEstablishmentUpdate(update)) {
                 return;
               }
               int projectedReconnectCount = activeReconnectCount[0];
+              boolean isFirstUpdate = !firstUpdateSeen[0];
+              firstUpdateSeen[0] = true;
               lastUpdate = update;
               currentModel =
                   J2clSelectedWaveProjector.project(
@@ -407,6 +417,19 @@ public final class J2clSelectedWaveController
                       projectedReconnectCount,
                       currentReadState,
                       readStateStale);
+              if (isFirstUpdate
+                  && initialHints != null
+                  && initialHints.hasHints()
+                  && isWholeWaveFallbackUpdate(update)) {
+                // R-7.4: the server returned a snapshot despite the viewport
+                // hint we sent on Open. Surface the fallback exactly once per
+                // open and only on the bootstrap update so dashboards do not
+                // confuse later metadata-only updates with a snapshot fallback.
+                emit(
+                    J2clClientTelemetry.event("viewport.fallback_to_whole_wave")
+                        .field("reason", "server-snapshot")
+                        .build());
+              }
               view.render(currentModel);
               publishWriteSession();
               requestAttachmentMetadataForCurrentViewport(generation);
@@ -483,6 +506,11 @@ public final class J2clSelectedWaveController
     boolean hadWriteSession = writeSession != null;
     long baseVersion = writeSession == null ? -1L : writeSession.getBaseVersion();
     String historyHash = writeSession == null ? "" : nullToEmpty(writeSession.getHistoryHash());
+    emit(
+        J2clClientTelemetry.event("viewport.extension_fetch")
+            .field("direction", normalizedDirection)
+            .field("limit", Integer.toString(FRAGMENT_GROWTH_LIMIT))
+            .build());
     gateway.fetchFragments(
         waveId,
         anchor,
@@ -495,19 +523,35 @@ public final class J2clSelectedWaveController
             return;
           }
           if (isStaleFragmentResponse(hadWriteSession, baseVersion, historyHash)) {
+            emitExtensionOutcome(normalizedDirection, "stale");
             fragmentFetchesInFlight.remove(edgeKey);
             return;
           }
+          // Capture the pre-merge state inside the callback so that any live-stream
+          // updates that arrived between dispatch and response do not inflate the delta.
+          J2clSelectedWaveViewportState preState = currentModel.getViewportState();
+          int loadedBlipsBeforeMerge = preState.getLoadedReadBlips().size();
           J2clSelectedWaveViewportState mergedState =
-              currentModel
-                  .getViewportState()
-                  .mergeFragments(response.getFragments(), normalizedDirection);
+              preState.mergeFragments(response.getFragments(), normalizedDirection);
           currentModel = currentModel.withViewportState(mergedState);
+          int loadedBlipsAfter = mergedState.getLoadedReadBlips().size();
+          int delta = Math.max(0, loadedBlipsAfter - loadedBlipsBeforeMerge);
+          if (delta < FRAGMENT_GROWTH_LIMIT) {
+            // R-7.3: the server clamped the requested limit. Surface the shortfall so the
+            // audit-required `viewport.clamp_applied` counter advances proportionally.
+            emit(
+                J2clClientTelemetry.event("viewport.clamp_applied")
+                    .field("direction", normalizedDirection)
+                    .field("requested", Integer.toString(FRAGMENT_GROWTH_LIMIT))
+                    .field("delivered", Integer.toString(delta))
+                    .build());
+          }
           // Only clear the soft fragment-growth banner owned by this controller.
           // Live-update statuses are left intact because they represent fresher stream state.
           if (FRAGMENT_GROWTH_FAILURE_STATUS.equals(currentModel.getStatusText())) {
             currentModel = currentModel.withStatus(FRAGMENT_GROWTH_RECOVERED_STATUS, "");
           }
+          emitExtensionOutcome(normalizedDirection, "ok");
           view.render(currentModel);
           publishWriteSession();
           requestAttachmentMetadataForCurrentViewport(generation);
@@ -522,6 +566,7 @@ public final class J2clSelectedWaveController
               currentModel.withStatus(
                   FRAGMENT_GROWTH_FAILURE_STATUS,
                   error == null ? "" : error);
+          emitExtensionOutcome(normalizedDirection, "error");
           view.render(currentModel);
           publishWriteSession();
           fragmentFetchesInFlight.remove(edgeKey);
@@ -594,6 +639,39 @@ public final class J2clSelectedWaveController
     // before any real wavelet data is streamed. Those synthetic frames target ~/dummy+root and
     // must not overwrite the selected-wave panel or they would flash a fake wavelet into view.
     return waveletName != null && waveletName.endsWith("/~/dummy+root");
+  }
+
+  /**
+   * Returns true when the update represents a server-side fallback to a
+   * whole-wave snapshot: the J2CL client requested a viewport hint on Open
+   * but the response carries no viewport-shaped fragments and at least one
+   * conversation document. The {@code j2clViewportSnapshotFallbacks} server
+   * counter increments under the same condition; this client-side mirror
+   * surfaces the same signal in {@code window.__stats}.
+   */
+  static boolean isWholeWaveFallbackUpdate(SidecarSelectedWaveUpdate update) {
+    if (update == null) {
+      return false;
+    }
+    if (update.getDocuments() == null || update.getDocuments().isEmpty()) {
+      return false;
+    }
+    org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragments fragments =
+        update.getFragments();
+    if (fragments == null) {
+      return true;
+    }
+    // A fragments payload that carries only manifest/index ranges (no blip
+    // ranges) is the "metadata-only" shape and indistinguishable from a
+    // snapshot fallback for the read surface.
+    for (org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragmentRange range :
+        fragments.getRanges()) {
+      String segment = range == null ? null : range.getSegment();
+      if (segment != null && segment.startsWith("blip:")) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private void closeSubscription() {
@@ -740,6 +818,39 @@ public final class J2clSelectedWaveController
     } catch (Throwable ignored) {
       // Telemetry is best-effort and must not alter selected-wave rendering.
     }
+  }
+
+  private void emitViewportInitialWindow(SidecarViewportHints hints) {
+    if (hints == null || !hints.hasHints()) {
+      return;
+    }
+    String direction = hints.getDirection();
+    if (direction == null || direction.isEmpty()) {
+      direction = J2clViewportGrowthDirection.FORWARD;
+    }
+    String limit;
+    if (hints.getLimit() == null) {
+      limit = "default";
+    } else if (hints.getLimit().intValue() <= 0) {
+      // Explicit zero is the "server default limit" sentinel
+      // (see SidecarViewportHints.defaultLimit()).
+      limit = "default";
+    } else {
+      limit = Integer.toString(hints.getLimit().intValue());
+    }
+    emit(
+        J2clClientTelemetry.event("viewport.initial_window")
+            .field("direction", direction)
+            .field("limit", limit)
+            .build());
+  }
+
+  private void emitExtensionOutcome(String direction, String outcome) {
+    emit(
+        J2clClientTelemetry.event("viewport.extension_fetch.outcome")
+            .field("direction", direction)
+            .field("outcome", outcome)
+            .build());
   }
 
   private static String metadataFailureReason(

@@ -41,6 +41,7 @@ import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TimeZone;
@@ -82,6 +83,21 @@ public final class WaveContentRenderer {
   private static final String CSS_WAVE_BODY = "wave-body";
   private static final String CSS_WAVE_EMPTY = "wave-empty";
 
+  /**
+   * Terminal placeholder appended after the windowed root-thread blips. The
+   * J2CL client treats this as an AT-announcement marker only; the actual
+   * extension-on-scroll trigger is driven by the live update's
+   * {@code J2clSelectedWaveViewportState.getReadWindowEntries()} (placeholder
+   * entries originate there, not from this server-side marker).
+   */
+  static final String VISIBLE_REGION_PLACEHOLDER_HTML =
+      "<div class=\"visible-region-placeholder\""
+          + " data-j2cl-server-placeholder=\"true\""
+          + " data-segment=\"placeholder-tail\""
+          + " role=\"listitem\" aria-busy=\"true\">"
+          + "Additional blips will load on scroll."
+          + "</div>";
+
   /** No instantiation -- static utility class. */
   private WaveContentRenderer() {}
 
@@ -111,10 +127,35 @@ public final class WaveContentRenderer {
    * @return an HTML fragment string, never null
    */
   public static String renderWaveContent(WaveViewData waveView, ParticipantId viewer) {
-    return renderWaveContent(waveView, viewer, () -> false);
+    return renderWaveContent(waveView, viewer, () -> false, 0);
+  }
+
+  /**
+   * Renders a wave snapshot into a complete HTML fragment, optionally
+   * clamped to the first {@code initialWindowSize} root-thread blips. When
+   * {@code initialWindowSize <= 0} the renderer falls back to the
+   * whole-wave shape (the legacy GWT pre-render contract).
+   *
+   * <p>This is the entry point used by the J2CL root-shell first-paint
+   * (R-6.1, R-7.1) so the inline server HTML matches the same window the
+   * J2CL client requests on the live socket open. Inline reply threads
+   * under the included root blips are always rendered fully — the window
+   * applies only to the root-thread sequence.
+   */
+  public static String renderWaveContent(
+      WaveViewData waveView, ParticipantId viewer, int initialWindowSize) {
+    return renderWaveContent(waveView, viewer, () -> false, initialWindowSize);
   }
 
   static String renderWaveContent(WaveViewData waveView, ParticipantId viewer, RenderBudget budget) {
+    return renderWaveContent(waveView, viewer, budget, 0);
+  }
+
+  static String renderWaveContent(
+      WaveViewData waveView,
+      ParticipantId viewer,
+      RenderBudget budget,
+      int initialWindowSize) {
     checkBudget(budget);
     if (waveView == null) {
       return emptyWaveHtml("No wave data available.");
@@ -158,16 +199,22 @@ public final class WaveContentRenderer {
     checkBudget(budget);
     String title = extractTitle(rootConversation);
     Set<String> tags = safeGetTags(rootConversation);
-    int[] counts = countBlipsAndThreads(rootConversation);
+    int[] counts = countBlipsAndThreads(rootConversation, budget);
     int blipCount = counts[0];
     int threadCount = counts[1];
     long creationTime = convWaveletData.getCreationTime();
+
+    // Build the per-render windowing options before invoking the rules engine
+    // so the renderer can mark the first focusable blip and short-list the
+    // allowed root-thread blip ids in a single forward pass.
+    ServerHtmlRenderer.WindowOptions windowOptions =
+        buildWindowOptions(rootConversation, initialWindowSize, budget);
 
     // Render the conversation tree using Phase 1 renderer.
     String conversationHtml;
     try {
       checkBudget(budget);
-      ServerHtmlRenderer rules = new ServerHtmlRenderer(viewer, budget);
+      ServerHtmlRenderer rules = new ServerHtmlRenderer(viewer, budget, windowOptions);
       String rendered = ReductionBasedRenderer.renderWith(rules, conversations);
       checkBudget(budget);
       conversationHtml = rendered != null ? rendered : "";
@@ -185,7 +232,16 @@ public final class WaveContentRenderer {
     sb.append("<div class=\"").append(CSS_WAVE_CONTENT).append("\"");
     sb.append(" data-wave-id=\"")
         .append(ServerHtmlRenderer.escapeAttr(waveView.getWaveId().serialise()))
-        .append("\">");
+        .append("\"");
+    if (windowOptions.isWindowed()) {
+      // F-1: the J2CL renderer reads this attribute to confirm the server
+      // window size matches the limit it will request on the live socket open.
+      sb.append(" data-j2cl-initial-window-size=\"")
+          .append(initialWindowSize)
+          .append("\"");
+      sb.append(" data-j2cl-server-first-surface=\"true\"");
+    }
+    sb.append(">");
 
     // -- Header: title + metadata + tags --
     sb.append("<div class=\"").append(CSS_WAVE_HEADER).append("\">");
@@ -236,6 +292,63 @@ public final class WaveContentRenderer {
     if (budget != null && budget.isExceeded()) {
       throw new RenderBudgetExceededException();
     }
+  }
+
+  /**
+   * Build the per-render windowing options. When {@code initialWindowSize} is
+   * positive and the root thread carries more blips than the requested
+   * window, the returned options short-list the leading {@code N} blip ids
+   * and supply the terminal placeholder. When {@code initialWindowSize} is
+   * non-positive, or when the root thread fits entirely within the window,
+   * the legacy whole-conversation shape is preserved.
+   *
+   * <p>Always sets {@code firstRootBlipId} to the first root-thread blip
+   * (when one exists) so the keyboard contract (R-6.1) is consistent across
+   * windowed and whole-wave renders — the static HTML must always have
+   * exactly one focusable blip.
+   */
+  static ServerHtmlRenderer.WindowOptions buildWindowOptions(
+      Conversation conversation, int initialWindowSize, RenderBudget budget) {
+    if (conversation == null || conversation.getRootThread() == null) {
+      return ServerHtmlRenderer.WindowOptions.none();
+    }
+    String firstRootBlipId = null;
+    Set<String> allowed = new LinkedHashSet<String>();
+    int taken = 0;
+    boolean clamps = false;
+    for (ConversationBlip blip : conversation.getRootThread().getBlips()) {
+      checkBudget(budget);
+      if (blip == null) {
+        continue;
+      }
+      if (firstRootBlipId == null) {
+        firstRootBlipId = blip.getId();
+      }
+      if (initialWindowSize > 0) {
+        if (taken < initialWindowSize) {
+          allowed.add(blip.getId());
+          taken++;
+        } else {
+          clamps = true;
+          break;
+        }
+      }
+    }
+    ConversationThread rootThread = conversation.getRootThread();
+    if (initialWindowSize <= 0) {
+      // Whole-wave shape — only the focus marker is meaningful.
+      return new ServerHtmlRenderer.WindowOptions(
+          firstRootBlipId,
+          java.util.Collections.<String>emptySet(),
+          null,
+          rootThread);
+    }
+    // clamps is set during the single pass above; no second scan needed.
+    return new ServerHtmlRenderer.WindowOptions(
+        firstRootBlipId,
+        allowed,
+        clamps ? VISIBLE_REGION_PLACEHOLDER_HTML : null,
+        rootThread);
   }
 
   // =========================================================================
@@ -322,7 +435,7 @@ public final class WaveContentRenderer {
    *
    * @return int array of [blipCount, threadCount]
    */
-  static int[] countBlipsAndThreads(Conversation conversation) {
+  static int[] countBlipsAndThreads(Conversation conversation, RenderBudget budget) {
     int blipCount = 0;
     int threadCount = 0;
 
@@ -331,12 +444,13 @@ public final class WaveContentRenderer {
       return new int[]{0, 0};
     }
 
-    // Use a simple iterative BFS to avoid deep recursion.
+    // Use a simple iterative DFS to avoid deep recursion.
     List<ConversationThread> queue = new ArrayList<>();
     queue.add(rootThread);
 
     while (!queue.isEmpty()) {
-      ConversationThread thread = queue.remove(queue.size() - 1); // DFS via stack
+      checkBudget(budget);
+      ConversationThread thread = queue.remove(queue.size() - 1);
       threadCount++;
       for (ConversationBlip blip : thread.getBlips()) {
         blipCount++;

@@ -47,6 +47,7 @@ import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import org.waveprotocol.wave.model.id.WaveId;
 
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
@@ -96,14 +97,118 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
   /** The viewer for whom we are rendering (used for future read-state, not yet wired). */
   private final ParticipantId viewer;
   private final WaveContentRenderer.RenderBudget budget;
+  private final WindowOptions windowOptions;
+  /**
+   * Tracks the keyboard-focus invariant: exactly one root-thread blip carries
+   * {@code tabindex="0"} and every other blip carries {@code tabindex="-1"}.
+   *
+   * <p>In windowed mode the focus target is the
+   * {@link WindowOptions#firstRootBlipId()} the caller declared; in
+   * non-windowed mode (legacy standalone {@link #renderWave} or any caller
+   * that constructs {@link ServerHtmlRenderer} directly), the renderer
+   * lazily awards {@code tabindex="0"} to the first root-thread blip it
+   * emits so the rendered surface always has exactly one keyboard entry
+   * point. Mutable instance state is fine because the reduction-based
+   * renderer is invoked on a single thread per request.
+   */
+  private boolean nonWindowedFocusAssigned;
 
   public ServerHtmlRenderer(ParticipantId viewer) {
     this(viewer, () -> false);
   }
 
   ServerHtmlRenderer(ParticipantId viewer, WaveContentRenderer.RenderBudget budget) {
+    this(viewer, budget, WindowOptions.none());
+  }
+
+  ServerHtmlRenderer(
+      ParticipantId viewer,
+      WaveContentRenderer.RenderBudget budget,
+      WindowOptions windowOptions) {
     this.viewer = viewer;
     this.budget = budget;
+    this.windowOptions = windowOptions == null ? WindowOptions.none() : windowOptions;
+  }
+
+  /**
+   * Per-render windowing + keyboard-contract options applied during HTML
+   * emission. Carrying these through the render pipeline lets the renderer
+   * honour the F-1 visible-window contract (R-3.5/R-6.1/R-7.1) without
+   * mutating per-blip emission semantics for the legacy GWT pre-render path.
+   *
+   * <p>The {@code targetRootThread} narrows the window filter to the specific
+   * root thread this windowing was built for. Nested/private conversation root
+   * threads still render in full so server-first HTML does not lose
+   * private-conversation content (the F-1 window applies to the selected
+   * wave's main read surface, not to every conversation root).
+   */
+  static final class WindowOptions {
+    private static final WindowOptions NONE =
+        new WindowOptions(null, Collections.<String>emptySet(), null, null);
+
+    private final String firstRootBlipId;
+    private final Set<String> allowedRootBlipIds;
+    private final String terminalPlaceholderHtml;
+    private final ConversationThread targetRootThread;
+
+    WindowOptions(
+        String firstRootBlipId,
+        Set<String> allowedRootBlipIds,
+        String terminalPlaceholderHtml) {
+      this(firstRootBlipId, allowedRootBlipIds, terminalPlaceholderHtml, null);
+    }
+
+    WindowOptions(
+        String firstRootBlipId,
+        Set<String> allowedRootBlipIds,
+        String terminalPlaceholderHtml,
+        ConversationThread targetRootThread) {
+      this.firstRootBlipId = firstRootBlipId;
+      this.allowedRootBlipIds =
+          allowedRootBlipIds == null
+              ? Collections.<String>emptySet()
+              : Collections.unmodifiableSet(allowedRootBlipIds);
+      this.terminalPlaceholderHtml = terminalPlaceholderHtml;
+      this.targetRootThread = targetRootThread;
+    }
+
+    static WindowOptions none() {
+      return NONE;
+    }
+
+    String firstRootBlipId() {
+      return firstRootBlipId;
+    }
+
+    boolean isWindowed() {
+      return !allowedRootBlipIds.isEmpty();
+    }
+
+    boolean isAllowed(String rootBlipId) {
+      return allowedRootBlipIds.contains(rootBlipId);
+    }
+
+    String terminalPlaceholderHtml() {
+      return terminalPlaceholderHtml == null ? "" : terminalPlaceholderHtml;
+    }
+
+    /**
+     * Returns true when {@code thread} is the exact root thread that this
+     * window was built for. Uses reference equality so private/nested
+     * conversation root threads, which were not the target, never match.
+     * When {@code targetRootThread} is null (legacy callers that omit it),
+     * any conversation root thread matches and the renderer falls back to the
+     * previous behaviour.
+     */
+    boolean isTargetThread(ConversationThread thread) {
+      if (targetRootThread == null) {
+        // Legacy / non-windowed callers: match any root thread.
+        return thread != null
+            && thread.getConversation() != null
+            && thread == thread.getConversation().getRootThread();
+      }
+      return thread == targetRootThread;
+    }
   }
 
   // =========================================================================
@@ -139,7 +244,30 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
 
     StringBuilder sb = new StringBuilder();
     sb.append("<div class=\"").append(CSS_BLIP).append("\"");
-    sb.append(" data-blip-id=\"").append(escapeAttr(blip.getId())).append("\">");
+    sb.append(" data-blip-id=\"").append(escapeAttr(blip.getId())).append("\"");
+    boolean isRootThreadBlip =
+        blip.getThread() != null
+            && blip.getThread().getConversation() != null
+            && blip.getThread() == blip.getThread().getConversation().getRootThread();
+    sb.append(" role=\"").append(isRootThreadBlip ? "listitem" : "article").append("\"");
+    boolean isTabbable;
+    if (windowOptions.isWindowed()) {
+      // Windowed mode: only the designated first root blip is tabbable.
+      isTabbable =
+          isRootThreadBlip
+              && windowOptions.firstRootBlipId() != null
+              && windowOptions.firstRootBlipId().equals(blip.getId());
+    } else {
+      // Non-windowed mode: make the first root-thread blip encountered tabbable
+      // so the rendered surface always has at least one keyboard entry point.
+      if (isRootThreadBlip && !nonWindowedFocusAssigned) {
+        isTabbable = true;
+        nonWindowedFocusAssigned = true;
+      } else {
+        isTabbable = false;
+      }
+    }
+    sb.append(" tabindex=\"").append(isTabbable ? "0" : "-1").append("\">");
 
     // -- Meta bar: author + timestamp --
     sb.append("<div class=\"").append(CSS_BLIP_META).append("\">");
@@ -197,14 +325,34 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
     String cssClass = isRoot ? CSS_THREAD : CSS_INLINE_THREAD;
 
     sb.append("<div class=\"").append(cssClass).append("\"");
-    sb.append(" data-thread-id=\"").append(escapeAttr(thread.getId())).append("\">");
+    sb.append(" data-thread-id=\"").append(escapeAttr(thread.getId())).append("\"");
+    sb.append(" role=\"").append(isRoot ? "list" : "group").append("\"");
+    if (!isRoot) {
+      // Inline-thread aria-label mirrors what J2clReadSurfaceDomRenderer adds
+      // post-mount; supplying it server-side keeps the static HTML AT-usable
+      // before client boot (R-6.1).
+      sb.append(" aria-label=\"inline reply thread\"");
+    }
+    sb.append(">");
 
+    // R-3.5: only the main conversation's root thread is windowed. Nested
+    // private-conversation root threads still render in full so server-first
+    // HTML never silently loses unrelated conversation content.
+    boolean filterRootBlips =
+        isRoot && windowOptions.isWindowed() && windowOptions.isTargetThread(thread);
     for (ConversationBlip blip : thread.getBlips()) {
       checkBudget();
+      if (filterRootBlips && !windowOptions.isAllowed(blip.getId())) {
+        continue;
+      }
       String blipHtml = blipUis.get(blip);
       if (blipHtml != null) {
         sb.append(blipHtml);
       }
+    }
+
+    if (filterRootBlips) {
+      sb.append(windowOptions.terminalPlaceholderHtml());
     }
 
     sb.append("</div>");
