@@ -16,6 +16,7 @@ async function waitForStylesheet() {
     if (cs.getPropertyValue("--wavy-bg-base").trim() !== "") return;
     await new Promise((r) => setTimeout(r, 20));
   }
+  throw new Error("wavy-tokens.css did not apply within 1000ms");
 }
 
 before(async () => {
