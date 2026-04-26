@@ -129,7 +129,7 @@ Proposed sequencing (data-path-first → UI):
 
 ### F-2. Re-execute StageOne read surface (replaces #966 acceptance)
 
-- Cite rows: R-3.1, R-3.2, R-3.3, R-3.4 (blip-level), R-4.4 (per-blip read state).
+- Cite rows: R-3.1, R-3.2, R-3.3, R-3.4 (blip-level), R-4.4 (per-user read/unread live state).
 - Acceptance: rendered conversation DOM with author + avatar + timestamp + threading per blip; focus frame moves with arrow/`j`/`k`; thread collapse toggles work; #931 unread state visibly decrements when blips are read; fixture asserts each behavior against both surfaces.
 - Why second: requires F-1's data shape to be in place, but is the largest user-visible "looks like an actual conversation" win.
 

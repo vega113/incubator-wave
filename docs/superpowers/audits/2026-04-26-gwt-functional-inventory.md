@@ -238,10 +238,10 @@ When a blip enters edit mode (or when the inline reply composer is active), the 
 
 ## N. Coverage summary
 
-- **Total enumerated affordances**: 96 (A:18, B:18, C:22, D:8, E:10, F:12, G:6, H:24, I:6, J:5, K:6, L:5, M:5)
+- **Total enumerated affordances**: 145 (A:18, B:18, C:22, D:8, E:10, F:12, G:6, H:24, I:6, J:5, K:6, L:5, M:5)
 - **Per-issue ownership** (excluding the F-0 design/plugin foundation, which underlies all):
-  - F-2 read surface: 64 affordances
-  - F-3 compose / edit / mentions / tasks / reactions / attachments / tags: 32 affordances
+  - F-2 read surface: 87 affordances (72 exclusive + 15 shared with F-3/F-4/F-0)
+  - F-3 compose / edit / mentions / tasks / reactions / attachments / tags: 46 affordances (35 exclusive + 11 shared with F-2/F-4/F-0)
   - F-4 live read/unread + feature activation: cross-cuts E.2, B.17, A.3, A.4, A.5, H.23
 - **New / additive (not in GWT today)**: G.1–G.6 depth-navigation pattern (6 affordances); F-2 takes on a new acceptance row **R-3.7** (depth-navigation drill-down).
 - **Plugin slots**: 4 (M.2–M.5), all reserved by F-0; specific F-* issues mount the slot points but do not register plugins.
