@@ -5,15 +5,21 @@ import { LitElement, css, html } from "lit";
  * new messages" pill rendered fixed at the bottom-right of the viewport.
  *
  * Mirrors the GWT NewBlipIndicatorPresenter contract (a11y + behavior):
- *   - role="button", aria-label="Scroll to new messages"
- *   - tabindex="0" when visible, tabindex="-1" + hidden when count==0
- *   - Click + Enter + Space → emit `wavy-scroll-to-new-clicked`
+ *   - The inner native &lt;button&gt; owns role + keyboard activation
+ *     (Enter/Space) and carries aria-label="Scroll to new messages".
+ *     The host element does NOT carry role/tabindex, so AT does not
+ *     announce a nested-button antipattern and the single tab stop is
+ *     the inner button. Visibility is driven solely by toggling the
+ *     `hidden` HTML attribute on the host (no tabindex flipping, no
+ *     screen-reader-only sibling label).
+ *   - Click + Enter + Space → emit `wavy-scroll-to-new-clicked`.
  *
  * Properties:
  *   - count: number — how many new messages are below the fold. When 0,
- *     the pill is hidden (the `hidden` HTML attribute is added) and the
- *     element is removed from the tab order. When > 0, the pill becomes
- *     visible and reads "↓ {count} new" with the screen-reader label
+ *     the host gets the `hidden` HTML attribute (which removes the
+ *     inner button from the tab order via :host([hidden]) display:none).
+ *     When > 0, the `hidden` attribute is removed and the pill reads
+ *     "↓ {count} new" with the inner button's aria-label
  *     "Scroll to new messages".
  *
  * Events emitted (CustomEvent, bubbles + composed):

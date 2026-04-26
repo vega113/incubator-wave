@@ -206,10 +206,21 @@ export class WavyVersionHistory extends LitElement {
           // Range (0, Infinity) signals the loader to fetch the full
           // version history. Renderer can wrap with windowing as needed.
           const result = this.versionLoader(0, Number.POSITIVE_INFINITY);
-          // Swallow rejected Promises so a failing loader does not
-          // break the overlay chrome (toggles + Exit still work).
-          if (result && typeof result.then === "function" && typeof result.catch === "function") {
-            result.catch(() => {});
+          // Assign the resolved versions to `this.versions` so the slider
+          // and current-label render against the loader's data. Swallow
+          // rejected Promises so a failing loader does not break the
+          // overlay chrome (toggles + Exit still work). The success +
+          // failure handlers ride on the same `.then(...)` so a rejected
+          // loader Promise does not surface as an unhandled rejection.
+          if (result && typeof result.then === "function") {
+            result.then(
+              (versions) => {
+                if (Array.isArray(versions)) {
+                  this.versions = versions;
+                }
+              },
+              () => {}
+            );
           }
         } catch (_e) {
           // Same — sync throws must not break the overlay chrome.
@@ -239,6 +250,18 @@ export class WavyVersionHistory extends LitElement {
       this.setAttribute("hidden", "");
       this.setAttribute("aria-hidden", "true");
       this.removeAttribute("tabindex");
+      // If the inline confirm <dialog> was left open (e.g. user clicked
+      // Restore then closed the overlay via Exit/backdrop), close it
+      // alongside the overlay so reopening does not show a stale modal.
+      this._closeConfirmDialog();
+    }
+  }
+
+  _closeConfirmDialog() {
+    if (!this.renderRoot) return;
+    const dlg = this.renderRoot.querySelector("dialog.confirm");
+    if (dlg && dlg.hasAttribute("open")) {
+      try { dlg.close(); } catch (_e) { dlg.removeAttribute("open"); }
     }
   }
 
@@ -310,8 +333,13 @@ export class WavyVersionHistory extends LitElement {
   }
 
   _onConfirmRestore() {
-    const idx = this.value || 0;
-    const version = (this.versions || [])[idx] || null;
+    // Clamp `value` against the current `versions` length so a shrunken
+    // history (e.g. loader returned fewer entries than the slider's last
+    // raw value) emits the version the UI currently shows, not null.
+    const versions = Array.isArray(this.versions) ? this.versions : [];
+    const max = versions.length > 0 ? versions.length - 1 : 0;
+    const safeValue = Math.max(0, Math.min(this.value || 0, max));
+    const version = versions[safeValue] || null;
     const dlg = this.renderRoot.querySelector("dialog.confirm");
     if (dlg) {
       try { dlg.close(); } catch (_e) { dlg.removeAttribute("open"); }
@@ -320,7 +348,7 @@ export class WavyVersionHistory extends LitElement {
       new CustomEvent("wavy-version-restore-confirmed", {
         bubbles: true,
         composed: true,
-        detail: { index: idx, version }
+        detail: { index: safeValue, version }
       })
     );
   }
@@ -337,6 +365,9 @@ export class WavyVersionHistory extends LitElement {
   }
 
   _exit() {
+    // Close any open inline confirm dialog before exiting the overlay
+    // so reopening the overlay does not show a stale modal.
+    this._closeConfirmDialog();
     this.open = false;
     this.dispatchEvent(
       new CustomEvent("wavy-version-history-exited", {

@@ -107,10 +107,12 @@ public final class J2clStageOneFloatingOverlaysParityTest {
         "Floating scroll-to-new pill must be mounted in the J2CL root shell, got: " + html,
         html.contains("<wavy-floating-scroll-to-new"));
     assertTrue(
+        "Pill must carry the S4 floating-mount marker on its own tag",
+        htmlContainsTagWithAttr(
+            html, "wavy-floating-scroll-to-new", "data-j2cl-floating-mount"));
+    assertTrue(
         "Pill must be initially hidden so it does not steal tab focus when unread==0",
-        html.contains("<wavy-floating-scroll-to-new")
-            && html.contains("data-j2cl-floating-mount=\"true\"")
-            && htmlContainsTagWithAttr(html, "wavy-floating-scroll-to-new", "hidden"));
+        htmlContainsTagWithAttr(html, "wavy-floating-scroll-to-new", "hidden"));
   }
 
   /** J.3 — wave controls toggle present in the J2CL root shell. */
@@ -134,8 +136,8 @@ public final class J2clStageOneFloatingOverlaysParityTest {
         html.contains("<wavy-nav-drawer-toggle"));
     assertTrue(
         "Nav drawer toggle must declare aria-controls so AT exposes the drawer relationship",
-        html.contains("<wavy-nav-drawer-toggle")
-            && html.contains("aria-controls=\"shell-nav-drawer\""));
+        htmlContainsTagWithAttrValue(
+            html, "wavy-nav-drawer-toggle", "aria-controls", "shell-nav-drawer"));
   }
 
   /** J.5 — back-to-inbox affordance present (mobile-only via CSS). */
@@ -241,6 +243,35 @@ public final class J2clStageOneFloatingOverlaysParityTest {
     J2clSelectedWaveSnapshotRenderer renderer = new J2clSelectedWaveSnapshotRenderer(provider);
     WaveClientServlet servlet = createServlet(VIEWER, renderer);
     return invokeServlet(servlet, "j2cl-root", WAVE_ID.serialise());
+  }
+
+  private static boolean htmlContainsTagWithAttrValue(
+      String html, String tag, String attr, String value) {
+    int idx = 0;
+    String prefix = "<" + tag;
+    String needle = " " + attr + "=\"" + value + "\"";
+    while ((idx = html.indexOf(prefix, idx)) != -1) {
+      int afterPrefix = idx + prefix.length();
+      if (afterPrefix >= html.length()) {
+        return false;
+      }
+      char next = html.charAt(afterPrefix);
+      if (next != ' ' && next != '\t' && next != '\n' && next != '\r'
+          && next != '/' && next != '>') {
+        idx = afterPrefix;
+        continue;
+      }
+      int end = html.indexOf('>', idx);
+      if (end < 0) {
+        return false;
+      }
+      String openTag = html.substring(idx, end);
+      if (openTag.contains(needle)) {
+        return true;
+      }
+      idx = end + 1;
+    }
+    return false;
   }
 
   private static boolean htmlContainsTagWithAttr(String html, String tag, String attr) {

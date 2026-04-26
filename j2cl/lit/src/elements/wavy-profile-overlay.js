@@ -169,6 +169,20 @@ export class WavyProfileOverlay extends LitElement {
     if (changed.has("open")) {
       this._syncOpen();
     }
+    // Clamp `index` against the current `participants` length so
+    // _prev/_next/_emitChange work off an in-bounds value when the
+    // participants array shrinks under us. render() already clamps a
+    // local idx, but the navigation handlers consume `this.index`
+    // directly — keep them in lockstep.
+    if (changed.has("participants") || changed.has("index")) {
+      const list = Array.isArray(this.participants) ? this.participants : [];
+      const max = list.length > 0 ? list.length - 1 : 0;
+      const raw = Number.isFinite(this.index) ? this.index : 0;
+      const clamped = Math.max(0, Math.min(raw, max));
+      if (clamped !== this.index) {
+        this.index = clamped;
+      }
+    }
   }
 
   _syncOpen() {

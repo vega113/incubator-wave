@@ -9,9 +9,13 @@ import { LitElement, css, html } from "lit";
  *   - pressed: boolean — when true, controls are hidden ("compact mode").
  *
  * A11y:
- *   - role="button", aria-pressed reflects `pressed`,
- *     aria-label flips between "Hide wave controls" and
- *     "Show wave controls" depending on `pressed`.
+ *   - The inner native &lt;button&gt; carries the role + keyboard
+ *     activation (Enter/Space). The host element does NOT carry a role
+ *     or tabindex, so AT does not announce a nested-button antipattern
+ *     and the single tab stop is the inner button.
+ *   - aria-pressed on the inner button reflects `pressed`, and
+ *     aria-label on the inner button flips between "Hide wave controls"
+ *     and "Show wave controls" depending on `pressed`.
  *
  * Events emitted (CustomEvent, bubbles + composed):
  *   - `wavy-wave-controls-toggled` — `{detail: {pressed}}` after the
