@@ -32,12 +32,14 @@ import com.typesafe.config.ConfigFactory;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Collections;
+import java.util.Set;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.json.JSONObject;
 import org.junit.Test;
 import org.waveprotocol.box.common.J2clBootstrapContract;
+import org.waveprotocol.box.common.SessionConstants;
 import org.waveprotocol.box.server.account.AccountData;
 import org.waveprotocol.box.server.account.HumanAccountData;
 import org.waveprotocol.box.server.authentication.SessionManager;
@@ -65,9 +67,16 @@ public final class J2clBootstrapServletTest {
     assertEquals("alice@example.com", session.getString(J2clBootstrapContract.SESSION_ADDRESS));
     assertEquals("example.com", session.getString(J2clBootstrapContract.SESSION_DOMAIN));
     assertEquals(HumanAccountData.ROLE_USER, session.getString(J2clBootstrapContract.SESSION_ROLE));
-    assertTrue(session.has(J2clBootstrapContract.SESSION_ID));
+    assertFalse(session.has(SessionConstants.ID_SEED));
     assertTrue(session.has(J2clBootstrapContract.SESSION_FEATURES));
     assertFalse(session.isNull(J2clBootstrapContract.SESSION_FEATURES));
+    assertEquals(
+        Set.of(
+            J2clBootstrapContract.SESSION_ADDRESS,
+            J2clBootstrapContract.SESSION_DOMAIN,
+            J2clBootstrapContract.SESSION_ROLE,
+            J2clBootstrapContract.SESSION_FEATURES),
+        session.keySet());
 
     JSONObject socket = json.getJSONObject(J2clBootstrapContract.KEY_SOCKET);
     assertEquals("127.0.0.1:9898", socket.getString(J2clBootstrapContract.SOCKET_ADDRESS));
@@ -116,12 +125,54 @@ public final class J2clBootstrapServletTest {
     JSONObject json = new JSONObject(body.toString());
     JSONObject session = json.getJSONObject(J2clBootstrapContract.KEY_SESSION);
     assertEquals("example.com", session.getString(J2clBootstrapContract.SESSION_DOMAIN));
+    assertEquals(HumanAccountData.ROLE_USER, session.getString(J2clBootstrapContract.SESSION_ROLE));
+    assertFalse(session.has(SessionConstants.ID_SEED));
     assertFalse(session.has(J2clBootstrapContract.SESSION_ADDRESS));
     assertFalse(session.has(J2clBootstrapContract.SESSION_FEATURES));
+    assertEquals(
+        Set.of(J2clBootstrapContract.SESSION_DOMAIN, J2clBootstrapContract.SESSION_ROLE),
+        session.keySet());
     assertEquals(
         "127.0.0.1:9898",
         json.getJSONObject(J2clBootstrapContract.KEY_SOCKET)
             .getString(J2clBootstrapContract.SOCKET_ADDRESS));
+  }
+
+  @Test
+  public void repeatedBootstrapJsonResponsesDoNotExposeVolatileIdSeed() throws Exception {
+    J2clBootstrapServlet servlet = createServlet(ParticipantId.ofUnsafe("alice@example.com"));
+
+    JSONObject firstSession =
+        renderBootstrapJson(servlet, signedInRequest())
+            .getJSONObject(J2clBootstrapContract.KEY_SESSION);
+    JSONObject secondSession =
+        renderBootstrapJson(servlet, signedInRequest())
+            .getJSONObject(J2clBootstrapContract.KEY_SESSION);
+
+    assertFalse(firstSession.has(SessionConstants.ID_SEED));
+    assertFalse(secondSession.has(SessionConstants.ID_SEED));
+    assertEquals(firstSession.keySet(), secondSession.keySet());
+    assertEquals(
+        firstSession.getString(J2clBootstrapContract.SESSION_ADDRESS),
+        secondSession.getString(J2clBootstrapContract.SESSION_ADDRESS));
+    assertEquals(
+        firstSession.getString(J2clBootstrapContract.SESSION_DOMAIN),
+        secondSession.getString(J2clBootstrapContract.SESSION_DOMAIN));
+    assertEquals(
+        firstSession.getString(J2clBootstrapContract.SESSION_ROLE),
+        secondSession.getString(J2clBootstrapContract.SESSION_ROLE));
+    assertEquals(
+        firstSession.getJSONArray(J2clBootstrapContract.SESSION_FEATURES).length(),
+        secondSession.getJSONArray(J2clBootstrapContract.SESSION_FEATURES).length());
+  }
+
+  private static JSONObject renderBootstrapJson(
+      J2clBootstrapServlet servlet, HttpServletRequest request) throws Exception {
+    StringWriter body = new StringWriter();
+    HttpServletResponse response = mock(HttpServletResponse.class);
+    when(response.getWriter()).thenReturn(new PrintWriter(body));
+    servlet.doGet(request, response);
+    return new JSONObject(body.toString());
   }
 
   @Test

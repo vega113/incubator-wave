@@ -442,7 +442,7 @@ public class SidecarTransportCodecTest {
   public void extractSessionBootstrapFromBootstrapJson() {
     String json =
         "{\"session\":{\"domain\":\"example.com\",\"address\":\"user@example.com\","
-            + "\"id\":\"seed\",\"role\":\"user\",\"features\":[\"mentions-search\"]},"
+            + "\"role\":\"user\",\"features\":[\"mentions-search\"]},"
             + "\"socket\":{\"address\":\"socket.example.test:7443\"},"
             + "\"shell\":{\"buildCommit\":\"abc\",\"serverBuildTime\":1700000000000,"
             + "\"currentReleaseId\":\"r1\",\"routeReturnTarget\":\"/?view=j2cl-root\"}}";
@@ -451,6 +451,34 @@ public class SidecarTransportCodecTest {
 
     Assert.assertEquals("user@example.com", bootstrap.getAddress());
     Assert.assertEquals("socket.example.test:7443", bootstrap.getWebSocketAddress());
+  }
+
+  @Test
+  public void bootstrapJsonIgnoresLegacySessionIdSeed() {
+    String json =
+        "{\"session\":{\"domain\":\"example.com\",\"address\":\"user@example.com\","
+            + "\"id\":\"legacy-seed\",\"future\":\"ignored\"},"
+            + "\"socket\":{\"address\":\"socket.example.test:7443\",\"token\":\"future-933-token\"}}";
+
+    SidecarSessionBootstrap bootstrap = SidecarSessionBootstrap.fromBootstrapJson(json);
+
+    Assert.assertEquals("user@example.com", bootstrap.getAddress());
+    Assert.assertEquals("socket.example.test:7443", bootstrap.getWebSocketAddress());
+  }
+
+  @Test
+  public void bootstrapValueObjectDoesNotExposeJsonSessionSeed() {
+    for (java.lang.reflect.Method method : SidecarSessionBootstrap.class.getMethods()) {
+      if (method.getReturnType().equals(Void.TYPE)) {
+        continue;
+      }
+      String name = method.getName().toLowerCase(java.util.Locale.ROOT);
+      Assert.assertFalse(
+          "Unexpected seed accessor: " + method.getName(),
+          name.startsWith("get") && name.contains("seed"));
+      Assert.assertFalse(
+          "Unexpected session id accessor: " + method.getName(), name.equals("getsessionid"));
+    }
   }
 
   @Test

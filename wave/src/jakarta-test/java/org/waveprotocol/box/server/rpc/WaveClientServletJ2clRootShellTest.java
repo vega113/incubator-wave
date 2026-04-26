@@ -34,7 +34,9 @@ import java.io.StringWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.json.JSONObject;
 import org.junit.Test;
+import org.waveprotocol.box.common.SessionConstants;
 import org.waveprotocol.box.server.authentication.SessionManager;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.account.AccountData;
@@ -292,6 +294,14 @@ public final class WaveClientServletJ2clRootShellTest {
     assertTrue(html.contains("\"address\":\"alice@example.com\""));
     assertTrue(html.contains("var __websocket_address = "));
     assertTrue(html.contains("\"127.0.0.1:9898\""));
+
+    int sessionStart = html.indexOf("var __session = ");
+    assertTrue(sessionStart >= 0);
+    int sessionEnd = html.indexOf('\n', sessionStart);
+    assertTrue(sessionEnd > sessionStart);
+    String inlineSession = html.substring(sessionStart, sessionEnd);
+    String sessionJson = inlineSession.substring("var __session = ".length(), inlineSession.length() - 1);
+    assertTrue(new JSONObject(sessionJson).has(SessionConstants.ID_SEED));
   }
 
   @Test

@@ -28,12 +28,18 @@ package org.waveprotocol.box.common;
  *
  * <pre>
  * {
- *   "session": { "domain": "...", "address": "...", "id": "...", "role": "...", "features": [...] },
+ *   "session": { "domain": "...", "address": "...", "role": "...", "features": [...] },
  *   "socket":  { "address": "..." },
  *   "shell":   { "buildCommit": "...", "serverBuildTime": 0,
  *                "currentReleaseId": "...", "routeReturnTarget": "..." }
  * }
  * </pre>
+ *
+ * <p>The J2CL JSON contract intentionally omits {@code SessionConstants.ID_SEED}
+ * even though the rollback-safe inline HTML globals still expose it during the
+ * inline-HTML rollback overlap.
+ * The remaining session fields keep the same signed-in/signed-out presence rules
+ * as {@code WaveClientServlet#buildSessionJson(WebSession)}.
  *
  * <p>Forward compatibility: follow-up work under issue #933 may add more fields
  * under {@code socket} (e.g. a signed bootstrap token). Clients must therefore
@@ -48,7 +54,6 @@ public final class J2clBootstrapContract {
 
   public static final String SESSION_DOMAIN = "domain";
   public static final String SESSION_ADDRESS = "address";
-  public static final String SESSION_ID = "id";
   public static final String SESSION_ROLE = "role";
   public static final String SESSION_FEATURES = "features";
 
