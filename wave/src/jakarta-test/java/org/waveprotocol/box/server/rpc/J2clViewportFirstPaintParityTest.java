@@ -170,9 +170,12 @@ public final class J2clViewportFirstPaintParityTest {
 
   /**
    * Reciprocal R-6.4 / R-7.4: the legacy GWT skeleton response for the
-   * same wave must be byte-for-byte unchanged — none of the F-1
-   * server-first markers may leak into the legacy path so rollback stays
-   * safe.
+   * same wave must not leak any of the F-1 server-first markers (the
+   * server-first surface attribute, the initial-window size, the
+   * upgrade-placeholder), so rollback stays safe and operators can still
+   * route past J2CL via {@code ?view=gwt} without surprising the legacy
+   * client. The remainder of the legacy skeleton is shape-tested against
+   * its own (existing) test class; this assertion is the F-1 contract.
    */
   @Test
   public void legacyGwtRouteDoesNotEmitServerFirstMarkers() throws Exception {

@@ -385,7 +385,12 @@ public final class J2clSelectedWaveController
       return;
     }
     final boolean[] terminalStateHandled = new boolean[] {false};
-    final boolean[] viewportFallbackEmitted = new boolean[] {false};
+    // R-7.4: limit fallback observability to the very first non-establishment
+    // update for the open. A healthy viewport bootstrap is the first update
+    // that arrives after the channel handshake; subsequent metadata-only
+    // updates (participant changes, manifest-only deltas) can ship without
+    // blip ranges without that meaning the bootstrap fell back.
+    final boolean[] firstUpdateSeen = new boolean[] {false};
     // Mutable so successful updates reset the budget, keeping MAX_RECONNECT_ATTEMPTS per outage.
     final int[] activeReconnectCount = {reconnectCount};
     SidecarViewportHints initialHints = resolveInitialViewportHints();
@@ -400,6 +405,8 @@ public final class J2clSelectedWaveController
                 return;
               }
               int projectedReconnectCount = activeReconnectCount[0];
+              boolean isFirstUpdate = !firstUpdateSeen[0];
+              firstUpdateSeen[0] = true;
               lastUpdate = update;
               currentModel =
                   J2clSelectedWaveProjector.project(
@@ -410,15 +417,14 @@ public final class J2clSelectedWaveController
                       projectedReconnectCount,
                       currentReadState,
                       readStateStale);
-              if (!viewportFallbackEmitted[0]
+              if (isFirstUpdate
                   && initialHints != null
                   && initialHints.hasHints()
                   && isWholeWaveFallbackUpdate(update)) {
                 // R-7.4: the server returned a snapshot despite the viewport
                 // hint we sent on Open. Surface the fallback exactly once per
-                // open so operators can tell the audit-required counter from a
-                // healthy viewport bootstrap.
-                viewportFallbackEmitted[0] = true;
+                // open and only on the bootstrap update so dashboards do not
+                // confuse later metadata-only updates with a snapshot fallback.
                 emit(
                     J2clClientTelemetry.event("viewport.fallback_to_whole_wave")
                         .field("reason", "server-snapshot")

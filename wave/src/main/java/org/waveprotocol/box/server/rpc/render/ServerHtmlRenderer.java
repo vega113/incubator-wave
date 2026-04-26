@@ -99,12 +99,19 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
   private final WaveContentRenderer.RenderBudget budget;
   private final WindowOptions windowOptions;
   /**
-   * Tracks whether the non-windowed render has already assigned {@code tabindex="0"} to a root
-   * blip.  In windowed mode {@link WindowOptions#firstRootBlipId()} controls focus; in non-windowed
-   * mode we assign focus to the very first root-thread blip we encounter so that the rendered HTML
-   * always has exactly one keyboard-focusable entry point.
+   * Tracks the keyboard-focus invariant: exactly one root-thread blip carries
+   * {@code tabindex="0"} and every other blip carries {@code tabindex="-1"}.
+   *
+   * <p>In windowed mode the focus target is the
+   * {@link WindowOptions#firstRootBlipId()} the caller declared; in
+   * non-windowed mode (legacy standalone {@link #renderWave} or any caller
+   * that constructs {@link ServerHtmlRenderer} directly), the renderer
+   * lazily awards {@code tabindex="0"} to the first root-thread blip it
+   * emits so the rendered surface always has exactly one keyboard entry
+   * point. Mutable instance state is fine because the reduction-based
+   * renderer is invoked on a single thread per request.
    */
-  private boolean nonWindowedFocusAssigned = false;
+  private boolean nonWindowedFocusAssigned;
 
   public ServerHtmlRenderer(ParticipantId viewer) {
     this(viewer, () -> false);
