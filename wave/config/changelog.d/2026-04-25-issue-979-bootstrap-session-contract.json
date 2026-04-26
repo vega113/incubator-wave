@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-04-25-issue-979-bootstrap-session-contract",
+  "date": "2026-04-25",
+  "version": "Unreleased",
+  "title": "J2CL bootstrap JSON no longer exposes the volatile HTML client ID seed",
+  "summary": "The /bootstrap.json contract now omits the per-render SessionConstants.ID_SEED value that remains in legacy inline HTML bootstrap globals for rollback compatibility. This prevents J2CL/Lit clients from treating the value as an HTTP session identifier or as correlated with the HTML bootstrap page.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Removed the volatile session.id client ID seed and its misleading bootstrap-contract constant from the J2CL /bootstrap.json response while preserving the legacy inline HTML bootstrap seed during the rollout overlap window"
+      ]
+    }
+  ]
+}

@@ -214,9 +214,9 @@ curl -fsS -H 'Accept: application/json' http://localhost:9900/bootstrap.json | j
 
 Expected top-level keys and fields:
 
-- `session.domain` — always present
-- `session.address` / `session.role` / `session.features` — present only when signed in
-- `session.id` — per-request ID seed (regenerated per call by design; do not rely on equality with the HTML page's `__session.id`)
+- `session.domain` / `session.role` — always present
+- `session.address` / `session.features` — present only when signed in
+- `/bootstrap.json` intentionally omits `SessionConstants.ID_SEED`; that volatile HTML `session.id` seed remains only in the legacy inline `window.__session` bootstrap during the #978 overlap window
 - `socket.address` — the presented WebSocket `host:port`
 - `shell.buildCommit`, `shell.serverBuildTime`, `shell.currentReleaseId`, `shell.routeReturnTarget`
 
@@ -248,8 +248,10 @@ Rollback rule: newer J2CL bundles now expect `/bootstrap.json` and do not fall
 back to HTML scraping. During the overlap window, roll the server forward
 before the client, and roll the client back before or together with any server
 rollback so clients do not land on a server that no longer matches their
-bootstrap expectations. The remaining `session.id` divergence between HTML and
-`/bootstrap.json` is tracked separately in issue `#979`.
+bootstrap expectations. The former `session.id` divergence was closed by issue
+`#979`: `/bootstrap.json` no longer publishes the volatile HTML client ID seed,
+so new J2CL/Lit clients must not use it as a session or correlation
+identifier.
 
 ## Dual-Mode Coexistence Matrix
 

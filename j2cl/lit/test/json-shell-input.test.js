@@ -12,7 +12,6 @@ describe("json-shell-input", () => {
         address: "a@b.c",
         role: "owner",
         domain: "b.c",
-        id: "seed-1",
         features: []
       },
       socket: {
@@ -22,7 +21,24 @@ describe("json-shell-input", () => {
     const snap = createJsonShellInput(window).read();
     expect(snap.signedIn).to.equal(true);
     expect(snap.role).to.equal("owner");
-    expect(snap.idSeed).to.equal("seed-1");
+    expect(snap.idSeed).to.equal("");
     expect(snap.websocketAddress).to.equal("ws.example:443");
+  });
+
+  it("ignores legacy session.id from bootstrap JSON", () => {
+    window.__bootstrap = {
+      session: {
+        address: "a@b.c",
+        role: "owner",
+        domain: "b.c",
+        id: "legacy-seed",
+        features: []
+      },
+      socket: {
+        address: "ws.example:443"
+      }
+    };
+
+    expect(createJsonShellInput(window).read().idSeed).to.equal("");
   });
 });

@@ -29,6 +29,7 @@ import javax.inject.Singleton;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.waveprotocol.box.common.J2clBootstrapContract;
+import org.waveprotocol.box.common.SessionConstants;
 import org.waveprotocol.box.server.authentication.WebSession;
 import org.waveprotocol.box.server.authentication.WebSessions;
 import org.waveprotocol.wave.util.logging.Log;
@@ -51,12 +52,11 @@ import org.waveprotocol.wave.util.logging.Log;
  *
  * <p>The session block is produced by {@link WaveClientServlet#buildSessionJson}
  * so the HTML and JSON surfaces cannot drift on role/feature/domain/address.
- * Note that {@link org.waveprotocol.box.common.SessionConstants#ID_SEED} is
- * regenerated per call by that helper; the {@code session.id} returned here
- * therefore need not match the one a concurrent HTML page load emits. The
- * historical J2CL scraping path only ever consumed address/domain/role/features,
- * so this divergence is behaviorally safe and is documented here so future
- * maintainers do not "fix" the divergence by introducing a shared cache.
+ * This endpoint intentionally removes {@link
+ * org.waveprotocol.box.common.SessionConstants#ID_SEED}: the value is a
+ * per-render client ID seed for the legacy HTML bootstrap, not an HTTP/auth
+ * session identifier and not a cross-request correlation key. Future J2CL
+ * clients that need an ID seed must use a dedicated J2CL-owned seed contract.
  *
  * <p>This endpoint is read-only. Non-GET requests return HTTP 405. It relies on
  * the same {@link jakarta.servlet.http.HttpSession} authn contract as {@link
@@ -97,6 +97,8 @@ public final class J2clBootstrapServlet extends HttpServlet {
       throws IOException {
     WebSession webSession = WebSessions.from(request, false);
     JSONObject sessionJson = waveClientServlet.buildSessionJson(webSession);
+    // /bootstrap.json must not expose the volatile HTML client ID seed.
+    sessionJson.remove(SessionConstants.ID_SEED);
     String websocketAddress = waveClientServlet.presentedWebsocketAddress();
     String routeReturnTarget = buildRouteReturnTarget(request);
 
