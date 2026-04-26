@@ -1,0 +1,29 @@
+{
+  "releaseId": "2026-04-26-issue-1055-view-wiring",
+  "version": "F-2.S5 (#1055)",
+  "date": "2026-04-26",
+  "title": "F-2 Slice 5 — View wiring + URL state + integration cleanup",
+  "summary": "F-2 view-wiring slice. Removes the legacy 'Hosted workflow' intro card + duplicate search toolbar from the J2CL root shell now that <wavy-search-rail> is the canonical surface; replaces the 'Select a wave' placeholder with the wavy empty-state recipe (centered ghost waveform mark + headline); fixes the SSR <wavy-search-rail> waveform glyph overflow with explicit width=14 height=14; suppresses the legacy editor-toolbar wall when no compose session is active by gating view actions on the toolbar surface. Adds &depth=<blip-id> URL state (round-trips through reload + back/forward), [ / ] keyboard drill-out / drill-in, g / G first-blip / last-blip jump, and the R-3.7 G.6 awareness pill landmark. Wires pin folder state from J2clSearchDigestItem.isPinned() onto the <wavy-wave-nav-row> chrome (S2 deferral closeout). Closes the S4 focus-trap deferral on <wavy-version-history> and <wavy-profile-overlay> via inert-on-siblings + previous-focus restore. R-4.4 mark-blip-read Gateway is deferred to a follow-up so this slice can land cleanly.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Integration cleanup: removed the visible 'Hosted workflow' eyebrow + h1.sidecar-title + sidecar-detail copy from the J2CL root shell. The structural <div class=\"sidecar-search-card\"> wrapper stays so J2clSearchPanelView can still adopt the form / digests / empty-state DOM, but the wrapper now carries data-j2cl-legacy-search-card=\"hidden\" and the form carries data-j2cl-legacy-search-form=\"true\" + the hidden attribute. <wavy-search-rail> in the nav slot is the canonical query surface.",
+        "Wavy empty-state recipe: replaced the 'Select a wave to open it here.' placeholder with a centered ghost waveform mark, a wavy-empty-state-headline ('Select a wave' / mode-specific title), and a wavy-empty-state-subhead. Class names are pinned by the new HtmlRendererJ2clRootShellIntegrationTest.",
+        "Search-rail waveform glyph fix: <wavy-search-rail> SSR'd <svg> now carries explicit width=\"14\" height=\"14\" so the glyph does not overflow to the SVG default 300x150 before customElements.define attaches the shadow DOM (reproduces the giant waveform reported in issue #1055). The Lit element's render also pins the dimensions, and a defensive global rule in wavy-thread-collapse.css clamps any direct svg child of .waveform inside <wavy-search-rail>'s light DOM.",
+        "Editor-toolbar wall suppression: J2clToolbarSurfaceController grew a setViewActionsEnabled(boolean) opt-out, defaulting to true to preserve the sidecar presentation. The J2CL root shell sets it to false because <wavy-wave-nav-row> already mounts the canonical view-action chrome (E.1-E.10). The toolbar host now hides itself when the action model is empty so the legacy Bold/Italic wall no longer renders before composition starts.",
+        "URL state (R-3.7 G.4): J2clSidecarRouteState carries an optional depthBlipId; J2clSidecarRouteCodec round-trips &depth=<blip-id> through parse/toUrl with explicit width on the new param so it stays out of the URL when no depth focus is set. The route controller exposes onDepthChanged(blipId) + getCurrentState() so the root shell can push depth changes into history.",
+        "Keyboard wiring (R-3.7 G.5): the read surface's blip keydown handler now dispatches wavy-depth-up on '[' (drill out one level) and wavy-depth-drill-in on ']' (drill into focused blip). Aliases 'g' = first blip and 'G' = last blip layer over the existing Home / End. j2cl.depth.drill_in telemetry counter records direction (in/out) + source (keyboard).",
+        "Awareness pill (R-3.7 G.6): the selected-wave card now mounts an <output class=\"wavy-awareness-pill\" data-j2cl-awareness-pill=\"true\"> landmark. View.setAwarenessPill(int pendingCount) toggles hidden + textContent ('↑ N new replies above'). The CSS reuses --wavy-pulse-ring + signal-cyan tokens for the cyan border-pill.",
+        "Pin/archive nav-row (S2 deferral closed): J2clSelectedWaveController publishes pin folder state via View.setNavRowFolderState(boolean pinned, boolean archived) on every selection change. Pinned reflects from J2clSearchDigestItem.isPinned(); archived stays false until F-4 wires the live folder feed.",
+        "Focus-trap on overlays (S4 deferral closed): wavy-version-history and wavy-profile-overlay now save document.activeElement on open, set inert on every <body> direct child except the overlay host, and restore focus + remove inert on close. The host's tabindex=-1 + microtask focus call from S4 stays unchanged."
+      ]
+    },
+    {
+      "type": "feature",
+      "items": [
+        "R-4.4 mark-blip-read Gateway extension is intentionally deferred from this slice. The IntersectionObserver-equivalent debounce wiring on J2clReadSurfaceDomRenderer + the supplement-op POST /j2cl/mark-blip-read endpoint will land in a follow-up so this slice can ship the user-visible duplicate-removal cleanup without growing past one merge window."
+      ]
+    }
+  ]
+}

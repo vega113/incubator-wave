@@ -78,10 +78,30 @@ public final class J2clToolbarSurfaceController {
   private J2clDailyToolbarAction errorAction;
   private String errorText = "";
   private boolean started;
+  // F-2 slice 5 (#1055, A.3): suppress legacy view actions in callers
+  // where <wavy-wave-nav-row> already provides the same affordances. The
+  // sidecar (legacy) presentation keeps the default `true`.
+  private boolean viewActionsEnabled = true;
 
   public J2clToolbarSurfaceController(View view, ActionDispatcher dispatcher) {
     this.view = view;
     this.dispatcher = dispatcher;
+  }
+
+  /**
+   * F-2 slice 5 (#1055, A.3) — opt out of view actions when the caller's
+   * presentation already mounts the canonical view-nav chrome (i.e. the
+   * J2CL root shell mounts {@code <wavy-wave-nav-row>}). Defaults to
+   * {@code true} so the sidecar presentation is unchanged.
+   */
+  public void setViewActionsEnabled(boolean enabled) {
+    if (this.viewActionsEnabled == enabled) {
+      return;
+    }
+    this.viewActionsEnabled = enabled;
+    if (started) {
+      render();
+    }
   }
 
   public void start() {
@@ -147,7 +167,9 @@ public final class J2clToolbarSurfaceController {
     }
     List<J2clToolbarSurfaceModel.ActionModel> actions =
         new ArrayList<J2clToolbarSurfaceModel.ActionModel>();
-    addViewActions(actions);
+    if (viewActionsEnabled) {
+      addViewActions(actions);
+    }
     addEditActions(actions);
     view.render(new J2clToolbarSurfaceModel(actions));
   }

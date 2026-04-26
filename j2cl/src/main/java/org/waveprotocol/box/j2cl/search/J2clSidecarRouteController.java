@@ -130,6 +130,36 @@ public final class J2clSidecarRouteController {
     onRouteStateChanged(new J2clSidecarRouteState(query, waveId), null, true);
   }
 
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.4): push a new depth focus into the URL
+   * state. Empty / null clears the depth parameter. Other state fields
+   * (query, selectedWaveId) are preserved.
+   */
+  public void onDepthChanged(String depthBlipId) {
+    if (currentState == null) {
+      return;
+    }
+    String normalized =
+        depthBlipId == null || depthBlipId.isEmpty() ? null : depthBlipId;
+    J2clSidecarRouteState nextState = currentState.withDepthBlipId(normalized);
+    if (nextState.equals(currentState)) {
+      return;
+    }
+    String nextUrl = J2clSidecarRouteCodec.toUrl(nextState, fixedQueryString);
+    history.pushUrl(nextUrl);
+    emitUrlChanged(nextUrl);
+    currentState = nextState;
+  }
+
+  /**
+   * F-2 slice 5 (#1055): expose the current route state so route
+   * observers (e.g. the selected-wave view's depth re-hydration on
+   * mount) can read the parsed URL state.
+   */
+  public J2clSidecarRouteState getCurrentState() {
+    return currentState;
+  }
+
   private void handlePopState() {
     currentState = J2clSidecarRouteCodec.parse(history.getSearch(), history.getHash());
     emitUrlChanged(J2clSidecarRouteCodec.toUrl(currentState, fixedQueryString));

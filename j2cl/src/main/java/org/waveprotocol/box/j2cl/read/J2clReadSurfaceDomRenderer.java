@@ -757,21 +757,132 @@ public final class J2clReadSurfaceDomRenderer {
     }
     String key = keyEvent.key;
     // F-2 slice 2 (#1046, R-3.2): j/k aliases for ArrowDown/ArrowUp.
+    // F-2 slice 5 (#1055, R-3.7 G.5): [ / ] drill out / drill in,
+    //                                  g / G jump to first / last blip.
     // Documented as Wavy-specific aliases; intentionally NOT announced via
-    // aria-keyshortcuts to avoid screen-reader collisions with global
-    // shortcuts (g/G, [/] are deferred to slice 5).
+    // aria-keyshortcuts to avoid screen-reader collisions with the
+    // browser's built-in shortcuts.
     if ("ArrowDown".equals(key) || "j".equals(key)) {
       focusByOffset(1, key);
       keyEvent.preventDefault();
     } else if ("ArrowUp".equals(key) || "k".equals(key)) {
       focusByOffset(-1, key);
       keyEvent.preventDefault();
-    } else if ("Home".equals(key)) {
+    } else if ("Home".equals(key) || "g".equals(key)) {
       focusByIndex(0, key);
       keyEvent.preventDefault();
-    } else if ("End".equals(key)) {
+    } else if ("End".equals(key) || "G".equals(key)) {
       focusByIndex(renderedBlips.size() - 1, key);
       keyEvent.preventDefault();
+    } else if ("[".equals(key)) {
+      // Drill out one depth level (G.2). Include toBlipId from the host
+      // data attribute so the root shell can navigate to parent, not root.
+      dispatchDepthUpEvent();
+      keyEvent.preventDefault();
+    } else if ("]".equals(key)) {
+      // Drill into the focused blip's subthread (G.1). Emits a custom
+      // wavy-depth-drill-in event with the focused blip id.
+      String focusedBlipId = focusedBlip == null ? null : focusedBlip.getAttribute("data-blip-id");
+      if (focusedBlipId != null && !focusedBlipId.isEmpty()) {
+        dispatchDepthDrillInEvent(focusedBlipId);
+      }
+      keyEvent.preventDefault();
+    }
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.5): dispatch a depth-nav event on the
+   * read surface host so the selected-wave card listener (registered in
+   * J2clSelectedWaveView) can update the URL state and toggle the
+   * {@code <wavy-depth-nav-bar>} hidden attribute.
+   */
+  private void dispatchDepthEvent(String eventName) {
+    HTMLElement target = renderedSurface != null ? renderedSurface : host;
+    if (target == null || eventName == null || eventName.isEmpty()) {
+      return;
+    }
+    try {
+      CustomEventInit<Object> init = CustomEventInit.create();
+      init.setBubbles(true);
+      init.setComposed(true);
+      target.dispatchEvent(new CustomEvent<Object>(eventName, init));
+    } catch (Throwable ignored) {
+      // Event dispatch is observational.
+    }
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("j2cl.depth.drill_in")
+              .field("direction", "out")
+              .field("source", "keyboard")
+              .build());
+    } catch (Throwable ignored) {
+      // Telemetry is observational.
+    }
+  }
+
+  /**
+   * Dispatches wavy-depth-up with detail.toBlipId read from the host's
+   * data-parent-depth-blip-id attribute so the root-shell handler can
+   * navigate up one level instead of collapsing all the way to root.
+   */
+  private void dispatchDepthUpEvent() {
+    HTMLElement target = renderedSurface != null ? renderedSurface : host;
+    if (target == null) {
+      return;
+    }
+    String parentId = host != null ? host.getAttribute("data-parent-depth-blip-id") : null;
+    try {
+      JsPropertyMap<Object> detail = JsPropertyMap.of();
+      detail.set("toBlipId", parentId != null ? parentId : "");
+      CustomEventInit<Object> init = CustomEventInit.create();
+      init.setBubbles(true);
+      init.setComposed(true);
+      init.setDetail(Js.cast(detail));
+      target.dispatchEvent(new CustomEvent<Object>("wavy-depth-up", init));
+    } catch (Throwable ignored) {
+      // Event dispatch is observational.
+    }
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("j2cl.depth.drill_in")
+              .field("direction", "out")
+              .field("source", "keyboard")
+              .build());
+    } catch (Throwable ignored) {
+      // Telemetry is observational.
+    }
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.1): dispatch a drill-in event with the
+   * focused blip id so the view can push the depth state into the URL
+   * and update the depth-nav-bar.
+   */
+  private void dispatchDepthDrillInEvent(String blipId) {
+    HTMLElement target = renderedSurface != null ? renderedSurface : host;
+    if (target == null || blipId == null || blipId.isEmpty()) {
+      return;
+    }
+    try {
+      JsPropertyMap<Object> detail = JsPropertyMap.of();
+      detail.set("blipId", blipId);
+      CustomEventInit<Object> init = CustomEventInit.create();
+      init.setBubbles(true);
+      init.setComposed(true);
+      init.setDetail(Js.cast(detail));
+      target.dispatchEvent(new CustomEvent<Object>("wavy-depth-drill-in", init));
+    } catch (Throwable ignored) {
+      // Event dispatch is observational.
+    }
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("j2cl.depth.drill_in")
+              .field("direction", "in")
+              .field("source", "keyboard")
+              .field("blipId", blipId)
+              .build());
+    } catch (Throwable ignored) {
+      // Telemetry is observational.
     }
   }
 

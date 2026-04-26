@@ -30,6 +30,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   private final HTMLElement card;
   private final HTMLElement depthNavBar;
   private final HTMLElement waveNavRow;
+  // F-2 slice 5 (#1055, R-3.7 G.6): live-update awareness pill.
+  // Hidden by default; setAwarenessPill toggles visibility + text.
+  private final HTMLElement awarenessPill;
   private boolean serverFirstActive;
   private boolean serverFirstSwapRecorded;
   private boolean coldMountSwapRecorded;
@@ -68,6 +71,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       this.card = existingCard;
       this.depthNavBar = ensureDepthNavBar(existingCard);
       this.waveNavRow = ensureWaveNavRow(existingCard);
+      this.awarenessPill = ensureAwarenessPill(existingCard);
       bindChromeEvents(existingCard, effectiveTelemetrySink);
       serverFirstActive = true;
       serverFirstWaveId = J2clServerFirstRootShellDom.serverFirstWaveId(host);
@@ -110,6 +114,14 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     detail = (HTMLElement) DomGlobal.document.createElement("p");
     detail.className = "sidecar-selected-detail";
     coldCard.appendChild(detail);
+
+    // F-2 slice 5 (#1055, R-3.7 G.6): awareness pill — hidden by default
+    // until setAwarenessPill is called with a positive count.
+    awarenessPill = (HTMLElement) DomGlobal.document.createElement("output");
+    awarenessPill.className = "wavy-awareness-pill";
+    awarenessPill.setAttribute("data-j2cl-awareness-pill", "true");
+    awarenessPill.setAttribute("hidden", "");
+    coldCard.appendChild(awarenessPill);
 
     participantSummary = (HTMLElement) DomGlobal.document.createElement("p");
     participantSummary.className = "sidecar-selected-participants";
@@ -172,6 +184,31 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       card.insertBefore(bar, card.firstChild);
     }
     return bar;
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.6): locate the server-first awareness
+   * pill if present, otherwise create it client-side and insert just
+   * after the detail line so the pill reads as a context affordance.
+   */
+  private static HTMLElement ensureAwarenessPill(HTMLElement card) {
+    HTMLElement existing = (HTMLElement) card.querySelector(".wavy-awareness-pill");
+    if (existing != null) {
+      return existing;
+    }
+    HTMLElement pill = (HTMLElement) DomGlobal.document.createElement("output");
+    pill.className = "wavy-awareness-pill";
+    pill.setAttribute("data-j2cl-awareness-pill", "true");
+    pill.setAttribute("hidden", "");
+    HTMLElement detail = (HTMLElement) card.querySelector(".sidecar-selected-detail");
+    if (detail != null && detail.nextSibling != null) {
+      card.insertBefore(pill, detail.nextSibling);
+    } else if (detail != null) {
+      card.appendChild(pill);
+    } else {
+      card.appendChild(pill);
+    }
+    return pill;
   }
 
   /**
@@ -373,6 +410,100 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   public SidecarViewportHints initialViewportHints(String selectedWaveId) {
     return resolveInitialViewportHints(
         serverFirstActive, serverFirstWaveId, selectedWaveId, serverFirstBlipAnchor());
+  }
+
+  /**
+   * F-2 slice 5 (#1055, S2 deferral): publish pin / archive folder
+   * state on the {@code <wavy-wave-nav-row>} chrome. Uses attribute
+   * reflection so the SSR'd pre-upgrade light DOM and the post-upgrade
+   * shadow DOM agree on the rendered button state.
+   */
+  @Override
+  public void setNavRowFolderState(boolean pinned, boolean archived) {
+    if (waveNavRow == null) {
+      return;
+    }
+    if (pinned) {
+      waveNavRow.setAttribute("pinned", "");
+    } else {
+      waveNavRow.removeAttribute("pinned");
+    }
+    if (archived) {
+      waveNavRow.setAttribute("archived", "");
+    } else {
+      waveNavRow.removeAttribute("archived");
+    }
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.4): publish the depth focus to the
+   * {@code <wavy-depth-nav-bar>} chrome and to the read-surface host's
+   * data-attributes (read by other chrome). Empty current id collapses
+   * the bar via the {@code hidden} attribute.
+   */
+  @Override
+  public void setDepthFocus(
+      String currentDepthBlipId, String parentDepthBlipId, String parentAuthorName) {
+    readSurface.setDepthFocus(currentDepthBlipId, parentDepthBlipId, parentAuthorName);
+    if (depthNavBar == null) {
+      return;
+    }
+    String safeCurrent = currentDepthBlipId == null ? "" : currentDepthBlipId;
+    String safeParent = parentDepthBlipId == null ? "" : parentDepthBlipId;
+    String safeName = parentAuthorName == null ? "" : parentAuthorName;
+    depthNavBar.setAttribute("current-depth-blip-id", safeCurrent);
+    depthNavBar.setAttribute("parent-depth-blip-id", safeParent);
+    depthNavBar.setAttribute("parent-author-name", safeName);
+    if (safeCurrent.isEmpty()) {
+      depthNavBar.setAttribute("hidden", "");
+    } else {
+      depthNavBar.removeAttribute("hidden");
+    }
+    try {
+      Js.asPropertyMap(depthNavBar).set("currentDepthBlipId", safeCurrent);
+      Js.asPropertyMap(depthNavBar).set("parentDepthBlipId", safeParent);
+      Js.asPropertyMap(depthNavBar).set("parentAuthorName", safeName);
+    } catch (Throwable ignored) {
+      // Property write is best-effort; the attribute reflection above
+      // already covers the SSR + post-upgrade state.
+    }
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.6): publish the awareness pill text +
+   * visibility. Counts &lt;= 0 hide the pill; positive counts surface
+   * "↑ N new replies above" with the cyan pulse ring.
+   */
+  @Override
+  public void setAwarenessPill(int pendingCount) {
+    if (awarenessPill == null) {
+      return;
+    }
+    if (pendingCount <= 0) {
+      awarenessPill.setAttribute("hidden", "");
+      awarenessPill.textContent = "";
+      return;
+    }
+    awarenessPill.removeAttribute("hidden");
+    awarenessPill.textContent =
+        "↑ " + pendingCount + " new repl" + (pendingCount == 1 ? "y" : "ies") + " above";
+  }
+
+  /**
+   * F-2 slice 5 (#1055): expose the depth-nav-bar handle so route
+   * controllers can attach their URL writer once on shell start.
+   */
+  public HTMLElement getDepthNavBar() {
+    return depthNavBar;
+  }
+
+  /**
+   * F-2 slice 5 (#1055): expose the card root for route controllers
+   * that need to listen for {@code wavy-depth-up} / {@code wavy-depth-root}
+   * / {@code wavy-depth-drill-in} events.
+   */
+  public HTMLElement getCardElement() {
+    return card;
   }
 
   public static boolean shouldPreserveServerSnapshot(

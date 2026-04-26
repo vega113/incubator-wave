@@ -18,6 +18,7 @@ public final class J2clSidecarRouteCodec {
   public static J2clSidecarRouteState parse(String search, String hash) {
     String query = null;
     String selectedWaveId = null;
+    String depthBlipId = null;
     if (search != null && !search.isEmpty()) {
       String trimmed = search.charAt(0) == '?' ? search.substring(1) : search;
       if (!trimmed.isEmpty()) {
@@ -30,6 +31,8 @@ public final class J2clSidecarRouteCodec {
             query = decodeQueryValue(value);
           } else if ("wave".equals(key)) {
             selectedWaveId = decodeWaveValue(value);
+          } else if ("depth".equals(key)) {
+            depthBlipId = decodeDepthValue(value);
           }
         }
       }
@@ -37,7 +40,7 @@ public final class J2clSidecarRouteCodec {
     if (selectedWaveId == null) {
       selectedWaveId = decodeLegacyHashWaveValue(hash);
     }
-    return new J2clSidecarRouteState(query, selectedWaveId);
+    return new J2clSidecarRouteState(query, selectedWaveId, depthBlipId);
   }
 
   public static String toUrl(J2clSidecarRouteState state) {
@@ -55,6 +58,11 @@ public final class J2clSidecarRouteCodec {
     if (state.getSelectedWaveId() != null) {
       url.append("&wave=").append(encodeUriComponentSafe(state.getSelectedWaveId()));
     }
+    // F-2 slice 5 (#1055, R-3.7 G.4): emit &depth=<blip-id> only when a
+    // depth focus is active so the URL stays clean for top-of-wave reads.
+    if (state.getDepthBlipId() != null) {
+      url.append("&depth=").append(encodeUriComponentSafe(state.getDepthBlipId()));
+    }
     return url.toString();
   }
 
@@ -67,6 +75,31 @@ public final class J2clSidecarRouteCodec {
       return J2clSearchResultProjector.normalizeQuery(decoded);
     } catch (RuntimeException e) {
       return J2clSearchResultProjector.DEFAULT_QUERY;
+    }
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.4): decode the {@code depth} URL
+   * parameter. Empty values clear the depth focus; whitespace is
+   * trimmed conservatively. Invalid UTF-8 collapses to an unset depth
+   * — the depth-nav-bar will then revert to "no focus" rather than
+   * stranding the URL state on a corrupt blip id.
+   */
+  private static String decodeDepthValue(String value) {
+    if (value == null || value.isEmpty()) {
+      return null;
+    }
+    try {
+      String decoded = decodeUriComponentSafe(value);
+      if (decoded == null) {
+        return null;
+      }
+      String trimmed = decoded.trim();
+      // Reject whitespace-bearing or zero-length payloads; depth blip
+      // ids are always opaque tokens with no internal spaces.
+      return trimmed.isEmpty() || trimmed.indexOf(' ') >= 0 ? null : trimmed;
+    } catch (RuntimeException e) {
+      return null;
     }
   }
 

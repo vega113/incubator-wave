@@ -3737,7 +3737,13 @@ public final class HtmlRenderer {
     sb.append("    <wavy-search-rail query=\"").append(safeInitialQuery)
         .append("\" data-active-folder=\"").append(activeFolder).append("\" result-count=\"\">\n");
     sb.append("      <div class=\"search\">\n");
-    sb.append("        <span class=\"waveform\" aria-hidden=\"true\"><svg viewBox=\"0 0 14 14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" aria-hidden=\"true\"><path d=\"M1 7h2l1-3 1 6 1-4 1 5 1-6 1 4 1-2h2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></span>\n");
+    // F-2 slice 5 (#1055, A.4): explicit width/height on the SVG element.
+    // Pre-upgrade, the Lit `:host { display:block }` rule has not attached
+    // (shadow DOM is not yet rendered), so the SVG defaults to its CSS
+    // intrinsic 300x150 size. Pinning width/height prevents the giant
+    // waveform glyph from blowing out the rail before the J2CL bundle
+    // upgrades the element.
+    sb.append("        <span class=\"waveform\" aria-hidden=\"true\"><svg viewBox=\"0 0 14 14\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" aria-hidden=\"true\"><path d=\"M1 7h2l1-3 1 6 1-4 1 5 1-6 1 4 1-2h2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></span>\n");
     sb.append("        <input type=\"search\" class=\"query\" name=\"q\" aria-label=\"Search waves\" value=\"").append(safeInitialQuery).append("\">\n");
     sb.append("        <button type=\"button\" class=\"help-trigger\" aria-label=\"Search help\" aria-haspopup=\"dialog\" aria-controls=\"wavy-search-help\">?</button>\n");
     sb.append("      </div>\n");
@@ -3943,9 +3949,14 @@ public final class HtmlRenderer {
       StringBuilder sb,
       J2clSelectedWaveSnapshotRenderer.SnapshotResult snapshotResult,
       boolean signedIn) {
-    String workflowDetail = signedIn
-        ? "The signed-in root shell hosts the search, compose, and selected-wave surfaces inline."
-        : "Sign in to search, read, and compose inside the root shell.";
+    // F-2 slice 5 (#1055): the legacy "Hosted workflow" intro card and its
+    // inline search toolbar are replaced by <wavy-search-rail> in the nav
+    // slot. The sidecar-search-card wrapper + the elements
+    // J2clSearchPanelView adopts (form, input, submit, status, digests,
+    // empty-state, show-more) stay in the DOM so the search panel can still
+    // bind, but the visible eyebrow / "Hosted workflow" title / detail
+    // copy is gone. The form itself is hidden via data-j2cl-legacy-search-form
+    // — the rail is the canonical query surface.
     String sessionSummary = signedIn
         ? "Inspecting the active root session."
         : "Sign in to inspect the active root session.";
@@ -3958,16 +3969,11 @@ public final class HtmlRenderer {
 
     sb.append("      <section class=\"sidecar-search-shell\" data-j2cl-server-first-workflow=\"true\">\n");
     sb.append("        <div class=\"sidecar-split-layout\">\n");
-    sb.append("          <div class=\"sidecar-search-card\">\n");
-    sb.append("            <p class=\"sidecar-eyebrow\">J2CL root shell</p>\n");
-    sb.append("            <h1 class=\"sidecar-title\">Hosted workflow</h1>\n");
-    sb.append("            <p class=\"sidecar-detail\">")
-        .append(escapeHtml(workflowDetail))
-        .append("</p>\n");
-    sb.append("            <p class=\"sidecar-search-session\">")
-        .append(escapeHtml(sessionSummary))
-        .append("</p>\n");
-    sb.append("            <form class=\"sidecar-search-toolbar\" action=\"#\" onsubmit=\"return false;\">\n");
+    sb.append("          <div class=\"sidecar-search-card\" data-j2cl-legacy-search-card=\"hidden\">\n");
+    // Legacy form retained for J2clSearchPanelView's queryRequired bindings;
+    // the wavy-search-rail in the nav slot is the canonical query surface,
+    // so the form is hidden from view but kept in the DOM.
+    sb.append("            <form class=\"sidecar-search-toolbar\" data-j2cl-legacy-search-form=\"true\" action=\"#\" onsubmit=\"return false;\" hidden>\n");
     sb.append("              <input class=\"sidecar-search-input\" type=\"search\" placeholder=\"Search waves\" aria-label=\"Search waves\" autocomplete=\"off\"");
     if (!signedIn) {
       sb.append(" disabled");
@@ -3979,11 +3985,17 @@ public final class HtmlRenderer {
     }
     sb.append(">Search</button>\n");
     sb.append("            </form>\n");
+    // Session summary + search status retained for the search panel's
+    // setSessionSummary / setStatus calls; hidden so they don't render
+    // duplicate copy alongside the rail.
+    sb.append("            <p class=\"sidecar-search-session\" hidden>")
+        .append(escapeHtml(sessionSummary))
+        .append("</p>\n");
     sb.append("            <div class=\"sidecar-search-compose\"></div>\n");
-    sb.append("            <p class=\"sidecar-search-status\">")
+    sb.append("            <p class=\"sidecar-search-status\" hidden>")
         .append(escapeHtml(searchStatus))
         .append("</p>\n");
-    sb.append("            <p class=\"sidecar-wave-count\"></p>\n");
+    sb.append("            <p class=\"sidecar-wave-count\" hidden></p>\n");
     sb.append("            <div class=\"sidecar-digests\"></div>\n");
     sb.append("            <div class=\"sidecar-empty-state\">")
         .append(escapeHtml(emptyState))
@@ -4043,26 +4055,71 @@ public final class HtmlRenderer {
     sb.append("              <p class=\"sidecar-selected-detail\">")
         .append(escapeHtml(detail))
         .append("</p>\n");
+    // F-2 slice 5 (#1055, R-3.7 G.6): live-update awareness pill.
+    // Hidden by default; the view's render() unhides + writes count text
+    // when ancestor replies arrive.
+    sb.append("              <output class=\"wavy-awareness-pill\" data-j2cl-awareness-pill=\"true\" hidden></output>\n");
     sb.append("              <p class=\"sidecar-selected-participants\" hidden></p>\n");
     // F-2 slice 2 (#1046, R-3.4): wave-nav-row landmark. Buttons mount
     // client-side once shell.js upgrades the element; before then the
     // landmark host is exposed for AT users + the client upgrade swap.
     sb.append("              <wavy-wave-nav-row data-j2cl-server-first-chrome=\"true\"></wavy-wave-nav-row>\n");
     sb.append("              <p class=\"sidecar-selected-snippet\" hidden></p>\n");
-    sb.append("              <div class=\"sidecar-selected-compose\"></div>\n");
+    // F-2 slice 5 (#1055): toolbar host hidden by default; the
+    // controller un-hides it only when an edit session is active so the
+    // legacy editor-toolbar wall does not duplicate <wavy-wave-nav-row>.
+    sb.append("              <div class=\"sidecar-selected-compose\" data-j2cl-compose-host=\"true\"></div>\n");
     sb.append("              <div class=\"sidecar-selected-content\">");
     if (hasSnapshot) {
       sb.append(snapshotResult.getSnapshotHtml());
     }
     sb.append("</div>\n");
+    // F-2 slice 5 (#1055): the empty-state slot hosts the wavy recipe only
+    // for the true no-wave state; DENIED/RENDER_ERROR already render status
+    // copy above and should not also show the waveform illustration.
+    boolean showEmptyStateRecipe =
+        !hasSnapshot
+            && effectiveResult.getMode() == J2clSelectedWaveSnapshotRenderer.Mode.NO_WAVE;
     sb.append("              <div class=\"sidecar-empty-state\"");
-    if (hasSnapshot) {
+    if (!showEmptyStateRecipe) {
       sb.append(" hidden");
     }
-    sb.append(">")
-        .append(escapeHtml(detail))
-        .append("</div>\n");
+    sb.append(">\n");
+    if (showEmptyStateRecipe) {
+      appendWavyEmptyStateRecipe(sb, title, detail);
+    }
+    sb.append("              </div>\n");
     sb.append("            </section>\n");
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 integration cleanup): emit the wavy
+   * empty-state recipe — a centered ghost waveform mark, the configured
+   * headline, and a sub-headline for the longer detail copy.
+   *
+   * <p>The waveform glyph reuses the same SVG path the search rail
+   * emits, scaled up to 64px and dimmed to {@code --wavy-text-muted}.
+   * Test {@code J2clRootShellIntegrationTest} pins the marker class
+   * names so future visual tweaks do not accidentally regress the
+   * empty-state shape.
+   */
+  private static void appendWavyEmptyStateRecipe(
+      StringBuilder sb, String headline, String detail) {
+    sb.append("                <div class=\"wavy-empty-state\" data-j2cl-empty-state-recipe=\"true\">\n");
+    sb.append("                  <span class=\"wavy-empty-state-mark\" aria-hidden=\"true\">")
+        .append(
+            "<svg viewBox=\"0 0 14 14\" width=\"64\" height=\"64\" fill=\"none\""
+                + " stroke=\"currentColor\" stroke-width=\"1.6\" aria-hidden=\"true\">"
+                + "<path d=\"M1 7h2l1-3 1 6 1-4 1 5 1-6 1 4 1-2h2\""
+                + " stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>")
+        .append("</span>\n");
+    sb.append("                  <h3 class=\"wavy-empty-state-headline\">")
+        .append(escapeHtml(headline))
+        .append("</h3>\n");
+    sb.append("                  <p class=\"wavy-empty-state-subhead\">")
+        .append(escapeHtml(detail))
+        .append("</p>\n");
+    sb.append("                </div>\n");
   }
 
   private static String selectedWaveTitle(
