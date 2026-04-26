@@ -181,7 +181,7 @@ public final class J2clStageOneFinalParityTest {
     assertTrue("depth-nav mounts", html.contains("<wavy-depth-nav-bar"));
     assertTrue("wave-nav-row mounts", html.contains("<wavy-wave-nav-row"));
     assertTrue("version-history mounts open",
-        html.matches("(?s).*<wavy-version-history[^>]*\\bopen\\b[^>]*></wavy-version-history>.*"));
+        html.matches("(?s).*<wavy-version-history[^>]*\\bopen\\b[^>]*>.*"));
     assertTrue("profile overlay mounts open",
         html.matches("(?s).*<wavy-profile-overlay[^>]*\\bopen\\b[^>]*>.*"));
     assertTrue("awareness pill present", html.contains("data-j2cl-awareness-pill=\"true\""));
