@@ -1130,6 +1130,179 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertEquals("/attachments/new.png", harness.firstReadAttachment().getOpenUrl());
   }
 
+  // ---------------------------------------------------------------------------
+  // F-1 viewport telemetry contract (R-4.6, R-7.1, R-7.3, R-7.4)
+  // ---------------------------------------------------------------------------
+
+  @Test
+  public void selectingWaveEmitsViewportInitialWindowEvent() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+
+    J2clClientTelemetry.Event initial = lastEventNamed(telemetry, "viewport.initial_window");
+    Assert.assertEquals("forward", initial.getFields().get("direction"));
+    Assert.assertEquals("default", initial.getFields().get("limit"));
+  }
+
+  @Test
+  public void selectingWaveWithExplicitAnchorEmitsViewportInitialWindowEvent() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    harness.initialViewportHints = new SidecarViewportHints("b+server", "forward", null);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+
+    J2clClientTelemetry.Event initial = lastEventNamed(telemetry, "viewport.initial_window");
+    Assert.assertEquals("forward", initial.getFields().get("direction"));
+    Assert.assertEquals("default", initial.getFields().get("limit"));
+  }
+
+  @Test
+  public void viewportEdgeFetchEmitsExtensionAndOutcomeEvents() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithPlaceholder("Root already loaded"));
+
+    harness.requestViewportEdge(controller, "b+next", "forward");
+    harness.resolveFragmentFetch(0, fragmentsResponse("Next loaded", "Tail loaded"));
+
+    J2clClientTelemetry.Event extension = firstEventNamed(telemetry, "viewport.extension_fetch");
+    Assert.assertEquals("forward", extension.getFields().get("direction"));
+    Assert.assertEquals("5", extension.getFields().get("limit"));
+
+    J2clClientTelemetry.Event outcome =
+        lastEventNamed(telemetry, "viewport.extension_fetch.outcome");
+    Assert.assertEquals("forward", outcome.getFields().get("direction"));
+    Assert.assertEquals("ok", outcome.getFields().get("outcome"));
+  }
+
+  @Test
+  public void viewportEdgeFetchEmitsClampAppliedWhenServerReturnsFewerBlips() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithPlaceholder("Root already loaded"));
+
+    harness.requestViewportEdge(controller, "b+next", "forward");
+    // The growth limit is 5 but the server returns only 2 blips — that's a
+    // clamp visible to the client (R-7.3).
+    harness.resolveFragmentFetch(0, fragmentsResponse("Next loaded", "Tail loaded"));
+
+    J2clClientTelemetry.Event clamp = lastEventNamed(telemetry, "viewport.clamp_applied");
+    Assert.assertEquals("forward", clamp.getFields().get("direction"));
+    Assert.assertEquals("5", clamp.getFields().get("requested"));
+    Assert.assertEquals("2", clamp.getFields().get("delivered"));
+  }
+
+  @Test
+  public void viewportEdgeFetchErrorEmitsErrorOutcome() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithPlaceholder("Root already loaded"));
+
+    harness.requestViewportEdge(controller, "b+next", "forward");
+    harness.rejectFragmentFetch(0, "transient");
+
+    J2clClientTelemetry.Event outcome =
+        lastEventNamed(telemetry, "viewport.extension_fetch.outcome");
+    Assert.assertEquals("forward", outcome.getFields().get("direction"));
+    Assert.assertEquals("error", outcome.getFields().get("outcome"));
+  }
+
+  @Test
+  public void snapshotOnlyUpdateEmitsViewportFallbackToWholeWaveExactlyOnce() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+
+    // First update is a snapshot fallback (no fragments payload).
+    harness.deliverRawUpdate(0, snapshotOnlyUpdate("Whole-wave content"));
+
+    long fallbackCount =
+        countEventsNamed(telemetry, "viewport.fallback_to_whole_wave");
+    Assert.assertEquals("Fallback emitted exactly once on first snapshot", 1, fallbackCount);
+    J2clClientTelemetry.Event fallback =
+        lastEventNamed(telemetry, "viewport.fallback_to_whole_wave");
+    Assert.assertEquals("server-snapshot", fallback.getFields().get("reason"));
+
+    // Subsequent snapshot-only update on the same open must not double-count.
+    harness.deliverRawUpdate(0, snapshotOnlyUpdate("Another snapshot"));
+    Assert.assertEquals(
+        "Fallback de-duplicated for the lifetime of the open",
+        1,
+        countEventsNamed(telemetry, "viewport.fallback_to_whole_wave"));
+  }
+
+  @Test
+  public void healthyViewportUpdateDoesNotEmitFallbackToWholeWave() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithPlaceholder("Root already loaded"));
+
+    Assert.assertEquals(
+        "No fallback when the server honoured the viewport hint",
+        0,
+        countEventsNamed(telemetry, "viewport.fallback_to_whole_wave"));
+  }
+
+  private static J2clClientTelemetry.Event firstEventNamed(
+      RecordingTelemetrySink telemetry, String name) {
+    for (J2clClientTelemetry.Event event : telemetry.events()) {
+      if (name.equals(event.getName())) {
+        return event;
+      }
+    }
+    throw new AssertionError("No telemetry event named " + name + " recorded");
+  }
+
+  private static J2clClientTelemetry.Event lastEventNamed(
+      RecordingTelemetrySink telemetry, String name) {
+    J2clClientTelemetry.Event found = null;
+    for (J2clClientTelemetry.Event event : telemetry.events()) {
+      if (name.equals(event.getName())) {
+        found = event;
+      }
+    }
+    if (found == null) {
+      throw new AssertionError("No telemetry event named " + name + " recorded");
+    }
+    return found;
+  }
+
+  private static long countEventsNamed(RecordingTelemetrySink telemetry, String name) {
+    long count = 0;
+    for (J2clClientTelemetry.Event event : telemetry.events()) {
+      if (name.equals(event.getName())) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   private static J2clSearchDigestItem digest(String title, String snippet, int unreadCount) {
     return new J2clSearchDigestItem(
         "example.com/w+1", title, snippet, "user@example.com", unreadCount, 2, 1234L, false);
