@@ -13,7 +13,7 @@ The parity issue chain in `docs/j2cl-parity-issue-map.md` §6 is marked **comple
 
 ## 2. Method
 
-1. Open `https://supawave.ai/?view=j2cl-root` (J2CL surface) and `https://supawave.ai/?view=gwt` (forces the legacy GWT path past the `j2cl-root-bootstrap` flag, per `WaveClientServlet#resolveRequestedView` + `doGet` line 167).
+1. Open `https://supawave.ai/?view=j2cl-root` (J2CL surface) and `https://supawave.ai/?view=gwt` (forces the legacy GWT path past the `j2cl-root-bootstrap` flag, per `WaveClientServlet#resolveRequestedView` and `WaveClientServlet#doGet`).
 2. Sign-in state and feature flag held constant across both surfaces.
 3. For each parity-matrix row in §3–§7, observe current behavior on both surfaces side-by-side, capture the deficit, and assign one of:
    - **PASS** — J2CL meets the row.
@@ -22,7 +22,7 @@ The parity issue chain in `docs/j2cl-parity-issue-map.md` §6 is marked **comple
    - **N/A** — not testable today against this deployment (e.g. requires harness fixture).
 4. Collect a sequenced follow-up issue list scoped to "redo the slice with explicit GWT-parity acceptance," not new architecture.
 
-Browser-test evidence stored as Chrome screenshots taken during the audit (J2CL inbox empty, J2CL inbox loaded, J2CL wave-open `ewlip`, GWT inbox + same wave `ewlip` open).
+Browser-test evidence stored as Chrome screenshots taken during the audit: J2CL inbox empty ([PR #1034 artifact](https://github.com/vega113/incubator-wave/pull/1034)), J2CL inbox loaded ([PR #1034 artifact](https://github.com/vega113/incubator-wave/pull/1034)), J2CL wave-open `ewlip` ([PR #1034 artifact](https://github.com/vega113/incubator-wave/pull/1034)), GWT inbox + same wave `ewlip` open ([PR #1034 artifact](https://github.com/vega113/incubator-wave/pull/1034)).
 
 ## 3. Read Surface (StageOne origin) — Section 3
 
@@ -37,7 +37,7 @@ Browser-test evidence stored as Chrome screenshots taken during the audit (J2CL 
 
 **Read surface verdict: 0/6 PASS, 1/6 PARTIAL, 5/6 FAIL.** The closed slice #966 ("Port StageOne read-surface parity") did not deliver; what shipped is a flat read-out of conversation blip IDs, not a parity-equivalent read surface.
 
-## 4. Live Surface (StageTwo origin) — Section 4
+## 4. Live Surface (Stage Two origin) — Section 4
 
 | Row | Behavior | Status | Evidence |
 | --- | --- | --- | --- |
@@ -152,7 +152,7 @@ After F-1..F-4 close against row-level acceptance, the existing parity gate row 
 - GWT surface URL `https://supawave.ai/?view=gwt` — confirmed routes to the legacy GWT path (`SupaWave` brand, full toolbar, threaded wave content visible).
 - Both surfaces signed in as the same `vega@supawave.ai` account from the same browser session, so account state is held constant.
 - Same wave (`ewlip` at `supawave.ai/w+3VPWzePL_DA`) opened on both surfaces for direct side-by-side comparison.
-- Routing verified against `wave/src/jakarta-overrides/java/org/waveprotocol/box/server/rpc/WaveClientServlet.java:155-196` which establishes that `view=j2cl-root` OR (`view` empty AND `j2cl-root-bootstrap` flag enabled) selects the J2CL path; any other non-empty `view` value falls through to GWT.
+- Routing verified against `WaveClientServlet#resolveRequestedView` and `WaveClientServlet#doGet` (commit `e66ce6013`) which establishes that `view=j2cl-root` OR (`view` empty AND `j2cl-root-bootstrap` flag enabled) selects the J2CL path; any other non-empty `view` value falls through to GWT.
 
 ## 13. Appendix — observed shell chrome contrast
 
