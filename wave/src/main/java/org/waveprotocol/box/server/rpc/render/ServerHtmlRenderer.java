@@ -135,24 +135,41 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
    * emission. Carrying these through the render pipeline lets the renderer
    * honour the F-1 visible-window contract (R-3.5/R-6.1/R-7.1) without
    * mutating per-blip emission semantics for the legacy GWT pre-render path.
+   *
+   * <p>The {@code targetRootThread} narrows the window filter to the specific
+   * root thread this windowing was built for. Nested/private conversation root
+   * threads still render in full so server-first HTML does not lose
+   * private-conversation content (the F-1 window applies to the selected
+   * wave's main read surface, not to every conversation root).
    */
   static final class WindowOptions {
-    private static final WindowOptions NONE = new WindowOptions(null, Collections.<String>emptySet(), null);
+    private static final WindowOptions NONE =
+        new WindowOptions(null, Collections.<String>emptySet(), null, null);
 
     private final String firstRootBlipId;
     private final Set<String> allowedRootBlipIds;
     private final String terminalPlaceholderHtml;
+    private final ConversationThread targetRootThread;
 
     WindowOptions(
         String firstRootBlipId,
         Set<String> allowedRootBlipIds,
         String terminalPlaceholderHtml) {
+      this(firstRootBlipId, allowedRootBlipIds, terminalPlaceholderHtml, null);
+    }
+
+    WindowOptions(
+        String firstRootBlipId,
+        Set<String> allowedRootBlipIds,
+        String terminalPlaceholderHtml,
+        ConversationThread targetRootThread) {
       this.firstRootBlipId = firstRootBlipId;
       this.allowedRootBlipIds =
           allowedRootBlipIds == null
               ? Collections.<String>emptySet()
               : Collections.unmodifiableSet(allowedRootBlipIds);
       this.terminalPlaceholderHtml = terminalPlaceholderHtml;
+      this.targetRootThread = targetRootThread;
     }
 
     static WindowOptions none() {
@@ -173,6 +190,24 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
 
     String terminalPlaceholderHtml() {
       return terminalPlaceholderHtml == null ? "" : terminalPlaceholderHtml;
+    }
+
+    /**
+     * Returns true when {@code thread} is the exact root thread that this
+     * window was built for. Uses reference equality so private/nested
+     * conversation root threads, which were not the target, never match.
+     * When {@code targetRootThread} is null (legacy callers that omit it),
+     * any conversation root thread matches and the renderer falls back to the
+     * previous behaviour.
+     */
+    boolean isTargetThread(ConversationThread thread) {
+      if (targetRootThread == null) {
+        // Legacy / non-windowed callers: match any root thread.
+        return thread != null
+            && thread.getConversation() != null
+            && thread == thread.getConversation().getRootThread();
+      }
+      return thread == targetRootThread;
     }
   }
 
@@ -300,7 +335,11 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
     }
     sb.append(">");
 
-    boolean filterRootBlips = isRoot && windowOptions.isWindowed();
+    // R-3.5: only the main conversation's root thread is windowed. Nested
+    // private-conversation root threads still render in full so server-first
+    // HTML never silently loses unrelated conversation content.
+    boolean filterRootBlips =
+        isRoot && windowOptions.isWindowed() && windowOptions.isTargetThread(thread);
     for (ConversationBlip blip : thread.getBlips()) {
       checkBudget();
       if (filterRootBlips && !windowOptions.isAllowed(blip.getId())) {

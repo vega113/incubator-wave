@@ -506,7 +506,6 @@ public final class J2clSelectedWaveController
     boolean hadWriteSession = writeSession != null;
     long baseVersion = writeSession == null ? -1L : writeSession.getBaseVersion();
     String historyHash = writeSession == null ? "" : nullToEmpty(writeSession.getHistoryHash());
-    int loadedBlipsBefore = currentModel.getViewportState().getLoadedReadBlips().size();
     emit(
         J2clClientTelemetry.event("viewport.extension_fetch")
             .field("direction", normalizedDirection)
@@ -528,28 +527,29 @@ public final class J2clSelectedWaveController
             fragmentFetchesInFlight.remove(edgeKey);
             return;
           }
+          // Capture the pre-merge state inside the callback so that any live-stream
+          // updates that arrived between dispatch and response do not inflate the delta.
+          J2clSelectedWaveViewportState preState = currentModel.getViewportState();
+          int loadedBlipsBeforeMerge = preState.getLoadedReadBlips().size();
           J2clSelectedWaveViewportState mergedState =
-              currentModel
-                  .getViewportState()
-                  .mergeFragments(response.getFragments(), normalizedDirection);
+              preState.mergeFragments(response.getFragments(), normalizedDirection);
           currentModel = currentModel.withViewportState(mergedState);
-          // Only clear the soft fragment-growth banner owned by this controller.
-          // Live-update statuses are left intact because they represent fresher stream state.
-          if (FRAGMENT_GROWTH_FAILURE_STATUS.equals(currentModel.getStatusText())) {
-            currentModel = currentModel.withStatus(FRAGMENT_GROWTH_RECOVERED_STATUS, "");
-          }
-          int loadedBlipsAfter = currentModel.getViewportState().getLoadedReadBlips().size();
-          int delta = Math.max(0, loadedBlipsAfter - loadedBlipsBefore);
+          int loadedBlipsAfter = mergedState.getLoadedReadBlips().size();
+          int delta = Math.max(0, loadedBlipsAfter - loadedBlipsBeforeMerge);
           if (delta < FRAGMENT_GROWTH_LIMIT) {
-            // R-7.3: the server clamped the requested limit. Surface the
-            // shortfall so the audit-required `viewport.clamp_applied`
-            // counter advances proportionally to the clamp magnitude.
+            // R-7.3: the server clamped the requested limit. Surface the shortfall so the
+            // audit-required `viewport.clamp_applied` counter advances proportionally.
             emit(
                 J2clClientTelemetry.event("viewport.clamp_applied")
                     .field("direction", normalizedDirection)
                     .field("requested", Integer.toString(FRAGMENT_GROWTH_LIMIT))
                     .field("delivered", Integer.toString(delta))
                     .build());
+          }
+          // Only clear the soft fragment-growth banner owned by this controller.
+          // Live-update statuses are left intact because they represent fresher stream state.
+          if (FRAGMENT_GROWTH_FAILURE_STATUS.equals(currentModel.getStatusText())) {
+            currentModel = currentModel.withStatus(FRAGMENT_GROWTH_RECOVERED_STATUS, "");
           }
           emitExtensionOutcome(normalizedDirection, "ok");
           view.render(currentModel);

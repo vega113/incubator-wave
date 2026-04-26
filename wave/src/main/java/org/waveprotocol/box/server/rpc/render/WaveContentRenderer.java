@@ -328,10 +328,14 @@ public final class WaveContentRenderer {
         }
       }
     }
+    ConversationThread rootThread = conversation.getRootThread();
     if (initialWindowSize <= 0) {
       // Whole-wave shape — only the focus marker is meaningful.
       return new ServerHtmlRenderer.WindowOptions(
-          firstRootBlipId, java.util.Collections.<String>emptySet(), null);
+          firstRootBlipId,
+          java.util.Collections.<String>emptySet(),
+          null,
+          rootThread);
     }
     // Determine whether windowing actually clamps anything. If the conversation
     // already fits inside the window we still render with the focus marker but
@@ -340,7 +344,8 @@ public final class WaveContentRenderer {
     return new ServerHtmlRenderer.WindowOptions(
         firstRootBlipId,
         allowed,
-        clamps ? VISIBLE_REGION_PLACEHOLDER_HTML : null);
+        clamps ? VISIBLE_REGION_PLACEHOLDER_HTML : null,
+        rootThread);
   }
 
   static int countRootBlips(Conversation conversation) {
