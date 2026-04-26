@@ -12,7 +12,11 @@ await build({
     // F-0 (#1035): wavy design tokens emit as a sibling asset so server
     // templates load them with their own <link>. Recipe .js files do
     // NOT import this CSS (avoids double-emission into shell.css).
-    { in: resolve(here, "src/design/wavy-tokens.css"), out: "wavy-tokens" }
+    { in: resolve(here, "src/design/wavy-tokens.css"), out: "wavy-tokens" },
+    // F-2 slice 2 (#1046): thread collapse motion + .j2cl-read-surface
+    // positioning context for the focus frame. Sibling stylesheet so the
+    // server template can <link> it next to wavy-tokens.css.
+    { in: resolve(here, "src/design/wavy-thread-collapse.css"), out: "wavy-thread-collapse" }
   ],
   bundle: true,
   format: "esm",

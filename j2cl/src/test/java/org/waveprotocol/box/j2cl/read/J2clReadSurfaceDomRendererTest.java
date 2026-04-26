@@ -1739,4 +1739,219 @@ public class J2clReadSurfaceDomRendererTest {
     init.setKey(key);
     target.dispatchEvent(new KeyboardEvent("keydown", init));
   }
+
+  // ----------------------------------------------------------------------
+  // F-2 slice 2 (#1046) — wave chrome extensions: j/k aliases, focus-changed
+  // event dispatch, expand-path symmetry, depth-focus writer, telemetry.
+  // ----------------------------------------------------------------------
+
+  @Test
+  public void jKeyAliasesArrowDown() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    new J2clReadSurfaceDomRenderer(host).enhanceExistingSurface();
+    HTMLElement root = blip(host, "b+root");
+    root.focus();
+    dispatchKey(root, "j");
+    HTMLElement after = blip(host, "b+after");
+    Assert.assertEquals("0", after.getAttribute("tabindex"));
+    Assert.assertTrue(after.classList.contains("j2cl-read-blip-focused"));
+  }
+
+  @Test
+  public void kKeyAliasesArrowUp() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    new J2clReadSurfaceDomRenderer(host).enhanceExistingSurface();
+    HTMLElement after = blip(host, "b+after");
+    after.focus();
+    // Reply is hidden by default? No — root + after are the visible blips
+    // in the threaded fixture. From b+after, k moves to b+root (or the
+    // visible reply, whichever is the previous visible blip in DOM order).
+    dispatchKey(after, "k");
+    HTMLElement reply = blip(host, "b+reply");
+    HTMLElement root = blip(host, "b+root");
+    // The previous visible blip from b+after is b+reply (reply is visible
+    // because the inline thread is expanded by default).
+    boolean replyOrRootFocused =
+        reply.classList.contains("j2cl-read-blip-focused")
+            || root.classList.contains("j2cl-read-blip-focused");
+    Assert.assertTrue("k must move focus to a previous visible blip", replyOrRootFocused);
+  }
+
+  @Test
+  public void focusChangedEventDispatchedOnFocusBlip() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    host.innerHTML =
+        "<div class=\"wave-content\">"
+            + "<div class=\"thread\" data-thread-id=\"t+root\">"
+            + "<div class=\"blip\" data-blip-id=\"b+root\">Root</div>"
+            + "<div class=\"blip\" data-blip-id=\"b+after\">After</div>"
+            + "</div></div>";
+    new J2clReadSurfaceDomRenderer(host).enhanceExistingSurface();
+    HTMLElement surface = (HTMLElement) host.querySelector("[data-j2cl-read-surface='true']");
+    final String[] receivedBlipId = new String[1];
+    surface.addEventListener(
+        "wavy-focus-changed",
+        evt -> {
+          elemental2.dom.CustomEvent<?> custom = (elemental2.dom.CustomEvent<?>) evt;
+          jsinterop.base.JsPropertyMap<?> detail =
+              jsinterop.base.Js.cast(custom.detail);
+          receivedBlipId[0] = String.valueOf(detail.get("blipId"));
+        });
+    HTMLElement after = blip(host, "b+after");
+    after.focus();
+    dispatchKey(after, "ArrowUp");
+    Assert.assertEquals("b+root", receivedBlipId[0]);
+  }
+
+  @Test
+  public void focusChangedEventCarriesBoundsObject() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    installFixedBlipLayout();
+    host.innerHTML =
+        "<div class=\"wave-content\">"
+            + "<div class=\"thread\" data-thread-id=\"t+root\">"
+            + "<div class=\"blip\" data-blip-id=\"b+a\">A</div>"
+            + "<div class=\"blip\" data-blip-id=\"b+b\">B</div>"
+            + "</div></div>";
+    new J2clReadSurfaceDomRenderer(host).enhanceExistingSurface();
+    HTMLElement surface = (HTMLElement) host.querySelector("[data-j2cl-read-surface='true']");
+    final boolean[] hasBounds = new boolean[1];
+    final String[] keyHint = new String[1];
+    surface.addEventListener(
+        "wavy-focus-changed",
+        evt -> {
+          elemental2.dom.CustomEvent<?> custom = (elemental2.dom.CustomEvent<?>) evt;
+          jsinterop.base.JsPropertyMap<?> detail =
+              jsinterop.base.Js.cast(custom.detail);
+          Object bounds = detail.get("bounds");
+          hasBounds[0] = bounds != null;
+          keyHint[0] = String.valueOf(detail.get("key"));
+        });
+    HTMLElement b = blip(host, "b+b");
+    b.focus();
+    dispatchKey(b, "ArrowUp");
+    Assert.assertTrue("focus-changed detail must include bounds", hasBounds[0]);
+    Assert.assertNotNull(keyHint[0]);
+  }
+
+  @Test
+  public void focusFrameLandmarkAppendedToSurface() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    new J2clReadSurfaceDomRenderer(host).enhanceExistingSurface();
+    HTMLElement frame =
+        (HTMLElement) host.querySelector("[data-j2cl-read-surface='true'] wavy-focus-frame");
+    Assert.assertNotNull(
+        "renderer must mount a <wavy-focus-frame> child on the surface", frame);
+    Assert.assertTrue("focus-frame starts hidden", frame.hasAttribute("hidden"));
+  }
+
+  @Test
+  public void focusFrameMountIsIdempotent() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    renderer.enhanceExistingSurface();
+    renderer.enhanceExistingSurface();
+    Assert.assertEquals(
+        "second enhance pass must not duplicate the focus frame",
+        1,
+        host.querySelectorAll("wavy-focus-frame").length);
+  }
+
+  @Test
+  public void setDepthFocusWritesDataAttributesOnHost() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    renderer.setDepthFocus("b+3", "b+1", "Alice");
+    Assert.assertEquals("b+3", host.getAttribute("data-current-depth-blip-id"));
+    Assert.assertEquals("b+1", host.getAttribute("data-parent-depth-blip-id"));
+    Assert.assertEquals("Alice", host.getAttribute("data-parent-author-name"));
+  }
+
+  @Test
+  public void setDepthFocusClearsDataAttributesAtTopOfWave() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    renderer.setDepthFocus("b+3", "b+1", "Alice");
+    renderer.setDepthFocus("", "", "");
+    Assert.assertFalse(host.hasAttribute("data-current-depth-blip-id"));
+    Assert.assertFalse(host.hasAttribute("data-parent-depth-blip-id"));
+    Assert.assertFalse(host.hasAttribute("data-parent-author-name"));
+  }
+
+  @Test
+  public void collapseToggleEmitsTelemetryEvent() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    RecordingTelemetrySink sink = new RecordingTelemetrySink();
+    new J2clReadSurfaceDomRenderer(host, sink).enhanceExistingSurface();
+    HTMLButtonElement toggle =
+        (HTMLButtonElement) host.querySelector(".j2cl-read-thread-toggle");
+    Assert.assertNotNull(toggle);
+    int before = sink.events().size();
+    toggle.click();
+    Assert.assertTrue(
+        "collapse toggle should emit wave_chrome.thread_collapse.toggle",
+        hasEventNamed(sink, "wave_chrome.thread_collapse.toggle", before));
+  }
+
+  @Test
+  public void focusChangeEmitsTelemetryEvent() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    host.innerHTML =
+        "<div class=\"wave-content\">"
+            + "<div class=\"thread\" data-thread-id=\"t+root\">"
+            + "<div class=\"blip\" data-blip-id=\"b+a\">A</div>"
+            + "<div class=\"blip\" data-blip-id=\"b+b\">B</div>"
+            + "</div></div>";
+    RecordingTelemetrySink sink = new RecordingTelemetrySink();
+    new J2clReadSurfaceDomRenderer(host, sink).enhanceExistingSurface();
+    int before = sink.events().size();
+    HTMLElement b = blip(host, "b+b");
+    b.focus();
+    dispatchKey(b, "ArrowUp");
+    Assert.assertTrue(
+        "focus change should emit wave_chrome.focus_frame.transition",
+        hasEventNamed(sink, "wave_chrome.focus_frame.transition", before));
+  }
+
+  private static boolean hasEventNamed(
+      RecordingTelemetrySink sink, String name, int sinceIndex) {
+    List<J2clClientTelemetry.Event> events = sink.events();
+    for (int i = sinceIndex; i < events.size(); i++) {
+      if (name.equals(events.get(i).getName())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Test
+  public void expandPathReDispatchesFocusChangedForBoundsRefresh() {
+    assumeBrowserDom();
+    HTMLDivElement host = createThreadedHost();
+    new J2clReadSurfaceDomRenderer(host).enhanceExistingSurface();
+    HTMLElement root = blip(host, "b+root");
+    root.focus();
+    HTMLElement surface = (HTMLElement) host.querySelector("[data-j2cl-read-surface='true']");
+    final int[] focusChangedCount = new int[1];
+    surface.addEventListener(
+        "wavy-focus-changed", evt -> focusChangedCount[0]++);
+    HTMLButtonElement toggle =
+        (HTMLButtonElement) host.querySelector(".j2cl-read-thread-toggle");
+    toggle.click();
+    int afterCollapse = focusChangedCount[0];
+    toggle.click();
+    Assert.assertTrue(
+        "expand should re-dispatch focus-changed when focus is visible",
+        focusChangedCount[0] > afterCollapse);
+  }
 }

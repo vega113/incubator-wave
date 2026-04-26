@@ -3381,6 +3381,9 @@ public final class HtmlRenderer {
     // Loaded alongside shell.css so the recipes' --wavy-* var() lookups
     // resolve under the J2CL root shell view.
     sb.append("<link rel=\"stylesheet\" href=\"").append(safeResolvedBasePath).append("j2cl/assets/wavy-tokens.css\">\n");
+    // F-2 slice 2 (#1046, R-3.3): thread collapse motion + .j2cl-read-surface
+    // positioning context (so the focus frame anchors correctly).
+    sb.append("<link rel=\"stylesheet\" href=\"").append(safeResolvedBasePath).append("j2cl/assets/wavy-thread-collapse.css\">\n");
     sb.append("<script type=\"module\" src=\"").append(safeResolvedBasePath).append("j2cl/assets/shell.js\"></script>\n");
     appendJ2clRootShellStatsShim(sb);
     appendAnalyticsFragment(sb, analyticsAccount, null);
@@ -3490,6 +3493,9 @@ public final class HtmlRenderer {
     sb.append("<link rel=\"stylesheet\" href=\"").append(safeResolvedBasePath).append("j2cl/assets/sidecar.css\">\n");
     sb.append("<link rel=\"stylesheet\" href=\"").append(safeResolvedBasePath).append("j2cl/assets/shell.css\">\n");
     sb.append("<link rel=\"stylesheet\" href=\"").append(safeResolvedBasePath).append("j2cl/assets/wavy-tokens.css\">\n");
+    // F-2 slice 2 (#1046, R-3.3): thread collapse motion on the design
+    // preview route too — the demo lands here.
+    sb.append("<link rel=\"stylesheet\" href=\"").append(safeResolvedBasePath).append("j2cl/assets/wavy-thread-collapse.css\">\n");
     sb.append("<script type=\"module\" src=\"").append(safeResolvedBasePath).append("j2cl/assets/shell.js\"></script>\n");
     sb.append("<style>\n");
     sb.append("body{margin:0;background:var(--wavy-bg-base);color:var(--wavy-text-body);font:var(--wavy-type-body);min-height:100vh;}\n");
@@ -3669,6 +3675,11 @@ public final class HtmlRenderer {
     String status = selectedWaveStatus(effectiveResult, signedIn);
     String detail = selectedWaveDetail(effectiveResult, signedIn);
 
+    // The `.sidecar-selected-host` ancestor div already carries
+    // data-j2cl-selected-wave-host="true" (F-1). The wavy-wave-nav-row
+    // <wavy-wave-nav-row> H key handler resolves its binding target via
+    // this.closest('[data-j2cl-selected-wave-host]'), which matches that
+    // ancestor — no need for the card itself to carry the attribute.
     sb.append("            <section class=\"sidecar-selected-card\"");
     if (hasSnapshot && effectiveResult.hasWaveId()) {
       sb.append(" data-j2cl-server-first-selected-wave=\"")
@@ -3679,6 +3690,10 @@ public final class HtmlRenderer {
         .append(effectiveResult.getModeValue())
         .append("\" data-j2cl-upgrade-placeholder=\"selected-wave\">\n");
     sb.append("              <p class=\"sidecar-eyebrow\">Opened wave</p>\n");
+    // F-2 slice 2 (#1046, R-3.7-chrome): depth-nav-bar landmark.
+    // Hidden by default; the J2CL client (S5) writes the current depth
+    // and toggles the hidden attribute via property assignment.
+    sb.append("              <wavy-depth-nav-bar hidden data-j2cl-server-first-chrome=\"true\"></wavy-depth-nav-bar>\n");
     sb.append("              <h2 class=\"sidecar-selected-title\">")
         .append(escapeHtml(title))
         .append("</h2>\n");
@@ -3690,6 +3705,10 @@ public final class HtmlRenderer {
         .append(escapeHtml(detail))
         .append("</p>\n");
     sb.append("              <p class=\"sidecar-selected-participants\" hidden></p>\n");
+    // F-2 slice 2 (#1046, R-3.4): wave-nav-row landmark. Buttons mount
+    // client-side once shell.js upgrades the element; before then the
+    // landmark host is exposed for AT users + the client upgrade swap.
+    sb.append("              <wavy-wave-nav-row data-j2cl-server-first-chrome=\"true\"></wavy-wave-nav-row>\n");
     sb.append("              <p class=\"sidecar-selected-snippet\" hidden></p>\n");
     sb.append("              <div class=\"sidecar-selected-compose\"></div>\n");
     sb.append("              <div class=\"sidecar-selected-content\">");

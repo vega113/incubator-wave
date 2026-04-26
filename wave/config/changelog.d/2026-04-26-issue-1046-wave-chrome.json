@@ -1,0 +1,23 @@
+{
+  "releaseId": "2026-04-26-issue-1046-wave-chrome",
+  "version": "F-2 slice 2 (#1046)",
+  "date": "2026-04-26",
+  "title": "StageOne J2CL Wave Chrome — Wave Nav Row + Focus Frame + Depth Nav Bar",
+  "summary": "The J2CL open-wave panel gains the per-wave navigation toolbar (Recent, Next Unread, Previous, Next, End, Prev/Next mention, Archive, Pin, Version History), a cyan focus frame that follows the keyboard-focused blip with arrow / j / k navigation, token-driven thread collapse motion, and a depth-nav bar with Up-one-level + Up-to-wave controls. Builds on the F-2 slice 1 <wave-blip> foundation; emits forward-only events for slice 5 to wire to URL state and controller actions.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "New <wavy-wave-nav-row> Lit element renders all 10 audit-row buttons E.1–E.10 with correct ARIA labels, dispatches per-action CustomEvents with selectedBlipId + sourceWaveId detail, applies cyan emphasis to Next-Unread when unread > 0 and to Pin when pinned, applies violet emphasis to mention buttons when mentions > 0, and binds H to open Version History scoped to the closest selected-wave-host ancestor.",
+        "New <wavy-focus-frame> Lit element paints the cyan focus ring around the keyboard-focused blip via the --wavy-focus-ring token, listens for wavy-focus-changed events from J2clReadSurfaceDomRenderer, and animates with --wavy-motion-focus-duration / --wavy-easing-focus per F-0. Survives incremental window swaps without destroy/recreate.",
+        "New <wavy-depth-nav-bar> Lit element composes the F-0 <wavy-depth-nav> recipe and adds G.2 (Up one level, with parent-author-aware ARIA label) and G.3 (Up to wave) buttons. Reserves an awareness-pill slot for slice 5 (G.6) and emits wavy-depth-up / wavy-depth-root / wavy-depth-jump-to-crumb events.",
+        "J2clReadSurfaceDomRenderer adds j (ArrowDown) and k (ArrowUp) keyboard aliases, dispatches wavy-focus-changed CustomEvents on the read surface with surface-local bounds and the originating key, exposes setDepthFocus(currentDepthBlipId, parentDepthBlipId, parentAuthorName) for slice 5 to drive the depth-nav-bar, and re-dispatches focus-changed on thread expand so the focus frame can recompute its bounds against the freshly-visible blip geometry.",
+        "New wavy-thread-collapse.css sibling stylesheet defines the --wavy-motion-collapse-duration / --wavy-easing-collapse transitions for inline-thread max-height + opacity, plus the .j2cl-read-surface { position: relative } positioning context the focus-frame anchors against. prefers-reduced-motion: reduce overrides transition to none.",
+        "HtmlRenderer pre-renders <wavy-depth-nav-bar hidden> and <wavy-wave-nav-row> as landmarks inside the server-first selected-wave card, so AT users see the toolbar host before client boot and the J2CL upgrade swap is property-set (not replaceChild that would reset state).",
+        "J2clSelectedWaveView mounts the chrome elements in cold-mount, re-binds the existing landmarks in server-first, binds unreadCount + sourceWaveId reactive props from the existing model accessors, and installs delegated telemetry listeners that emit wave_chrome.nav_row.click + wave_chrome.depth_nav.click per click.",
+        "Telemetry events wave_chrome.focus_frame.transition (with key + direction + blipId) and wave_chrome.thread_collapse.toggle (with state) provide observability for the new chrome interactions.",
+        "Per-row parity fixture J2clStageOneReadSurfaceParityTest extends with assertions for the chrome landmarks, the wavy-thread-collapse.css link, the keyboard-binding host attribute, and the GWT non-leak; fixes a pre-existing slice 1 false-positive that asserted server-side class=\"blip\" markup which the GWT skeleton never emitted."
+      ]
+    }
+  ]
+}

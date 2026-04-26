@@ -24,6 +24,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   private final HTMLDivElement contentList;
   private final J2clReadSurfaceDomRenderer readSurface;
   private final HTMLElement emptyState;
+  // F-2 slice 2 (#1046) chrome handles. Mounted in both the cold-mount
+  // and server-first paths; the view re-binds the live nodes on
+  // server-first to avoid the upgrade reset bug.
+  private final HTMLElement card;
+  private final HTMLElement depthNavBar;
+  private final HTMLElement waveNavRow;
   private boolean serverFirstActive;
   private boolean serverFirstSwapRecorded;
   private boolean coldMountSwapRecorded;
@@ -53,6 +59,16 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       readSurface = new J2clReadSurfaceDomRenderer(contentList, effectiveTelemetrySink);
       readSurface.enhanceExistingSurface();
       emptyState = queryOrCreate(existingCard, ".sidecar-empty-state", "div", "sidecar-empty-state");
+      // F-2 slice 2 (#1046): mark the card as the host-binding target for
+      // the <wavy-wave-nav-row> H keyboard handler.
+      existingCard.setAttribute("data-j2cl-selected-wave-host", "");
+      // Re-bind chrome landmarks the server pre-rendered. Custom-element
+      // upgrade happens automatically when customElements.define runs after
+      // the element is in the DOM — never replaceChild, only property set.
+      this.card = existingCard;
+      this.depthNavBar = ensureDepthNavBar(existingCard);
+      this.waveNavRow = ensureWaveNavRow(existingCard);
+      bindChromeEvents(existingCard, effectiveTelemetrySink);
       serverFirstActive = true;
       serverFirstWaveId = J2clServerFirstRootShellDom.serverFirstWaveId(host);
       serverFirstMode = J2clServerFirstRootShellDom.serverFirstMode(host);
@@ -62,58 +78,170 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
     host.innerHTML = "";
 
-    HTMLElement card = (HTMLElement) DomGlobal.document.createElement("section");
-    card.className = "sidecar-selected-card";
-    host.appendChild(card);
+    HTMLElement coldCard = (HTMLElement) DomGlobal.document.createElement("section");
+    coldCard.className = "sidecar-selected-card";
+    coldCard.setAttribute("data-j2cl-selected-wave-host", "");
+    host.appendChild(coldCard);
+    this.card = coldCard;
 
     HTMLElement eyebrow = (HTMLElement) DomGlobal.document.createElement("p");
     eyebrow.className = "sidecar-eyebrow";
     eyebrow.textContent = "Opened wave";
-    card.appendChild(eyebrow);
+    coldCard.appendChild(eyebrow);
+
+    // F-2 slice 2 (#1046, R-3.7-chrome): depth-nav bar (G.2 + G.3).
+    // Hidden by default until S5 writes a current depth.
+    depthNavBar = (HTMLElement) DomGlobal.document.createElement("wavy-depth-nav-bar");
+    depthNavBar.setAttribute("hidden", "");
+    coldCard.appendChild(depthNavBar);
 
     title = (HTMLElement) DomGlobal.document.createElement("h2");
     title.className = "sidecar-selected-title";
-    card.appendChild(title);
+    coldCard.appendChild(title);
 
     unread = (HTMLElement) DomGlobal.document.createElement("p");
     unread.className = "sidecar-selected-unread";
-    card.appendChild(unread);
+    coldCard.appendChild(unread);
 
     status = (HTMLElement) DomGlobal.document.createElement("p");
     status.className = "sidecar-selected-status";
-    card.appendChild(status);
+    coldCard.appendChild(status);
 
     detail = (HTMLElement) DomGlobal.document.createElement("p");
     detail.className = "sidecar-selected-detail";
-    card.appendChild(detail);
+    coldCard.appendChild(detail);
 
     participantSummary = (HTMLElement) DomGlobal.document.createElement("p");
     participantSummary.className = "sidecar-selected-participants";
-    card.appendChild(participantSummary);
+    coldCard.appendChild(participantSummary);
+
+    // F-2 slice 2 (#1046, R-3.4): wave nav row (E.1–E.10). The
+    // pin/archive props default to false in S2; S5 wires the data
+    // binding alongside the URL state reader. The buttons render and
+    // dispatch events even when those props are false, so the chrome
+    // contract is honored.
+    waveNavRow = (HTMLElement) DomGlobal.document.createElement("wavy-wave-nav-row");
+    coldCard.appendChild(waveNavRow);
 
     snippet = (HTMLElement) DomGlobal.document.createElement("p");
     snippet.className = "sidecar-selected-snippet";
-    card.appendChild(snippet);
+    coldCard.appendChild(snippet);
 
     composeHost = (HTMLElement) DomGlobal.document.createElement("div");
     composeHost.className = "sidecar-selected-compose";
-    card.appendChild(composeHost);
+    coldCard.appendChild(composeHost);
 
     contentList = (HTMLDivElement) DomGlobal.document.createElement("div");
     contentList.className = "sidecar-selected-content";
     configureContentList(contentList);
-    card.appendChild(contentList);
+    coldCard.appendChild(contentList);
     readSurface = new J2clReadSurfaceDomRenderer(contentList, effectiveTelemetrySink);
 
     emptyState = (HTMLElement) DomGlobal.document.createElement("div");
     emptyState.className = "sidecar-empty-state";
-    card.appendChild(emptyState);
+    coldCard.appendChild(emptyState);
+
+    bindChromeEvents(coldCard, effectiveTelemetrySink);
 
     serverFirstActive = false;
     serverFirstSwapRecorded = false;
     serverFirstWaveId = "";
     serverFirstMode = "";
     serverFirstMountedAtMs = 0;
+  }
+
+  /**
+   * F-2 slice 2 (#1046): locate the server-first depth-nav-bar landmark
+   * if present, otherwise create it client-side. Either way, the returned
+   * node is the live element the view writes properties on.
+   */
+  private static HTMLElement ensureDepthNavBar(HTMLElement card) {
+    HTMLElement existing = (HTMLElement) card.querySelector("wavy-depth-nav-bar");
+    if (existing != null) {
+      return existing;
+    }
+    HTMLElement bar =
+        (HTMLElement) DomGlobal.document.createElement("wavy-depth-nav-bar");
+    bar.setAttribute("hidden", "");
+    // Insert directly after the eyebrow if present, else as the first
+    // child of the card.
+    HTMLElement eyebrow = (HTMLElement) card.querySelector(".sidecar-eyebrow");
+    if (eyebrow != null && eyebrow.nextSibling != null) {
+      card.insertBefore(bar, eyebrow.nextSibling);
+    } else {
+      card.insertBefore(bar, card.firstChild);
+    }
+    return bar;
+  }
+
+  /**
+   * F-2 slice 2 (#1046): locate the server-first wave-nav-row landmark
+   * if present, otherwise create it client-side and insert between the
+   * participant summary and the snippet (matching cold-mount order).
+   */
+  private static HTMLElement ensureWaveNavRow(HTMLElement card) {
+    HTMLElement existing = (HTMLElement) card.querySelector("wavy-wave-nav-row");
+    if (existing != null) {
+      return existing;
+    }
+    HTMLElement row =
+        (HTMLElement) DomGlobal.document.createElement("wavy-wave-nav-row");
+    HTMLElement snippetEl = (HTMLElement) card.querySelector(".sidecar-selected-snippet");
+    if (snippetEl != null) {
+      card.insertBefore(row, snippetEl);
+    } else {
+      card.appendChild(row);
+    }
+    return row;
+  }
+
+  /**
+   * F-2 slice 2 (#1046): delegated event listeners for the chrome event
+   * surface. S2 records telemetry for each click; S5 will add the
+   * controller wiring on top.
+   */
+  private static void bindChromeEvents(HTMLElement card, J2clClientTelemetry.Sink sink) {
+    String[] navEvents = {
+      "wave-nav-recent-requested",
+      "wave-nav-next-unread-requested",
+      "wave-nav-previous-requested",
+      "wave-nav-next-requested",
+      "wave-nav-end-requested",
+      "wave-nav-prev-mention-requested",
+      "wave-nav-next-mention-requested",
+      "wave-nav-archive-toggle-requested",
+      "wave-nav-pin-toggle-requested",
+      "wave-nav-version-history-requested"
+    };
+    for (final String navEvent : navEvents) {
+      card.addEventListener(
+          navEvent,
+          evt -> {
+            try {
+              sink.record(
+                  J2clClientTelemetry.event("wave_chrome.nav_row.click")
+                      .field("action", navEvent)
+                      .build());
+            } catch (Throwable ignored) {
+              // Telemetry is observational.
+            }
+          });
+    }
+    String[] depthEvents = {"wavy-depth-up", "wavy-depth-root", "wavy-depth-jump-to-crumb"};
+    for (final String depthEvent : depthEvents) {
+      card.addEventListener(
+          depthEvent,
+          evt -> {
+            try {
+              sink.record(
+                  J2clClientTelemetry.event("wave_chrome.depth_nav.click")
+                      .field("action", depthEvent)
+                      .build());
+            } catch (Throwable ignored) {
+              // Telemetry is observational.
+            }
+          });
+    }
   }
 
   static void configureContentList(HTMLElement contentList) {
@@ -144,8 +272,26 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     // selected so a stale id is not propagated to the next opened wave.
     if (renderedWaveId.isEmpty()) {
       contentList.removeAttribute("data-wave-id");
+      if (waveNavRow != null) {
+        waveNavRow.removeAttribute("source-wave-id");
+      }
     } else {
       contentList.setAttribute("data-wave-id", renderedWaveId);
+      if (waveNavRow != null) {
+        waveNavRow.setAttribute("source-wave-id", renderedWaveId);
+      }
+    }
+    // F-2 slice 2 (#1046, R-3.4): bind the unread count to the nav row's
+    // E.2 cyan emphasis. unreadCount may be UNKNOWN_UNREAD_COUNT (-1)
+    // before the read state is known — clamp to 0 so the cyan emphasis
+    // does not light up spuriously.
+    if (waveNavRow != null) {
+      int navUnread = Math.max(0, model.getUnreadCount());
+      waveNavRow.setAttribute("unread-count", Integer.toString(navUnread));
+      // pinned + archived: TODO(#1046 / S5) — wire the data binding from
+      // J2clSearchDigestItem.isPinned() / inbox-folder state once those
+      // signals reach the view layer. The chrome ships and dispatches
+      // events even when these props default to false.
     }
     if (shouldPreserveServerFirstCard(model)) {
       renderPreservedServerFirstState(model);
