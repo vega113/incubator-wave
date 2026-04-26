@@ -155,8 +155,8 @@ public final class J2clSearchRailParityTest {
         html.contains("class=\"dot violet\" hidden"));
     assertTrue("A.6 mail icon class", html.contains("class=\"mail\""));
     assertTrue(
-        "A.6 mail icon links to inbox query",
-        html.contains("href=\"/?q=in:inbox\""));
+        "A.6 mail icon links to inbox query with J2CL root routing",
+        html.contains("href=\"/?view=j2cl-root&amp;q=in%3Ainbox\""));
     assertTrue("A.7 user-menu trigger class", html.contains("class=\"user-menu\""));
     assertTrue(
         "A.7 user-menu trigger advertises menu popup semantics",
@@ -176,7 +176,7 @@ public final class J2clSearchRailParityTest {
         html.contains("<button type=\"button\" class=\"bell\" aria-label=\"Notifications\"><svg"));
     assertTrue(
         "A.6 mail icon server-renders an SVG glyph (no empty pre-upgrade icon)",
-        html.contains("class=\"mail\" href=\"/?q=in:inbox\" aria-label=\"Inbox\"><svg"));
+        html.contains("class=\"mail\" href=\"/?view=j2cl-root&amp;q=in%3Ainbox\" aria-label=\"Inbox\"><svg"));
   }
 
   // ---------- B.* search rail ----------

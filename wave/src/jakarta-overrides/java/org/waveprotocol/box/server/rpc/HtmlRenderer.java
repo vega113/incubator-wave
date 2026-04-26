@@ -3421,7 +3421,7 @@ public final class HtmlRenderer {
       // <wavy-blip-card> server-render contract). The raw address is
       // passed through alongside the safe (HTML-escaped) form so
       // computeUserInitials can run on the unescaped local part.
-      appendWavyHeaderActionsSlot(sb, address, safeAddress, safeResolvedBasePath);
+      appendWavyHeaderActionsSlot(sb, address, safeAddress, safeResolvedReturnTarget, safeResolvedBasePath);
       // The legacy inline Admin and Sign out links are PRESERVED until
       // the F-0 user-menu sheet ships (A.7 only mounts the trigger;
       // A.8–A.18 are F-0). Removing them now would orphan affordances
@@ -3645,7 +3645,8 @@ public final class HtmlRenderer {
    * A.7 user-menu trigger (avatar + email).
    */
   private static void appendWavyHeaderActionsSlot(
-      StringBuilder sb, String rawAddress, String safeAddress, String safeBasePath) {
+      StringBuilder sb, String rawAddress, String safeAddress,
+      String safeResolvedReturnTarget, String safeBasePath) {
     String escapedAddress = safeAddress == null ? "" : safeAddress;
     // computeUserInitials runs on the RAW address so the local-part
     // splitting matches the JS Lit element exactly (the Lit element
@@ -3661,7 +3662,7 @@ public final class HtmlRenderer {
         .append(safeBasePath)
         .append("\">\n");
     sb.append("      <a class=\"brand\" href=\"")
-        .append(safeBasePath)
+        .append(safeResolvedReturnTarget)
         .append("\" aria-label=\"SupaWave home\">")
         .append("<span class=\"brand-dot\" aria-hidden=\"true\"></span>")
         .append("<span class=\"brand-text\">SupaWave</span></a>\n");
@@ -3684,7 +3685,7 @@ public final class HtmlRenderer {
     // A.6 inbox/mail icon — server-renders the envelope SVG.
     sb.append("      <a class=\"mail\" href=\"")
         .append(safeBasePath)
-        .append("?q=in:inbox\" aria-label=\"Inbox\">")
+        .append("?view=j2cl-root&amp;q=in%3Ainbox\" aria-label=\"Inbox\">")
         .append("<svg viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\" aria-hidden=\"true\">")
         .append("<rect x=\"2\" y=\"3.5\" width=\"12\" height=\"9\" rx=\"1.4\"/>")
         .append("<path d=\"M2.5 4.5l5.5 4 5.5-4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></a>\n");

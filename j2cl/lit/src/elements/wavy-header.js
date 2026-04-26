@@ -9,7 +9,7 @@ import { LitElement, css, html } from "lit";
  * - A.2 Locale picker (en/de/es/fr/ru/sl/zh_TW)
  * - A.5 Notifications bell with violet unread dot (uses
  *       --wavy-signal-violet, NOT cyan)
- * - A.6 Inbox/mail icon — jumps to inbox via /?q=in:inbox
+ * - A.6 Inbox/mail icon — jumps to inbox via /?view=j2cl-root&q=in:inbox
  * - A.7 User-menu trigger: avatar chip (initials) + visible email span;
  *       click emits wavy-user-menu-requested for the F-0 menu sheet
  *       (the menu items A.8–A.18 themselves are owned by F-0 and are
@@ -238,7 +238,7 @@ export class WavyHeader extends LitElement {
               <span class="dot violet" ?hidden=${!hasUnread} aria-hidden="true"></span>
             </button>
 
-            <a class="mail" href=${`${base}?q=in:inbox`} aria-label="Inbox">
+            <a class="mail" href=${`${base}?view=j2cl-root&q=in:inbox`} aria-label="Inbox">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
                 <rect x="2" y="3.5" width="12" height="9" rx="1.4"/>
                 <path d="M2.5 4.5l5.5 4 5.5-4" stroke-linecap="round" stroke-linejoin="round"/>
