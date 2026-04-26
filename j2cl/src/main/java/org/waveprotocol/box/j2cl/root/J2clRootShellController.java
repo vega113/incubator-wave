@@ -1,6 +1,8 @@
 package org.waveprotocol.box.j2cl.root;
 
+import elemental2.dom.Event;
 import elemental2.dom.HTMLElement;
+import jsinterop.base.Js;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceView;
 import org.waveprotocol.box.j2cl.search.J2clSearchGateway;
@@ -9,6 +11,7 @@ import org.waveprotocol.box.j2cl.search.J2clSearchPanelView;
 import org.waveprotocol.box.j2cl.search.J2clSidecarRouteController;
 import org.waveprotocol.box.j2cl.search.J2clSelectedWaveController;
 import org.waveprotocol.box.j2cl.search.J2clSelectedWaveView;
+import org.waveprotocol.box.j2cl.search.J2clSidecarRouteState;
 import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.toolbar.J2clToolbarSurfaceController;
 import org.waveprotocol.box.j2cl.toolbar.J2clToolbarSurfaceView;
@@ -34,14 +37,25 @@ public final class J2clRootShellController {
         new J2clSelectedWaveController[1];
     final J2clToolbarSurfaceController[] toolbarControllerRef =
         new J2clToolbarSurfaceController[1];
+    final J2clSelectedWaveView[] selectedWaveViewRef = new J2clSelectedWaveView[1];
     // The route controller is wired below; the starter runs only after that assignment.
+    // F-2 slice 5 (#1055, R-3.7 G.4): the starter ALSO re-hydrates the
+    // depth-nav-bar from the URL state so a deep-linked &depth=<blip-id>
+    // survives reload.
     J2clRootLiveSurfaceController liveSurfaceController =
-        new J2clRootLiveSurfaceController(shellView, () -> routeControllerRef[0].start());
+        new J2clRootLiveSurfaceController(
+            shellView,
+            () -> {
+              routeControllerRef[0].start();
+              rehydrateDepthFromRoute(
+                  selectedWaveViewRef[0], routeControllerRef[0]);
+            });
     J2clSearchPanelView searchView =
         new J2clSearchPanelView(
             shellView.getWorkflowHost(), J2clSearchPanelView.ShellPresentation.ROOT_SHELL);
     J2clSelectedWaveView selectedWaveView =
         new J2clSelectedWaveView(searchView.getSelectedWaveHost(), telemetrySink);
+    selectedWaveViewRef[0] = selectedWaveView;
     HTMLElement selectedWaveComposeHost = selectedWaveView.getComposeHost();
     HTMLElement selectedToolbarHost =
         createChildHost(selectedWaveComposeHost, "j2cl-root-toolbar-host");
@@ -70,6 +84,11 @@ public final class J2clRootShellController {
                     action, "This toolbar action is not wired in the J2CL root shell yet.");
               }
             });
+    // F-2 slice 5 (#1055, A.3): the wavy <wavy-wave-nav-row> already
+    // mounts the canonical view-action chrome (E.1–E.10), so disable the
+    // legacy view actions here. Edit actions still render when a
+    // composer is active.
+    toolbarController.setViewActionsEnabled(false);
     toolbarControllerRef[0] = toolbarController;
     J2clSelectedWaveController selectedWaveController =
         new J2clSelectedWaveController(
@@ -111,7 +130,107 @@ public final class J2clRootShellController {
     composeController.start();
     toolbarController.start();
     toolbarController.onEditStateChanged(new J2clToolbarSurfaceController.EditState(false));
+    // F-2 slice 5 (#1055, R-3.7 G.4 + G.5): wire depth-nav events to the
+    // route controller so URL state survives reload + back/forward.
+    // The rehydration runs inside the live-surface starter so the URL
+    // depth value is applied right after route.start().
+    bindDepthEventsToRoute(selectedWaveView, routeController);
     liveSurfaceController.start();
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.5): listen for depth-nav events emitted
+   * by the {@code J2clReadSurfaceDomRenderer} (drill-in / drill-out /
+   * root) on the selected-wave card and forward the resolved depth blip
+   * id to the route controller.
+   *
+   * <p>The events bubble up to the card via the read-surface dispatch.
+   * For drill-in we use the event detail's {@code blipId}; for
+   * {@code wavy-depth-up} we resolve to the parent depth blip id from
+   * the read-surface attribute (kept in sync by setDepthFocus); and for
+   * {@code wavy-depth-root} we clear the depth.
+   */
+  private static void bindDepthEventsToRoute(
+      J2clSelectedWaveView view, J2clSidecarRouteController routeController) {
+    HTMLElement card = view.getCardElement();
+    if (card == null || routeController == null) {
+      return;
+    }
+    card.addEventListener(
+        "wavy-depth-drill-in",
+        evt -> {
+          Object detail = Js.asPropertyMap(evt).get("detail");
+          if (detail == null) {
+            return;
+          }
+          Object blipId = Js.asPropertyMap(detail).get("blipId");
+          if (blipId == null) {
+            return;
+          }
+          String resolved = String.valueOf(blipId);
+          if (!resolved.isEmpty()) {
+            routeController.onDepthChanged(resolved);
+            view.setDepthFocus(resolved, "", "");
+          }
+        });
+    card.addEventListener(
+        "wavy-depth-up",
+        evt -> {
+          Object detail = Js.asPropertyMap(evt).get("detail");
+          String parentId = "";
+          if (detail != null) {
+            Object resolved = Js.asPropertyMap(detail).get("toBlipId");
+            if (resolved != null) {
+              parentId = String.valueOf(resolved);
+            }
+          }
+          // toBlipId may be empty when the parent is the wave root —
+          // collapsing to empty clears the URL depth parameter.
+          routeController.onDepthChanged(parentId.isEmpty() ? null : parentId);
+          view.setDepthFocus(parentId.isEmpty() ? "" : parentId, "", "");
+        });
+    card.addEventListener(
+        "wavy-depth-root",
+        (Event evt) -> {
+          routeController.onDepthChanged(null);
+          view.setDepthFocus("", "", "");
+        });
+    card.addEventListener(
+        "wavy-depth-jump-to-crumb",
+        evt -> {
+          Object detail = Js.asPropertyMap(evt).get("detail");
+          String blipId = "";
+          if (detail != null) {
+            Object resolved = Js.asPropertyMap(detail).get("blipId");
+            if (resolved != null) {
+              blipId = String.valueOf(resolved);
+            }
+          }
+          routeController.onDepthChanged(blipId.isEmpty() ? null : blipId);
+          view.setDepthFocus(blipId, "", "");
+        });
+  }
+
+  /**
+   * F-2 slice 5 (#1055, R-3.7 G.4): re-hydrate the depth-nav-bar from
+   * the parsed URL state. Called after {@code routeController.start()}
+   * has populated currentState.
+   */
+  private static void rehydrateDepthFromRoute(
+      J2clSelectedWaveView view, J2clSidecarRouteController routeController) {
+    if (view == null || routeController == null) {
+      return;
+    }
+    J2clSidecarRouteState state = routeController.getCurrentState();
+    if (state == null) {
+      return;
+    }
+    String depthBlipId = state.getDepthBlipId();
+    if (depthBlipId == null || depthBlipId.isEmpty()) {
+      view.setDepthFocus("", "", "");
+      return;
+    }
+    view.setDepthFocus(depthBlipId, "", "");
   }
 
   private static HTMLElement createChildHost(HTMLElement parent, String className) {

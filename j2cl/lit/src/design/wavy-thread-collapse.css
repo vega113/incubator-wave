@@ -39,3 +39,90 @@
     transition: none;
   }
 }
+
+/* F-2 slice 5 (#1055, A.4) — defensive pre-upgrade clamp. The
+ * <wavy-search-rail>'s :host { display:block } rule lives in shadow DOM
+ * and only attaches after customElements.define runs; before then the
+ * SSR-emitted <svg> inside .waveform overflows to its 300x150 default.
+ * This global rule clamps every direct SVG child of .waveform inside
+ * <wavy-search-rail>'s light DOM to the icon size used by the rail. */
+wavy-search-rail .waveform svg,
+wavy-search-rail .waveform > svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* F-2 slice 5 (#1055, A.1) — hide the legacy "Hosted workflow" search
+ * card (now superseded by <wavy-search-rail> in the nav slot). The card
+ * wrapper stays in the DOM so J2clSearchPanelView can adopt the inputs
+ * + digest list, but its visible chrome collapses. The nested digests
+ * + empty-state list opt back in below. */
+.sidecar-search-card[data-j2cl-legacy-search-card="hidden"] {
+  display: contents;
+}
+
+.sidecar-search-card[data-j2cl-legacy-search-card="hidden"]
+  > [data-j2cl-legacy-search-form="true"] {
+  display: none;
+}
+
+/* F-2 slice 5 (#1055, A.2) — wavy empty-state recipe styling. Matches
+ * the design-tokens used by the rest of the F-2 chrome. */
+.wavy-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--wavy-spacing-3, 12px);
+  padding: var(--wavy-spacing-6, 24px);
+  text-align: center;
+  color: var(--wavy-text-muted, rgba(232, 240, 255, 0.62));
+}
+
+.wavy-empty-state-mark {
+  display: inline-flex;
+  width: 64px;
+  height: 64px;
+  color: var(--wavy-text-muted, rgba(232, 240, 255, 0.4));
+}
+
+.wavy-empty-state-mark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.wavy-empty-state-headline {
+  margin: 0;
+  font: var(--wavy-type-h3, 1rem / 1.4 sans-serif);
+  font-weight: 600;
+  color: var(--wavy-text-body, rgba(232, 240, 255, 0.92));
+}
+
+.wavy-empty-state-subhead {
+  margin: 0;
+  max-width: 36ch;
+  font: var(--wavy-type-body, 0.9375rem / 1.55 sans-serif);
+}
+
+/* F-2 slice 5 (#1055, R-3.7 G.6) — live-update awareness pill. Shown
+ * when ancestor-thread replies arrive while the user is focused below.
+ * Animates the F-0 --wavy-pulse-ring token. */
+.wavy-awareness-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--wavy-spacing-2, 8px);
+  margin: var(--wavy-spacing-2, 8px) 0 0;
+  padding: var(--wavy-spacing-1, 4px) var(--wavy-spacing-3, 12px);
+  border: 1px solid var(--wavy-border-hairline, rgba(34, 211, 238, 0.18));
+  border-radius: var(--wavy-radius-pill, 9999px);
+  background: var(--wavy-bg-surface, rgba(34, 211, 238, 0.08));
+  color: var(--wavy-signal-cyan, #22d3ee);
+  font: var(--wavy-type-label, 0.75rem / 1.35 sans-serif);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--wavy-pulse-ring, 0 0 0 0 rgba(34, 211, 238, 0));
+}
+
+.wavy-awareness-pill[hidden] {
+  display: none;
+}

@@ -285,7 +285,10 @@ export class WavySearchRail extends LitElement {
     return html`
       <div class="search">
         <span class="waveform" aria-hidden="true">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6">
+          <!-- F-2 slice 5 (#1055): explicit width/height on the SVG so
+               the glyph never overflows even if shadow DOM has not yet
+               attached (e.g. server-rendered light-DOM fallback). -->
+          <svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6">
             <path d="M1 7h2l1-3 1 6 1-4 1 5 1-6 1 4 1-2h2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </span>

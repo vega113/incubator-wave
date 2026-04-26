@@ -28,6 +28,10 @@ public final class J2clToolbarSurfaceView implements J2clToolbarSurfaceControlle
 
   @Override
   public void render(J2clToolbarSurfaceModel model) {
+    // F-2 slice 5 (#1055, A.3): collapse the toolbar host when there are
+    // no actions to render so the legacy editor-toolbar wall does not
+    // duplicate the wavy chrome before composition starts.
+    host.hidden = model.getActions().isEmpty();
     Set<String> seenGroups = new HashSet<String>();
     Set<String> seenActions = new HashSet<String>();
     String currentGroup = "";

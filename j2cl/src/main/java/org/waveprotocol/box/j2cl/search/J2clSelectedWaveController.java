@@ -81,6 +81,31 @@ public final class J2clSelectedWaveController
 
     default void setViewportEdgeHandler(ViewportEdgeHandler handler) {
     }
+
+    /**
+     * F-2 slice 5 (#1055, S2 deferral): publish pin / archive folder
+     * state for the {@code <wavy-wave-nav-row>} chrome (E.7 / E.8 toggle
+     * buttons). Defaults to a no-op for legacy presentations.
+     */
+    default void setNavRowFolderState(boolean pinned, boolean archived) {
+    }
+
+    /**
+     * F-2 slice 5 (#1055, R-3.7 G.4): publish the depth focus to the
+     * {@code <wavy-depth-nav-bar>} chrome. Empty string clears the depth
+     * focus and toggles the bar's hidden attribute.
+     */
+    default void setDepthFocus(
+        String currentDepthBlipId, String parentDepthBlipId, String parentAuthorName) {
+    }
+
+    /**
+     * F-2 slice 5 (#1055, R-3.7 G.6): publish the live-update awareness
+     * pill text + hidden state. {@code pendingCount &lt;= 0} hides the
+     * pill.
+     */
+    default void setAwarenessPill(int pendingCount) {
+    }
   }
 
   @FunctionalInterface
@@ -294,6 +319,9 @@ public final class J2clSelectedWaveController
         && currentSubscription != null
         && requestGeneration > 0) {
       selectedDigestItem = digestItem;
+      // F-2 slice 5 (#1055, S2 deferral): publish pin folder state so
+      // the wavy-wave-nav-row can render its E.7 pin toggle correctly.
+      publishNavRowFolderState();
       if (lastUpdate != null) {
         currentModel =
             J2clSelectedWaveProjector.project(
@@ -328,6 +356,9 @@ public final class J2clSelectedWaveController
       currentModel = J2clSelectedWaveModel.clearedSelection();
       view.render(currentModel);
       publishWriteSession();
+      // F-2 slice 5 (#1055): clear nav-row folder state when the
+      // selection drops so the chrome reverts to the default pin/inbox.
+      publishNavRowFolderState();
       return;
     }
 
@@ -337,7 +368,18 @@ public final class J2clSelectedWaveController
     reconnectCount = 0;
     currentReadState = null;
     readStateStale = false;
+    publishNavRowFolderState();
     fetchBootstrapAndOpenSelectedWave(generation, 0, false);
+  }
+
+  /**
+   * F-2 slice 5 (#1055, S2 deferral): forward pin folder state from the
+   * selected digest to the {@code <wavy-wave-nav-row>} chrome. Archived
+   * state stays {@code false} until F-4 wires the live folder feed.
+   */
+  private void publishNavRowFolderState() {
+    boolean pinned = selectedDigestItem != null && selectedDigestItem.isPinned();
+    view.setNavRowFolderState(pinned, false);
   }
 
   private void fetchBootstrapAndOpenSelectedWave(

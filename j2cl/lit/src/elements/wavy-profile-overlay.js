@@ -208,6 +208,26 @@ export class WavyProfileOverlay extends LitElement {
       // host's keydown handler. tabindex=-1 keeps it out of the tab
       // sequence — focus is moved here explicitly on open.
       this.setAttribute("tabindex", "-1");
+      // F-2 slice 5 (#1055, S4 deferral): focus-trap + inert on
+      // siblings — modal semantics. Save the previously focused element
+      // and inert every <body> direct child except this host.
+      this._previouslyFocusedElement =
+        (this.ownerDocument && this.ownerDocument.activeElement) || null;
+      this._inertedSiblings = [];
+      try {
+        const body = this.ownerDocument && this.ownerDocument.body;
+        if (body) {
+          for (const child of Array.from(body.children)) {
+            if (child === this) continue;
+            if (child.hasAttribute && !child.hasAttribute("inert")) {
+              child.setAttribute("inert", "");
+              this._inertedSiblings.push(child);
+            }
+          }
+        }
+      } catch (_e) {
+        // inert support is observational; never block open.
+      }
       // Move focus to the host on the next microtask so the browser
       // has finished reflecting the hidden→visible flip.
       Promise.resolve().then(() => {
@@ -220,6 +240,20 @@ export class WavyProfileOverlay extends LitElement {
       this.setAttribute("aria-hidden", "true");
       this.removeAttribute("tabindex");
       this.removeAttribute("aria-label");
+      // F-2 slice 5 (#1055, S4 deferral): restore focus + un-inert siblings.
+      if (Array.isArray(this._inertedSiblings)) {
+        for (const sibling of this._inertedSiblings) {
+          try { sibling.removeAttribute("inert"); } catch (_e) {}
+        }
+        this._inertedSiblings = [];
+      }
+      const previouslyFocused = this._previouslyFocusedElement;
+      this._previouslyFocusedElement = null;
+      if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+        try { previouslyFocused.focus({ preventScroll: true }); } catch (_e) {
+          try { previouslyFocused.focus(); } catch (_err) {}
+        }
+      }
     }
   }
 
