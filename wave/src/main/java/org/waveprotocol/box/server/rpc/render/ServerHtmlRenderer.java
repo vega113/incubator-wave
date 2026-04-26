@@ -47,6 +47,7 @@ import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import org.waveprotocol.wave.model.id.WaveId;
 
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
@@ -96,14 +97,69 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
   /** The viewer for whom we are rendering (used for future read-state, not yet wired). */
   private final ParticipantId viewer;
   private final WaveContentRenderer.RenderBudget budget;
+  private final WindowOptions windowOptions;
 
   public ServerHtmlRenderer(ParticipantId viewer) {
     this(viewer, () -> false);
   }
 
   ServerHtmlRenderer(ParticipantId viewer, WaveContentRenderer.RenderBudget budget) {
+    this(viewer, budget, WindowOptions.none());
+  }
+
+  ServerHtmlRenderer(
+      ParticipantId viewer,
+      WaveContentRenderer.RenderBudget budget,
+      WindowOptions windowOptions) {
     this.viewer = viewer;
     this.budget = budget;
+    this.windowOptions = windowOptions == null ? WindowOptions.none() : windowOptions;
+  }
+
+  /**
+   * Per-render windowing + keyboard-contract options applied during HTML
+   * emission. Carrying these through the render pipeline lets the renderer
+   * honour the F-1 visible-window contract (R-3.5/R-6.1/R-7.1) without
+   * mutating per-blip emission semantics for the legacy GWT pre-render path.
+   */
+  static final class WindowOptions {
+    private static final WindowOptions NONE = new WindowOptions(null, Collections.<String>emptySet(), null);
+
+    private final String firstRootBlipId;
+    private final Set<String> allowedRootBlipIds;
+    private final String terminalPlaceholderHtml;
+
+    WindowOptions(
+        String firstRootBlipId,
+        Set<String> allowedRootBlipIds,
+        String terminalPlaceholderHtml) {
+      this.firstRootBlipId = firstRootBlipId;
+      this.allowedRootBlipIds =
+          allowedRootBlipIds == null
+              ? Collections.<String>emptySet()
+              : Collections.unmodifiableSet(allowedRootBlipIds);
+      this.terminalPlaceholderHtml = terminalPlaceholderHtml;
+    }
+
+    static WindowOptions none() {
+      return NONE;
+    }
+
+    String firstRootBlipId() {
+      return firstRootBlipId;
+    }
+
+    boolean isWindowed() {
+      return !allowedRootBlipIds.isEmpty();
+    }
+
+    boolean isAllowed(String rootBlipId) {
+      return allowedRootBlipIds.contains(rootBlipId);
+    }
+
+    String terminalPlaceholderHtml() {
+      return terminalPlaceholderHtml == null ? "" : terminalPlaceholderHtml;
+    }
   }
 
   // =========================================================================
@@ -139,7 +195,17 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
 
     StringBuilder sb = new StringBuilder();
     sb.append("<div class=\"").append(CSS_BLIP).append("\"");
-    sb.append(" data-blip-id=\"").append(escapeAttr(blip.getId())).append("\">");
+    sb.append(" data-blip-id=\"").append(escapeAttr(blip.getId())).append("\"");
+    boolean isRootThreadBlip =
+        blip.getThread() != null
+            && blip.getThread().getConversation() != null
+            && blip.getThread() == blip.getThread().getConversation().getRootThread();
+    sb.append(" role=\"").append(isRootThreadBlip ? "listitem" : "article").append("\"");
+    boolean isFirstRootBlip =
+        isRootThreadBlip
+            && windowOptions.firstRootBlipId() != null
+            && windowOptions.firstRootBlipId().equals(blip.getId());
+    sb.append(" tabindex=\"").append(isFirstRootBlip ? "0" : "-1").append("\">");
 
     // -- Meta bar: author + timestamp --
     sb.append("<div class=\"").append(CSS_BLIP_META).append("\">");
@@ -197,14 +263,30 @@ public final class ServerHtmlRenderer implements RenderingRules<String> {
     String cssClass = isRoot ? CSS_THREAD : CSS_INLINE_THREAD;
 
     sb.append("<div class=\"").append(cssClass).append("\"");
-    sb.append(" data-thread-id=\"").append(escapeAttr(thread.getId())).append("\">");
+    sb.append(" data-thread-id=\"").append(escapeAttr(thread.getId())).append("\"");
+    sb.append(" role=\"").append(isRoot ? "list" : "group").append("\"");
+    if (!isRoot) {
+      // Inline-thread aria-label mirrors what J2clReadSurfaceDomRenderer adds
+      // post-mount; supplying it server-side keeps the static HTML AT-usable
+      // before client boot (R-6.1).
+      sb.append(" aria-label=\"inline reply thread\"");
+    }
+    sb.append(">");
 
+    boolean filterRootBlips = isRoot && windowOptions.isWindowed();
     for (ConversationBlip blip : thread.getBlips()) {
       checkBudget();
+      if (filterRootBlips && !windowOptions.isAllowed(blip.getId())) {
+        continue;
+      }
       String blipHtml = blipUis.get(blip);
       if (blipHtml != null) {
         sb.append(blipHtml);
       }
+    }
+
+    if (filterRootBlips) {
+      sb.append(windowOptions.terminalPlaceholderHtml());
     }
 
     sb.append("</div>");
