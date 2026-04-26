@@ -197,17 +197,15 @@ Per-button hard rows:
 
 **esbuild change**: register `wavy-thread-collapse.css` as a sibling asset, the same way `wavy-tokens.css` is registered.
 
-### T5 — `J2clSelectedWaveView` mounts the chrome elements + model exposes `unreadCount`/`pinned`
+### T5 — `J2clSelectedWaveView` mounts the chrome elements
 
 **Files**:
 - `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveView.java` (~+110 LOC)
-- `j2cl/src/main/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveModel.java` (~+30 LOC — expose `getUnreadCount()` accessor publicly + thread `pinned` from `J2clSearchDigestItem.isPinned()` through the model constructors with a `pinned` field; the existing `unreadCount` field at line 28 already has `getUnreadCount()` at line 485, so this is a confirmation pass and a new `getPinned()` accessor).
-- `j2cl/src/test/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveModelCopyTest.java` (~+30 LOC for the `pinned` round-trip)
-- `j2cl/src/test/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveViewChromeTest.java` (NEW, ~+220 LOC) — boots the view against a synthetic host, asserts the three chrome elements are mounted, asserts each event reaches the host, asserts `pinned`/`unreadCount` props update when the model changes.
+- `j2cl/src/test/java/org/waveprotocol/box/j2cl/search/J2clSelectedWaveViewChromeTest.java` (NEW, ~+200 LOC) — boots the view against a synthetic host, asserts the three chrome elements are mounted, asserts the unreadCount prop updates when the model changes.
 
 **Model changes**:
-- `J2clSelectedWaveModel`: ensure `getUnreadCount()` is public (verified — it's already public at line 485 returning `unreadCount`). Add a new field `private final boolean pinned;` mirroring the existing `unreadCount` plumbing — populated from `digestItem.isPinned()` in the existing builder paths at lines 249/281. Add `public boolean getPinned() { return pinned; }`. Update `J2clSelectedWaveModelCopyTest` to round-trip the field.
-- `archived` is **NOT** added to the model in S2 (no source of truth exists in `j2cl/src/main/java`; the inbox-folder state is an S5 concern). The nav-row's `archived` prop defaults to `false` in S2 with a TODO referencing S5.
+- `J2clSelectedWaveModel.getUnreadCount()` is already public at line 485 — no model change needed for E.2.
+- `pinned` and `archived`: threading through the model would require touching 6 constructors + 4 `with*` builders + `loading()` + `error()` + `emptyModel()`, all of which are deeply intertwined with the search/sidecar state. That's a high blast-radius change for a chrome slice. **S2 ships the chrome shell with both props defaulted to `false` and a TODO comment** in `J2clSelectedWaveView` referencing S5; the buttons render and dispatch events even when the prop is `false`, so the contract is honored. S5 (depth-nav data wiring) is the correct home for the pin/archive data binding alongside the URL state reader and the live-update awareness pill — those changes naturally cluster.
 
 **View changes**:
 - Both paths (cold-mount and server-first): write `data-j2cl-selected-wave-host=""` on the `card` element (the `.sidecar-selected-card`). This is the binding target the `<wavy-wave-nav-row>` `H` handler resolves via `closest(...)`. T5b also writes the same attribute on the server-rendered card so the server-first path is consistent before client boot.

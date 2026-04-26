@@ -1,5 +1,8 @@
 package org.waveprotocol.box.j2cl.read;
 
+import elemental2.dom.CustomEvent;
+import elemental2.dom.CustomEventInit;
+import elemental2.dom.DOMRect;
 import elemental2.dom.DomGlobal;
 import elemental2.dom.Element;
 import elemental2.dom.Event;
@@ -11,6 +14,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import jsinterop.base.Js;
+import jsinterop.base.JsPropertyMap;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
 import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
@@ -604,6 +609,24 @@ public final class J2clReadSurfaceDomRenderer {
     enhanceThreads(surface);
     enhanceBlips(surface);
     bindAttachmentTelemetry(surface);
+    ensureFocusFrame(surface);
+  }
+
+  /**
+   * F-2 slice 2 (#1046, R-3.2): ensure a {@code <wavy-focus-frame>} exists
+   * as a child of the surface so it can receive {@code wavy-focus-changed}
+   * events dispatched on the surface. Idempotent — if the server-first
+   * path already pre-rendered the landmark, we skip re-mount.
+   */
+  private void ensureFocusFrame(HTMLElement surface) {
+    if (surface.querySelector("wavy-focus-frame") != null) {
+      return;
+    }
+    HTMLElement frame =
+        (HTMLElement) DomGlobal.document.createElement("wavy-focus-frame");
+    frame.setAttribute("hidden", "");
+    frame.setAttribute("aria-hidden", "true");
+    surface.appendChild(frame);
   }
 
   private void enhanceThreads(HTMLElement surface) {
@@ -700,6 +723,26 @@ public final class J2clReadSurfaceDomRenderer {
     } else if (collapsed && focusedBlip == null) {
       ensureSingleTabStop();
     }
+    // F-2 slice 2 (#1046, R-3.3): symmetric expand path. When the user
+    // expands a previously-collapsed thread that contained the focused
+    // blip, focus state is preserved (focusBlip stays pointed at the now-
+    // visible blip). The original collapse handler clears focus when the
+    // focused blip becomes hidden; on re-expand, the data-attribute
+    // already reflects the visible state, so no extra DOM mutation is
+    // needed — but we re-dispatch the focus-changed event so the
+    // <wavy-focus-frame> can recompute bounds (the blip's geometry
+    // changed when the thread re-opened).
+    if (!collapsed && focusedBlip != null && !isHiddenByCollapsedThread(focusedBlip)) {
+      dispatchFocusChanged(focusedBlip, "");
+    }
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("wave_chrome.thread_collapse.toggle")
+              .field("state", collapsed ? "collapsed" : "expanded")
+              .build());
+    } catch (Throwable ignored) {
+      // Telemetry is observational.
+    }
   }
 
   private void onBlipFocus(Event event) {
@@ -715,10 +758,14 @@ public final class J2clReadSurfaceDomRenderer {
       focusBlip((HTMLElement) event.currentTarget);
     }
     String key = keyEvent.key;
-    if ("ArrowDown".equals(key)) {
+    // F-2 slice 2 (#1046, R-3.2): j/k aliases for ArrowDown/ArrowUp.
+    // Documented as Wavy-specific aliases; intentionally NOT announced via
+    // aria-keyshortcuts to avoid screen-reader collisions with global
+    // shortcuts (g/G, [/] are deferred to slice 5).
+    if ("ArrowDown".equals(key) || "j".equals(key)) {
       focusByOffset(1);
       keyEvent.preventDefault();
-    } else if ("ArrowUp".equals(key)) {
+    } else if ("ArrowUp".equals(key) || "k".equals(key)) {
       focusByOffset(-1);
       keyEvent.preventDefault();
     } else if ("Home".equals(key)) {
@@ -861,6 +908,82 @@ public final class J2clReadSurfaceDomRenderer {
     focusedBlip.classList.add("j2cl-read-blip-focused");
     focusedBlip.setAttribute("aria-current", "true");
     focusedBlip.setAttribute("tabindex", "0");
+    dispatchFocusChanged(focusedBlip, "");
+  }
+
+  /**
+   * F-2 slice 2 (#1046, R-3.2): emit a {@code wavy-focus-changed}
+   * CustomEvent on the renderer host so the {@code <wavy-focus-frame>}
+   * Lit element (mounted as a child of the host) can paint the cyan ring
+   * around the focused blip. Bounds are in {@code host}-local coordinate
+   * space (the frame is positioned absolutely inside {@code host} which
+   * carries {@code position: relative} via {@code wavy-thread-collapse.css}).
+   */
+  private void dispatchFocusChanged(HTMLElement blip, String key) {
+    if (blip == null || host == null) {
+      return;
+    }
+    String blipId = blip.getAttribute("data-blip-id");
+    if (blipId == null) {
+      blipId = "";
+    }
+    DOMRect blipRect = blip.getBoundingClientRect();
+    DOMRect hostRect = host.getBoundingClientRect();
+    double top = blipRect.top - hostRect.top + host.scrollTop;
+    double left = blipRect.left - hostRect.left + host.scrollLeft;
+    JsPropertyMap<Object> bounds = JsPropertyMap.of();
+    bounds.set("top", Double.valueOf(top));
+    bounds.set("left", Double.valueOf(left));
+    bounds.set("width", Double.valueOf(blipRect.width));
+    bounds.set("height", Double.valueOf(blipRect.height));
+    JsPropertyMap<Object> detail = JsPropertyMap.of();
+    detail.set("blipId", blipId);
+    detail.set("bounds", bounds);
+    detail.set("key", key == null ? "" : key);
+    CustomEventInit<Object> init = CustomEventInit.create();
+    init.setBubbles(true);
+    init.setComposed(true);
+    init.setDetail(Js.cast(detail));
+    try {
+      CustomEvent<Object> evt = new CustomEvent<Object>("wavy-focus-changed", init);
+      host.dispatchEvent(evt);
+    } catch (Throwable ignored) {
+      // Event dispatch is observational; never let it break focus state.
+    }
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("wave_chrome.focus_frame.transition")
+              .field("key", key == null ? "" : key)
+              .field("blipId", blipId)
+              .build());
+    } catch (Throwable ignored) {
+      // Telemetry is observational.
+    }
+  }
+
+  /**
+   * F-2 slice 2 (#1046, R-3.7-chrome): writer that the
+   * {@code <wavy-depth-nav-bar>} reads via data-attributes. Slice 5
+   * wires the URL state reader that drives this trio.
+   */
+  public void setDepthFocus(
+      String currentDepthBlipId, String parentDepthBlipId, String parentAuthorName) {
+    if (host == null) {
+      return;
+    }
+    if (currentDepthBlipId == null || currentDepthBlipId.isEmpty()) {
+      host.removeAttribute("data-current-depth-blip-id");
+      host.removeAttribute("data-parent-depth-blip-id");
+      host.removeAttribute("data-parent-author-name");
+    } else {
+      host.setAttribute("data-current-depth-blip-id", currentDepthBlipId);
+      host.setAttribute(
+          "data-parent-depth-blip-id",
+          parentDepthBlipId == null ? "" : parentDepthBlipId);
+      host.setAttribute(
+          "data-parent-author-name",
+          parentAuthorName == null ? "" : parentAuthorName);
+    }
   }
 
   private void clearFocusedBlip() {

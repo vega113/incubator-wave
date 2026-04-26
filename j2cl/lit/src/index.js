@@ -36,6 +36,14 @@ import "./design/wavy-pulse-stage.js";
 // design recipes. The renderer mounts <wave-blip> per blip.
 import "./elements/wave-blip-toolbar.js";
 import "./elements/wave-blip.js";
+// F-2 slice 2 (#1046): wave chrome — focus frame, wave nav row,
+// depth nav bar. Mounted by J2clSelectedWaveView around the read
+// surface; the focus frame is mounted by J2clReadSurfaceDomRenderer
+// inside its host so the bounds-measurement and positioning ancestor
+// converge on the same node.
+import "./elements/wavy-focus-frame.js";
+import "./elements/wavy-wave-nav-row.js";
+import "./elements/wavy-depth-nav-bar.js";
 
 window.__litShellInput =
   window.__bootstrap && typeof window.__bootstrap === "object"

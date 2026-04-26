@@ -1,0 +1,37 @@
+/* Wavy — F-2 (#1037, R-3.3; slice 2 #1046) thread collapse motion + the
+ * .j2cl-read-surface positioning context for the focus frame.
+ *
+ * Loaded as a sibling stylesheet (NOT bundled into shell.css) by both
+ * J2CL root shell paths via HtmlRenderer. The class names match what
+ * J2clReadSurfaceDomRenderer writes via enhanceSurface / enhanceThreads.
+ */
+
+/* The renderer's host element. Provides the positioning context for the
+ * <wavy-focus-frame> overlay. T4 and T5 specs converge on this node. */
+.j2cl-read-surface {
+  position: relative;
+}
+
+/* Inline reply threads animate height + opacity per F-0 token. Default
+ * max-height covers any plausible thread height; the collapsed state
+ * snaps to 0. */
+.j2cl-read-thread {
+  transition: max-height var(--wavy-motion-collapse-duration, 240ms)
+      var(--wavy-easing-collapse, cubic-bezier(0.4, 0, 0.2, 1)),
+    opacity var(--wavy-motion-collapse-duration, 240ms)
+      var(--wavy-easing-collapse, cubic-bezier(0.4, 0, 0.2, 1));
+  overflow: hidden;
+  max-height: 10000px;
+}
+
+.j2cl-read-thread-collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .j2cl-read-thread,
+  .j2cl-read-thread-collapsed {
+    transition: none;
+  }
+}
