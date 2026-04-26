@@ -117,7 +117,7 @@ describe("<wavy-wave-nav-row>", () => {
     {
       label: "E.10 Version History",
       action: "version-history",
-      ariaLabel: "Open version history (H)",
+      ariaLabel: "Open version history (h)",
       eventName: "wave-nav-version-history-requested"
     }
   ];
