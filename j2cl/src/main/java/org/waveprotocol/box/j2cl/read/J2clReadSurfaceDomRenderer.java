@@ -166,7 +166,16 @@ public final class J2clReadSurfaceDomRenderer {
         rootThread.appendChild(
             renderBlip(
                 new J2clReadBlip(
-                    entry.getBlipId(), entry.getText(), entry.getAttachments()),
+                    entry.getBlipId(),
+                    entry.getText(),
+                    entry.getAttachments(),
+                    entry.getAuthorId(),
+                    entry.getAuthorDisplayName(),
+                    entry.getLastModifiedTimeMillis(),
+                    entry.getParentBlipId(),
+                    entry.getThreadId(),
+                    entry.isUnread(),
+                    entry.hasMention()),
                 blipIndex++));
       } else {
         hasPlaceholder = true;
@@ -374,7 +383,7 @@ public final class J2clReadSurfaceDomRenderer {
 
   private static double currentTimeMs() {
     return DomGlobal.performance == null
-        ? 0
+        ? DomGlobal.Date.now()
         : DomGlobal.performance.timeOrigin + DomGlobal.performance.now();
   }
 

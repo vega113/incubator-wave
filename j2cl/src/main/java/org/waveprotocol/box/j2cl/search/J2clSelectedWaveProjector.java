@@ -423,8 +423,8 @@ public final class J2clSelectedWaveProjector {
               author,
               author,
               doc.getLastModifiedTime(),
-              /* parentBlipId= */ "",
-              /* threadId= */ "",
+              /* parentBlipId= */ blip.getParentBlipId(),
+              /* threadId= */ blip.getThreadId(),
               blip.isUnread(),
               documentHasMention(doc)));
     }

@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { ifDefined } from "lit/directives/if-defined.js";
 
 /**
  * <wave-blip> — F-2 (#1037, R-3.1) read-surface wrapper around the F-0
@@ -286,10 +287,14 @@ export class WaveBlip extends LitElement {
     if (typeof window === "undefined" || !window.location) {
       return "";
     }
-    const { origin, pathname } = window.location;
-    const wave = this.waveId ? encodeURIComponent(this.waveId) : "";
-    const blip = this.blipId ? encodeURIComponent(this.blipId) : "";
-    return `${origin}${pathname}?wave=${wave}&blip=${blip}`;
+    const url = new URL(window.location.href);
+    if (this.waveId) {
+      url.searchParams.set("wave", this.waveId);
+    } else {
+      url.searchParams.delete("wave");
+    }
+    url.searchParams.delete("blip");
+    return url.toString();
   }
 
   render() {
@@ -332,7 +337,7 @@ export class WaveBlip extends LitElement {
           <time
             class="posted"
             title=${tooltip}
-            datetime=${this.postedAtIso || ""}
+            datetime=${ifDefined(this.postedAtIso || undefined)}
           >
             ${this.postedAt}
           </time>
