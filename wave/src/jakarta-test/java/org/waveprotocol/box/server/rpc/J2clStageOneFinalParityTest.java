@@ -23,8 +23,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Assume;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import org.junit.Test;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
@@ -115,6 +118,8 @@ public final class J2clStageOneFinalParityTest {
 
   @Test
   public void everyOwnedGateRowHasAPassingAssertionClass() {
+    Set<Class<?>> suiteClasses = new HashSet<>(Arrays.asList(
+        AllParityTests.class.getAnnotation(Suite.SuiteClasses.class).value()));
     StringBuilder report = new StringBuilder();
     report.append("F-2 (umbrella #1037) per-row parity roll-up\n");
     report.append("===========================================\n");
@@ -128,6 +133,10 @@ public final class J2clStageOneFinalParityTest {
     for (Map.Entry<String, Class<?>> entry : ROW_OWNERS.entrySet()) {
       Class<?> owner = entry.getValue();
       assertNotNull("Row " + entry.getKey() + " has no declared owner class", owner);
+      assertTrue(
+          "Row " + entry.getKey() + " owner " + owner.getSimpleName()
+              + " must be listed in AllParityTests @Suite.SuiteClasses",
+          suiteClasses.contains(owner));
       // The owner class must declare at least one @Test method so we
       // know the row has at least one passing assertion exercised by
       // the suite chain above.
