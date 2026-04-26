@@ -1,0 +1,19 @@
+{
+  "releaseId": "2026-04-26-search-rail-and-help-modal",
+  "version": "PR #1049",
+  "date": "2026-04-26",
+  "title": "Search rail, search-help modal, and wavy header chrome on the J2CL root shell",
+  "summary": "Slice 3 of the F-2 StageOne read surface lights up the wavy left rail (search box, six saved-search folders, refresh, result count), the search-help modal documenting every supported filter and sort token, and the wavy header end-region (brand link, locale picker, notifications bell, mail icon, and user-menu trigger) on ?view=j2cl-root.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "Wavy left rail with search query box, waveform glyph, help trigger, New Wave shortcut, Manage saved searches, refresh, and result-count slot",
+        "Six saved-search folders (Inbox, Mentions, Tasks, Public, Archive, Pinned) with the canonical query strings; Inbox selected by default; Mentions violet unread dot and Tasks amber pending count",
+        "Per-digest result card with multi-author avatar stack (truncated at 3 + overflow chip), pinned indicator, title, 3-line snippet clamp, msg-count + signal-cyan unread pulse, and relative timestamp tooltip",
+        "Search-help modal advertising every filter (in:, with:, creator:, tag:, unread:, title:, content:, mentions:, tasks:) and sort (orderby:date / created / creator desc/asc) token, with combination examples and a Got-it dismiss",
+        "Wavy header chrome on the J2CL root shell: SupaWave brand link with cyan signal-dot, locale picker for the seven supported locales, notifications bell with violet unread dot, inbox/mail icon, and user-menu trigger (avatar + visible email)"
+      ]
+    }
+  ]
+}
