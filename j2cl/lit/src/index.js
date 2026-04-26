@@ -52,6 +52,15 @@ import "./elements/wavy-search-help.js";
 import "./elements/wavy-search-rail-card.js";
 import "./elements/wavy-search-rail.js";
 import "./elements/wavy-header.js";
+// F-2.S4 (#1048): floating + accessory controls + version-history
+// overlay + profile-overlay scaffolding. Imports listed alphabetically
+// so future slices can append without scanning.
+import "./elements/wavy-back-to-inbox.js";
+import "./elements/wavy-floating-scroll-to-new.js";
+import "./elements/wavy-nav-drawer-toggle.js";
+import "./elements/wavy-profile-overlay.js";
+import "./elements/wavy-version-history.js";
+import "./elements/wavy-wave-controls-toggle.js";
 
 window.__litShellInput =
   window.__bootstrap && typeof window.__bootstrap === "object"

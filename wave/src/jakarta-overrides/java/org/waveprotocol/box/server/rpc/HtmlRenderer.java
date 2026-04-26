@@ -3456,6 +3456,32 @@ public final class HtmlRenderer {
           .append(safeResolvedReturnTarget)
           .append("</span></shell-status-strip>\n");
       sb.append("</shell-root>\n");
+      // F-2.S4 (#1048): floating + overlay mount points. Each control
+      // host carries position:fixed in its own :host CSS so sibling
+      // placement after </shell-root> still anchors them inside the
+      // viewport (instead of landing below shell-root's min-height:100vh
+      // grid). data-j2cl-floating-mount lets the parity fixture count
+      // "all six present" with a single attribute.
+      //
+      // shell-nav-drawer placeholder: keeps the J.4 nav-toggle's
+      // aria-controls relationship resolvable. The actual drawer chrome
+      // ships in F-2.S5 (view-wiring slice); for now this is a hidden
+      // landing element so AT can resolve the relationship and the JS
+      // drawer wiring can target a stable id.
+      sb.append("<div id=\"shell-nav-drawer\" hidden role=\"navigation\" aria-label=\"Mobile navigation drawer\"></div>\n");
+      // J.5 — back-to-inbox uses the canonical inbox route (base path +
+      // ?view=j2cl-root) so it works for both root and sub-path deployments
+      // and doesn't self-link back to the current wave.
+      String safeJ2clRootInboxTarget =
+          StringEscapeUtils.escapeHtml4(resolvedBasePath + "?view=j2cl-root");
+      sb.append("<wavy-back-to-inbox data-j2cl-floating-mount=\"true\" href=\"")
+          .append(safeJ2clRootInboxTarget)
+          .append("\"></wavy-back-to-inbox>\n");
+      sb.append("<wavy-nav-drawer-toggle data-j2cl-floating-mount=\"true\" aria-controls=\"shell-nav-drawer\"></wavy-nav-drawer-toggle>\n");
+      sb.append("<wavy-wave-controls-toggle data-j2cl-floating-mount=\"true\"></wavy-wave-controls-toggle>\n");
+      sb.append("<wavy-floating-scroll-to-new data-j2cl-floating-mount=\"true\" hidden></wavy-floating-scroll-to-new>\n");
+      sb.append("<wavy-version-history data-j2cl-floating-mount=\"true\" hidden></wavy-version-history>\n");
+      sb.append("<wavy-profile-overlay data-j2cl-floating-mount=\"true\" hidden></wavy-profile-overlay>\n");
       sb.append("<script src=\"").append(safeResolvedBasePath).append("j2cl-search/sidecar/j2cl-sidecar.js\"></script>\n");
       appendJ2clRootShellBootstrap(sb, resolvedReturnTarget, resolvedBasePath, true);
     } else {
