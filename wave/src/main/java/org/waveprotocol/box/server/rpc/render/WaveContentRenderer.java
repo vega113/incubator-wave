@@ -208,7 +208,7 @@ public final class WaveContentRenderer {
     // so the renderer can mark the first focusable blip and short-list the
     // allowed root-thread blip ids in a single forward pass.
     ServerHtmlRenderer.WindowOptions windowOptions =
-        buildWindowOptions(rootConversation, initialWindowSize);
+        buildWindowOptions(rootConversation, initialWindowSize, budget);
 
     // Render the conversation tree using Phase 1 renderer.
     String conversationHtml;
@@ -307,14 +307,16 @@ public final class WaveContentRenderer {
    * exactly one focusable blip.
    */
   static ServerHtmlRenderer.WindowOptions buildWindowOptions(
-      Conversation conversation, int initialWindowSize) {
+      Conversation conversation, int initialWindowSize, RenderBudget budget) {
     if (conversation == null || conversation.getRootThread() == null) {
       return ServerHtmlRenderer.WindowOptions.none();
     }
     String firstRootBlipId = null;
     Set<String> allowed = new LinkedHashSet<String>();
     int taken = 0;
+    boolean clamps = false;
     for (ConversationBlip blip : conversation.getRootThread().getBlips()) {
+      checkBudget(budget);
       if (blip == null) {
         continue;
       }
@@ -325,6 +327,9 @@ public final class WaveContentRenderer {
         if (taken < initialWindowSize) {
           allowed.add(blip.getId());
           taken++;
+        } else {
+          clamps = true;
+          break;
         }
       }
     }
@@ -337,28 +342,12 @@ public final class WaveContentRenderer {
           null,
           rootThread);
     }
-    // Determine whether windowing actually clamps anything. If the conversation
-    // already fits inside the window we still render with the focus marker but
-    // suppress the placeholder so the AT announcement is honest.
-    boolean clamps = countRootBlips(conversation) > taken;
+    // clamps is set during the single pass above; no second scan needed.
     return new ServerHtmlRenderer.WindowOptions(
         firstRootBlipId,
         allowed,
         clamps ? VISIBLE_REGION_PLACEHOLDER_HTML : null,
         rootThread);
-  }
-
-  static int countRootBlips(Conversation conversation) {
-    int n = 0;
-    if (conversation == null || conversation.getRootThread() == null) {
-      return 0;
-    }
-    for (ConversationBlip blip : conversation.getRootThread().getBlips()) {
-      if (blip != null) {
-        n++;
-      }
-    }
-    return n;
   }
 
   // =========================================================================
