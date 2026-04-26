@@ -68,6 +68,15 @@ describe("<wavy-blip-card>", () => {
     }
   });
 
+  it("empty blip-extension slot without design preview collapses to zero height (no dashed outline)", async () => {
+    delete document.documentElement.dataset.wavyDesignPreview;
+    const el = await fixture(html`<wavy-blip-card></wavy-blip-card>`);
+    const wrapper = el.renderRoot.querySelector(".ext-slot-wrapper");
+    const cs = getComputedStyle(wrapper);
+    expect(cs.borderStyle).to.not.equal("dashed");
+    expect(parseInt(cs.height, 10)).to.equal(0);
+  });
+
   it("focused state applies the cyan focus ring border-color", async () => {
     const dark = await fixture(
       html`<div data-wavy-theme="dark">

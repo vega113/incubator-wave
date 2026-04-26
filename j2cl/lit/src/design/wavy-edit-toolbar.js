@@ -55,16 +55,9 @@ export class WavyEditToolbar extends LitElement {
     this._frameHandle = 0;
   }
 
-  /**
-   * Override property setter so writes to `activeSelection` are
-   * debounced to once per animation frame (~60 fps) before reflecting
-   * to the data attribute. F-3 may push selection updates faster than
-   * the DOM should churn.
-   */
-  attributeChangedCallback(name, old, val) {
-    super.attributeChangedCallback(name, old, val);
-    if (name === "active-selection") {
-      this._scheduleAttrFlush(val);
+  updated(changed) {
+    if (changed.has("activeSelection")) {
+      this._scheduleAttrFlush(this.activeSelection);
     }
   }
 
