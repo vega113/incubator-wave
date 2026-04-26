@@ -3469,10 +3469,11 @@ public final class HtmlRenderer {
       // landing element so AT can resolve the relationship and the JS
       // drawer wiring can target a stable id.
       sb.append("<div id=\"shell-nav-drawer\" hidden role=\"navigation\" aria-label=\"Mobile navigation drawer\"></div>\n");
-      // J.5 — back-to-inbox uses the canonical inbox route (without the
-      // current `wave=...` query) so clicking it actually navigates to
-      // the inbox view rather than self-linking back to the current wave.
-      String safeJ2clRootInboxTarget = StringEscapeUtils.escapeHtml4(J2CL_ROOT_RETURN_TARGET);
+      // J.5 — back-to-inbox uses the canonical inbox route (base path +
+      // ?view=j2cl-root) so it works for both root and sub-path deployments
+      // and doesn't self-link back to the current wave.
+      String safeJ2clRootInboxTarget =
+          StringEscapeUtils.escapeHtml4(resolvedBasePath + "?view=j2cl-root");
       sb.append("<wavy-back-to-inbox data-j2cl-floating-mount=\"true\" href=\"")
           .append(safeJ2clRootInboxTarget)
           .append("\"></wavy-back-to-inbox>\n");
