@@ -3456,6 +3456,18 @@ public final class HtmlRenderer {
           .append(safeResolvedReturnTarget)
           .append("</span></shell-status-strip>\n");
       sb.append("</shell-root>\n");
+      // F-2.S4 (#1048): floating + overlay mount points. Sit as siblings
+      // of <shell-root> so their position:fixed escapes the shell-root
+      // CSS Grid layout. data-j2cl-floating-mount lets the parity
+      // fixture count "all six present" with a single attribute.
+      sb.append("<wavy-back-to-inbox data-j2cl-floating-mount=\"true\" href=\"")
+          .append(safeResolvedReturnTarget)
+          .append("\"></wavy-back-to-inbox>\n");
+      sb.append("<wavy-nav-drawer-toggle data-j2cl-floating-mount=\"true\" aria-controls=\"shell-nav-drawer\"></wavy-nav-drawer-toggle>\n");
+      sb.append("<wavy-wave-controls-toggle data-j2cl-floating-mount=\"true\"></wavy-wave-controls-toggle>\n");
+      sb.append("<wavy-floating-scroll-to-new data-j2cl-floating-mount=\"true\" hidden></wavy-floating-scroll-to-new>\n");
+      sb.append("<wavy-version-history data-j2cl-floating-mount=\"true\" hidden></wavy-version-history>\n");
+      sb.append("<wavy-profile-overlay data-j2cl-floating-mount=\"true\" hidden></wavy-profile-overlay>\n");
       sb.append("<script src=\"").append(safeResolvedBasePath).append("j2cl-search/sidecar/j2cl-sidecar.js\"></script>\n");
       appendJ2clRootShellBootstrap(sb, resolvedReturnTarget, resolvedBasePath, true);
     } else {
