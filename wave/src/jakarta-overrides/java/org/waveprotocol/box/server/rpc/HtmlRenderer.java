@@ -4074,16 +4074,20 @@ public final class HtmlRenderer {
       sb.append(snapshotResult.getSnapshotHtml());
     }
     sb.append("</div>\n");
-    // F-2 slice 5 (#1055): the empty-state slot now hosts the wavy
-    // empty-state recipe (centered ghost waveform mark + headline) when
-    // no snapshot is rendered. The headline + class names round-trip
-    // through J2clRootShellIntegrationTest.
+    // F-2 slice 5 (#1055): the empty-state slot hosts the wavy recipe only
+    // for the true no-wave state; DENIED/RENDER_ERROR already render status
+    // copy above and should not also show the waveform illustration.
+    boolean showEmptyStateRecipe =
+        !hasSnapshot
+            && effectiveResult.getMode() == J2clSelectedWaveSnapshotRenderer.Mode.NO_WAVE;
     sb.append("              <div class=\"sidecar-empty-state\"");
-    if (hasSnapshot) {
+    if (!showEmptyStateRecipe) {
       sb.append(" hidden");
     }
     sb.append(">\n");
-    appendWavyEmptyStateRecipe(sb, title, detail);
+    if (showEmptyStateRecipe) {
+      appendWavyEmptyStateRecipe(sb, title, detail);
+    }
     sb.append("              </div>\n");
     sb.append("            </section>\n");
   }

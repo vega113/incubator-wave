@@ -775,9 +775,9 @@ public final class J2clReadSurfaceDomRenderer {
       focusByIndex(renderedBlips.size() - 1, key);
       keyEvent.preventDefault();
     } else if ("[".equals(key)) {
-      // Drill out one depth level (G.2). The depth-nav-bar listens for
-      // wavy-depth-up on the card and pushes the URL change.
-      dispatchDepthEvent("wavy-depth-up");
+      // Drill out one depth level (G.2). Include toBlipId from the host
+      // data attribute so the root shell can navigate to parent, not root.
+      dispatchDepthUpEvent();
       keyEvent.preventDefault();
     } else if ("]".equals(key)) {
       // Drill into the focused blip's subthread (G.1). Emits a custom
@@ -806,6 +806,39 @@ public final class J2clReadSurfaceDomRenderer {
       init.setBubbles(true);
       init.setComposed(true);
       target.dispatchEvent(new CustomEvent<Object>(eventName, init));
+    } catch (Throwable ignored) {
+      // Event dispatch is observational.
+    }
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("j2cl.depth.drill_in")
+              .field("direction", "out")
+              .field("source", "keyboard")
+              .build());
+    } catch (Throwable ignored) {
+      // Telemetry is observational.
+    }
+  }
+
+  /**
+   * Dispatches wavy-depth-up with detail.toBlipId read from the host's
+   * data-parent-depth-blip-id attribute so the root-shell handler can
+   * navigate up one level instead of collapsing all the way to root.
+   */
+  private void dispatchDepthUpEvent() {
+    HTMLElement target = renderedSurface != null ? renderedSurface : host;
+    if (target == null) {
+      return;
+    }
+    String parentId = host != null ? host.getAttribute("data-parent-depth-blip-id") : null;
+    try {
+      JsPropertyMap<Object> detail = JsPropertyMap.of();
+      detail.set("toBlipId", parentId != null ? parentId : "");
+      CustomEventInit<Object> init = CustomEventInit.create();
+      init.setBubbles(true);
+      init.setComposed(true);
+      init.setDetail(Js.cast(detail));
+      target.dispatchEvent(new CustomEvent<Object>("wavy-depth-up", init));
     } catch (Throwable ignored) {
       // Event dispatch is observational.
     }

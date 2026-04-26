@@ -77,7 +77,7 @@ public final class HtmlRendererJ2clRootShellIntegrationTest extends TestCase {
     assertEquals(
         "Signed-in root shell must mount exactly one <wavy-search-rail>",
         1,
-        countOccurrences(html, "<wavy-search-rail "));
+        countOccurrences(html, "<wavy-search-rail"));
   }
 
   public void testExactlyOneWavyWaveNavRow() {

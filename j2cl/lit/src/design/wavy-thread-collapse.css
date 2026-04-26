@@ -119,7 +119,6 @@ wavy-search-rail .waveform > svg {
   color: var(--wavy-signal-cyan, #22d3ee);
   font: var(--wavy-type-label, 0.75rem / 1.35 sans-serif);
   font-weight: 600;
-  cursor: pointer;
   box-shadow: var(--wavy-pulse-ring, 0 0 0 0 rgba(34, 211, 238, 0));
 }
 

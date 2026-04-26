@@ -20,7 +20,7 @@
       ]
     },
     {
-      "type": "deferral",
+      "type": "feature",
       "items": [
         "R-4.4 mark-blip-read Gateway extension is intentionally deferred from this slice. The IntersectionObserver-equivalent debounce wiring on J2clReadSurfaceDomRenderer + the supplement-op POST /j2cl/mark-blip-read endpoint will land in a follow-up so this slice can ship the user-visible duplicate-removal cleanup without growing past one merge window."
       ]

@@ -124,7 +124,10 @@ public final class J2clRootShellController {
                   selectedWaveController.onWaveSelected(waveId, digestItem);
                 }),
             "view=j2cl-root",
-            liveSurfaceController::onRouteUrlChanged);
+            url -> {
+              liveSurfaceController.onRouteUrlChanged(url);
+              rehydrateDepthFromRoute(selectedWaveViewRef[0], routeControllerRef[0]);
+            });
     routeControllerRef[0] = routeController;
     searchView.setSessionSummary("Mounted inside the J2CL root shell.");
     composeController.start();
