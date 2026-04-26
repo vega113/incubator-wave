@@ -93,17 +93,15 @@ public class TestingWaveletData {
     waveViewData = WaveViewDataImpl.create(waveId, ImmutableList.of(waveletData, userWaveletData));
   }
 
-  public void appendBlipWithText(String text) {
-    ConversationBlip blip = conversation.getRootThread().appendBlip();
-    LineContainers.appendToLastLine(blip.getContent(), XmlStringBuilder.createText(text));
-    TitleHelper.maybeFindAndSetImplicitTitle(blip.getContent());
-  }
-
   public ConversationBlip appendBlipWithTextAndReturn(String text) {
     ConversationBlip blip = conversation.getRootThread().appendBlip();
     LineContainers.appendToLastLine(blip.getContent(), XmlStringBuilder.createText(text));
     TitleHelper.maybeFindAndSetImplicitTitle(blip.getContent());
     return blip;
+  }
+
+  public void appendBlipWithText(String text) {
+    appendBlipWithTextAndReturn(text);
   }
 
   /**
