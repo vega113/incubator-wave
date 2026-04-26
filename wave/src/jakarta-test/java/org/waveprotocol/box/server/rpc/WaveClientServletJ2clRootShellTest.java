@@ -31,6 +31,8 @@ import com.typesafe.config.ConfigFactory;
 import java.util.Collections;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -290,18 +292,14 @@ public final class WaveClientServletJ2clRootShellTest {
     servlet.doGet(request, response);
 
     String html = body.toString();
-    assertTrue(html.contains("var __session = "));
+    Pattern inlineSession = Pattern.compile("var\\s+__session\\s*=\\s*(\\{.*?\\})\\s*;", Pattern.DOTALL);
+    Matcher matcher = inlineSession.matcher(html);
+    assertTrue(matcher.find());
+    String sessionJson = matcher.group(1);
+    assertTrue(new JSONObject(sessionJson).has(SessionConstants.ID_SEED));
     assertTrue(html.contains("\"address\":\"alice@example.com\""));
     assertTrue(html.contains("var __websocket_address = "));
     assertTrue(html.contains("\"127.0.0.1:9898\""));
-
-    int sessionStart = html.indexOf("var __session = ");
-    assertTrue(sessionStart >= 0);
-    int sessionEnd = html.indexOf('\n', sessionStart);
-    assertTrue(sessionEnd > sessionStart);
-    String inlineSession = html.substring(sessionStart, sessionEnd);
-    String sessionJson = inlineSession.substring("var __session = ".length(), inlineSession.length() - 1);
-    assertTrue(new JSONObject(sessionJson).has(SessionConstants.ID_SEED));
   }
 
   @Test
