@@ -64,10 +64,10 @@ const DAILY_RICH_EDIT_ACTIONS = [
   { id: "ordered-list", label: "Numbered list", group: "list", toggle: true },
   { id: "indent", label: "Indent", group: "indent", toggle: false },
   { id: "outdent", label: "Outdent", group: "indent", toggle: false },
-  { id: "align-left", label: "Align left", group: "align", toggle: true },
-  { id: "align-center", label: "Align center", group: "align", toggle: true },
-  { id: "align-right", label: "Align right", group: "align", toggle: true },
-  { id: "rtl", label: "Right-to-left", group: "align", toggle: true },
+  { id: "align-left", label: "Align left", group: "align", toggle: false },
+  { id: "align-center", label: "Align center", group: "align", toggle: false },
+  { id: "align-right", label: "Align right", group: "align", toggle: false },
+  { id: "rtl", label: "Right-to-left", group: "align", toggle: false },
   { id: "link", label: "Insert link", group: "link", toggle: false },
   { id: "unlink", label: "Remove link", group: "link", toggle: false },
   { id: "clear-formatting", label: "Clear formatting", group: "format", toggle: false }
@@ -138,25 +138,27 @@ export class WavyFormatToolbar extends LitElement {
   }
 
   _scheduleRepositionFromCachedRect() {
-    // The cached selectionDescriptor's boundingRect is in viewport
-    // coordinates, captured at the moment of the last selectionchange.
-    // On scroll / resize we re-read the live selection rect so the
-    // toolbar tracks the active range as the page scrolls.
-    const selection = typeof document !== "undefined" ? document.getSelection() : null;
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      if (rect.width > 0 || rect.height > 0) {
-        this.selectionDescriptor = {
-          ...(this.selectionDescriptor || {}),
-          collapsed: range.collapsed,
-          boundingRect: {
-            top: rect.top,
-            left: rect.left,
-            width: rect.width,
-            height: rect.height
-          }
-        };
+    // Only re-read the live selection when the toolbar is already visible.
+    // If it is hidden there is no active composer selection to track,
+    // and re-reading document.getSelection() here would anchor the toolbar
+    // to whatever happens to be selected elsewhere on the page.
+    if (!this.hidden) {
+      const selection = typeof document !== "undefined" ? document.getSelection() : null;
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (rect.width > 0 || rect.height > 0) {
+          this.selectionDescriptor = {
+            ...(this.selectionDescriptor || {}),
+            collapsed: range.collapsed,
+            boundingRect: {
+              top: rect.top,
+              left: rect.left,
+              width: rect.width,
+              height: rect.height
+            }
+          };
+        }
       }
     }
     this._scheduleReposition();

@@ -192,6 +192,7 @@ export class WavyComposer extends LitElement {
     this.commandError = "";
     this.keymapHint = "Shift+Enter to send, Esc to discard";
     this.saveIndicator = "";
+    this._pendingDraftSync = undefined;
     this._composerState = Object.freeze({});
     this._activeSelection = Object.freeze({});
     this._handleFocusRequest = () => this.focusComposer();
@@ -252,7 +253,7 @@ export class WavyComposer extends LitElement {
     // selection. Mutating the body while selection is inside it would
     // collapse the caret. The Java view sets `draft` via property; we
     // honour it here so initial draft and external resets work.
-    if (this._bodyElement.textContent !== this.draft && !this._bodyOwnsSelection()) {
+    if (this._serializeBodyText() !== this.draft && !this._bodyOwnsSelection()) {
       this._bodyElement.textContent = this.draft;
     }
     return this._bodyElement;
@@ -273,8 +274,31 @@ export class WavyComposer extends LitElement {
     return this.targetLabel ? `Reply to ${this.targetLabel}` : "Reply";
   }
 
+  _serializeBodyText() {
+    if (!this._bodyElement) return "";
+    // Walk immediate child nodes to capture newlines that contenteditable
+    // adds as <div> wrappers per-line (Enter key) or <br> nodes.
+    let text = "";
+    for (const node of this._bodyElement.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        text += node.textContent;
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = node.tagName.toLowerCase();
+        if (tag === "br") {
+          text += "\n";
+        } else if (tag === "div" || tag === "p") {
+          if (text.length > 0 && !text.endsWith("\n")) text += "\n";
+          text += node.textContent;
+        } else {
+          text += node.textContent;
+        }
+      }
+    }
+    return text;
+  }
+
   _onBodyInput() {
-    const value = this._bodyElement ? this._bodyElement.textContent : "";
+    const value = this._serializeBodyText();
     this.draft = value;
     this.dispatchEvent(
       new CustomEvent("draft-change", {
@@ -372,10 +396,19 @@ export class WavyComposer extends LitElement {
     );
   }
 
+  _flushPendingDraftSync() {
+    if (this._pendingDraftSync === undefined || !this._bodyElement) return;
+    if (this._serializeBodyText() !== this._pendingDraftSync) {
+      this._bodyElement.textContent = this._pendingDraftSync;
+    }
+    this._pendingDraftSync = undefined;
+  }
+
   _onSelectionChange() {
     if (!this._bodyElement) return;
     const selection = document.getSelection();
     if (!selection || selection.rangeCount === 0) {
+      this._flushPendingDraftSync();
       this.activeSelection = {};
       this._dispatchSelectionEvent({});
       return;
@@ -384,6 +417,7 @@ export class WavyComposer extends LitElement {
     if (!this._bodyElement.contains(range.startContainer)) {
       // Selection moved outside the composer; clear active selection so
       // the floating toolbar collapses.
+      this._flushPendingDraftSync();
       this.activeSelection = {};
       this._dispatchSelectionEvent({});
       return;
@@ -457,9 +491,15 @@ export class WavyComposer extends LitElement {
   }
 
   updated(changed) {
-    if (changed.has("draft") && this._bodyElement && !this._bodyOwnsSelection()) {
-      if (this._bodyElement.textContent !== this.draft) {
-        this._bodyElement.textContent = this.draft;
+    if (changed.has("draft") && this._bodyElement) {
+      if (!this._bodyOwnsSelection()) {
+        if (this._serializeBodyText() !== this.draft) {
+          this._bodyElement.textContent = this.draft;
+        }
+        this._pendingDraftSync = undefined;
+      } else {
+        // Defer the DOM write until selection leaves to avoid collapsing caret.
+        this._pendingDraftSync = this.draft;
       }
     }
     if (changed.has("mode") || changed.has("targetLabel")) {

@@ -175,6 +175,7 @@ describe("<wavy-composer>", () => {
     const afterAnchor = document.getSelection().anchorOffset;
     expect(getBody(el)).to.equal(body); // same node identity
     expect(afterAnchor).to.equal(beforeAnchor);
+    el.remove();
   });
 
   it("emits attachment-paste-image on pasted image clipboard items", async () => {
@@ -218,6 +219,7 @@ describe("<wavy-composer>", () => {
     el.dispatchEvent(new Event("composer-focus-request"));
     await new Promise((r) => requestAnimationFrame(r));
     expect(el.renderRoot.activeElement).to.equal(getBody(el));
+    el.remove();
   });
 
   it("renders the hint strip and save indicator", async () => {
@@ -271,6 +273,7 @@ describe("<wavy-composer>", () => {
     expect(event.detail).to.have.property("collapsed");
     expect(event.detail).to.have.property("startOffset");
     expect(event.detail).to.have.property("activeAnnotations");
+    el.remove();
   });
 
   it("emits collapsed selection descriptor when caret leaves the body", async () => {
@@ -294,5 +297,6 @@ describe("<wavy-composer>", () => {
     // Detail is empty when selection is outside the body.
     expect(detail.boundingRect).to.equal(undefined);
     outside.remove();
+    el.remove();
   });
 });

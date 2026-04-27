@@ -209,6 +209,12 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
         activeInlineComposerKey = null;
       }
     }
+    // Enforce single active inline composer. Close the previous active one
+    // (if it is for a different blip) before mounting a new one.
+    String priorKey = activeInlineComposerKey;
+    if (priorKey != null && !priorKey.isEmpty() && !priorKey.equals(key)) {
+      closeInlineComposer(priorKey);
+    }
     HTMLElement composer = (HTMLElement) DomGlobal.document.createElement("wavy-composer");
     composer.setAttribute("data-inline-composer", "true");
     composer.setAttribute("reply-target-blip-id", key);
@@ -275,6 +281,7 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
   }
 
   private void mirrorComposerState(HTMLElement composer, J2clComposeSurfaceModel model) {
+    setProperty(composer, "available", model.isReplyAvailable());
     setProperty(composer, "targetLabel", model.getReplyTargetLabel());
     setProperty(composer, "draft", model.getReplyDraft());
     setProperty(composer, "submitting", model.isReplySubmitting());

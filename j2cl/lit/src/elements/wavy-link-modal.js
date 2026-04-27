@@ -217,6 +217,15 @@ export class WavyLinkModal extends LitElement {
     `;
   }
 
+  updated(changed) {
+    if (changed.has("open") && this.open) {
+      this.updateComplete.then(() => {
+        const input = this.renderRoot?.querySelector("[data-link-modal-url]");
+        if (input) input.focus();
+      });
+    }
+  }
+
   firstUpdated() {
     this.addEventListener("click", this._onBackdropClick.bind(this));
   }

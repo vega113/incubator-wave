@@ -119,7 +119,7 @@ Each row below has an executable acceptance step that the per-row fixture in `J2
 
 ### R-5.4 Tasks — per-blip toggle, completion state
 
-**Affordances covered (3):** H.20 Insert task / checkbox, F.* implicit per-blip task affordance per the issue body's Edit-mode contract, C.13–C.15 search filters (display only — search panel shows them in the C.* search-help modal F-2.S3 already ships).
+**Affordances covered (3):** H.20 Insert task / checkbox, `F.*` implicit per-blip task affordance per the issue body's Edit-mode contract, C.13–C.15 search filters (display only — search panel shows them in the C.* search-help modal F-2.S3 already ships).
 
 **Acceptance steps:**
 
