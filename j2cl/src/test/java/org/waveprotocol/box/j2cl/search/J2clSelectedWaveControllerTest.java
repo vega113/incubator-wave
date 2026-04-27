@@ -1494,6 +1494,80 @@ public class J2clSelectedWaveControllerTest {
     Assert.assertTrue(harness.markBlipReadAttempts.isEmpty());
   }
 
+  /**
+   * F-4 (#1039 / R-4.4) review-fix: the in-flight de-dup must be keyed by the
+   * {@code (waveId, blipId)} pair, not the blipId alone. Two waves can
+   * legitimately share a blipId — without composite keying, a still-pending
+   * request from the previous wave would suppress a legitimate dispatch in
+   * the next selection.
+   */
+  @Test
+  public void onMarkBlipReadDoesNotCollideAcrossWavesWithSameBlipId() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello A");
+
+    Method onMarkBlipRead =
+        controller.getClass().getDeclaredMethod("onMarkBlipRead", String.class, Runnable.class);
+    onMarkBlipRead.invoke(controller, "b+shared", (Runnable) () -> {});
+    Assert.assertEquals(1, harness.markBlipReadAttempts.size());
+    // Do NOT resolve the first attempt; switch waves while it is still in flight.
+
+    harness.selectWave(controller, "example.com/w+2", null);
+    harness.resolveBootstrap(harness.bootstrapAttempts.size() - 1);
+    harness.deliverUpdate(harness.openAttempts.size() - 1, "Hello B");
+
+    onMarkBlipRead.invoke(controller, "b+shared", (Runnable) () -> {});
+
+    Assert.assertEquals(
+        "second wave's dispatch for the same blipId must not be suppressed by "
+            + "the previous wave's in-flight entry",
+        2,
+        harness.markBlipReadAttempts.size());
+    Assert.assertEquals(
+        "second dispatch must target the new wave",
+        "example.com/w+2",
+        harness.markBlipReadAttempts.get(1).waveId);
+  }
+
+  /**
+   * F-4 (#1039 / R-4.4) review-fix: the {@code skipped-in-flight} telemetry
+   * outcome must include {@code latency_ms} so downstream consumers see a
+   * uniform schema across success/error/skipped paths.
+   */
+  @Test
+  public void onMarkBlipReadSkippedInFlightEventCarriesLatencyField() throws Exception {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    Harness harness = new Harness(telemetry);
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello");
+
+    Method onMarkBlipRead =
+        controller.getClass().getDeclaredMethod("onMarkBlipRead", String.class, Runnable.class);
+    onMarkBlipRead.invoke(controller, "b+abc", (Runnable) () -> {});
+    onMarkBlipRead.invoke(controller, "b+abc", (Runnable) () -> {});
+
+    J2clClientTelemetry.Event skipped = null;
+    for (J2clClientTelemetry.Event event : telemetry.events()) {
+      if ("j2cl.read.mark_blip_read".equals(event.getName())
+          && "skipped-in-flight".equals(event.getFields().get("outcome"))) {
+        skipped = event;
+        break;
+      }
+    }
+    Assert.assertNotNull("expected a skipped-in-flight outcome event", skipped);
+    Assert.assertEquals(
+        "skipped-in-flight outcome must include latency_ms=0 for schema parity",
+        "0",
+        skipped.getFields().get("latency_ms"));
+  }
+
   private static final class Harness {
     private int openCount;
     private int closedCount;

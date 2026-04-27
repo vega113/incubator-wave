@@ -360,6 +360,7 @@ public final class J2clSelectedWaveController
     closeSubscription();
     resetFragmentFetchTracking();
     resetAttachmentMetadataFetchTracking();
+    resetMarkBlipReadTracking();
     reconnectCount = 0;
     // A refresh happens after the reply already committed on the server, so transient bootstrap or
     // open failures should recover like a reconnect instead of strand the panel on stale content.
@@ -398,6 +399,7 @@ public final class J2clSelectedWaveController
     resetReadStateFetchTracking();
     resetFragmentFetchTracking();
     resetAttachmentMetadataFetchTracking();
+    resetMarkBlipReadTracking();
 
     if (waveId == null || waveId.isEmpty()) {
       selectedWaveId = null;
@@ -1158,23 +1160,31 @@ public final class J2clSelectedWaveController
     if (blipId == null || blipId.isEmpty()) {
       return;
     }
-    if (!markBlipReadInFlight.add(blipId)) {
-      // Already in flight for this id; drop the duplicate.
+    final String waveIdAtDispatch = selectedWaveId;
+    // F-4 (#1039 / R-4.4): in-flight de-dup is keyed by the (waveId, blipId)
+    // pair, not blipId alone. Two waves can legitimately share a blipId; the
+    // 0x00 separator keeps composite keys unambiguous (waveIds cannot contain
+    // a NUL byte by construction).
+    final String inFlightKey = markBlipReadInFlightKey(waveIdAtDispatch, blipId);
+    final double startMs = currentTimeMs();
+    if (!markBlipReadInFlight.add(inFlightKey)) {
+      // Already in flight for this (waveId, blipId); drop the duplicate.
+      // latency_ms=0 keeps the schema aligned with the success/error
+      // outcomes so downstream consumers don't need a special case.
       emit(
           J2clClientTelemetry.event("j2cl.read.mark_blip_read")
               .field("outcome", "skipped-in-flight")
               .field("blipId", blipId)
+              .field("latency_ms", "0")
               .build());
       return;
     }
-    final String waveIdAtDispatch = selectedWaveId;
     final int generation = requestGeneration;
-    final double startMs = currentTimeMs();
     gateway.markBlipRead(
         waveIdAtDispatch,
         blipId,
         unreadCountAfter -> {
-          markBlipReadInFlight.remove(blipId);
+          markBlipReadInFlight.remove(inFlightKey);
           if (!isCurrentGeneration(generation)) {
             return;
           }
@@ -1196,7 +1206,7 @@ public final class J2clSelectedWaveController
                   .build());
         },
         error -> {
-          markBlipReadInFlight.remove(blipId);
+          markBlipReadInFlight.remove(inFlightKey);
           if (rendererOnError != null) {
             rendererOnError.run();
           }
@@ -1211,6 +1221,28 @@ public final class J2clSelectedWaveController
                   .field("latency_ms", Long.toString((long) (currentTimeMs() - startMs)))
                   .build());
         });
+  }
+
+  /**
+   * Composite in-flight key for {@link #markBlipReadInFlight}. The 0x00
+   * separator is safe because participant-derived waveIds never contain a NUL
+   * byte; using a printable separator like ":" would risk false collisions
+   * when a waveId itself contains the chosen separator.
+   */
+  private static String markBlipReadInFlightKey(String waveId, String blipId) {
+    return nullToEmpty(waveId) + ' ' + nullToEmpty(blipId);
+  }
+
+  /**
+   * F-4 (#1039 / R-4.4): drops any in-flight markBlipRead bookkeeping. Called
+   * whenever the selection changes so a still-pending request from the
+   * previous wave cannot suppress a legitimate dispatch in the next selection.
+   * The composite (waveId, blipId) key already prevents cross-wave collisions
+   * for the contains-check; clearing here keeps the set bounded across long
+   * sessions.
+   */
+  private void resetMarkBlipReadTracking() {
+    markBlipReadInFlight.clear();
   }
 
   private static double currentTimeMs() {
