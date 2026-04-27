@@ -477,17 +477,22 @@ public final class HtmlRendererJ2clRootShellIntegrationTest extends TestCase {
                     + "addEditActions\\s*\\(")
             .matcher(source)
             .find());
-    // Also verify no unconditional addEditActions call exists outside the guard.
-    String sourceWithoutEditableGuard =
-        source.replaceFirst(
-            "if\\s*\\(\\s*editState\\.editable\\s*\\)\\s*\\{[\\s\\S]*?addEditActions\\s*\\(\\s*actions\\s*\\)\\s*;[\\s\\S]*?\\}",
-            "");
-    assertFalse(
-        "J2clToolbarSurfaceController.render must not call addEditActions "
-            + "outside the editState.editable guard (see #1060)",
-        java.util.regex.Pattern.compile("addEditActions\\s*\\([^;]*\\)\\s*;")
-            .matcher(sourceWithoutEditableGuard)
-            .find());
+    // Also verify there is exactly one CALL to addEditActions in the
+    // file (the guarded one) — the only other occurrence should be the
+    // method declaration. If the guard is dropped and a second
+    // unconditional call is added, this count check fails.
+    java.util.regex.Matcher callMatcher =
+        java.util.regex.Pattern.compile("addEditActions\\s*\\(\\s*actions\\s*\\)\\s*;")
+            .matcher(source);
+    int callCount = 0;
+    while (callMatcher.find()) {
+      callCount++;
+    }
+    assertEquals(
+        "J2clToolbarSurfaceController must invoke addEditActions exactly "
+            + "once (inside the editState.editable guard — see #1060)",
+        1,
+        callCount);
   }
 
   public void testComposerInlineReplyCollapsesUntilAvailable() {
