@@ -501,7 +501,6 @@ public class AuthenticationServlet extends HttpServlet {
 
   private List<HtmlRenderer.SocialProviderLink> socialProviderLinks() {
     if (featureFlagService == null || socialAuthConfig == null
-        || isLoginPageDisabled
         || !featureFlagService.isGloballyEnabled(SocialAuthServlet.SOCIAL_AUTH_FLAG)) {
       return java.util.Collections.emptyList();
     }
@@ -512,6 +511,9 @@ public class AuthenticationServlet extends HttpServlet {
             provider.label(), "/auth/social/" + provider.id()));
       }
     }
+    // Warn once if flag is on but no provider is configured — runs before the
+    // isLoginPageDisabled gate so deployments that hide the login page still
+    // surface this misconfiguration in the logs.
     if (links.isEmpty() && socialAuthMisconfigurationLogged.compareAndSet(false, true)) {
       LOG.warning(
           "Feature flag '" + SocialAuthServlet.SOCIAL_AUTH_FLAG
@@ -520,7 +522,7 @@ public class AuthenticationServlet extends HttpServlet {
               + " 'core.social_auth.<provider>.client_secret' (e.g. provider='google') to surface"
               + " sign-in buttons.");
     }
-    return links;
+    return isLoginPageDisabled ? java.util.Collections.emptyList() : links;
   }
 
   private void rememberSocialReturnTarget(HttpServletRequest req) {

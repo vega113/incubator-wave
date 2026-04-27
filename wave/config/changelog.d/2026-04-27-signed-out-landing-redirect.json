@@ -1,6 +1,6 @@
 {
   "releaseId": "2026-04-27-signed-out-landing-redirect",
-  "version": "PR TBD",
+  "version": "PR #1067",
   "date": "2026-04-27",
   "title": "Sign-out routes through the public landing page; clearer social-auth misconfig log",
   "summary": "Signing out (or any signed-out hit on /) now lands on the marketing page instead of an empty Wave shell, and admins get a one-time log when the social-auth flag is on but no provider has both a client_id and a client_secret configured.",

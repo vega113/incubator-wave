@@ -103,6 +103,7 @@ public final class WaveClientServletJ2clBootstrapTest {
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
     when(request.getContextPath()).thenReturn("");
+    when(request.getRequestURI()).thenReturn("/");
     when(request.getSession(false)).thenReturn(null);
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(response.getWriter()).thenReturn(new PrintWriter(body));
@@ -124,6 +125,7 @@ public final class WaveClientServletJ2clBootstrapTest {
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
     when(request.getContextPath()).thenReturn("");
+    when(request.getRequestURI()).thenReturn("/");
     when(request.getSession(false)).thenReturn(null);
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(response.getWriter()).thenReturn(new PrintWriter(body));
