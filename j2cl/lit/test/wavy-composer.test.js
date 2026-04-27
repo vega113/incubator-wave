@@ -838,6 +838,32 @@ describe("<wavy-composer> R-5.3 mentions", () => {
       el.remove();
     });
 
+    // review-1077 Bug 3: mention chips nested inside an <a> must not
+    // be swallowed into the link's textContent.  Walking children
+    // recursively keeps the chip as its own annotated component while
+    // surrounding plain text inside the <a> is promoted to the link
+    // annotation.
+    it("preserves mention chip inside an <a>", async () => {
+      const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+      document.body.appendChild(el);
+      const body = getBody(el);
+      body.innerHTML =
+        '<a href="https://example.com">See '
+        + '<span class="wavy-mention-chip" data-mention-id="u3">@Carol</span>'
+        + ' here</a>';
+      const components = el.serializeRichComponents();
+      const annotated = components.filter(c => c.type === "annotated");
+      const mention = annotated.find(c => c.annotationValue === "u3");
+      expect(mention, "mention chip survives as its own component").to.exist;
+      expect(mention.annotationKey).to.equal("link/manual");
+      expect(mention.text).to.equal("@Carol");
+      const linkParts = annotated.filter(
+        c => c.annotationKey === "link/manual" && c.annotationValue === "https://example.com"
+      );
+      expect(linkParts.length, "surrounding link text emits link/manual parts").to.be.greaterThan(0);
+      el.remove();
+    });
+
     // F-3.S4 (#1038): a wavy-task-list <ul> is inserted by the toolbar
     // and represents an interactive list, not a bulleted list. It must
     // round-trip as plain text rather than as list/unordered annotated

@@ -3156,6 +3156,74 @@ public class J2clComposeSurfaceControllerTest {
                         && "empty".equals(e.getFields().get("outcome"))));
   }
 
+  // review-1077 Bug 8: drops blocked by the acceptance gates inside
+  // onAttachmentFilesSelected (signed-out / no-wave / reply-submitting)
+  // must report a dedicated rejected-* outcome rather than the
+  // optimistic `queued` outcome the controller previously emitted.
+  @Test
+  public void onDroppedFilesRecordsRejectedOutcomeWhenNoSelectedWave() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { },
+            telemetry);
+    controller.start();
+    // No openWaveForReply() — no selected wave for this drop.
+    java.util.List<J2clComposeSurfaceController.AttachmentFileSelection> selections =
+        java.util.Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection("p1", "doc.pdf"));
+    controller.onDroppedFiles(selections);
+    Assert.assertTrue(
+        "drop without an active wave must record rejected-no-wave (not queued)",
+        telemetry.events().stream()
+            .anyMatch(
+                e ->
+                    "compose.attachment_dropped".equals(e.getName())
+                        && "rejected-no-wave".equals(e.getFields().get("outcome"))));
+    Assert.assertFalse(
+        "blocked drop must NOT record outcome=queued",
+        telemetry.events().stream()
+            .anyMatch(
+                e ->
+                    "compose.attachment_dropped".equals(e.getName())
+                        && "queued".equals(e.getFields().get("outcome"))));
+  }
+
+  @Test
+  public void onDroppedFilesRecordsRejectedOutcomeWhenSignedOut() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { },
+            telemetry);
+    controller.start();
+    openWaveForReply(controller);
+    controller.onSignedOut();
+    java.util.List<J2clComposeSurfaceController.AttachmentFileSelection> selections =
+        java.util.Arrays.asList(
+            new J2clComposeSurfaceController.AttachmentFileSelection("p1", "doc.pdf"));
+    controller.onDroppedFiles(selections);
+    Assert.assertTrue(
+        "drop while signed out must record rejected-signed-out outcome",
+        telemetry.events().stream()
+            .anyMatch(
+                e ->
+                    "compose.attachment_dropped".equals(e.getName())
+                        && "rejected-signed-out".equals(e.getFields().get("outcome"))));
+  }
+
   // F-3.S4 (#1038, R-5.6 F.6): blip-delete gateway wiring. The
   // controller fetches the bootstrap, calls
   // DeltaFactory.createBlipDeleteRequest, and submits the result.
