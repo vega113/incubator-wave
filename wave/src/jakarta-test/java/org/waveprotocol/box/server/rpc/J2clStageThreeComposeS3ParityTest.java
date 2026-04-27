@@ -127,7 +127,6 @@ public final class J2clStageThreeComposeS3ParityTest {
     assertTrue(
         "J2clComposeSurfaceView must declare DEFAULT_REACTION_EMOJIS",
         view.contains("DEFAULT_REACTION_EMOJIS"));
-    String expected = "\"\\uD83D\\uDC4D\""; // 👍
     // Just check the emoji glyphs (UTF-8 encoded in the source file).
     assertTrue(
         "DEFAULT_REACTION_EMOJIS must include thumbs-up (👍)",

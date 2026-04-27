@@ -938,7 +938,9 @@ public final class J2clComposeSurfaceController {
               },
               error -> recordReactionToggleTelemetry(adding, "failure-submit"));
         },
-        error -> recordReactionToggleTelemetry(/* adding default */ true, "failure-bootstrap"));
+        // Bootstrap failure: direction is unknown — emit a neutral adding=false to avoid
+        // misrepresenting the intent in telemetry dashboards.
+        error -> recordReactionToggleTelemetry(false, "failure-bootstrap"));
   }
 
   private static boolean userHasReactedWithEmoji(

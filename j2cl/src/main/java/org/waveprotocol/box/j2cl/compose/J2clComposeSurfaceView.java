@@ -430,7 +430,8 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
    * `overlay-close` on Escape / outside-click.
    */
   private void openReactionPicker(String blipId) {
-    String key = blipId == null ? "" : blipId;
+    if (blipId == null || blipId.trim().isEmpty()) return;
+    String key = blipId;
     closeReactionPicker(null);
     HTMLElement picker =
         (HTMLElement) DomGlobal.document.createElement("reaction-picker-popover");

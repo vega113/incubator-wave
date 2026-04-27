@@ -123,14 +123,17 @@ public final class J2clInteractionBlipModel {
     if (currentUserAddress == null || currentUserAddress.trim().isEmpty()) {
       return reactionSummaries;
     }
-    String normalized = currentUserAddress.trim().toLowerCase();
+    String normalized = currentUserAddress.trim();
     List<J2clReactionSummary> rebuilt = new ArrayList<J2clReactionSummary>();
     for (J2clReactionSummary summary : reactionSummaries) {
       boolean active = false;
       for (String address : summary.getParticipantAddresses()) {
-        if (address != null && address.trim().toLowerCase().equals(normalized)) {
-          active = true;
-          break;
+        if (address != null) {
+          String normalizedAddress = address.trim();
+          if (normalizedAddress.equalsIgnoreCase(normalized)) {
+            active = true;
+            break;
+          }
         }
       }
       rebuilt.add(
