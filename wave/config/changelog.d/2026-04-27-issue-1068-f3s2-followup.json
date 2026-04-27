@@ -1,0 +1,17 @@
+{
+  "releaseId": "2026-04-27-issue-1068-f3s2-followup",
+  "version": "PR #1069",
+  "date": "2026-04-27",
+  "title": "F-3.S2 follow-up: stop dropping task writes on no-op session refresh; force popover re-render on submit",
+  "summary": "Plugs two bugs that landed in F-3.S2 (#1066) but were posted by the post-merge bot review after auto-merge fired: a same-wave session refresh used to silently drop the deferred task-toggle / metadata write, and the metadata popover stayed visually open after submitting unchanged fields.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "J2clComposeSurfaceController#onTaskToggled and #onTaskMetadataChanged now compare write sessions by selectedWaveId rather than by reference. A no-op session refresh on the same wave (tag set update, participant churn) replaces the J2clSidecarWriteSession instance with one that has the same wave id; the previous reference-equality guard treated this as a wave switch and silently discarded the user's write. The new logical-session check accepts the refreshed session, while signed-out and null-session guards still drop writes on real wave switches.",
+        "wavy-task-affordance#_onMetadataSubmit now calls requestUpdate() after closing the popover. _popoverOpen is internal state, not a Lit reactive property, so submitting the popover with unchanged assignee + due date used to skip the re-render that tears the inner <task-metadata-popover> down — leaving the dialog visually open until the next reactive change. The forced update mirrors how _openDetails and _onPopoverClose already behave.",
+        "Regression coverage: J2clComposeSurfaceControllerTest gains onTaskToggledSurvivesNoOpSessionRefresh, onTaskMetadataChangedSurvivesNoOpSessionRefresh, and onTaskToggledDropsWriteOnWaveSwitch (each defers bootstrap resolution, then either replays the same wave id or switches waves); wavy-task-affordance.test.js gains a case that opens the popover, submits with the existing assignee + due date, and asserts the dialog actually leaves the renderRoot."
+      ]
+    }
+  ]
+}
