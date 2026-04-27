@@ -208,34 +208,31 @@ describe("<wavy-search-rail>", () => {
 
   // F-4 (#1039 / R-4.7) — filter chip strip.
   describe("filter chip strip (F-4 / R-4.7)", () => {
-    it("renders three filter chips inside <details data-j2cl-filter-strip>", async () => {
+    it("renders one filter chip (unread:true) inside <details data-j2cl-filter-strip>", async () => {
       const el = await fixture(html`<wavy-search-rail></wavy-search-rail>`);
       await el.updateComplete;
       const strip = el.renderRoot.querySelector("details[data-j2cl-filter-strip]");
       expect(strip, "filter strip must mount").to.exist;
       const chips = Array.from(strip.querySelectorAll("button.filter-chip"));
-      expect(chips.map((c) => c.dataset.filterId)).to.deep.equal([
-        "unread",
-        "attachments",
-        "from-me"
-      ]);
+      expect(chips.map((c) => c.dataset.filterId)).to.deep.equal(["unread"]);
+      expect(chips[0].dataset.filterToken).to.equal("unread:true");
     });
 
-    it("clicking a chip composes the token into the query and emits submit", async () => {
+    it("clicking the unread chip composes unread:true into the query and emits submit", async () => {
       const el = await fixture(html`<wavy-search-rail></wavy-search-rail>`);
       await el.updateComplete;
       const strip = el.renderRoot.querySelector("details[data-j2cl-filter-strip]");
       const chip = strip.querySelector('[data-filter-id="unread"]');
       setTimeout(() => chip.click(), 0);
       const submit = await oneEvent(el, "wavy-search-submit");
-      expect(submit.detail.query).to.equal("in:inbox is:unread");
+      expect(submit.detail.query).to.equal("in:inbox unread:true");
       await el.updateComplete;
       expect(chip.getAttribute("aria-pressed")).to.equal("true");
     });
 
     it("toggling the chip off removes the token (case-insensitive)", async () => {
       const el = await fixture(
-        html`<wavy-search-rail query="IS:UNREAD foo"></wavy-search-rail>`
+        html`<wavy-search-rail query="UNREAD:TRUE foo"></wavy-search-rail>`
       );
       await el.updateComplete;
       const strip = el.renderRoot.querySelector("details[data-j2cl-filter-strip]");
@@ -251,11 +248,11 @@ describe("<wavy-search-rail>", () => {
       const el = await fixture(html`<wavy-search-rail></wavy-search-rail>`);
       await el.updateComplete;
       const strip = el.renderRoot.querySelector("details[data-j2cl-filter-strip]");
-      const chip = strip.querySelector('[data-filter-id="attachments"]');
+      const chip = strip.querySelector('[data-filter-id="unread"]');
       setTimeout(() => chip.click(), 0);
       const evt = await oneEvent(el, "wavy-search-filter-toggled");
-      expect(evt.detail.filterId).to.equal("attachments");
-      expect(evt.detail.token).to.equal("has:attachment");
+      expect(evt.detail.filterId).to.equal("unread");
+      expect(evt.detail.token).to.equal("unread:true");
       expect(evt.detail.active).to.equal(true);
     });
 
@@ -268,12 +265,12 @@ describe("<wavy-search-rail>", () => {
       const chip = strip.querySelector('[data-filter-id="unread"]');
       setTimeout(() => chip.click(), 0);
       const submit = await oneEvent(el, "wavy-search-submit");
-      expect(submit.detail.query).to.equal("from:bob in:inbox is:unread");
+      expect(submit.detail.query).to.equal("from:bob in:inbox unread:true");
     });
 
-    it("does not match substring tokens (is:unread does not collide with is:unread-foo)", async () => {
+    it("does not match substring tokens (unread:true does not collide with unread:true-foo)", async () => {
       const el = await fixture(
-        html`<wavy-search-rail query="is:unread-foo bar"></wavy-search-rail>`
+        html`<wavy-search-rail query="unread:true-foo bar"></wavy-search-rail>`
       );
       await el.updateComplete;
       const chip = el.renderRoot.querySelector('[data-filter-id="unread"]');

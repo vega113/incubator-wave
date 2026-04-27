@@ -60,9 +60,7 @@ export class WavySearchRail extends LitElement {
    * (see plan S2.1) preserves user-typed tokens and dedupes case-insensitively.
    */
   static FILTERS = [
-    { id: "unread", label: "Unread only", token: "is:unread" },
-    { id: "attachments", label: "With attachments", token: "has:attachment" },
-    { id: "from-me", label: "From me", token: "from:me" }
+    { id: "unread", label: "Unread only", token: "unread:true" }
   ];
 
   static styles = css`

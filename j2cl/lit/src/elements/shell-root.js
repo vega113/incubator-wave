@@ -71,6 +71,7 @@ export class ShellRoot extends LitElement {
     @media (max-width: 860px) {
       :host {
         grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto 1fr auto auto;
         grid-template-areas:
           "skip"
           "header"

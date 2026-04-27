@@ -2,7 +2,7 @@
 
 Date: 2026-04-27
 Branch: codex/issue-1039-live-read-state
-Worktree: /Users/vega/devroot/worktrees/issue-1039-live-read-state
+Worktree: <local worktree path>
 Subsumes: #1056 (markBlipRead Gateway extension deferred from F-2.S5)
 
 ## Decision: 2-slice PR

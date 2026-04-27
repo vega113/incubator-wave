@@ -3995,6 +3995,16 @@ public final class HtmlRenderer {
     sb.append("        <li><button type=\"button\" class=\"folder\" data-folder-id=\"archive\" data-query=\"in:archive\" aria-current=\"").append("archive".equals(activeFolder) ? "page" : "false").append("\"><span class=\"label\">Archive</span></button></li>\n");
     sb.append("        <li><button type=\"button\" class=\"folder\" data-folder-id=\"pinned\" data-query=\"in:pinned\" aria-current=\"").append("pinned".equals(activeFolder) ? "page" : "false").append("\"><span class=\"label\">Pinned</span></button></li>\n");
     sb.append("      </ul>\n");
+    // F-4 (#1039 / R-4.7): SSR filter chip strip. Mirrors WavySearchRail.FILTERS.
+    // aria-pressed is derived from the initial query so pre-upgrade state is correct.
+    boolean unreadActive = safeInitialQuery.toLowerCase().contains("unread:true");
+    sb.append("      <details class=\"filters\" data-j2cl-filter-strip>\n");
+    sb.append("        <summary>Filters</summary>\n");
+    sb.append("        <div class=\"filter-chips\" role=\"group\" aria-label=\"Search filters\">\n");
+    sb.append("          <button type=\"button\" class=\"filter-chip\" data-filter-id=\"unread\" data-filter-token=\"unread:true\" aria-pressed=\"")
+        .append(unreadActive ? "true" : "false").append("\">Unread only</button>\n");
+    sb.append("        </div>\n");
+    sb.append("      </details>\n");
     sb.append("      <p class=\"result-count\" aria-live=\"polite\"></p>\n");
     sb.append("    </wavy-search-rail>\n");
   }
