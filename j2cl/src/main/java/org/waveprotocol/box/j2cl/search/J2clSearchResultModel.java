@@ -79,20 +79,24 @@ public final class J2clSearchResultModel {
     if (waveId == null || waveId.isEmpty() || digestItems.isEmpty()) {
       return this;
     }
-    List<J2clSearchDigestItem> next = new ArrayList<J2clSearchDigestItem>(digestItems.size());
-    boolean changed = false;
-    for (J2clSearchDigestItem item : digestItems) {
+    List<J2clSearchDigestItem> next = null;
+    for (int i = 0; i < digestItems.size(); i++) {
+      J2clSearchDigestItem item = digestItems.get(i);
+      J2clSearchDigestItem result = item;
       if (waveId.equals(item.getWaveId())) {
-        J2clSearchDigestItem updated = item.withUnreadCount(newUnreadCount);
-        next.add(updated);
-        if (updated != item) {
-          changed = true;
+        result = item.withUnreadCount(newUnreadCount);
+      }
+      if (next != null) {
+        next.add(result);
+      } else if (result != item) {
+        next = new ArrayList<J2clSearchDigestItem>(digestItems.size());
+        for (int j = 0; j < i; j++) {
+          next.add(digestItems.get(j));
         }
-      } else {
-        next.add(item);
+        next.add(result);
       }
     }
-    if (!changed) {
+    if (next == null) {
       return this;
     }
     return new J2clSearchResultModel(next, waveCountText, showMoreVisible, emptyMessage);

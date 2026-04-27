@@ -204,10 +204,12 @@ public class MarkBlipReadHelper {
     } catch (RuntimeException e) {
       LOG.warning("mark-blip-read: failed to open conversational wavelet "
           + WaveletName.of(waveId, waveletId), e);
-      return Result.notFound();
+      return Result.internalError();
     }
     if (conv == null) {
-      return Result.notFound();
+      LOG.warning("mark-blip-read: conversational wavelet unavailable "
+          + WaveletName.of(waveId, waveletId));
+      return Result.internalError();
     }
 
     ObservableConversationView view = conversationUtil.buildConversation(conv);
