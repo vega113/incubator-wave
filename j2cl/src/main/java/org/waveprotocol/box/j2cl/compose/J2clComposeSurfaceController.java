@@ -53,6 +53,36 @@ public final class J2clComposeSurfaceController {
     void onAttachmentFilesSelected(List<AttachmentFileSelection> selections);
 
     void onPastedImage(Object imagePayload);
+
+    /**
+     * F-3.S2 (#1038, R-5.3): a participant was picked from the
+     * `<mention-suggestion-popover>` mounted by `<wavy-composer>`. The
+     * controller appends the chip to the active reply draft so the
+     * next submit carries the `link/manual` annotation. Default
+     * implementation is a no-op so existing test doubles continue to
+     * compile without changes.
+     */
+    default void onMentionPicked(String participantAddress, String displayName) {}
+
+    /**
+     * F-3.S2 (#1038, R-5.3): the user dismissed the mention popover
+     * with a non-empty query (typed `@al` then Esc). Recorded as a
+     * telemetry event; no model state change.
+     */
+    default void onMentionAbandoned() {}
+
+    /**
+     * F-3.S2 (#1038, R-5.4): the per-blip task affordance was clicked.
+     * The controller emits a stand-alone `task/done` toggle delta.
+     */
+    default void onTaskToggled(String blipId, boolean completed) {}
+
+    /**
+     * F-3.S2 (#1038, R-5.4 step 5): the task-metadata popover emitted
+     * a submit. The controller emits a stand-alone delta carrying
+     * `task/owner` + `task/due` annotations.
+     */
+    default void onTaskMetadataChanged(String blipId, String assigneeAddress, String dueDate) {}
   }
 
   @FunctionalInterface
@@ -74,6 +104,34 @@ public final class J2clComposeSurfaceController {
         J2clSidecarWriteSession session,
         String draftText,
         J2clComposerDocument document);
+
+    /**
+     * F-3.S2 (#1038, R-5.4): build a stand-alone toggle request for a
+     * single blip. The plain-text fallback factory throws
+     * UnsupportedOperationException because plain-text submissions
+     * have no concept of blip-level annotations; the rich-content
+     * factory (default in production) handles this via
+     * {@link J2clRichContentDeltaFactory#taskToggleRequest}.
+     */
+    default SidecarSubmitRequest createTaskToggleRequest(
+        String address, J2clSidecarWriteSession session, String blipId, boolean completed) {
+      throw new UnsupportedOperationException(
+          "Task toggle is only available with the rich-content delta factory.");
+    }
+
+    /**
+     * F-3.S2 (#1038, R-5.4 step 5): build a stand-alone metadata
+     * request for a single blip carrying `task/owner` + `task/due`.
+     */
+    default SidecarSubmitRequest createTaskMetadataRequest(
+        String address,
+        J2clSidecarWriteSession session,
+        String blipId,
+        String assigneeAddress,
+        String dueDate) {
+      throw new UnsupportedOperationException(
+          "Task metadata is only available with the rich-content delta factory.");
+    }
   }
 
   public interface AttachmentControllerFactory {
@@ -294,6 +352,28 @@ public final class J2clComposeSurfaceController {
           public void onPastedImage(Object imagePayload) {
             J2clComposeSurfaceController.this.onPastedImage(imagePayload);
           }
+
+          @Override
+          public void onMentionPicked(String participantAddress, String displayName) {
+            J2clComposeSurfaceController.this.onMentionPicked(participantAddress, displayName);
+          }
+
+          @Override
+          public void onMentionAbandoned() {
+            J2clComposeSurfaceController.this.onMentionAbandoned();
+          }
+
+          @Override
+          public void onTaskToggled(String blipId, boolean completed) {
+            J2clComposeSurfaceController.this.onTaskToggled(blipId, completed);
+          }
+
+          @Override
+          public void onTaskMetadataChanged(
+              String blipId, String assigneeAddress, String dueDate) {
+            J2clComposeSurfaceController.this.onTaskMetadataChanged(
+                blipId, assigneeAddress, dueDate);
+          }
         });
     render();
   }
@@ -494,6 +574,126 @@ public final class J2clComposeSurfaceController {
     }
     render();
     view.focusReplyComposer();
+  }
+
+  /**
+   * F-3.S2 (#1038, R-5.3): a mention candidate was picked from the
+   * suggestion popover. The chip representation is owned by the lit
+   * composer DOM (which already inserted the chip span). The
+   * controller records telemetry and lets the next reply submission
+   * carry the `link/manual` annotation through the lit-side rich
+   * serializer (`composer.serializeRichComponents`).
+   *
+   * <p>The simple S2 implementation does not snapshot the participant
+   * address into Java-owned state; the chip span carries it on the
+   * client and the next submit serializes it back. This keeps the
+   * Java state minimal and matches how attachments work today.
+   */
+  public void onMentionPicked(String participantAddress, String displayName) {
+    if (signedOut) return;
+    try {
+      telemetrySink.record(J2clClientTelemetry.event("compose.mention_picked").build());
+    } catch (Exception ignored) {
+      // Telemetry must never affect composer behavior.
+    }
+  }
+
+  /**
+   * F-3.S2 (#1038, R-5.3): the user dismissed the mention popover
+   * with a non-empty query. Records telemetry only.
+   */
+  public void onMentionAbandoned() {
+    if (signedOut) return;
+    try {
+      telemetrySink.record(J2clClientTelemetry.event("compose.mention_abandoned").build());
+    } catch (Exception ignored) {
+      // Telemetry must never affect composer behavior.
+    }
+  }
+
+  /**
+   * F-3.S2 (#1038, R-5.4): the per-blip task affordance was clicked.
+   * Emits a stand-alone toggle delta against the supplied blip
+   * without touching the active reply draft. Generation is tracked
+   * separately from `replyGeneration` so toggling a task on blip B
+   * cannot clobber an in-flight reply on blip A.
+   */
+  public void onTaskToggled(final String blipId, final boolean completed) {
+    if (signedOut) return;
+    if (blipId == null || blipId.trim().isEmpty()) return;
+    if (!hasSelectedWave(writeSession)) return;
+    final J2clSidecarWriteSession submitSession = writeSession;
+    final String trimmedBlipId = blipId.trim();
+    gateway.fetchRootSessionBootstrap(
+        bootstrap -> {
+          SidecarSubmitRequest request;
+          try {
+            request =
+                deltaFactory.createTaskToggleRequest(
+                    bootstrap.getAddress(), submitSession, trimmedBlipId, completed);
+          } catch (RuntimeException e) {
+            // Toggling a task is best-effort; log telemetry and return.
+            recordTaskToggleTelemetry(completed, "failure-build");
+            return;
+          }
+          gateway.submit(
+              bootstrap,
+              request,
+              response -> {
+                if (response != null && !response.getErrorMessage().isEmpty()) {
+                  recordTaskToggleTelemetry(completed, "failure-submit");
+                  return;
+                }
+                recordTaskToggleTelemetry(completed, "success");
+              },
+              error -> recordTaskToggleTelemetry(completed, "failure-submit"));
+        },
+        error -> recordTaskToggleTelemetry(completed, "failure-bootstrap"));
+  }
+
+  /**
+   * F-3.S2 (#1038, R-5.4 step 5): the task-metadata popover was
+   * submitted with a new owner + due date. Emits a stand-alone delta
+   * carrying both annotations.
+   */
+  public void onTaskMetadataChanged(
+      final String blipId, final String assigneeAddress, final String dueDate) {
+    if (signedOut) return;
+    if (blipId == null || blipId.trim().isEmpty()) return;
+    if (!hasSelectedWave(writeSession)) return;
+    final J2clSidecarWriteSession submitSession = writeSession;
+    final String trimmedBlipId = blipId.trim();
+    final String normalizedAssignee = assigneeAddress == null ? "" : assigneeAddress.trim();
+    final String normalizedDue = dueDate == null ? "" : dueDate.trim();
+    gateway.fetchRootSessionBootstrap(
+        bootstrap -> {
+          SidecarSubmitRequest request;
+          try {
+            request =
+                deltaFactory.createTaskMetadataRequest(
+                    bootstrap.getAddress(),
+                    submitSession,
+                    trimmedBlipId,
+                    normalizedAssignee,
+                    normalizedDue);
+          } catch (RuntimeException e) {
+            return;
+          }
+          gateway.submit(bootstrap, request, response -> {}, error -> {});
+        },
+        error -> {});
+  }
+
+  private void recordTaskToggleTelemetry(boolean completed, String outcome) {
+    try {
+      telemetrySink.record(
+          J2clClientTelemetry.event("compose.task_toggled")
+              .field("state", completed ? "completed" : "open")
+              .field("outcome", outcome)
+              .build());
+    } catch (Exception ignored) {
+      // Telemetry must never affect composer behavior.
+    }
   }
 
   public void onWriteSessionChanged(J2clSidecarWriteSession nextWriteSession) {
@@ -868,6 +1068,22 @@ public final class J2clComposeSurfaceController {
           String draftText,
           J2clComposerDocument document) {
         return factory.createReplyRequest(address, session, document);
+      }
+
+      @Override
+      public SidecarSubmitRequest createTaskToggleRequest(
+          String address, J2clSidecarWriteSession session, String blipId, boolean completed) {
+        return factory.taskToggleRequest(address, session, blipId, completed);
+      }
+
+      @Override
+      public SidecarSubmitRequest createTaskMetadataRequest(
+          String address,
+          J2clSidecarWriteSession session,
+          String blipId,
+          String assigneeAddress,
+          String dueDate) {
+        return factory.taskMetadataRequest(address, session, blipId, assigneeAddress, dueDate);
       }
     };
   }

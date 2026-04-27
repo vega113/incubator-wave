@@ -140,6 +140,39 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     DomGlobal.document.body.addEventListener(
         "wavy-composer-cancelled",
         event -> closeInlineComposer(eventDetailString(event, "replyTargetBlipId")));
+
+    // F-3.S2 (#1038): mention popover + per-blip task affordance events.
+    DomGlobal.document.body.addEventListener(
+        "wave-blip-task-toggled",
+        event -> {
+          if (listener == null) return;
+          String blipId = eventDetailString(event, "blipId");
+          boolean completed = eventDetailBoolean(event, "completed");
+          listener.onTaskToggled(blipId, completed);
+        });
+    DomGlobal.document.body.addEventListener(
+        "wave-blip-task-metadata-changed",
+        event -> {
+          if (listener == null) return;
+          String blipId = eventDetailString(event, "blipId");
+          String assignee = eventDetailString(event, "assigneeAddress");
+          String due = eventDetailString(event, "dueDate");
+          listener.onTaskMetadataChanged(blipId, assignee, due);
+        });
+    DomGlobal.document.body.addEventListener(
+        "wavy-composer-mention-picked",
+        event -> {
+          if (listener == null) return;
+          String address = eventDetailString(event, "address");
+          String displayName = eventDetailString(event, "displayName");
+          listener.onMentionPicked(address, displayName);
+        });
+    DomGlobal.document.body.addEventListener(
+        "wavy-composer-mention-abandoned",
+        event -> {
+          if (listener == null) return;
+          listener.onMentionAbandoned();
+        });
   }
 
   @Override
@@ -354,6 +387,17 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     }
     Object value = Js.asPropertyMap(detail).get(key);
     return value == null ? "" : String.valueOf(value);
+  }
+
+  private static boolean eventDetailBoolean(Event event, String key) {
+    Object detail = Js.asPropertyMap(event).get("detail");
+    if (detail == null) {
+      return false;
+    }
+    Object value = Js.asPropertyMap(detail).get(key);
+    if (value == null) return false;
+    if (value instanceof Boolean) return (Boolean) value;
+    return "true".equals(String.valueOf(value));
   }
 
   private static Object eventDetailProperty(Event event, String propertyName) {

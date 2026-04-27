@@ -59,6 +59,145 @@ public final class J2clRichContentDeltaFactory {
         new SidecarSubmitRequest(buildWaveletName(createdWaveId), deltaJson, null));
   }
 
+  /**
+   * F-3.S2 (#1038, R-5.3 step 4): sugar wrapper that appends a mention
+   * chip annotation to the supplied builder. Encodes a `link/manual`
+   * annotated-text component whose value is the participant address
+   * and whose display text is `@displayName`.
+   *
+   * <p>Usage from the composer surface:
+   * <pre>
+   *   J2clComposerDocument.Builder b = J2clComposerDocument.builder();
+   *   factory.appendMentionInsert(b, "alice@example.com", "Alice Adams");
+   *   J2clComposerDocument doc = b.build();
+   * </pre>
+   *
+   * <p>Address normalisation: the wrapper applies {@link #normalizeAddress}
+   * (trim + lowercase) and validates the address shape via
+   * {@link #extractDomain} so the surface gets a single error path on
+   * malformed input rather than discovering the issue at submit time.
+   */
+  public J2clComposerDocument.Builder appendMentionInsert(
+      J2clComposerDocument.Builder builder, String participantAddress, String displayName) {
+    requirePresent(builder, "Missing composer document builder.");
+    String normalizedAddress = normalizeAddress(participantAddress);
+    extractDomain(normalizedAddress);
+    String label = displayName == null || displayName.trim().isEmpty()
+        ? normalizedAddress
+        : displayName.trim();
+    builder.annotatedText("link/manual", normalizedAddress, "@" + label);
+    return builder;
+  }
+
+  /**
+   * F-3.S2 (#1038, R-5.4 step 3): build a stand-alone toggle delta that
+   * sets the `task/done` annotation on the entire blip body. The op
+   * opens the annotation at offset 0 (with the new boolean value) and
+   * closes it at the end of the document so the supplement live-update
+   * on the GWT path mirrors the existing `task/done` writer shape.
+   *
+   * <p>The returned request is independent of any reply draft so a
+   * task toggle on blip B does not clobber an in-flight reply on
+   * blip A.
+   */
+  public SidecarSubmitRequest taskToggleRequest(
+      String address, J2clSidecarWriteSession session, String blipId, boolean completed) {
+    return buildBlipAnnotationRequest(
+        address,
+        session,
+        blipId,
+        new String[] {"task/done"},
+        new String[] {completed ? "true" : "false"});
+  }
+
+  /**
+   * F-3.S2 (#1038, R-5.4 step 5): build a stand-alone delta that
+   * writes the `task/owner` and `task/due` annotations on the blip.
+   * Either value may be empty, in which case the corresponding
+   * annotation key is closed without a value (the GWT reader treats
+   * an empty value as "unset").
+   */
+  public SidecarSubmitRequest taskMetadataRequest(
+      String address,
+      J2clSidecarWriteSession session,
+      String blipId,
+      String assigneeAddress,
+      String dueDate) {
+    String assignee = assigneeAddress == null ? "" : assigneeAddress.trim();
+    String due = dueDate == null ? "" : dueDate.trim();
+    return buildBlipAnnotationRequest(
+        address,
+        session,
+        blipId,
+        new String[] {"task/owner", "task/due"},
+        new String[] {assignee, due});
+  }
+
+  /**
+   * Shared helper that builds a delta whose ops set 1+ annotations on
+   * the entire body of the named blip. Used by both task-toggle and
+   * task-metadata writes; future S* slices can reuse the helper for
+   * other blip-level annotation flows (e.g. reactions, read-state)
+   * without re-deriving the annotation shape.
+   */
+  private SidecarSubmitRequest buildBlipAnnotationRequest(
+      String address,
+      J2clSidecarWriteSession session,
+      String blipId,
+      String[] keys,
+      String[] values) {
+    requirePresent(session, "Missing write session.");
+    if (keys == null || values == null || keys.length != values.length || keys.length == 0) {
+      throw new IllegalArgumentException("Mismatched annotation keys/values.");
+    }
+    String normalizedAddress = normalizeAddress(address);
+    extractDomain(normalizedAddress);
+    String selectedWaveId =
+        requireNonEmpty(session.getSelectedWaveId(), "Missing selected wave id.");
+    String historyHash =
+        requireNonEmpty(session.getHistoryHash(), "Missing write-session history hash.");
+    String channelId = requireNonEmpty(session.getChannelId(), "Missing write-session channel id.");
+    String documentId = requireNonEmpty(blipId, "Missing blip id.");
+    long baseVersion = session.getBaseVersion();
+    if (baseVersion < 0) {
+      throw new IllegalArgumentException("Invalid write-session base version.");
+    }
+    StringBuilder components = new StringBuilder();
+    components.append("{\"1\":{\"3\":[");
+    for (int i = 0; i < keys.length; i++) {
+      if (i > 0) components.append(",");
+      components
+          .append("{\"1\":\"")
+          .append(escapeJson(keys[i]))
+          .append("\",\"3\":\"")
+          .append(escapeJson(values[i]))
+          .append("\"}");
+    }
+    components.append("]}}");
+    appendComponentSeparator(components);
+    // No characters in between — the annotation brackets the empty
+    // body span. The supplement live-update interprets a no-text
+    // boundary as "apply this annotation to the whole body". Mirror
+    // the GWT supplement-writer shape here so the read-side parity
+    // assertion holds.
+    components.append("{\"1\":{\"2\":[");
+    for (int i = 0; i < keys.length; i++) {
+      if (i > 0) components.append(",");
+      components.append("\"").append(escapeJson(keys[i])).append("\"");
+    }
+    components.append("]}}");
+    StringBuilder operation = new StringBuilder(components.length() + documentId.length() + 32);
+    operation
+        .append("{\"3\":{\"1\":\"")
+        .append(escapeJson(documentId))
+        .append("\",\"2\":{\"1\":[")
+        .append(components)
+        .append("]}}}");
+    String deltaJson =
+        buildDeltaJson(baseVersion, historyHash, normalizedAddress, operation.toString());
+    return new SidecarSubmitRequest(buildWaveletName(selectedWaveId), deltaJson, channelId);
+  }
+
   public SidecarSubmitRequest createReplyRequest(
       String address, J2clSidecarWriteSession session, J2clComposerDocument document) {
     requirePresent(session, "Missing write session.");

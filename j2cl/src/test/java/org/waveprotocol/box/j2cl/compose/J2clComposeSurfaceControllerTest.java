@@ -2538,6 +2538,136 @@ public class J2clComposeSurfaceControllerTest {
         gateway, view, factory, created::add, refreshed::add);
   }
 
+  // F-3.S2 (#1038, R-5.3) — telemetry-only assertions for the mention
+  // pick / abandon paths. The controller does not change model state
+  // (chip lives on the lit composer DOM); it just records telemetry.
+  @Test
+  public void onMentionPickedRecordsTelemetry() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller = newControllerWithTelemetry(view, telemetry);
+    controller.start();
+    controller.onMentionPicked("alice@example.com", "Alice Adams");
+    Assert.assertTrue(
+        "compose.mention_picked event should be recorded",
+        telemetry.events().stream().anyMatch(e -> "compose.mention_picked".equals(e.getName())));
+  }
+
+  @Test
+  public void onMentionAbandonedRecordsTelemetry() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller = newControllerWithTelemetry(view, telemetry);
+    controller.start();
+    controller.onMentionAbandoned();
+    Assert.assertTrue(
+        "compose.mention_abandoned event should be recorded",
+        telemetry.events().stream().anyMatch(e -> "compose.mention_abandoned".equals(e.getName())));
+  }
+
+  // F-3.S2 (#1038, R-5.4 step 3) — task-toggle goes through the
+  // gateway and emits telemetry with state="completed" or "open".
+  @Test
+  public void onTaskToggledSubmitsDeltaAndRecordsTelemetry() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { },
+            telemetry);
+    controller.start();
+    openWaveForReply(controller);
+    int beforeSubmits = gateway.submitCalls;
+    controller.onTaskToggled("b+root", true);
+    Assert.assertEquals(beforeSubmits + 1, gateway.submitCalls);
+    Assert.assertTrue(
+        "compose.task_toggled (completed) event should be recorded",
+        telemetry.events().stream()
+            .anyMatch(
+                e ->
+                    "compose.task_toggled".equals(e.getName())
+                        && "completed".equals(e.getFields().get("state"))));
+  }
+
+  @Test
+  public void onTaskToggledOpenStateRecordsOpenTelemetry() {
+    RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { },
+            telemetry);
+    controller.start();
+    openWaveForReply(controller);
+    controller.onTaskToggled("b+root", false);
+    Assert.assertTrue(
+        "compose.task_toggled (open) event should be recorded",
+        telemetry.events().stream()
+            .anyMatch(
+                e ->
+                    "compose.task_toggled".equals(e.getName())
+                        && "open".equals(e.getFields().get("state"))));
+  }
+
+  @Test
+  public void onTaskToggledIgnoresEmptyBlipId() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+    controller.start();
+    openWaveForReply(controller);
+    int beforeFetches = gateway.fetchBootstrapCalls;
+    controller.onTaskToggled("", true);
+    controller.onTaskToggled(null, true);
+    Assert.assertEquals(beforeFetches, gateway.fetchBootstrapCalls);
+  }
+
+  @Test
+  public void onTaskToggledIgnoredWhenNoSelectedWave() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+    controller.start();
+    int beforeFetches = gateway.fetchBootstrapCalls;
+    controller.onTaskToggled("b+root", true);
+    Assert.assertEquals(beforeFetches, gateway.fetchBootstrapCalls);
+  }
+
+  @Test
+  public void onTaskMetadataChangedSubmitsDelta() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+    controller.start();
+    openWaveForReply(controller);
+    int beforeSubmits = gateway.submitCalls;
+    controller.onTaskMetadataChanged("b+root", "alice@example.com", "2026-05-15");
+    Assert.assertEquals(beforeSubmits + 1, gateway.submitCalls);
+  }
+
   private static J2clComposeSurfaceController newControllerWithTelemetry(
       FakeView view, J2clClientTelemetry.Sink telemetrySink) {
     return new J2clComposeSurfaceController(
