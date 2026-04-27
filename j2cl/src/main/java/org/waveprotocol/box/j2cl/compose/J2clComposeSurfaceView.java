@@ -1,5 +1,6 @@
 package org.waveprotocol.box.j2cl.compose;
 
+import elemental2.core.JsArray;
 import elemental2.dom.DomGlobal;
 import elemental2.dom.Event;
 import elemental2.dom.File;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import jsinterop.base.Js;
+import jsinterop.base.JsPropertyMap;
 
 /**
  * J2CL view that wires the compose-controller events to the lit
@@ -199,6 +201,7 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     setProperty(replyElement, "activeCommand", model.getActiveCommandId());
     setProperty(replyElement, "commandStatus", model.getCommandStatusText());
     setProperty(replyElement, "commandError", model.getCommandErrorText());
+    setProperty(replyElement, "participants", buildParticipantsArray(model.getParticipantAddresses()));
 
     // Mirror reply state only into the currently active inline composer.
     // The model carries a single reply/edit target and draft, so pushing
@@ -341,6 +344,7 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     setProperty(composer, "activeCommand", model.getActiveCommandId());
     setProperty(composer, "commandStatus", model.getCommandStatusText());
     setProperty(composer, "commandError", model.getCommandErrorText());
+    setProperty(composer, "participants", buildParticipantsArray(model.getParticipantAddresses()));
   }
 
   private void mirrorComposerStateFromReplyElement(HTMLElement composer) {
@@ -353,6 +357,17 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     setProperty(composer, "activeCommand", propertyString(replyElement, "activeCommand"));
     setProperty(composer, "commandStatus", propertyString(replyElement, "commandStatus"));
     setProperty(composer, "commandError", propertyString(replyElement, "commandError"));
+  }
+
+  private static JsArray<Object> buildParticipantsArray(List<String> addresses) {
+    JsArray<Object> arr = JsArray.of();
+    for (String address : addresses) {
+      JsPropertyMap<Object> entry = JsPropertyMap.of();
+      entry.set("address", address);
+      entry.set("displayName", address);
+      arr.push(entry);
+    }
+    return arr;
   }
 
   private static void setProperty(HTMLElement element, String name, Object value) {

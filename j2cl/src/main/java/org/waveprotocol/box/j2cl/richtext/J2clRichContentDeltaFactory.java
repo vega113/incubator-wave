@@ -113,9 +113,10 @@ public final class J2clRichContentDeltaFactory {
   /**
    * F-3.S2 (#1038, R-5.4 step 5): build a stand-alone delta that
    * writes the `task/owner` and `task/due` annotations on the blip.
-   * Either value may be empty, in which case the corresponding
-   * annotation key is closed without a value (the GWT reader treats
-   * an empty value as "unset").
+   * Either value may be empty, in which case the annotation start
+   * still serialises with an empty-string value field
+   * (`{"1":"task/owner","3":""}`) and the GWT reader treats the
+   * empty string as the "unset" sentinel.
    */
   public SidecarSubmitRequest taskMetadataRequest(
       String address,

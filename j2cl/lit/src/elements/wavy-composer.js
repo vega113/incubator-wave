@@ -472,21 +472,21 @@ export class WavyComposer extends LitElement {
   }
 
   /**
-   * F-3.S2 (#1038, R-5.3 step 4): rich component serializer used by
-   * the controller on submit. Walks the body's immediate children and
-   * emits an array of `{type, text, annotationKey, annotationValue}`
-   * records that the controller passes to
-   * J2clComposerDocument.builder. Mention chips become annotated
-   * components keyed by `link/manual` carrying the participant
-   * address as the value.
+   * F-3.S2 (#1038, R-5.3 step 4): rich component serializer used to
+   * inspect the body's mixed text / annotation content at submit
+   * time. Walks the body's immediate children and emits an array of
+   * `{type, text, annotationKey, annotationValue}` records. Mention
+   * chips become annotated components keyed by `link/manual`
+   * carrying the participant address as the value.
    *
-   * The output format is intentionally JS-only: the J2CL Java side
-   * does not consume it directly. Instead the Java view reads
-   * `composer.activeMentionInsertions` (see below) and routes to the
-   * controller's onMentionPicked listener; the controller itself
-   * builds the J2clComposerDocument server-side. This serializer is
-   * exposed for unit-test purposes and for any future plugin that
-   * needs to inspect the rich draft.
+   * The output format is intentionally JS-only. This file does not
+   * define the Java submit bridge for these records; the J2CL view
+   * receives `wavy-composer-mention-picked` CustomEvents and routes
+   * them to the controller's `onMentionPicked` listener, which
+   * snapshots each pick and assembles the J2clComposerDocument
+   * server-side at submit. This serializer is exposed for
+   * unit-test purposes and for any future plugin or host
+   * integration that needs to inspect the rich draft.
    */
   serializeRichComponents() {
     if (!this._bodyElement) return [];
@@ -614,8 +614,12 @@ export class WavyComposer extends LitElement {
       }
     }
     const query = textBefore.slice(atIndex + 1);
-    // Allow only word-character / hyphen / dot in the query — bail
-    // out if the user typed a space (commits the literal `@query`).
+    // The mention popover stays open for any non-whitespace
+    // continuation; the first whitespace character commits the
+    // literal `@query` text and dismisses the popover. Punctuation
+    // and Unicode letters / digits keep the popover open so locale-
+    // aware filtering (Cyrillic, CJK, Turkish dotted/dotless I, …)
+    // can match against the wave's participant set.
     if (/\s/.test(query)) {
       this._dismissMentionPopover("query-broken");
       return;

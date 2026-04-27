@@ -1,6 +1,7 @@
 package org.waveprotocol.box.j2cl.compose;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,10 +58,12 @@ public final class J2clComposeSurfaceController {
     /**
      * F-3.S2 (#1038, R-5.3): a participant was picked from the
      * `<mention-suggestion-popover>` mounted by `<wavy-composer>`. The
-     * controller appends the chip to the active reply draft so the
-     * next submit carries the `link/manual` annotation. Default
-     * implementation is a no-op so existing test doubles continue to
-     * compile without changes.
+     * controller snapshots the participant address + display name in
+     * `pendingMentions` so the next reply submit splits the plain
+     * draft at chip-text occurrences and emits `link/manual`
+     * annotated components carrying the participant address.
+     * Default implementation is a no-op so existing test doubles
+     * continue to compile without changes.
      */
     default void onMentionPicked(String participantAddress, String displayName) {}
 
@@ -996,7 +999,8 @@ public final class J2clComposeSurfaceController {
             replyErrorText,
             activeCommandId,
             commandStatusText,
-            commandErrorText));
+            commandErrorText,
+            replyAvailable ? writeSession.getParticipantIds() : Collections.emptyList()));
   }
 
   private J2clComposerDocument buildDocument(

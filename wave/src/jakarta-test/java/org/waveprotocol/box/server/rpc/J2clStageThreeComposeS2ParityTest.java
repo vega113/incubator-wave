@@ -18,9 +18,7 @@
  */
 package org.waveprotocol.box.server.rpc;
 
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.nio.file.Files;
