@@ -156,7 +156,13 @@ public class WaveClientServlet extends HttpServlet {
     boolean j2clRootBootstrapEnabled =
         featureFlagService.isEnabled("j2cl-root-bootstrap", id != null ? id.getAddress() : null);
 
-    if (VIEW_LANDING.equals(requestedView)) {
+    if (VIEW_LANDING.equals(requestedView)
+        || (id == null
+            && StringUtils.isEmpty(requestedView)
+            && StringUtils.isEmpty(request.getQueryString()))) {
+      // Signed-out visitors hitting "/" with no view/query land on the public
+      // marketing page rather than an empty Wave shell. Explicit ?view=landing
+      // continues to render the landing page for any user.
       response.setContentType("text/html");
       response.setCharacterEncoding("UTF-8");
       response.setStatus(HttpServletResponse.SC_OK);

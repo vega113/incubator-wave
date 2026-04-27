@@ -118,6 +118,8 @@ public class AuthenticationServlet extends HttpServlet {
   private final boolean emailConfirmationEnabled;
   private final FeatureFlagService featureFlagService;
   private final SocialAuthConfig socialAuthConfig;
+  private final java.util.concurrent.atomic.AtomicBoolean
+      socialAuthMisconfigurationLogged = new java.util.concurrent.atomic.AtomicBoolean(false);
 
   @Inject
   public AuthenticationServlet(AccountStore accountStore,
@@ -509,6 +511,14 @@ public class AuthenticationServlet extends HttpServlet {
         links.add(new HtmlRenderer.SocialProviderLink(
             provider.label(), "/auth/social/" + provider.id()));
       }
+    }
+    if (links.isEmpty() && socialAuthMisconfigurationLogged.compareAndSet(false, true)) {
+      LOG.warning(
+          "Feature flag '" + SocialAuthServlet.SOCIAL_AUTH_FLAG
+              + "' is enabled but no social provider has both a client_id and a client_secret"
+              + " configured. Set 'core.social_auth.<provider>.client_id' and"
+              + " 'core.social_auth.<provider>.client_secret' (e.g. provider='google') to surface"
+              + " sign-in buttons.");
     }
     return links;
   }

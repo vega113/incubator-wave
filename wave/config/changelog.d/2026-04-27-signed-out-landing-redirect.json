@@ -1,0 +1,22 @@
+{
+  "releaseId": "2026-04-27-signed-out-landing-redirect",
+  "version": "PR TBD",
+  "date": "2026-04-27",
+  "title": "Sign-out routes through the public landing page; clearer social-auth misconfig log",
+  "summary": "Signing out (or any signed-out hit on /) now lands on the marketing page instead of an empty Wave shell, and admins get a one-time log when the social-auth flag is on but no provider has both a client_id and a client_secret configured.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "WaveClientServlet now serves the public landing page for signed-out visitors hitting bare \"/\" (no view, no query string), regardless of the j2cl-root-bootstrap flag, so the marketing surface is the first thing a logged-out user sees.",
+        "SignOutServlet's no-redirect fallback now returns 302 \"/\" instead of a static \"Logged out.\" HTML page, so users who reach /auth/signout without an ?r= target also land on the public site instead of a blank page."
+      ]
+    },
+    {
+      "type": "feature",
+      "items": [
+        "AuthenticationServlet emits a one-time WARNING when the 'social-auth' feature flag is globally enabled but no provider has both core.social_auth.<provider>.client_id and core.social_auth.<provider>.client_secret set, surfacing the missing OAuth configuration that silently hides the social sign-in buttons."
+      ]
+    }
+  ]
+}
