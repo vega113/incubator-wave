@@ -312,6 +312,10 @@ public final class J2clComposeSurfaceController {
   // removes the user's <user/> element under the chosen emoji.
   private final Map<String, List<SidecarReactionEntry>> reactionSnapshotsByBlip =
       new HashMap<String, List<SidecarReactionEntry>>();
+  // Last successfully resolved user address from a gateway bootstrap.
+  // Used to derive the toggle direction on bootstrap-failure telemetry paths
+  // where bootstrap.getAddress() is unavailable.
+  private String lastKnownAddress = "";
   private J2clAttachmentComposerController.DisplaySize attachmentDisplaySize =
       J2clAttachmentComposerController.DisplaySize.MEDIUM;
 
@@ -533,8 +537,10 @@ public final class J2clComposeSurfaceController {
     resetAttachmentState();
     // F-3.S3 (#1038, R-5.5): drop cached reaction snapshots so a
     // post-sign-out toggle cannot project against the prior session's
-    // state.
+    // state. Clear the published user address so the view's aria-pressed
+    // state resets immediately on sign-out.
     reactionSnapshotsByBlip.clear();
+    notifyCurrentUserAddress("");
     createStatusText = "Sign in to create or reply in the J2CL root shell.";
     replyStatusText = createStatusText;
     render();
@@ -959,9 +965,11 @@ public final class J2clComposeSurfaceController {
               },
               error -> recordReactionToggleTelemetry(adding, "failure-submit"));
         },
-        // Bootstrap failure: direction is unknown — emit a neutral adding=false to avoid
-        // misrepresenting the intent in telemetry dashboards.
-        error -> recordReactionToggleTelemetry(false, "failure-bootstrap"));
+        // Bootstrap failure: derive direction from the last cached address so the telemetry
+        // reflects the user's actual intent rather than always emitting state="removed".
+        error -> recordReactionToggleTelemetry(
+            !userHasReactedWithEmoji(snapshot, lastKnownAddress, trimmedEmoji),
+            "failure-bootstrap"));
   }
 
   private static boolean userHasReactedWithEmoji(
@@ -995,9 +1003,11 @@ public final class J2clComposeSurfaceController {
   }
 
   private void notifyCurrentUserAddress(String address) {
+    String normalized = address == null ? "" : address;
+    lastKnownAddress = normalized;
     if (currentUserAddressListener == null) return;
     try {
-      currentUserAddressListener.onCurrentUserAddress(address == null ? "" : address);
+      currentUserAddressListener.onCurrentUserAddress(normalized);
     } catch (Throwable ignored) {
       // Listener errors must not affect compose behavior.
     }
