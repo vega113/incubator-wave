@@ -1053,7 +1053,7 @@ public final class J2clComposeSurfaceController {
     // includeMentions=false so a mention picked in a reply context can never
     // pollute a concurrent create-wave document that happens to contain the
     // same @DisplayName text.
-    boolean appendedMentions = includeMentions && appendMentionedComponents(builder, draftText);
+    boolean appendedMentions = includeMentions && appendMentionedComponents(builder, draftText, annotationKey, annotationValue);
     if (appendedMentions) {
       // No-op: mentions already populated the builder.
     } else if (annotationKey != null
@@ -1088,13 +1088,18 @@ public final class J2clComposeSurfaceController {
    * <p>Algorithm: sort pending mentions by their first occurrence
    * in {@code draftText} (document order) so that chips inserted
    * out of pick order are serialised correctly. Then walk in
-   * document order, emitting alternating plain-text runs and
-   * annotated chip spans. Mentions whose chip text is not found
-   * (e.g. the user deleted the chip via Backspace after picking)
-   * are silently skipped.
+   * document order, emitting alternating text runs and annotated
+   * chip spans. Non-mention text runs are emitted via
+   * {@link #appendTextRun}: when {@code annotationKey} and
+   * {@code annotationValue} are non-null they are wrapped in the
+   * active toolbar annotation so surrounding formatted text (e.g.
+   * bold, italic) is preserved alongside the mention chips.
+   * Mentions whose chip text is not found (e.g. the user deleted
+   * the chip via Backspace after picking) are silently skipped.
    */
   private boolean appendMentionedComponents(
-      J2clComposerDocument.Builder builder, String draftText) {
+      J2clComposerDocument.Builder builder, String draftText,
+      String annotationKey, String annotationValue) {
     if (pendingMentions.isEmpty()) return false;
     if (draftText == null || draftText.isEmpty()) return false;
     // Check whether ANY pending mention is still represented in the draft
@@ -1122,15 +1127,25 @@ public final class J2clComposeSurfaceController {
       int idx = draftText.indexOf(mention.chipText, cursor);
       if (idx < 0) continue;
       if (idx > cursor) {
-        builder.text(draftText.substring(cursor, idx));
+        appendTextRun(builder, draftText.substring(cursor, idx), annotationKey, annotationValue);
       }
       builder.annotatedText("link/manual", mention.address, mention.chipText);
       cursor = idx + mention.chipText.length();
     }
     if (cursor < draftText.length()) {
-      builder.text(draftText.substring(cursor));
+      appendTextRun(builder, draftText.substring(cursor), annotationKey, annotationValue);
     }
     return true;
+  }
+
+  private static void appendTextRun(
+      J2clComposerDocument.Builder builder, String text,
+      String annotationKey, String annotationValue) {
+    if (annotationKey != null && annotationValue != null) {
+      builder.annotatedText(annotationKey, annotationValue, text);
+    } else {
+      builder.text(text);
+    }
   }
 
   public static DeltaFactory richContentDeltaFactory(String sessionSeed) {
