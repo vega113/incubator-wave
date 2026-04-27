@@ -131,6 +131,10 @@ public final class J2clReadSurfaceDomRenderer {
     if (listener == null) {
       cancelAllDwellTimers();
       markBlipReadInFlight.clear();
+    } else {
+      // Re-enabling: arm dwell timers for any unread blips already in the
+      // viewport so callers don't need to trigger a scroll event first.
+      evaluateDwellTimers();
     }
     if (!scrollListenerBound) {
       host.addEventListener("scroll", this::onHostScroll);
@@ -226,6 +230,16 @@ public final class J2clReadSurfaceDomRenderer {
       return;
     }
     Runnable releaseGate = () -> markBlipReadInFlight.remove(blipId);
+    // Re-validate before firing: the blip may have been read, scrolled out of
+    // view, or removed while the dwell timer was pending.
+    HTMLElement blipEl = renderedBlipById(blipId);
+    if (blipEl == null
+        || !blipEl.hasAttribute("unread")
+        || isHiddenByCollapsedThread(blipEl)
+        || !isBlipInViewport(blipEl, host.getBoundingClientRect())) {
+      releaseGate.run();
+      return;
+    }
     try {
       markBlipReadListener.markBlipRead(blipId, releaseGate);
     } catch (Throwable t) {
