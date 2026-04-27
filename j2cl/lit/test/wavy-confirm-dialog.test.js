@@ -108,7 +108,11 @@ describe("<wavy-confirm-dialog>", () => {
     let resolved = false;
     const listener = () => { resolved = true; };
     document.body.addEventListener("wavy-confirm-resolved", listener);
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    // Dispatch from the cancel button so composedPath()[0] is the button
+    // itself — the same as what a real keyboard user generates.  Firing from
+    // document would trivially pass (no element with data-confirm-action=
+    // "confirm" in the path) without exercising the actual guard logic.
+    cancelBtn.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, composed: true }));
     await el.updateComplete;
     document.body.removeEventListener("wavy-confirm-resolved", listener);
     expect(resolved).to.equal(false);
