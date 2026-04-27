@@ -347,7 +347,13 @@ public final class J2clRichContentDeltaFactory {
     }
     int rootItemCount = reactionsRootItemCount(currentSnapshot);
     boolean isLastUser = matched.getAddresses().size() == 1;
-    boolean isLastReaction = currentSnapshot.size() == 1;
+    int reactionEntryCount = 0;
+    for (SidecarReactionEntry entry : currentSnapshot) {
+      if (entry != null) {
+        reactionEntryCount++;
+      }
+    }
+    boolean isLastReaction = reactionEntryCount == 1;
     if (isLastUser && isLastReaction) {
       // Last user of the only remaining reaction: delete the entire
       // <reactions> document (root open + reaction + user + 3 ends).

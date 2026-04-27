@@ -479,6 +479,9 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     List<String> addresses = Collections.<String>emptyList();
     if (listener != null) {
       List<SidecarReactionEntry> snapshot = listener.getReactionSnapshot(blipId);
+      if (snapshot == null) {
+        snapshot = Collections.<SidecarReactionEntry>emptyList();
+      }
       for (SidecarReactionEntry entry : snapshot) {
         if (entry != null && emoji.equals(entry.getEmoji()) && entry.getAddresses() != null) {
           addresses = entry.getAddresses();
