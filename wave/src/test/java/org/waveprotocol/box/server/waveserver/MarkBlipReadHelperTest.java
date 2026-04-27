@@ -25,11 +25,13 @@ import static org.mockito.Mockito.when;
 import com.google.wave.api.data.converter.EventDataConverterManager;
 
 import junit.framework.TestCase;
+import org.waveprotocol.box.server.robots.OperationContextImpl;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.WaveId;
 import org.waveprotocol.wave.model.id.WaveletId;
 import org.waveprotocol.wave.model.wave.ParticipantId;
+import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 
 /**
  * Unit tests for {@link MarkBlipReadHelper}. The deep supplement-op write path
@@ -106,6 +108,44 @@ public final class MarkBlipReadHelperTest extends TestCase {
 
     MarkBlipReadHelper.Result result = helper.markBlipRead(USER, WAVE_ID, CONV_ROOT, BLIP_ID);
     assertEquals(MarkBlipReadHelper.Outcome.INTERNAL_ERROR, result.getOutcome());
+  }
+
+  /**
+   * F-4 (#1039 / R-4.4) review-fix: a {@link RuntimeException} escaping
+   * {@link MarkBlipReadHelper#openWaveletViaContext} after the access probe
+   * has already succeeded must surface as {@link Outcome#INTERNAL_ERROR}, not
+   * {@link Outcome#NOT_FOUND}. The not-found / access-denied paths are
+   * already collapsed into {@code null} by {@code openWaveletViaContext}'s
+   * {@code InvalidRequestException} catch — anything reaching the
+   * {@code RuntimeException} catch is a genuine backend fault and must not
+   * be reported as a 404.
+   */
+  public void testMarkBlipReadReturnsInternalErrorWhenConvWaveletOpenRaises() {
+    when(readStateHelper.computeReadState(USER, WAVE_ID))
+        .thenReturn(SelectedWaveReadStateHelper.Result.found(/* unreadCount= */ 1));
+
+    WaveletProvider waveletProvider = mock(WaveletProvider.class);
+    EventDataConverterManager converterManager = mock(EventDataConverterManager.class);
+    ConversationUtil conversationUtil = mock(ConversationUtil.class);
+    MarkBlipReadHelper helperWithFailingOpen =
+        new MarkBlipReadHelper(
+            waveletProvider, converterManager, conversationUtil, readStateHelper) {
+          @Override
+          OpBasedWavelet openWaveletViaContext(
+              OperationContextImpl context,
+              WaveId waveId,
+              WaveletId waveletId,
+              ParticipantId user) {
+            // Mimic a backend fault — e.g. a NPE bubbling out of the
+            // wavelet provider — escaping through openWavelet.
+            throw new RuntimeException("simulated backend fault");
+          }
+        };
+
+    MarkBlipReadHelper.Result result =
+        helperWithFailingOpen.markBlipRead(USER, WAVE_ID, CONV_ROOT, BLIP_ID);
+    assertEquals(MarkBlipReadHelper.Outcome.INTERNAL_ERROR, result.getOutcome());
+    assertEquals(-1, result.getUnreadCountAfter());
   }
 
   public void testResultFactories() {

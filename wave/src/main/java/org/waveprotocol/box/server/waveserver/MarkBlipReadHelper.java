@@ -28,8 +28,8 @@ import com.google.wave.api.data.converter.EventDataConverterManager;
 import org.waveprotocol.box.server.robots.OperationContextImpl;
 import org.waveprotocol.box.server.robots.RobotWaveletData;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
-import org.waveprotocol.box.server.robots.util.LoggingRequestListener;
 import org.waveprotocol.box.server.robots.util.OperationUtil;
+import org.waveprotocol.box.server.waveserver.WaveletProvider.SubmitRequestListener;
 import org.waveprotocol.wave.model.conversation.Conversation;
 import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
@@ -42,6 +42,7 @@ import org.waveprotocol.wave.model.supplement.SupplementedWave;
 import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl;
 import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl.DefaultFollow;
 import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
+import org.waveprotocol.wave.model.version.HashedVersion;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import org.waveprotocol.wave.util.logging.Log;
@@ -79,9 +80,6 @@ import org.waveprotocol.wave.util.logging.Log;
 public class MarkBlipReadHelper {
 
   private static final Log LOG = Log.get(MarkBlipReadHelper.class);
-
-  private static final WaveletProvider.SubmitRequestListener LOGGING_REQUEST_LISTENER =
-      new LoggingRequestListener(LOG);
 
   /** Outcome of a {@link #markBlipRead} call. */
   public enum Outcome {
@@ -202,6 +200,12 @@ public class MarkBlipReadHelper {
     try {
       conv = openWaveletViaContext(context, waveId, waveletId, user);
     } catch (RuntimeException e) {
+      // openWaveletViaContext already collapses the not-found / access-denied
+      // path into a null return (via its catch of InvalidRequestException).
+      // Anything that escapes here is a genuine backend fault — mapping it
+      // to NOT_FOUND would hide a server-side error behind a false 404, so
+      // we surface it as INTERNAL_ERROR to match the helper's documented
+      // outcome contract (and to align with the udwId open path below).
       LOG.warning("mark-blip-read: failed to open conversational wavelet "
           + WaveletName.of(waveId, waveletId), e);
       return Result.internalError();
@@ -269,9 +273,64 @@ public class MarkBlipReadHelper {
       return Result.internalError();
     }
 
-    OperationUtil.submitDeltas(context, waveletProvider, LOGGING_REQUEST_LISTENER);
+    // We deliberately do NOT use the fire-and-forget LoggingRequestListener
+    // here. The servlet immediately reports the resulting outcome to the
+    // J2CL client (which decrements badges live based on it), so an OK
+    // response after a rejected submit would make the UI show a phantom
+    // decrement. The current WaveletProvider implementations
+    // (WaveServerImpl in particular) invoke SubmitRequestListener
+    // synchronously from within submitRequest(...), so capturing the
+    // outcome on the calling thread is sufficient — no waiting required.
+    CapturingRequestListener captured = new CapturingRequestListener();
+    OperationUtil.submitDeltas(context, waveletProvider, captured);
+
+    if (!captured.completed) {
+      // Defence-in-depth: every existing WaveletProvider in this codebase
+      // resolves submitRequest synchronously, but if a future provider
+      // implementation buffers the call we must not silently report OK
+      // for an unconfirmed write.
+      LOG.warning("mark-blip-read: submitDeltas returned without invoking the listener for "
+          + WaveletName.of(waveId, IdUtil.buildUserDataWaveletId(user)));
+      return Result.internalError();
+    }
+    if (captured.failureMessage != null) {
+      LOG.warning("mark-blip-read: UDW delta rejected for "
+          + WaveletName.of(waveId, IdUtil.buildUserDataWaveletId(user))
+          + " — " + captured.failureMessage);
+      return Result.internalError();
+    }
 
     return Result.ok(currentUnreadCount(user, waveId));
+  }
+
+  /**
+   * Synchronous {@link SubmitRequestListener} that captures the submit
+   * outcome on the calling thread so {@link #markBlipRead} can reject
+   * {@link Result#ok} when the provider returned a failure rather than
+   * throwing. The current {@link WaveletProvider} implementations in this
+   * server (e.g. {@code WaveServerImpl}) invoke the listener synchronously
+   * from {@code submitRequest(...)}; the {@link #completed} flag guards
+   * against a future provider that buffers the call.
+   */
+  private static final class CapturingRequestListener implements SubmitRequestListener {
+    boolean completed;
+    String failureMessage;
+
+    @Override
+    public void onSuccess(int operationsApplied, HashedVersion hashedVersionAfterApplication,
+        long applicationTimestamp) {
+      completed = true;
+      if (LOG.isFineLoggable()) {
+        LOG.fine("mark-blip-read: " + operationsApplied + " op(s) applied @"
+            + hashedVersionAfterApplication);
+      }
+    }
+
+    @Override
+    public void onFailure(String errorMessage) {
+      completed = true;
+      failureMessage = errorMessage == null ? "unknown" : errorMessage;
+    }
   }
 
   /**
