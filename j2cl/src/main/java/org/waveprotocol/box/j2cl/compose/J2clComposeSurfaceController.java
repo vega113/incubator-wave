@@ -84,7 +84,7 @@ public final class J2clComposeSurfaceController {
     /**
      * F-3.S2 (#1038, R-5.4 step 5): the task-metadata popover emitted
      * a submit. The controller emits a stand-alone delta carrying
-     * `task/owner` + `task/due` annotations.
+     * `task/assignee` + `task/dueTs` annotations.
      */
     default void onTaskMetadataChanged(String blipId, String assigneeAddress, String dueDate) {}
   }
@@ -125,7 +125,7 @@ public final class J2clComposeSurfaceController {
 
     /**
      * F-3.S2 (#1038, R-5.4 step 5): build a stand-alone metadata
-     * request for a single blip carrying `task/owner` + `task/due`.
+     * request for a single blip carrying `task/assignee` + `task/dueTs`.
      */
     default SidecarSubmitRequest createTaskMetadataRequest(
         String address,
