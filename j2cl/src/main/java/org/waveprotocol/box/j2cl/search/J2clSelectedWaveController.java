@@ -1154,10 +1154,16 @@ public final class J2clSelectedWaveController
    * we keep the in-flight set as defence-in-depth.
    */
   public void onMarkBlipRead(String blipId, Runnable rendererOnError) {
+    // The renderer adds the blip to its own in-flight gate before calling
+    // this method, so EVERY early-return path must release that gate via
+    // `rendererOnError` — otherwise the renderer keeps treating the blip
+    // as in-flight and never re-arms the dwell timer for it.
     if (selectedWaveId == null || selectedWaveId.isEmpty()) {
+      releaseRendererGate(rendererOnError);
       return;
     }
     if (blipId == null || blipId.isEmpty()) {
+      releaseRendererGate(rendererOnError);
       return;
     }
     final String waveIdAtDispatch = selectedWaveId;
@@ -1171,6 +1177,11 @@ public final class J2clSelectedWaveController
       // Already in flight for this (waveId, blipId); drop the duplicate.
       // latency_ms=0 keeps the schema aligned with the success/error
       // outcomes so downstream consumers don't need a special case.
+      // The renderer's gate is released so it can re-arm a dwell timer
+      // later — this controller-side de-dup means the original dispatch
+      // is already on its way; we do not want the renderer to lose its
+      // ability to retry if that original dispatch fails.
+      releaseRendererGate(rendererOnError);
       emit(
           J2clClientTelemetry.event("j2cl.read.mark_blip_read")
               .field("outcome", "skipped-in-flight")
@@ -1231,6 +1242,24 @@ public final class J2clSelectedWaveController
    */
   private static String markBlipReadInFlightKey(String waveId, String blipId) {
     return nullToEmpty(waveId) + ' ' + nullToEmpty(blipId);
+  }
+
+  /**
+   * Releases the renderer's per-blip in-flight gate (its
+   * {@code markBlipReadInFlight} entry) when {@link #onMarkBlipRead} bails
+   * before the gateway dispatch succeeds. Renderer hooks must not propagate
+   * out of this controller — the renderer is observational here, so we
+   * swallow any throw to keep the mark-read pipeline robust.
+   */
+  private static void releaseRendererGate(Runnable rendererOnError) {
+    if (rendererOnError == null) {
+      return;
+    }
+    try {
+      rendererOnError.run();
+    } catch (Throwable ignored) {
+      // Renderer hooks must not break the controller's mark-read pipeline.
+    }
   }
 
   /**

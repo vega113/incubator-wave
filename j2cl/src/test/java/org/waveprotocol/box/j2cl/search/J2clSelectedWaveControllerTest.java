@@ -1568,6 +1568,79 @@ public class J2clSelectedWaveControllerTest {
         skipped.getFields().get("latency_ms"));
   }
 
+  /**
+   * F-4 (#1039 / R-4.4) review-fix: when {@link #onMarkBlipRead} bails before
+   * the gateway dispatch (no wave selected, empty blipId, or skipped-as-
+   * already-in-flight), the renderer's per-blip in-flight gate must still be
+   * released — the renderer added the blip to its own
+   * {@code markBlipReadInFlight} set BEFORE invoking the controller, and
+   * skipping {@code rendererOnError} would leave that gate stuck so the
+   * dwell timer can never re-arm for that blip.
+   */
+  @Test
+  public void onMarkBlipReadReleasesRendererGateWhenNoWaveSelected() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    final boolean[] released = new boolean[] {false};
+    Method onMarkBlipRead =
+        controller.getClass().getDeclaredMethod("onMarkBlipRead", String.class, Runnable.class);
+    onMarkBlipRead.invoke(controller, "b+abc", (Runnable) () -> released[0] = true);
+
+    Assert.assertTrue(
+        "rendererOnError must run when no wave is selected so the renderer gate is released",
+        released[0]);
+    Assert.assertTrue(harness.markBlipReadAttempts.isEmpty());
+  }
+
+  @Test
+  public void onMarkBlipReadReleasesRendererGateForEmptyBlipId() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello");
+
+    final int[] releaseCount = new int[] {0};
+    Method onMarkBlipRead =
+        controller.getClass().getDeclaredMethod("onMarkBlipRead", String.class, Runnable.class);
+    onMarkBlipRead.invoke(controller, "", (Runnable) () -> releaseCount[0]++);
+    onMarkBlipRead.invoke(controller, (String) null, (Runnable) () -> releaseCount[0]++);
+
+    Assert.assertEquals(
+        "rendererOnError must run on every empty/null-blipId early return",
+        2,
+        releaseCount[0]);
+  }
+
+  @Test
+  public void onMarkBlipReadReleasesRendererGateOnSkippedInFlight() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello");
+
+    Method onMarkBlipRead =
+        controller.getClass().getDeclaredMethod("onMarkBlipRead", String.class, Runnable.class);
+    // First dispatch: succeeds at the gateway level, no skip — gate
+    // release happens in the success/error continuations, not in the
+    // synchronous early-return.
+    onMarkBlipRead.invoke(controller, "b+abc", (Runnable) () -> {});
+
+    // Second dispatch for the same (waveId, blipId) is the skipped-in-flight
+    // path. The renderer gate MUST still be released here, otherwise the
+    // renderer keeps treating the blip as in-flight forever.
+    final boolean[] released = new boolean[] {false};
+    onMarkBlipRead.invoke(controller, "b+abc", (Runnable) () -> released[0] = true);
+
+    Assert.assertTrue(
+        "skipped-in-flight early return must still release the renderer gate",
+        released[0]);
+  }
+
   private static final class Harness {
     private int openCount;
     private int closedCount;

@@ -257,6 +257,90 @@ public class J2clReadSurfaceDomRendererMarkReadTest {
         scheduler.scheduled.size() - 1 /* the previous fired entry */);
   }
 
+  /**
+   * F-4 (#1039 / R-4.4) review-fix: the dwell-timer callback runs 1500 ms
+   * after it was armed, but {@code clearTimeout} cannot prevent a callback
+   * that is already queued. {@link J2clReadSurfaceDomRenderer#fireDwellTimer}
+   * must therefore re-validate the blip's qualification right before
+   * dispatching the listener. If the surface has been re-rendered without
+   * the blip in the meantime, the listener must NOT fire.
+   */
+  @Test
+  public void dwellTimerRevalidatesBlipBeforeFiring() {
+    HTMLDivElement host = createHost();
+    installViewport(host, 200);
+    installBlipLayout();
+    FakeScheduler scheduler = new FakeScheduler();
+    RecordingListener listener = new RecordingListener();
+
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    renderer.setDwellTimerSchedulerForTesting(scheduler);
+    renderer.setMarkBlipReadListener(listener);
+
+    List<J2clReadBlip> blips = new ArrayList<J2clReadBlip>();
+    blips.add(unreadBlip("b+armed", "armed"));
+    renderer.render(blips, java.util.Collections.<String>emptyList());
+
+    Assert.assertEquals(1, scheduler.scheduled.size());
+    Object handle = scheduler.scheduled.get(0).handle;
+
+    // Replace the surface entirely; the previously-armed blip is no longer
+    // rendered. The dwell timer's callback is still queued — when it fires
+    // it must observe the missing blip and bail without invoking the
+    // listener.
+    List<J2clReadBlip> nextSet = new ArrayList<J2clReadBlip>();
+    nextSet.add(unreadBlip("b+other", "other"));
+    renderer.render(nextSet, java.util.Collections.<String>emptyList());
+
+    // The renderer cancels timers on rebuild, but to make the assertion
+    // robust against future scheduler-replacement strategies we still fire
+    // the original handle — the callback's revalidation must catch it.
+    scheduler.fire(handle);
+
+    Assert.assertTrue(
+        "listener must not fire for a blip that is no longer rendered",
+        !listener.fired.contains("b+armed"));
+  }
+
+  /**
+   * F-4 (#1039 / R-4.4) review-fix: re-installing a non-null mark-read
+   * listener (e.g. after a transient teardown) must arm dwell timers
+   * immediately for any unread blips already in the viewport — without
+   * waiting for the next scroll or DOM rebuild. Without this, a user who
+   * stays still after the listener is reattached would never get their
+   * read state credited.
+   */
+  @Test
+  public void reinstallingListenerImmediatelyArmsDwellTimersForVisibleUnread() {
+    HTMLDivElement host = createHost();
+    installViewport(host, 200);
+    installBlipLayout();
+    FakeScheduler scheduler = new FakeScheduler();
+
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    renderer.setDwellTimerSchedulerForTesting(scheduler);
+
+    // Render an unread blip BEFORE the listener is wired in — no timer
+    // should be armed yet because there is no listener to deliver to.
+    List<J2clReadBlip> blips = new ArrayList<J2clReadBlip>();
+    blips.add(unreadBlip("b+visible", "visible"));
+    renderer.render(blips, java.util.Collections.<String>emptyList());
+    Assert.assertTrue(
+        "no listener installed → no timer should be armed yet",
+        scheduler.scheduled.isEmpty());
+
+    // Now install the listener. The blip is already in the viewport, so
+    // the renderer must arm a dwell timer immediately rather than waiting
+    // for a scroll / re-render.
+    RecordingListener listener = new RecordingListener();
+    renderer.setMarkBlipReadListener(listener);
+
+    Assert.assertEquals(
+        "re-installing the listener must arm dwell timers for visible unread blips",
+        1,
+        scheduler.scheduled.size());
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers
 
