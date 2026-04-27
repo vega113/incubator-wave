@@ -11,9 +11,11 @@ import elemental2.dom.HTMLInputElement;
 import elemental2.dom.HTMLElement;
 import elemental2.dom.HTMLTextAreaElement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.waveprotocol.box.j2cl.transport.SidecarReactionEntry;
 import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
 
@@ -474,6 +476,16 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     if (blipId == null || blipId.isEmpty() || emoji == null || emoji.isEmpty()) {
       return;
     }
+    List<String> addresses = Collections.<String>emptyList();
+    if (listener != null) {
+      List<SidecarReactionEntry> snapshot = listener.getReactionSnapshot(blipId);
+      for (SidecarReactionEntry entry : snapshot) {
+        if (entry != null && emoji.equals(entry.getEmoji()) && entry.getAddresses() != null) {
+          addresses = entry.getAddresses();
+          break;
+        }
+      }
+    }
     HTMLElement popover =
         (HTMLElement) DomGlobal.document.createElement("reaction-authors-popover");
     popover.setAttribute("data-j2cl-reaction-authors", "true");
@@ -481,7 +493,7 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     popover.setAttribute("emoji", emoji);
     setProperty(popover, "emoji", emoji);
     setProperty(popover, "reactionLabel", emoji + " reactions");
-    setProperty(popover, "authors", JsArray.of());
+    setProperty(popover, "authors", buildParticipantsArray(addresses));
     setProperty(popover, "open", true);
     DomGlobal.document.body.appendChild(popover);
     activeReactionAuthorsPopover = popover;

@@ -107,6 +107,15 @@ public final class J2clComposeSurfaceController {
      * Default no-op so existing test doubles compile unchanged.
      */
     default void onReactionToggled(String blipId, String emoji) {}
+
+    /**
+     * F-3.S3 (#1038, R-5.5): returns the cached reaction snapshot for
+     * the given blip so the view can populate the authors popover.
+     * Default returns an empty list so existing test doubles compile.
+     */
+    default List<SidecarReactionEntry> getReactionSnapshot(String blipId) {
+      return Collections.<SidecarReactionEntry>emptyList();
+    }
   }
 
   @FunctionalInterface
@@ -491,6 +500,16 @@ public final class J2clComposeSurfaceController {
           @Override
           public void onReactionToggled(String blipId, String emoji) {
             J2clComposeSurfaceController.this.onReactionToggled(blipId, emoji);
+          }
+
+          @Override
+          public List<SidecarReactionEntry> getReactionSnapshot(String blipId) {
+            if (blipId == null || blipId.isEmpty()) {
+              return Collections.<SidecarReactionEntry>emptyList();
+            }
+            List<SidecarReactionEntry> s = reactionSnapshotsByBlip.get(blipId.trim());
+            return s != null ? new ArrayList<SidecarReactionEntry>(s)
+                : Collections.<SidecarReactionEntry>emptyList();
           }
         });
     render();

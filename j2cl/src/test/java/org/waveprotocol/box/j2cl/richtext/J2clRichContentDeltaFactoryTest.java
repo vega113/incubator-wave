@@ -612,10 +612,11 @@ public class J2clRichContentDeltaFactoryTest {
         "{\"5\":2}");
   }
 
-  // F-3.S3: toggle-off when the user was the only reactor under that
-  // emoji prunes the empty <reaction> wrapper too.
+  // F-3.S3: toggle-off when the user is the only reactor under the
+  // only remaining emoji deletes the entire <reactions> root so a
+  // subsequent add can re-insert the full envelope cleanly.
   @Test
-  public void reactionToggleRequestPrunesEmptyReactionWhenLastUser() {
+  public void reactionToggleRequestPrunesReactionsRootWhenLastReaction() {
     J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
     J2clSidecarWriteSession session =
         new J2clSidecarWriteSession("example.com/w+r", "chan-9", 12L, "HIST", "b+root");
@@ -626,17 +627,49 @@ public class J2clRichContentDeltaFactoryTest {
         factory.reactionToggleRequest(
             "alice@example.com", session, "b+root", "👍", snapshot, false);
     String deltaJson = request.getDeltaJson();
-    // root total = 2 + 4 = 6. offset to <reaction> start = 1 (after <reactions> open).
+    // All 6 items deleted (reactions open + reaction open + user open + 3 ends).
+    // No retains — the document becomes empty.
+    assertContains(
+        deltaJson,
+        "\"1\":\"react+b+root\"",
+        "\"7\":{\"1\":\"reactions\",\"2\":[]}",
+        "\"7\":{\"1\":\"reaction\",\"2\":[{\"1\":\"emoji\",\"2\":\"👍\"}]}",
+        "\"7\":{\"1\":\"user\",\"2\":[{\"1\":\"address\",\"2\":\"alice@example.com\"}]}");
+    Assert.assertFalse("No retains expected when pruning entire root", deltaJson.contains("{\"5\":"));
+    int deleteEndCount = countOccurrences(deltaJson, "{\"8\":true}");
+    Assert.assertEquals(
+        "Expected three delete-element-end ops (user, reaction, reactions).",
+        3,
+        deleteEndCount);
+  }
+
+  // F-3.S3: toggle-off when the user was the only reactor under that
+  // emoji, but other emoji reactions remain, prunes the <reaction>
+  // wrapper only — the surrounding <reactions> root is retained.
+  @Test
+  public void reactionToggleRequestPrunesEmptyReactionWhenLastUser() {
+    J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
+    J2clSidecarWriteSession session =
+        new J2clSidecarWriteSession("example.com/w+r", "chan-9", 12L, "HIST", "b+root");
+    List<SidecarReactionEntry> snapshot = new ArrayList<>();
+    snapshot.add(
+        new SidecarReactionEntry("👍", Arrays.asList("alice@example.com")));
+    snapshot.add(
+        new SidecarReactionEntry("❤️", Arrays.asList("bob@example.com")));
+    SidecarSubmitRequest request =
+        factory.reactionToggleRequest(
+            "alice@example.com", session, "b+root", "👍", snapshot, false);
+    String deltaJson = request.getDeltaJson();
+    // root total = 2 + 4 + 4 = 10. offset to <reaction emoji=👍> start = 1.
     // Delete 4 items (reaction start + user start + user end + reaction end).
-    // Trailing = 6 - 1 - 4 = 1 (the </reactions> end).
+    // Trailing = 10 - 1 - 4 = 5 (❤️ reaction + </reactions>).
     assertContains(
         deltaJson,
         "\"1\":\"react+b+root\"",
         "{\"5\":1}",
         "\"7\":{\"1\":\"reaction\",\"2\":[{\"1\":\"emoji\",\"2\":\"👍\"}]}",
         "\"7\":{\"1\":\"user\",\"2\":[{\"1\":\"address\",\"2\":\"alice@example.com\"}]}",
-        "{\"5\":1}");
-    // Two delete-element-end ops should follow each delete-start.
+        "{\"5\":5}");
     int deleteEndCount = countOccurrences(deltaJson, "{\"8\":true}");
     Assert.assertEquals(
         "Expected exactly two delete-element-end ops for the wrapper+user pair.",

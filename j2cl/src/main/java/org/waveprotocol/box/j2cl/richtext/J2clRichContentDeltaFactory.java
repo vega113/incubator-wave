@@ -347,9 +347,28 @@ public final class J2clRichContentDeltaFactory {
     }
     int rootItemCount = reactionsRootItemCount(currentSnapshot);
     boolean isLastUser = matched.getAddresses().size() == 1;
+    boolean isLastReaction = currentSnapshot.size() == 1;
+    if (isLastUser && isLastReaction) {
+      // Last user of the only remaining reaction: delete the entire
+      // <reactions> document (root open + reaction + user + 3 ends).
+      // No retains — the document becomes empty on the server.
+      appendDeleteElementStartNoAttrs(components, "reactions");
+      appendComponentSeparator(components);
+      appendDeleteElementStart(components, "reaction", "emoji", emoji);
+      appendComponentSeparator(components);
+      appendDeleteElementStart(components, "user", "address", normalizedAddress);
+      appendComponentSeparator(components);
+      appendDeleteElementEnd(components);
+      appendComponentSeparator(components);
+      appendDeleteElementEnd(components);
+      appendComponentSeparator(components);
+      appendDeleteElementEnd(components);
+      return;
+    }
     if (isLastUser) {
       // Delete the entire <reaction emoji=X></reaction> wrapper plus
-      // its single <user/> child. offset currently points at the
+      // its single <user/> child; other reactions remain so we retain
+      // the surrounding root items. offset currently points at the
       // <reaction> element start; the wrapper occupies 4 items
       // (reaction start + user start + user end + reaction end).
       if (offset > 0) {
@@ -404,6 +423,13 @@ public final class J2clRichContentDeltaFactory {
         .append("{\"3\":{\"1\":\"user\",\"2\":[{\"1\":\"address\",\"2\":\"")
         .append(escapeJson(address))
         .append("\"}]}}");
+  }
+
+  private static void appendDeleteElementStartNoAttrs(StringBuilder builder, String type) {
+    builder
+        .append("{\"7\":{\"1\":\"")
+        .append(escapeJson(type))
+        .append("\",\"2\":[]}}");
   }
 
   private static void appendDeleteElementStart(
