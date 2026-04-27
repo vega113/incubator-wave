@@ -893,7 +893,9 @@ public final class J2clComposeSurfaceController {
     }
     for (Map.Entry<String, List<SidecarReactionEntry>> entry : snapshotsByBlip.entrySet()) {
       String key = entry.getKey();
-      if (key == null || key.isEmpty()) continue;
+      if (key == null) continue;
+      key = key.trim();
+      if (key.isEmpty()) continue;
       List<SidecarReactionEntry> snapshot = entry.getValue();
       reactionSnapshotsByBlip.put(
           key,
