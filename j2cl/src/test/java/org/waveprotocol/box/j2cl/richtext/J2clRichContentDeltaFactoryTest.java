@@ -435,7 +435,7 @@ public class J2clRichContentDeltaFactoryTest {
   }
 
   // F-3.S2 (#1038, R-5.4 step 5): metadata request emits both
-  // task/owner and task/due annotations bracketing the blip body.
+  // task/assignee and task/dueTs annotations bracketing the blip body.
   @Test
   public void taskMetadataRequestEmitsOwnerAndDueAnnotations() {
     J2clRichContentDeltaFactory factory = new J2clRichContentDeltaFactory("seed");
@@ -448,9 +448,9 @@ public class J2clRichContentDeltaFactoryTest {
     assertContains(
         deltaJson,
         "\"1\":\"b+root\"",
-        "{\"1\":\"task/owner\",\"3\":\"alice@example.com\"}",
-        "{\"1\":\"task/due\",\"3\":\"2026-05-15\"}",
-        "{\"1\":{\"2\":[\"task/owner\",\"task/due\"]}}");
+        "{\"1\":\"task/assignee\",\"3\":\"alice@example.com\"}",
+        "{\"1\":\"task/dueTs\",\"3\":\"2026-05-15\"}",
+        "{\"1\":{\"2\":[\"task/assignee\",\"task/dueTs\"]}}");
   }
 
   @Test
@@ -463,8 +463,8 @@ public class J2clRichContentDeltaFactoryTest {
     String deltaJson = request.getDeltaJson();
     assertContains(
         deltaJson,
-        "{\"1\":\"task/owner\",\"3\":\"\"}",
-        "{\"1\":\"task/due\",\"3\":\"\"}");
+        "{\"1\":\"task/assignee\",\"3\":\"\"}",
+        "{\"1\":\"task/dueTs\",\"3\":\"\"}");
   }
 
   private static void assertContains(String value, String... fragments) {

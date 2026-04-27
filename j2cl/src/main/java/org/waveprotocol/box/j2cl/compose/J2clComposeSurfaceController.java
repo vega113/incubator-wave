@@ -653,9 +653,9 @@ public final class J2clComposeSurfaceController {
   /**
    * F-3.S2 (#1038, R-5.4): the per-blip task affordance was clicked.
    * Emits a stand-alone toggle delta against the supplied blip
-   * without touching the active reply draft. Generation is tracked
-   * separately from `replyGeneration` so toggling a task on blip B
-   * cannot clobber an in-flight reply on blip A.
+   * without touching the active reply draft. The bootstrap callback
+   * bails out if the user has signed out or switched waves since the
+   * click, preventing stale-session writes.
    */
   public void onTaskToggled(final String blipId, final boolean completed) {
     if (signedOut) return;
@@ -665,6 +665,9 @@ public final class J2clComposeSurfaceController {
     final String trimmedBlipId = blipId.trim();
     gateway.fetchRootSessionBootstrap(
         bootstrap -> {
+          if (signedOut || writeSession != submitSession) {
+            return;
+          }
           SidecarSubmitRequest request;
           try {
             request =
@@ -706,6 +709,9 @@ public final class J2clComposeSurfaceController {
     final String normalizedDue = dueDate == null ? "" : dueDate.trim();
     gateway.fetchRootSessionBootstrap(
         bootstrap -> {
+          if (signedOut || writeSession != submitSession) {
+            return;
+          }
           SidecarSubmitRequest request;
           try {
             request =
@@ -930,7 +936,7 @@ public final class J2clComposeSurfaceController {
                     bootstrap.getAddress(),
                     submitSession,
                     submittedDraft,
-                    buildDocument(submittedDraft, true, submittedAnnotationCommandId));
+                    buildDocument(submittedDraft, true, submittedAnnotationCommandId, true));
           } catch (RuntimeException e) {
             handleReplyFailure(generation, messageOrDefault(e, "Unable to build the reply request."));
             return;
@@ -1028,21 +1034,26 @@ public final class J2clComposeSurfaceController {
 
   private J2clComposerDocument buildDocument(
       String draftText, boolean includeAttachments, String submittedAnnotationCommandId) {
+    return buildDocument(draftText, includeAttachments, submittedAnnotationCommandId, false);
+  }
+
+  private J2clComposerDocument buildDocument(
+      String draftText,
+      boolean includeAttachments,
+      String submittedAnnotationCommandId,
+      boolean includeMentions) {
     J2clComposerDocument.Builder builder = J2clComposerDocument.builder();
     // Reply submits pass the snapshotted command id; create submits pass an empty id.
     J2clDailyToolbarAction action = J2clDailyToolbarAction.fromId(submittedAnnotationCommandId);
     String annotationKey = annotationKey(action);
     String annotationValue = annotationValue(action);
-    // F-3.S2 (#1038, R-5.3, PR #1066 review thread PRRT_kwDOBwxLXs592RVM):
-    // when mention picks are pending and their chip text occurs in the
-    // draft, split the draft into alternating text + `link/manual`
-    // annotated components. Mentions take precedence over the
-    // toolbar-formatting wrap because the chip span itself carries
-    // semantic identity; toolbar formatting that coexists with a
-    // mention falls back to the unformatted leading/trailing text on
-    // either side of the chip (S2 scope — nested annotations land
-    // alongside rich-content drafts in S4).
-    boolean appendedMentions = appendMentionedComponents(builder, draftText);
+    // F-3.S2 (#1038, R-5.3): when mention picks are pending and their chip text
+    // occurs in the draft, split into alternating text + `link/manual` components.
+    // Only reply submits carry mention annotations; create-wave submits pass
+    // includeMentions=false so a mention picked in a reply context can never
+    // pollute a concurrent create-wave document that happens to contain the
+    // same @DisplayName text.
+    boolean appendedMentions = includeMentions && appendMentionedComponents(builder, draftText);
     if (appendedMentions) {
       // No-op: mentions already populated the builder.
     } else if (annotationKey != null
