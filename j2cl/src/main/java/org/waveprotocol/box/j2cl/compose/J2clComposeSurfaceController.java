@@ -230,8 +230,36 @@ public final class J2clComposeSurfaceController {
   private J2clAttachmentComposerController attachmentController;
   private final List<J2clAttachmentComposerController.AttachmentInsertion> insertedAttachments =
       new ArrayList<J2clAttachmentComposerController.AttachmentInsertion>();
+  // F-3.S2 (#1038, R-5.3, PR #1066 review thread PRRT_kwDOBwxLXs592RVM):
+  // mention picks recorded between draft edits. Each pick becomes an
+  // annotated `link/manual` component on the next reply submit so the
+  // outgoing delta carries the participant address, not just plain
+  // `@DisplayName` text. Cleared on submit success, sign-out, and
+  // wave change (mirrors `insertedAttachments`).
+  private final List<PendingMention> pendingMentions = new ArrayList<PendingMention>();
   private J2clAttachmentComposerController.DisplaySize attachmentDisplaySize =
       J2clAttachmentComposerController.DisplaySize.MEDIUM;
+
+  /**
+   * F-3.S2 (#1038, R-5.3): a mention chip the user picked in the
+   * lit composer. The chip text is `@<displayName>` (or
+   * `@<address>` if the display name is blank); on submit the
+   * controller splits the plain reply draft at occurrences of this
+   * chip text and emits an annotated component keyed by `link/manual`
+   * carrying {@link #address} as the annotation value.
+   */
+  static final class PendingMention {
+    final String address;
+    final String displayName;
+    final String chipText;
+
+    PendingMention(String address, String displayName) {
+      this.address = address == null ? "" : address.trim();
+      String label = displayName == null ? "" : displayName.trim();
+      this.displayName = label.isEmpty() ? this.address : label;
+      this.chipText = "@" + this.displayName;
+    }
+  }
 
   public J2clComposeSurfaceController(
       Gateway gateway,
@@ -578,19 +606,26 @@ public final class J2clComposeSurfaceController {
 
   /**
    * F-3.S2 (#1038, R-5.3): a mention candidate was picked from the
-   * suggestion popover. The chip representation is owned by the lit
-   * composer DOM (which already inserted the chip span). The
-   * controller records telemetry and lets the next reply submission
-   * carry the `link/manual` annotation through the lit-side rich
-   * serializer (`composer.serializeRichComponents`).
+   * suggestion popover. The lit composer DOM already inserted the
+   * chip span; the controller snapshots the participant address +
+   * display name so the next reply submission carries a
+   * `link/manual` annotated component referencing the participant
+   * address (PR #1066 review thread PRRT_kwDOBwxLXs592RVM —
+   * mentions must round-trip through the model, not just emit
+   * literal `@DisplayName` text).
    *
-   * <p>The simple S2 implementation does not snapshot the participant
-   * address into Java-owned state; the chip span carries it on the
-   * client and the next submit serializes it back. This keeps the
-   * Java state minimal and matches how attachments work today.
+   * <p>Picks are kept in insertion order. {@link #buildDocument}
+   * walks the plain reply draft and matches each pending mention's
+   * chip text (`@<displayName>`) as the leftmost occurrence at-or-
+   * after the running offset; deletions of the chip on the lit side
+   * therefore self-heal because the missing chip text simply leaves
+   * the pending entry unmatched and dropped at submit time.
    */
   public void onMentionPicked(String participantAddress, String displayName) {
     if (signedOut) return;
+    if (participantAddress != null && !participantAddress.trim().isEmpty()) {
+      pendingMentions.add(new PendingMention(participantAddress, displayName));
+    }
     try {
       telemetrySink.record(J2clClientTelemetry.event("compose.mention_picked").build());
     } catch (Exception ignored) {
@@ -897,6 +932,10 @@ public final class J2clComposeSurfaceController {
     replySubmitting = false;
     replyDraft = "";
     insertedAttachments.clear();
+    // F-3.S2 (#1038, R-5.3, PR #1066 review thread PRRT_kwDOBwxLXs592RVM):
+    // a successful submit consumes pending mention picks; failures
+    // preserve the list so a retry submits the same chips.
+    pendingMentions.clear();
     // A sent reply closes the attachment batch; failures preserve size and attachments for retry.
     attachmentDisplaySize = J2clAttachmentComposerController.DisplaySize.MEDIUM;
     activeCommandId = "";
@@ -967,7 +1006,19 @@ public final class J2clComposeSurfaceController {
     J2clDailyToolbarAction action = J2clDailyToolbarAction.fromId(submittedAnnotationCommandId);
     String annotationKey = annotationKey(action);
     String annotationValue = annotationValue(action);
-    if (annotationKey != null
+    // F-3.S2 (#1038, R-5.3, PR #1066 review thread PRRT_kwDOBwxLXs592RVM):
+    // when mention picks are pending and their chip text occurs in the
+    // draft, split the draft into alternating text + `link/manual`
+    // annotated components. Mentions take precedence over the
+    // toolbar-formatting wrap because the chip span itself carries
+    // semantic identity; toolbar formatting that coexists with a
+    // mention falls back to the unformatted leading/trailing text on
+    // either side of the chip (S2 scope — nested annotations land
+    // alongside rich-content drafts in S4).
+    boolean appendedMentions = appendMentionedComponents(builder, draftText);
+    if (appendedMentions) {
+      // No-op: mentions already populated the builder.
+    } else if (annotationKey != null
         && annotationValue != null
         && draftText != null
         && !draftText.trim().isEmpty()) {
@@ -984,6 +1035,57 @@ public final class J2clComposeSurfaceController {
       }
     }
     return builder.build();
+  }
+
+  /**
+   * F-3.S2 (#1038, R-5.3): emit text + `link/manual` annotated
+   * components for each pending mention whose chip text still
+   * occurs in {@code draftText}. Returns true when at least one
+   * mention was appended (callers then skip the plain-text or
+   * toolbar-formatted fallback). Mentions consumed in this pass
+   * are not removed from {@link #pendingMentions}; the list is
+   * cleared on submit success / wave change / sign-out so a
+   * failed submit can retry with the same chip set.
+   *
+   * <p>Algorithm: walk through pending mentions in insertion
+   * order, searching for each chip text as the leftmost match
+   * at-or-after the running offset. Mentions whose chip text is
+   * not found (e.g. the user deleted the chip via Backspace
+   * after picking) are silently skipped, mirroring the lit
+   * composer's atomic chip-delete UX.
+   */
+  private boolean appendMentionedComponents(
+      J2clComposerDocument.Builder builder, String draftText) {
+    if (pendingMentions.isEmpty()) return false;
+    if (draftText == null || draftText.isEmpty()) return false;
+    // Probe whether ANY pending mention is still represented in the
+    // draft before mutating the builder; if none match (user deleted
+    // every chip), fall back to the legacy text/annotatedText path
+    // so existing tests keep their plain-text shape.
+    int probe = 0;
+    boolean anyMatch = false;
+    for (PendingMention mention : pendingMentions) {
+      int idx = draftText.indexOf(mention.chipText, probe);
+      if (idx >= 0) {
+        anyMatch = true;
+        probe = idx + mention.chipText.length();
+      }
+    }
+    if (!anyMatch) return false;
+    int cursor = 0;
+    for (PendingMention mention : pendingMentions) {
+      int idx = draftText.indexOf(mention.chipText, cursor);
+      if (idx < 0) continue;
+      if (idx > cursor) {
+        builder.text(draftText.substring(cursor, idx));
+      }
+      builder.annotatedText("link/manual", mention.address, mention.chipText);
+      cursor = idx + mention.chipText.length();
+    }
+    if (cursor < draftText.length()) {
+      builder.text(draftText.substring(cursor));
+    }
+    return true;
   }
 
   public static DeltaFactory richContentDeltaFactory(String sessionSeed) {
@@ -1318,6 +1420,10 @@ public final class J2clComposeSurfaceController {
     J2clAttachmentComposerController previousController = attachmentController;
     attachmentController = null;
     insertedAttachments.clear();
+    // F-3.S2 (#1038, R-5.3): mention picks live alongside attachment
+    // state; sign-out and wave-change resets must drop them so a
+    // mention picked on wave A cannot leak into a reply on wave B.
+    pendingMentions.clear();
     attachmentDisplaySize = J2clAttachmentComposerController.DisplaySize.MEDIUM;
     activeCommandId = "";
     annotationCommandId = "";

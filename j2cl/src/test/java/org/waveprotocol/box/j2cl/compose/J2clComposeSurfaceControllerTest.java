@@ -2553,6 +2553,119 @@ public class J2clComposeSurfaceControllerTest {
         telemetry.events().stream().anyMatch(e -> "compose.mention_picked".equals(e.getName())));
   }
 
+  // F-3.S2 (#1038, R-5.3, PR #1066 review thread PRRT_kwDOBwxLXs592RVM)
+  // — picking a mention then submitting a reply must serialise a
+  // link/manual annotation referencing the participant address
+  // alongside the surrounding text. Without this the outgoing delta
+  // is just the literal `@DisplayName` substring with no annotation.
+  @Test
+  public void mentionPickIsSerialisedAsLinkManualAnnotationOnReplySubmit() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+    controller.start();
+    openWaveForReply(controller);
+    controller.onMentionPicked("alice@example.com", "Alice Adams");
+    controller.onReplySubmitted("Hi @Alice Adams welcome");
+
+    String delta = gateway.lastSubmitRequest.getDeltaJson();
+    assertContains(
+        delta,
+        "\"2\":\"Hi \"",
+        "{\"1\":{\"3\":[{\"1\":\"link/manual\",\"3\":\"alice@example.com\"}]}}",
+        "\"2\":\"@Alice Adams\"",
+        "{\"1\":{\"2\":[\"link/manual\"]}}",
+        "\"2\":\" welcome\"");
+  }
+
+  @Test
+  public void multiplePickedMentionsAreSerialisedInOrder() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+    controller.start();
+    openWaveForReply(controller);
+    controller.onMentionPicked("alice@example.com", "Alice Adams");
+    controller.onMentionPicked("bob@example.com", "Bob Brown");
+    controller.onReplySubmitted("@Alice Adams and @Bob Brown");
+
+    String delta = gateway.lastSubmitRequest.getDeltaJson();
+    assertContains(
+        delta,
+        "\"alice@example.com\"",
+        "\"bob@example.com\"",
+        "\"2\":\"@Alice Adams\"",
+        "\"2\":\"@Bob Brown\"",
+        "\"2\":\" and \"");
+  }
+
+  @Test
+  public void mentionPicksClearedAfterSuccessfulSubmit() {
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+    controller.start();
+    openWaveForReply(controller);
+    controller.onMentionPicked("alice@example.com", "Alice Adams");
+    controller.onReplySubmitted("Hi @Alice Adams");
+    Assert.assertTrue(
+        "first submit must include the link/manual annotation",
+        gateway.lastSubmitRequest.getDeltaJson().contains("alice@example.com"));
+    // Second submit without picking again should NOT carry the
+    // annotation: pendingMentions is cleared on success.
+    controller.onReplySubmitted("Plain followup");
+    String secondDelta = gateway.lastSubmitRequest.getDeltaJson();
+    Assert.assertFalse(
+        "follow-up reply must not carry a stale link/manual annotation",
+        secondDelta.contains("link/manual"));
+    assertContains(secondDelta, "\"2\":\"Plain followup\"");
+  }
+
+  @Test
+  public void mentionPickWithDeletedChipFallsBackToPlainText() {
+    // User picks a mention, then deletes the chip on the lit side.
+    // The lit composer's atomic-delete handler removes the chip span;
+    // the controller's pendingMentions still has the entry, but the
+    // chip text no longer occurs in the draft. The submit must fall
+    // back to a plain-text component instead of failing.
+    FakeGateway gateway = new FakeGateway();
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        new J2clComposeSurfaceController(
+            gateway,
+            view,
+            J2clComposeSurfaceController.richContentDeltaFactory("seed"),
+            waveId -> { },
+            waveId -> { });
+    controller.start();
+    openWaveForReply(controller);
+    controller.onMentionPicked("alice@example.com", "Alice Adams");
+    controller.onReplySubmitted("plain text only");
+    String delta = gateway.lastSubmitRequest.getDeltaJson();
+    Assert.assertFalse(
+        "no chip text in draft means no annotation should be emitted",
+        delta.contains("link/manual"));
+    assertContains(delta, "\"2\":\"plain text only\"");
+  }
+
   @Test
   public void onMentionAbandonedRecordsTelemetry() {
     RecordingTelemetrySink telemetry = new RecordingTelemetrySink();
