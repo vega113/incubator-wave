@@ -235,7 +235,7 @@ public final class J2clReadSurfaceDomRenderer {
   /**
    * Visibility predicate used by {@link #evaluateDwellTimers}. A blip is
    * considered visible when the intersection rectangle covers ≥ 50 % of the
-   * blip OR (for blips taller than the viewport) ≥ 50 % of the viewport.
+   * blip OR (for blips taller than the viewport) ≥ 50 % of the viewport height.
    */
   private static boolean isBlipInViewport(HTMLElement blip, DOMRect hostRect) {
     DOMRect blipRect = blip.getBoundingClientRect();
@@ -263,13 +263,12 @@ public final class J2clReadSurfaceDomRenderer {
       return true;
     }
     // Tall-blip exception: a blip taller than the viewport can never reach
-    // the area-ratio threshold. Treat "the visible slice fills ≥ 50% of the
-    // viewport area" as visible too.
-    double hostWidth = hostRect.width;
-    double hostArea = hostHeight * hostWidth;
+    // the area-ratio threshold. Use vertical coverage so narrow blips (e.g.
+    // deeply indented threads) can still qualify when the visible slice fills
+    // ≥ 50% of the viewport height.
     if (blipHeight > hostHeight
-        && hostArea > 0
-        && intersectArea / hostArea >= VIEWPORT_INTERSECTION_THRESHOLD) {
+        && hostHeight > 0
+        && intersectHeight / hostHeight >= VIEWPORT_INTERSECTION_THRESHOLD) {
       return true;
     }
     return false;
