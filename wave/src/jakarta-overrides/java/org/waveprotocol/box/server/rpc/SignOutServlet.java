@@ -81,9 +81,12 @@ public class SignOutServlet extends HttpServlet {
       }
     }
 
-    resp.setStatus(HttpServletResponse.SC_OK);
-    resp.setContentType("text/html");
-    try (var w = resp.getWriter()) { w.print("<html><body>Logged out.</body></html>"); w.flush(); }
+    // No safe redirect target supplied: send the user to the site root so the
+    // public landing page handles them, instead of stranding them on a blank
+    // "Logged out." page.  Use the context path so deployments under a
+    // non-root context (e.g. /wave) redirect within the right base path.
+    String contextPath = req.getContextPath();
+    resp.sendRedirect(contextPath == null || contextPath.isEmpty() ? "/" : contextPath + "/");
   }
 
   private static boolean isSafeLocalRedirect(String r) {

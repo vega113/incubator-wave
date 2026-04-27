@@ -118,6 +118,8 @@ public class AuthenticationServlet extends HttpServlet {
   private final boolean emailConfirmationEnabled;
   private final FeatureFlagService featureFlagService;
   private final SocialAuthConfig socialAuthConfig;
+  private final java.util.concurrent.atomic.AtomicBoolean
+      socialAuthMisconfigurationLogged = new java.util.concurrent.atomic.AtomicBoolean(false);
 
   @Inject
   public AuthenticationServlet(AccountStore accountStore,
@@ -499,7 +501,6 @@ public class AuthenticationServlet extends HttpServlet {
 
   private List<HtmlRenderer.SocialProviderLink> socialProviderLinks() {
     if (featureFlagService == null || socialAuthConfig == null
-        || isLoginPageDisabled
         || !featureFlagService.isGloballyEnabled(SocialAuthServlet.SOCIAL_AUTH_FLAG)) {
       return java.util.Collections.emptyList();
     }
@@ -510,7 +511,18 @@ public class AuthenticationServlet extends HttpServlet {
             provider.label(), "/auth/social/" + provider.id()));
       }
     }
-    return links;
+    // Warn once if flag is on but no provider is configured — runs before the
+    // isLoginPageDisabled gate so deployments that hide the login page still
+    // surface this misconfiguration in the logs.
+    if (links.isEmpty() && socialAuthMisconfigurationLogged.compareAndSet(false, true)) {
+      LOG.warning(
+          "Feature flag '" + SocialAuthServlet.SOCIAL_AUTH_FLAG
+              + "' is enabled but no social provider has both a client_id and a client_secret"
+              + " configured. Set 'core.social_auth.<provider>.client_id' and"
+              + " 'core.social_auth.<provider>.client_secret' (e.g. provider='google') to surface"
+              + " sign-in buttons.");
+    }
+    return isLoginPageDisabled ? java.util.Collections.emptyList() : links;
   }
 
   private void rememberSocialReturnTarget(HttpServletRequest req) {

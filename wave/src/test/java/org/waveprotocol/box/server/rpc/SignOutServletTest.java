@@ -20,7 +20,6 @@
 package org.waveprotocol.box.server.rpc;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -62,9 +61,9 @@ public class SignOutServletTest extends TestCase {
 
   public void testUserSignedOut() throws Exception {
     servlet.doGet(req, resp);
-    
+
     verify(sessionManager).logout(any(WebSession.class));
-    verify(resp).setStatus(HttpServletResponse.SC_OK);
+    verify(resp).sendRedirect("/");
   }
 
   public void testServletRedirects() throws Exception {
@@ -76,20 +75,21 @@ public class SignOutServletTest extends TestCase {
     verify(resp).sendRedirect(redirect_location);
   }
 
-  public void testServletDoesNotRedirectToRemoteUrl() throws Exception {
+  public void testServletRedirectsToRootWhenRemoteUrlSupplied() throws Exception {
     String redirect_location = "http://example.com/";
     when(req.getParameter("r")).thenReturn(redirect_location);
 
     servlet.doGet(req, resp);
 
-    verify(resp, never()).sendRedirect(anyString());
+    verify(resp, never()).sendRedirect(redirect_location);
+    verify(resp).sendRedirect("/");
   }
 
   public void testServletWorksWhenSessionIsMissing() throws Exception {
     when(req.getSession(false)).thenReturn(null);
-    
+
     servlet.doGet(req, resp);
-    
-    verify(resp).setStatus(HttpServletResponse.SC_OK);
+
+    verify(resp).sendRedirect("/");
   }
 }

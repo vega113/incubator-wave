@@ -96,13 +96,14 @@ public final class WaveClientServletJ2clBootstrapTest {
   }
 
   @Test
-  public void signedOutPlainRootFallsBackToLegacyBootstrapWhenBootstrapFlagIsOff()
+  public void signedOutPlainRootShowsLandingPageWhenBootstrapFlagIsOff()
       throws Exception {
     WaveClientServlet servlet = createServlet(null, false);
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
     when(request.getContextPath()).thenReturn("");
+    when(request.getRequestURI()).thenReturn("/");
     when(request.getSession(false)).thenReturn(null);
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(response.getWriter()).thenReturn(new PrintWriter(body));
@@ -111,16 +112,20 @@ public final class WaveClientServletJ2clBootstrapTest {
 
     String html = body.toString();
     assertFalse(html.contains("data-j2cl-root-shell"));
-    assertTrue(html.contains("webclient/webclient.nocache.js"));
+    assertFalse(html.contains("webclient/webclient.nocache.js"));
+    assertTrue(html.contains("SupaWave - Real-time Collaborative Communication"));
+    assertTrue(html.contains("nav-link-signin"));
+    assertTrue(html.contains("nav-link-register"));
   }
 
   @Test
-  public void signedOutLegacyRootStillRendersTopbarShell() throws Exception {
-    WaveClientServlet servlet = createServlet(null, false);
+  public void signedOutPlainRootShowsLandingPageWhenBootstrapFlagIsOn() throws Exception {
+    WaveClientServlet servlet = createServlet(null, true);
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
     when(request.getContextPath()).thenReturn("");
+    when(request.getRequestURI()).thenReturn("/");
     when(request.getSession(false)).thenReturn(null);
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(response.getWriter()).thenReturn(new PrintWriter(body));
@@ -128,22 +133,24 @@ public final class WaveClientServletJ2clBootstrapTest {
     servlet.doGet(request, response);
 
     String html = body.toString();
-    assertTrue(html.contains("<div class=\"topbar\">"));
-    assertTrue(html.contains("id=\"banner\""));
-    assertTrue(html.contains("href=\"/auth/register\""));
-    assertTrue(html.contains("href=\"/auth/signin?r=/\""));
-    assertFalse(html.contains("id=\"lang\""));
-    assertFalse(html.contains("id=\"signout\""));
+    assertFalse(html.contains("data-j2cl-root-shell"));
+    assertFalse(html.contains("webclient/webclient.nocache.js"));
+    assertTrue(html.contains("SupaWave - Real-time Collaborative Communication"));
   }
 
   @Test
-  public void signedOutPlainRootBootsIntoJ2clShellWhenBootstrapFlagIsOn() throws Exception {
+  public void signedOutPlainRootWithQueryStringStillBootsIntoJ2clShellWhenBootstrapFlagIsOn()
+      throws Exception {
+    // Preserve the existing j2cl-root behaviour for non-bare URLs (e.g. deep
+    // links carrying ?wave=… or tracking parameters); only the vanilla "/" hit
+    // gets redirected to the marketing landing page for signed-out users.
     WaveClientServlet servlet = createServlet(null, true);
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
     when(request.getContextPath()).thenReturn("");
     when(request.getSession(false)).thenReturn(null);
+    when(request.getQueryString()).thenReturn("utm_source=email");
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(response.getWriter()).thenReturn(new PrintWriter(body));
 
@@ -152,17 +159,20 @@ public final class WaveClientServletJ2clBootstrapTest {
     String html = body.toString();
     assertTrue(html.contains("data-j2cl-root-shell"));
     assertTrue(html.contains("data-j2cl-root-signin=\"true\""));
-    assertFalse(html.contains("webclient/webclient.nocache.js"));
+    assertFalse(html.contains("SupaWave - Real-time Collaborative Communication"));
   }
 
   @Test
   public void bootstrapedPlainRootUsesPresentedHostForWebsocketAddress()
       throws Exception {
-    WaveClientServlet servlet = createServlet(null, true);
+    // Signed-in callers retain the j2cl shell render, so this still exercises
+    // the websocket-address fallback in the bootstrap branch.
+    WaveClientServlet servlet =
+        createServlet(ParticipantId.ofUnsafe("alice@example.com"), true);
     HttpServletRequest request = mock(HttpServletRequest.class);
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
-    when(request.getSession(false)).thenReturn(null);
+    when(request.getSession(false)).thenReturn(mock(HttpSession.class));
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(request.getHeader("Host")).thenReturn("example.com:7777");
     when(response.getWriter()).thenReturn(new PrintWriter(body));
