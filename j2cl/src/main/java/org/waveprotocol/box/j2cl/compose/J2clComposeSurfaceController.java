@@ -708,7 +708,7 @@ public final class J2clComposeSurfaceController {
           try {
             request =
                 deltaFactory.createTaskToggleRequest(
-                    bootstrap.getAddress(), submitSession, trimmedBlipId, completed);
+                    bootstrap.getAddress(), writeSession, trimmedBlipId, completed);
           } catch (RuntimeException e) {
             // Toggling a task is best-effort; log telemetry and return.
             recordTaskToggleTelemetry(completed, "failure-build");
@@ -756,7 +756,7 @@ public final class J2clComposeSurfaceController {
             request =
                 deltaFactory.createTaskMetadataRequest(
                     bootstrap.getAddress(),
-                    submitSession,
+                    writeSession,
                     trimmedBlipId,
                     normalizedAssignee,
                     normalizedDue);

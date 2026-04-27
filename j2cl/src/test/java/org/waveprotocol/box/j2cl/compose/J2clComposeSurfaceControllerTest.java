@@ -2905,6 +2905,8 @@ public class J2clComposeSurfaceControllerTest {
         "task-toggle write must survive a no-op session refresh on the same wave",
         beforeSubmits + 1,
         gateway.submitCalls);
+    Assert.assertEquals("chan-1", gateway.lastSubmitRequest.getChannelId());
+    assertContains(gateway.lastSubmitRequest.getDeltaJson(), "\"1\":45", "\"2\":\"EFGH\"");
   }
 
   @Test
@@ -2930,6 +2932,8 @@ public class J2clComposeSurfaceControllerTest {
         "task-metadata write must survive a no-op session refresh on the same wave",
         beforeSubmits + 1,
         gateway.submitCalls);
+    Assert.assertEquals("chan-1", gateway.lastSubmitRequest.getChannelId());
+    assertContains(gateway.lastSubmitRequest.getDeltaJson(), "\"1\":45", "\"2\":\"EFGH\"");
   }
 
   @Test
