@@ -408,7 +408,15 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     // parent-blip-id / thread-id onto each loaded entry from the
     // manifest by blip-id lookup.
     readSurface.setConversationManifest(model.getConversationManifest());
-    List<J2clReadWindowEntry> readWindowEntries = model.getViewportState().getReadWindowEntries();
+    // J-UI-6 (#1084, R-5.4): graft the per-blip task/mention/unread metadata
+    // from the projector's already-enriched read-blip list onto the
+    // viewport's plain window entries. Without this the renderWindow path
+    // would emit <wave-blip> elements with no `data-task-completed` attribute
+    // even when the task/done annotation flips, breaking reload + live-update
+    // persistence on the dominant production code path.
+    List<J2clReadWindowEntry> readWindowEntries =
+        J2clSelectedWaveProjector.enrichWindowEntriesFromReadBlips(
+            model.getViewportState().getReadWindowEntries(), model.getReadBlips());
     boolean hasViewportReadWindow = !readWindowEntries.isEmpty();
     boolean hasRenderedReadSurface =
         hasViewportReadWindow

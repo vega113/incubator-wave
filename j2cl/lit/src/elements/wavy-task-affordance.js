@@ -46,7 +46,20 @@ export class WavyTaskAffordance extends LitElement {
     completed: { type: Boolean, attribute: "data-task-completed", reflect: true },
     assigneeAddress: { type: String, attribute: "data-task-assignee", reflect: true },
     dueDate: { type: String, attribute: "data-task-due-date", reflect: true },
-    participants: { type: Array }
+    participants: { type: Array },
+    // J-UI-6 (#1084, R-5.4 — "Labels translate"): every visible / aria / live
+    // string is exposed as a property so the Java view (or a future lit-i18n
+    // slice) can override per-locale without re-architecting the element.
+    // English defaults are preserved verbatim from F-3.S2 so the change is
+    // non-breaking. Properties are not attribute-reflected because the strings
+    // are typically multi-word and would clutter the rendered DOM.
+    labelToggleOpen: { type: String },
+    labelToggleDone: { type: String },
+    labelAriaCheck: { type: String },
+    labelAriaUncheck: { type: String },
+    labelDetails: { type: String },
+    labelAnnounceDone: { type: String },
+    labelAnnounceOpen: { type: String }
   };
 
   static styles = css`
@@ -112,6 +125,13 @@ export class WavyTaskAffordance extends LitElement {
     this.participants = [];
     this._announceText = "";
     this._popoverOpen = false;
+    this.labelToggleOpen = "Task";
+    this.labelToggleDone = "✓ Done";
+    this.labelAriaCheck = "Mark task complete";
+    this.labelAriaUncheck = "Mark task open";
+    this.labelDetails = "Edit task details";
+    this.labelAnnounceDone = "Task completed";
+    this.labelAnnounceOpen = "Task reopened";
   }
 
   _toggle() {
@@ -121,7 +141,7 @@ export class WavyTaskAffordance extends LitElement {
     // overwrites this with the persisted value; if the server rejects
     // the toggle the model snaps back.
     this.completed = next;
-    this._announceText = next ? "Task completed" : "Task reopened";
+    this._announceText = next ? this.labelAnnounceDone : this.labelAnnounceOpen;
     this.requestUpdate();
     this.dispatchEvent(
       new CustomEvent("wave-blip-task-toggled", {
@@ -192,15 +212,15 @@ export class WavyTaskAffordance extends LitElement {
         data-task-toggle-trigger="true"
         role="checkbox"
         aria-checked=${this.completed ? "true" : "false"}
-        aria-label=${this.completed ? "Mark task open" : "Mark task complete"}
+        aria-label=${this.completed ? this.labelAriaUncheck : this.labelAriaCheck}
         @click=${this._toggle}
       >
-        ${this.completed ? "✓ Done" : "Task"}
+        ${this.completed ? this.labelToggleDone : this.labelToggleOpen}
       </button>
       <button
         type="button"
         data-task-details-trigger="true"
-        aria-label="Edit task details"
+        aria-label=${this.labelDetails}
         aria-haspopup="dialog"
         aria-expanded=${this._popoverOpen ? "true" : "false"}
         @click=${this._openDetails}

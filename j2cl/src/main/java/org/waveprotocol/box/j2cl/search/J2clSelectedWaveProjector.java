@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
+import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
+import org.waveprotocol.box.j2cl.read.J2clReadWindowEntry;
 import org.waveprotocol.box.j2cl.transport.SidecarAnnotationRange;
 import org.waveprotocol.box.j2cl.transport.SidecarConversationManifest;
 import org.waveprotocol.box.j2cl.transport.SidecarReactionEntry;
@@ -432,7 +434,10 @@ public final class J2clSelectedWaveProjector {
               /* threadId= */ "",
               /* unread= */ false,
               /* hasMention= */ documentHasMention(document),
-              /* deleted= */ documentIsDeleted(document)));
+              /* deleted= */ documentIsDeleted(document),
+              /* taskDone= */ documentTaskDone(document),
+              /* taskAssignee= */ documentTaskAssignee(document),
+              /* taskDueTimestamp= */ documentTaskDueTimestamp(document)));
     }
     return blips;
   }
@@ -486,7 +491,10 @@ public final class J2clSelectedWaveProjector {
               /* threadId= */ blip.getThreadId(),
               blip.isUnread(),
               documentHasMention(doc),
-              /* deleted= */ documentIsDeleted(doc) || blip.isDeleted()));
+              /* deleted= */ documentIsDeleted(doc) || blip.isDeleted(),
+              /* taskDone= */ documentTaskDone(doc),
+              /* taskAssignee= */ documentTaskAssignee(doc),
+              /* taskDueTimestamp= */ documentTaskDueTimestamp(doc)));
     }
     return enriched;
   }
@@ -589,6 +597,77 @@ public final class J2clSelectedWaveProjector {
   }
 
   /**
+   * J-UI-6 (#1084, R-5.4) — projects the per-blip metadata held on the
+   * already-enriched read-blip list onto matching {@link J2clReadWindowEntry}
+   * instances. {@link J2clSelectedWaveView} prefers the window-render path
+   * over the flat-render path whenever the viewport state carries any
+   * window entries, so the renderer's done-state attribute write only
+   * appears in production output if the window entries themselves carry
+   * the metadata. Entries with no matching read blip pass through
+   * unchanged so placeholder windows / pre-fragment-fetch entries keep
+   * working as before.
+   *
+   * <p>Implementation note — keeping the read-blip list as the source of
+   * truth (rather than re-reading the SidecarSelectedWaveDocument list)
+   * keeps the window-entry view of metadata consistent with whatever the
+   * read-blip enrichment already decided about late-arriving fragments,
+   * tombstones, and same-wave merges.
+   */
+  public static List<J2clReadWindowEntry> enrichWindowEntriesFromReadBlips(
+      List<J2clReadWindowEntry> windowEntries, List<J2clReadBlip> readBlips) {
+    if (windowEntries == null || windowEntries.isEmpty()) {
+      return windowEntries;
+    }
+    if (readBlips == null || readBlips.isEmpty()) {
+      return windowEntries;
+    }
+    Map<String, J2clReadBlip> blipsById = new LinkedHashMap<String, J2clReadBlip>();
+    for (J2clReadBlip blip : readBlips) {
+      if (blip == null || blip.getBlipId().isEmpty()) {
+        continue;
+      }
+      blipsById.put(blip.getBlipId(), blip);
+    }
+    if (blipsById.isEmpty()) {
+      return windowEntries;
+    }
+    List<J2clReadWindowEntry> enriched = new ArrayList<J2clReadWindowEntry>(windowEntries.size());
+    boolean changed = false;
+    for (J2clReadWindowEntry entry : windowEntries) {
+      if (entry == null || !entry.isLoaded()) {
+        enriched.add(entry);
+        continue;
+      }
+      J2clReadBlip blip = blipsById.get(entry.getBlipId());
+      if (blip == null) {
+        enriched.add(entry);
+        continue;
+      }
+      J2clReadWindowEntry next =
+          J2clReadWindowEntry.loadedWithTaskMetadata(
+              entry.getSegment(),
+              entry.getFromVersion(),
+              entry.getToVersion(),
+              entry.getBlipId(),
+              entry.getText(),
+              entry.getAttachments(),
+              blip.getAuthorId(),
+              blip.getAuthorDisplayName(),
+              blip.getLastModifiedTimeMillis(),
+              blip.getParentBlipId(),
+              blip.getThreadId(),
+              blip.isUnread(),
+              blip.hasMention(),
+              blip.isTaskDone(),
+              blip.getTaskAssignee(),
+              blip.getTaskDueTimestamp());
+      enriched.add(next);
+      changed = true;
+    }
+    return changed ? enriched : windowEntries;
+  }
+
+  /**
    * F-2 (#1037, R-3.4 E.6 / E.7) — a blip "has a mention" when any annotation
    * carries the {@code mention/} key prefix. The annotation ranges are already
    * shipped on the wire today via {@link SidecarSelectedWaveDocument} for the
@@ -630,6 +709,94 @@ public final class J2clSelectedWaveProjector {
       }
     }
     return false;
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): a blip is "task-done" iff its annotation ranges
+   * carry a {@code task/done=true} span. The toggle delta written by
+   * {@link org.waveprotocol.box.j2cl.richtext.J2clRichContentDeltaFactory#taskToggleRequest}
+   * spans the entire blip body so the predicate is "any range with
+   * {@code key == \"task/done\"} and {@code value.equals(\"true\")}". Any other
+   * value (including the explicit {@code "false"} that an open-state toggle
+   * writes) returns false. Reads directly from the wavelet DocOp so live
+   * updates from other clients flip the visual state without a conversation-
+   * model round-trip (per project-memory feedback_search_no_conversation_model).
+   */
+  static boolean documentTaskDone(SidecarSelectedWaveDocument document) {
+    if (document == null || document.getAnnotationRanges() == null) {
+      return false;
+    }
+    boolean done = false;
+    for (SidecarAnnotationRange range : document.getAnnotationRanges()) {
+      if (range == null || !"task/done".equals(range.getKey())) {
+        continue;
+      }
+      // The toggle path writes a single annotation that spans the whole blip;
+      // last writer wins if multiple ranges land in one document so the loop
+      // tracks the most recent value rather than short-circuiting on the
+      // first hit.
+      done = "true".equals(range.getValue());
+    }
+    return done;
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): persisted task assignee read from the
+   * {@code task/assignee} annotation. Returns the empty string when no
+   * range carries the key, when the value is null, or when every range
+   * carries an empty value (the "unset" sentinel the metadata-write path
+   * uses to clear an assignee).
+   */
+  static String documentTaskAssignee(SidecarSelectedWaveDocument document) {
+    if (document == null || document.getAnnotationRanges() == null) {
+      return "";
+    }
+    String assignee = "";
+    for (SidecarAnnotationRange range : document.getAnnotationRanges()) {
+      if (range == null || !"task/assignee".equals(range.getKey())) {
+        continue;
+      }
+      String value = range.getValue();
+      assignee = value == null ? "" : value;
+    }
+    return assignee;
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): persisted task due-date timestamp read from the
+   * {@code task/dueTs} annotation as ms since epoch. Empty / non-numeric
+   * values stay {@link J2clTaskItemModel#UNKNOWN_DUE_TIMESTAMP} so the
+   * metadata overlay falls back to the "no due date" UI rather than
+   * rendering an epoch-zero placeholder.
+   */
+  static long documentTaskDueTimestamp(SidecarSelectedWaveDocument document) {
+    if (document == null || document.getAnnotationRanges() == null) {
+      return J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP;
+    }
+    long due = J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP;
+    for (SidecarAnnotationRange range : document.getAnnotationRanges()) {
+      if (range == null || !"task/dueTs".equals(range.getKey())) {
+        continue;
+      }
+      String value = range.getValue();
+      if (value == null) {
+        continue;
+      }
+      String trimmed = value.trim();
+      if (trimmed.isEmpty()) {
+        // Explicit empty-string sentinel resets the due date.
+        due = J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP;
+        continue;
+      }
+      try {
+        due = Long.parseLong(trimmed);
+      } catch (NumberFormatException ignored) {
+        // Unparseable values leave the previous resolution in place; the
+        // reader is conservative and prefers "unset" over a corrupt value.
+        due = J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP;
+      }
+    }
+    return due;
   }
 
   private static List<J2clInteractionBlipModel> extractInteractionBlips(

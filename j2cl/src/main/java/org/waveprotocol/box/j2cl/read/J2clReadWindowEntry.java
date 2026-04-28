@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
 
 /**
  * Per-segment entry consumed by {@link J2clReadSurfaceDomRenderer#renderWindow}.
@@ -29,6 +30,12 @@ public final class J2clReadWindowEntry {
   private final String threadId;
   private final boolean unread;
   private final boolean hasMention;
+  /** J-UI-6 (#1084, R-5.4): see {@link J2clReadBlip#isTaskDone()}. */
+  private final boolean taskDone;
+  /** J-UI-6 (#1084, R-5.4): see {@link J2clReadBlip#getTaskAssignee()}. */
+  private final String taskAssignee;
+  /** J-UI-6 (#1084, R-5.4): see {@link J2clReadBlip#getTaskDueTimestamp()}. */
+  private final long taskDueTimestamp;
 
   private J2clReadWindowEntry(
       String segment,
@@ -44,7 +51,10 @@ public final class J2clReadWindowEntry {
       String parentBlipId,
       String threadId,
       boolean unread,
-      boolean hasMention) {
+      boolean hasMention,
+      boolean taskDone,
+      String taskAssignee,
+      long taskDueTimestamp) {
     this.segment = segment == null ? "" : segment;
     this.fromVersion = fromVersion;
     this.toVersion = toVersion;
@@ -62,6 +72,9 @@ public final class J2clReadWindowEntry {
     this.threadId = threadId == null ? "" : threadId;
     this.unread = unread;
     this.hasMention = hasMention;
+    this.taskDone = taskDone;
+    this.taskAssignee = taskAssignee == null ? "" : taskAssignee;
+    this.taskDueTimestamp = taskDueTimestamp;
   }
 
   public static J2clReadWindowEntry loaded(
@@ -96,7 +109,10 @@ public final class J2clReadWindowEntry {
         /* parentBlipId= */ "",
         /* threadId= */ "",
         /* unread= */ false,
-        /* hasMention= */ false);
+        /* hasMention= */ false,
+        /* taskDone= */ false,
+        /* taskAssignee= */ "",
+        /* taskDueTimestamp= */ J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
   }
 
   /**
@@ -117,6 +133,50 @@ public final class J2clReadWindowEntry {
       String threadId,
       boolean unread,
       boolean hasMention) {
+    return loadedWithTaskMetadata(
+        segment,
+        fromVersion,
+        toVersion,
+        blipId,
+        text,
+        attachments,
+        authorId,
+        authorDisplayName,
+        lastModifiedTimeMillis,
+        parentBlipId,
+        threadId,
+        unread,
+        hasMention,
+        /* taskDone= */ false,
+        /* taskAssignee= */ "",
+        /* taskDueTimestamp= */ J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4) — full constructor that also carries persisted
+   * task done state, assignee, and due timestamp through the dominant
+   * window-render path. The renderer reads these fields when emitting the
+   * {@code <wave-blip>} attribute set so reload + live updates from other
+   * clients show the strikethrough/checkmark + metadata-overlay state
+   * without round-tripping through the conversation model.
+   */
+  public static J2clReadWindowEntry loadedWithTaskMetadata(
+      String segment,
+      long fromVersion,
+      long toVersion,
+      String blipId,
+      String text,
+      List<J2clAttachmentRenderModel> attachments,
+      String authorId,
+      String authorDisplayName,
+      long lastModifiedTimeMillis,
+      String parentBlipId,
+      String threadId,
+      boolean unread,
+      boolean hasMention,
+      boolean taskDone,
+      String taskAssignee,
+      long taskDueTimestamp) {
     return new J2clReadWindowEntry(
         segment,
         fromVersion,
@@ -131,7 +191,10 @@ public final class J2clReadWindowEntry {
         parentBlipId,
         threadId,
         unread,
-        hasMention);
+        hasMention,
+        taskDone,
+        taskAssignee,
+        taskDueTimestamp);
   }
 
   public static J2clReadWindowEntry placeholder(
@@ -150,7 +213,10 @@ public final class J2clReadWindowEntry {
         /* parentBlipId= */ "",
         /* threadId= */ "",
         /* unread= */ false,
-        /* hasMention= */ false);
+        /* hasMention= */ false,
+        /* taskDone= */ false,
+        /* taskAssignee= */ "",
+        /* taskDueTimestamp= */ J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
   }
 
   /** Returns a copy of this entry with the unread flag toggled. */
@@ -172,7 +238,38 @@ public final class J2clReadWindowEntry {
         parentBlipId,
         threadId,
         nextUnread,
-        hasMention);
+        hasMention,
+        taskDone,
+        taskAssignee,
+        taskDueTimestamp);
+  }
+
+  /**
+   * J-UI-6 (#1084) — builder-style copy that flips the persisted task-done
+   * flag. Symmetric with {@link #withUnread(boolean)}.
+   */
+  public J2clReadWindowEntry withTaskDone(boolean nextTaskDone) {
+    if (nextTaskDone == this.taskDone) {
+      return this;
+    }
+    return new J2clReadWindowEntry(
+        segment,
+        fromVersion,
+        toVersion,
+        blipId,
+        text,
+        attachments,
+        loaded,
+        authorId,
+        authorDisplayName,
+        lastModifiedTimeMillis,
+        parentBlipId,
+        threadId,
+        unread,
+        hasMention,
+        nextTaskDone,
+        taskAssignee,
+        taskDueTimestamp);
   }
 
   public String getSegment() {
@@ -230,5 +327,20 @@ public final class J2clReadWindowEntry {
 
   public boolean hasMention() {
     return hasMention;
+  }
+
+  /** J-UI-6 (#1084, R-5.4): see {@link J2clReadBlip#isTaskDone()}. */
+  public boolean isTaskDone() {
+    return taskDone;
+  }
+
+  /** J-UI-6 (#1084, R-5.4): see {@link J2clReadBlip#getTaskAssignee()}. */
+  public String getTaskAssignee() {
+    return taskAssignee;
+  }
+
+  /** J-UI-6 (#1084, R-5.4): see {@link J2clReadBlip#getTaskDueTimestamp()}. */
+  public long getTaskDueTimestamp() {
+    return taskDueTimestamp;
   }
 }

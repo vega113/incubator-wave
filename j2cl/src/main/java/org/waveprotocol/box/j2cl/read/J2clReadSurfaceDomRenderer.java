@@ -22,6 +22,7 @@ import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
+import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
 import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.transport.SidecarConversationManifest;
 import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
@@ -578,6 +579,12 @@ public final class J2clReadSurfaceDomRenderer {
           entryThread = manifestEntry.getThreadId();
         }
       }
+      // J-UI-6 (#1084, R-5.4): plumb persisted task done state, assignee,
+      // and due-date through the renderWindow path so reload + live updates
+      // from other clients render the strikethrough/checkmark on the
+      // dominant production path. Without this the renderer would build a
+      // J2clReadBlip with task fields defaulted to empty even when the
+      // wave-blip-task-toggled annotation has been written.
       J2clReadBlip blip =
           new J2clReadBlip(
               entry.getBlipId(),
@@ -589,7 +596,11 @@ public final class J2clReadSurfaceDomRenderer {
               entryParent,
               entryThread,
               entry.isUnread(),
-              entry.hasMention());
+              entry.hasMention(),
+              /* deleted= */ false,
+              /* taskDone= */ entry.isTaskDone(),
+              /* taskAssignee= */ entry.getTaskAssignee(),
+              /* taskDueTimestamp= */ entry.getTaskDueTimestamp());
       HTMLElement blipElement = renderBlip(blip, blipIndex++);
       winBlipHostsById.put(blip.getBlipId(), blipElement);
       HTMLElement blipTarget = resolveWinThreadTarget(
@@ -854,6 +865,17 @@ public final class J2clReadSurfaceDomRenderer {
     if (blip.hasMention()) {
       element.setAttribute("has-mention", "");
     }
+    // J-UI-6 (#1084, R-5.4): persisted task done state surfaces on the
+    // host so the strikethrough/checkmark CSS rule
+    // `:host([data-task-completed]) .body { …line-through; }` paints. The
+    // task-affordance child element reads the same attribute on this host
+    // via property binding, so its aria-checked state stays in sync after
+    // reload + live updates from other clients.
+    applyTaskState(
+        element,
+        blip.isTaskDone(),
+        blip.getTaskAssignee(),
+        blip.getTaskDueTimestamp());
 
     // The renderer doesn't know the parent wave id (it lives one layer up
     // in J2clSelectedWaveView). The view sets `data-wave-id` on the host
@@ -898,6 +920,79 @@ public final class J2clReadSurfaceDomRenderer {
 
   private static void setProperty(HTMLElement element, String name, Object value) {
     Js.asPropertyMap(element).set(name, value);
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): apply persisted task state to a {@code <wave-blip>}
+   * element. Sets or clears {@code data-task-completed},
+   * {@code data-task-assignee}, and {@code data-task-due-date} so the strikethrough
+   * CSS rule paints and the inner {@code <wavy-task-affordance>}'s details popover
+   * re-mounts with the persisted assignee + due-date.
+   *
+   * <p>The function explicitly clears the attributes when the state is open
+   * (rather than just no-op'ing) so a same-wave update that flips done → open
+   * removes the strikethrough on the next render. Without explicit clears the
+   * F-2 fast-path would leave a stale attribute after the renderer reuses an
+   * existing host on a partial re-render.
+   */
+  private static void applyTaskState(
+      HTMLElement element,
+      boolean taskDone,
+      String taskAssignee,
+      long taskDueTimestamp) {
+    if (element == null) {
+      return;
+    }
+    if (taskDone) {
+      element.setAttribute("data-task-completed", "");
+    } else {
+      element.removeAttribute("data-task-completed");
+    }
+    String assignee = taskAssignee == null ? "" : taskAssignee.trim();
+    if (assignee.isEmpty()) {
+      element.removeAttribute("data-task-assignee");
+    } else {
+      element.setAttribute("data-task-assignee", assignee);
+    }
+    String dueDate = formatDueDate(taskDueTimestamp);
+    if (dueDate.isEmpty()) {
+      element.removeAttribute("data-task-due-date");
+    } else {
+      element.setAttribute("data-task-due-date", dueDate);
+    }
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): convert a ms-since-epoch task due timestamp to the
+   * {@code YYYY-MM-DD} string the lit task-metadata-popover expects in its
+   * {@code data-task-due-date} attribute. Returns the empty string for unset
+   * ({@link J2clTaskItemModel#UNKNOWN_DUE_TIMESTAMP}) or otherwise invalid
+   * values so the renderer can clear the attribute via removeAttribute rather
+   * than write a misleading "1970-01-01" anchor.
+   */
+  static String formatDueDate(long dueTimestampMs) {
+    if (dueTimestampMs == J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP || dueTimestampMs <= 0L) {
+      return "";
+    }
+    elemental2.core.JsDate date = new elemental2.core.JsDate((double) dueTimestampMs);
+    double yearD = date.getUTCFullYear();
+    double monthD = date.getUTCMonth();
+    double dayD = date.getUTCDate();
+    if (Double.isNaN(yearD) || Double.isNaN(monthD) || Double.isNaN(dayD)) {
+      return "";
+    }
+    int year = (int) yearD;
+    int month = (int) monthD + 1;
+    int day = (int) dayD;
+    StringBuilder out = new StringBuilder(10);
+    out.append(year);
+    out.append('-');
+    if (month < 10) out.append('0');
+    out.append(month);
+    out.append('-');
+    if (day < 10) out.append('0');
+    out.append(day);
+    return out.toString();
   }
 
   /**
@@ -1893,7 +1988,13 @@ public final class J2clReadSurfaceDomRenderer {
         // rebuild fires when only parent/thread changes (e.g. a new reply
         // arrives that re-parents an existing blip into a nested thread).
         && left.getParentBlipId().equals(right.getParentBlipId())
-        && left.getThreadId().equals(right.getThreadId());
+        && left.getThreadId().equals(right.getThreadId())
+        // J-UI-6 (#1084, R-5.4): include task state in the fast-path equality so a
+        // same-wave update that only flips task/done is not treated as a no-op
+        // and the strikethrough actually repaints.
+        && left.isTaskDone() == right.isTaskDone()
+        && left.getTaskAssignee().equals(right.getTaskAssignee())
+        && left.getTaskDueTimestamp() == right.getTaskDueTimestamp();
   }
 
   private boolean matchesRenderedWindowEntries(List<J2clReadWindowEntry> entries) {
@@ -1923,7 +2024,13 @@ public final class J2clReadSurfaceDomRenderer {
         && left.getAuthorId().equals(right.getAuthorId())
         && left.getLastModifiedTimeMillis() == right.getLastModifiedTimeMillis()
         && left.isUnread() == right.isUnread()
-        && left.hasMention() == right.hasMention();
+        && left.hasMention() == right.hasMention()
+        // J-UI-6 (#1084, R-5.4): see sameReadBlip — the dominant production
+        // path is renderWindow, so the task state must enter the equality
+        // check on this code path too.
+        && left.isTaskDone() == right.isTaskDone()
+        && left.getTaskAssignee().equals(right.getTaskAssignee())
+        && left.getTaskDueTimestamp() == right.getTaskDueTimestamp();
   }
 
   private HTMLElement renderedBlipById(String blipId) {
