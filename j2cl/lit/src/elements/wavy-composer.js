@@ -3,6 +3,195 @@ import { ifDefined } from "lit/directives/if-defined.js";
 import "../design/wavy-compose-card.js";
 import "./composer-submit-affordance.js";
 import "./mention-suggestion-popover.js";
+import "./wavy-link-modal.js";
+
+/**
+ * J-UI-5 (#1083, R-5.7): map inline-format wrap tags to the
+ * `J2clComposeSurfaceController.annotationKey/annotationValue` pairs
+ * the GWT/J2CL read codec already understands. The keys here mirror
+ * the static helpers at lines 2002–2030 of
+ * `J2clComposeSurfaceController.java` so the JS submit emits exactly
+ * what the Java side maps from a toolbar-action click today.
+ */
+/**
+ * J-UI-5 (#1083): defense-in-depth href scheme validator. Allows the
+ * same scheme set the `<wavy-link-modal>` validates against
+ * (http/https/mailto) plus relative URLs (no scheme). Rejects any
+ * scheme that can carry script (javascript:, data:, vbscript:, file:).
+ */
+/**
+ * J-UI-5 (#1083, codex review thread PRRT_kwDOBwxLXs5-C84T):
+ * returns true when the supplied DOM node sits entirely within the
+ * range (range.start ≤ node.start AND range.end ≥ node.end). Used by
+ * `_clearFormattingAtSelection` to decide whether a container tag
+ * (`<ul>`, `<ol>`, `<li>`, `<blockquote>`) should be unwrapped — only
+ * when the user's selection covers the whole container, never when
+ * one sibling item is selected and the rest would lose formatting.
+ */
+function rangeFullyContainsNode(range, node) {
+  if (!range || !node) return false;
+  try {
+    const nodeRange = document.createRange();
+    nodeRange.selectNode(node);
+    const startsBefore =
+        range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0;
+    const endsAfter =
+        range.compareBoundaryPoints(Range.END_TO_END, nodeRange) >= 0;
+    return startsBefore && endsAfter;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function isSafeLinkHref(url) {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  // Relative URL — no scheme prefix.
+  if (!/^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(trimmed)) return true;
+  const scheme = trimmed.slice(0, trimmed.indexOf(":")).toLowerCase();
+  return scheme === "http" || scheme === "https" || scheme === "mailto";
+}
+
+/**
+ * J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyb):
+ * split a DocumentFragment cloned from a Range into ordered groups
+ * of nodes that each represent ONE line, while preserving inline
+ * markup (`<strong>`, `<em>`, `<a>`, mention chips, ...). Block-level
+ * children (`<div>`, `<p>`, `<br>`) act as line separators; pre-
+ * existing `<li>` and `<ul>`/`<ol>` children are flattened into their
+ * contents so toggling a list ON over partial list-content does not
+ * nest lists. The caller wraps each group in a fresh `<li>` to build
+ * the new list.
+ */
+function splitFragmentIntoLineGroups(fragment) {
+  const groups = [];
+  let current = [];
+  const pushCurrent = () => {
+    if (current.length > 0) {
+      groups.push(current);
+      current = [];
+    }
+  };
+  const flatChildren = [];
+  const collect = (parent) => {
+    for (const child of Array.from(parent.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const t = child.tagName.toLowerCase();
+        if (t === "ul" || t === "ol") {
+          collect(child);
+          continue;
+        }
+        if (t === "li") {
+          collect(child);
+          flatChildren.push(document.createElement("__line_break"));
+          continue;
+        }
+      }
+      flatChildren.push(child);
+    }
+  };
+  collect(fragment);
+  for (const node of flatChildren) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === "br" || tag === "__line_break") {
+        pushCurrent();
+        continue;
+      }
+      if (tag === "div" || tag === "p") {
+        // Block boundary: flush any pending inline content from the
+        // previous block, then walk this block's children inline so
+        // marks inside the block survive (`<div><strong>x</strong></div>`
+        // becomes one `<li>` containing `<strong>x</strong>`).
+        pushCurrent();
+        for (const inner of Array.from(node.childNodes)) {
+          current.push(inner);
+        }
+        pushCurrent();
+        continue;
+      }
+    }
+    // Text nodes carrying a literal `\n` (e.g. body.textContent
+    // `"first\nsecond"`) split into multiple lines too — otherwise
+    // newline-delimited drafts produce a single `<li>` containing the
+    // whole text.
+    if (node.nodeType === Node.TEXT_NODE && node.textContent.indexOf("\n") >= 0) {
+      const parts = node.textContent.split("\n");
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].length > 0) current.push(document.createTextNode(parts[i]));
+        if (i < parts.length - 1) pushCurrent();
+      }
+      continue;
+    }
+    current.push(node);
+  }
+  pushCurrent();
+  return groups;
+}
+
+/**
+ * J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW):
+ * fold an outer annotation onto a list of inner components produced
+ * by recursing into a wrap's children. Text components become
+ * annotated; pre-annotated components have the outer annotation
+ * appended to their `annotations` list so combined runs (e.g.
+ * `<li><strong>x</strong></li>`, `<a><em>x</em></a>`,
+ * `<blockquote><strong>x</strong></blockquote>`) round-trip both the
+ * outer annotation AND the inner formatting. Non-annotatable
+ * components (e.g. image attachments) flow through untouched.
+ */
+function mergeOuterAnnotation(innerComps, outerKey, outerValue) {
+  const out = [];
+  for (const c of innerComps) {
+    if (c.type === "text") {
+      out.push({
+        type: "annotated",
+        text: c.text,
+        annotationKey: outerKey,
+        annotationValue: outerValue,
+        annotations: [{ key: outerKey, value: outerValue }]
+      });
+      continue;
+    }
+    if (c.type === "annotated") {
+      const inner =
+        Array.isArray(c.annotations) && c.annotations.length > 0
+          ? c.annotations.slice()
+          : [{ key: c.annotationKey, value: c.annotationValue }];
+      const merged = inner.concat([{ key: outerKey, value: outerValue }]);
+      out.push({
+        type: "annotated",
+        text: c.text,
+        annotationKey: merged[0].key,
+        annotationValue: merged[0].value,
+        annotations: merged
+      });
+      continue;
+    }
+    out.push(c);
+  }
+  return out;
+}
+
+function inlineFormatAnnotation(tag) {
+  switch (tag) {
+    case "strong":
+    case "b":
+      return { key: "fontWeight", value: "bold" };
+    case "em":
+    case "i":
+      return { key: "fontStyle", value: "italic" };
+    case "u":
+      return { key: "textDecoration", value: "underline" };
+    case "s":
+    case "strike":
+    case "del":
+      return { key: "textDecoration", value: "line-through" };
+    default:
+      return null;
+  }
+}
 
 /**
  * <wavy-composer> — F-3.S1 (#1038, R-5.1 + R-5.2) inline rich-text
@@ -255,6 +444,11 @@ export class WavyComposer extends LitElement {
     this._pendingDraftSync = undefined;
     this._composerState = Object.freeze({});
     this._activeSelection = Object.freeze({});
+    // J-UI-5 (#1083, R-5.2): cached live Range from the most recent
+    // selection inside the composer body. Used by toolbar handlers
+    // because `document.getSelection()` does not reliably pierce the
+    // shadow root in WebKit / Firefox.
+    this._lastSelectionRange = null;
     this._handleFocusRequest = () => this.focusComposer();
     this._handleSelectionChange = () => this._onSelectionChange();
   }
@@ -294,17 +488,615 @@ export class WavyComposer extends LitElement {
     this.removeEventListener("composer-focus-request", this._handleFocusRequest);
     document.removeEventListener("selectionchange", this._handleSelectionChange);
     this.removeEventListener("wavy-format-toolbar-action", this._handleToolbarAction);
+    // J-UI-5 (#1083): drop our per-composer link modal so it does not
+    // outlive the composer host (avoids a body-level orphan node).
+    if (this._linkModalElement && this._linkModalElement.isConnected) {
+      this._linkModalElement.parentNode.removeChild(this._linkModalElement);
+    }
+    this._linkModalElement = null;
     super.disconnectedCallback();
   }
 
   _handleToolbarAction = (event) => {
     const actionId = event && event.detail && event.detail.actionId;
+    if (!actionId) return;
     if (actionId === "insert-task") {
       this._insertTaskListAtCaret();
+      event.stopPropagation();
+      return;
     }
-    // Other action ids continue to bubble up to the controller; do not
-    // stop propagation here.
+    // J-UI-5 (#1083, R-5.2 + R-5.7): selection-driven format actions.
+    // The handler claims responsibility for the action ids it
+    // implements; un-handled ids continue to bubble for the existing
+    // body-level routes (e.g. `attachment-insert` ⇒ view.openAttachmentPicker).
+    const inlineWraps = {
+      bold: { tag: "strong", siblings: ["b"] },
+      italic: { tag: "em", siblings: ["i"] },
+      underline: { tag: "u", siblings: [] },
+      strikethrough: { tag: "s", siblings: ["strike", "del"] }
+    };
+    if (inlineWraps[actionId]) {
+      this._toggleInlineWrapAtSelection(inlineWraps[actionId]);
+      event.stopPropagation();
+      return;
+    }
+    if (actionId === "unordered-list" || actionId === "ordered-list") {
+      this._toggleListAtSelection(actionId === "ordered-list" ? "ol" : "ul");
+      event.stopPropagation();
+      return;
+    }
+    // J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-C84X):
+    // align-* and rtl have no submit-pipeline serialization in this
+    // slice — applying the DOM mutation locally would make the
+    // alignment / direction *appear* to take effect but get silently
+    // dropped on submit/reload. Leave the click as a no-op (no DOM
+    // mutation, no stopPropagation) so the action bubbles to a
+    // listener that can surface "unavailable" status. Filed alongside
+    // the heading button as an out-of-scope follow-up in plan §9.
+    if (
+      actionId === "align-left" ||
+      actionId === "align-center" ||
+      actionId === "align-right" ||
+      actionId === "rtl"
+    ) {
+      return;
+    }
+    if (actionId === "link") {
+      this._openLinkModalForSelection();
+      event.stopPropagation();
+      return;
+    }
+    if (actionId === "unlink") {
+      this._unwrapLinkAtSelection();
+      event.stopPropagation();
+      return;
+    }
+    if (actionId === "clear-formatting") {
+      this._clearFormattingAtSelection();
+      event.stopPropagation();
+      return;
+    }
+    // J-UI-5 (#1083, §9 out-of-scope): heading round-trip is deferred —
+    // wrap-as-bold loses the heading semantic on reload. The toolbar
+    // surfaces the button for visual parity; click is a no-op until a
+    // follow-up issue defines the element-type round-trip. Falls
+    // through (no stopPropagation) so a future listener can act on it.
   };
+
+  /**
+   * J-UI-5 (#1083, R-5.2): cached live Range for the most-recent
+   * composer-body selection. Used by toolbar handlers because
+   * `document.getSelection()` does not pierce shadow roots in
+   * Firefox / WebKit. Updated on every `selectionchange` while the
+   * body owns selection (see `_onSelectionChange`).
+   */
+  _captureSelectionRange() {
+    const selection = typeof document !== "undefined" ? document.getSelection() : null;
+    if (!selection || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    if (!this._bodyElement || !this._bodyElement.contains(range.startContainer)) {
+      return null;
+    }
+    return range.cloneRange();
+  }
+
+  _activeRange() {
+    const live = this._captureSelectionRange();
+    if (live) return live;
+    return this._lastSelectionRange ? this._lastSelectionRange.cloneRange() : null;
+  }
+
+  _restoreSelectionRange(range) {
+    if (!range) return;
+    const selection = typeof document !== "undefined" ? document.getSelection() : null;
+    if (!selection) return;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  /**
+   * J-UI-5 (#1083, R-5.2): toggle wrap the active range with the named
+   * inline tag. When the selection is already inside the tag (or one
+   * of its synonyms), unwrap. Selection must be non-collapsed; a
+   * collapsed caret is treated as no-op so accidental clicks do not
+   * insert empty wraps.
+   */
+  _toggleInlineWrapAtSelection(spec) {
+    if (!this._bodyElement) return;
+    const range = this._activeRange();
+    if (!range || range.collapsed) return;
+    if (!this._bodyElement.contains(range.startContainer)) return;
+    const allTags = [spec.tag, ...(spec.siblings || [])];
+    const ancestor = this._findAncestorTag(range.startContainer, allTags);
+    if (ancestor) {
+      // Codex review #1095 threads PRRT_kwDOBwxLXs5-Gunw / -F-8i:
+      // partial-range toggle-off must SPLIT the ancestor at the
+      // selection boundaries — otherwise unwrapping the whole
+      // wrapper drops formatting from text outside the active
+      // range. When the selection covers the entire ancestor, fall
+      // back to a plain unwrap (cheaper and produces identical DOM).
+      if (rangeFullyContainsNode(range, ancestor)) {
+        this._unwrapElement(ancestor);
+      } else {
+        this._unwrapAncestorWithinRange(ancestor, range, spec);
+      }
+      this._afterBodyMutation();
+      return;
+    }
+    const wrapper = document.createElement(spec.tag);
+    try {
+      wrapper.appendChild(range.extractContents());
+      range.insertNode(wrapper);
+      const restored = document.createRange();
+      restored.selectNodeContents(wrapper);
+      this._restoreSelectionRange(restored);
+    } catch (_e) {
+      // Range manipulation can throw for malformed selections; bail
+      // without wrapping rather than corrupting the body.
+      return;
+    }
+    this._afterBodyMutation();
+  }
+
+  /**
+   * J-UI-5 (#1083, codex review #1095 threads PRRT_kwDOBwxLXs5-Gunw +
+   * PRRT_kwDOBwxLXs5-F-8i): split an existing inline wrapper around
+   * the active selection so toggle-off only removes formatting from
+   * the selected fragment, not the whole wrap. The wrapper is
+   * cloned for the prefix (text before the selection) and the
+   * suffix (text after); the selected slice is extracted out and
+   * inserted as a sibling between the two clones, then the
+   * original wrapper is removed.
+   */
+  _unwrapAncestorWithinRange(ancestor, range, spec) {
+    const parent = ancestor.parentNode;
+    if (!parent) return;
+    let prefixRange;
+    let suffixRange;
+    try {
+      prefixRange = document.createRange();
+      prefixRange.selectNodeContents(ancestor);
+      prefixRange.setEnd(range.startContainer, range.startOffset);
+      suffixRange = document.createRange();
+      suffixRange.selectNodeContents(ancestor);
+      suffixRange.setStart(range.endContainer, range.endOffset);
+    } catch (_e) {
+      // Selection may sit outside the ancestor on weird boundaries;
+      // bail rather than corrupting the body.
+      return;
+    }
+    let prefixFragment;
+    let suffixFragment;
+    let middleFragment;
+    try {
+      prefixFragment = prefixRange.cloneContents();
+      suffixFragment = suffixRange.cloneContents();
+      // Codex review #1095 thread PRRT_kwDOBwxLXs5-N9fu: clamp the
+      // middle slice to the ancestor's bounds. If the user's
+      // selection ends OUTSIDE the formatted ancestor (e.g.
+      // `<strong>hello</strong> world` with a range from `lo` into
+      // ` wor`), the raw selection endpoints would pull text from
+      // outside the ancestor into `cloneContents()`. That cloned
+      // outside text would then be inserted before the ancestor,
+      // and the ancestor itself removed — duplicating ` wor` in the
+      // body. Use `selectNodeContents(ancestor)` as the natural
+      // baseline and only narrow start/end when the corresponding
+      // selection endpoint is actually inside the ancestor.
+      const innerRange = document.createRange();
+      innerRange.selectNodeContents(ancestor);
+      const startInside =
+          ancestor === range.startContainer || ancestor.contains(range.startContainer);
+      const endInside =
+          ancestor === range.endContainer || ancestor.contains(range.endContainer);
+      if (startInside) {
+        innerRange.setStart(range.startContainer, range.startOffset);
+      }
+      if (endInside) {
+        innerRange.setEnd(range.endContainer, range.endOffset);
+      }
+      // If neither endpoint is inside the ancestor we cannot trust
+      // the selection to describe a meaningful slice — bail rather
+      // than corrupting the body.
+      if (!startInside && !endInside) {
+        return;
+      }
+      middleFragment = innerRange.cloneContents();
+    } catch (_e) {
+      return;
+    }
+    // Codex review #1095 thread PRRT_kwDOBwxLXs5-NWWt: prefix/suffix
+    // wrappers must clone the original ancestor's attributes (most
+    // importantly `href` on `<a>`) so unlinking inside a longer link
+    // keeps the surrounding text linked. `cloneNode(false)` clones
+    // the element + its attributes WITHOUT children; we then move
+    // the prefix/suffix fragment children into the clone.
+    const insertSiblingsBefore = (target, frag, wrapTemplate) => {
+      // Skip empty fragments — happens when the selection starts at
+      // offset 0 (no prefix) or covers the ancestor's last char (no
+      // suffix). cloneContents can also produce a fragment that holds
+      // an empty text node (length 0), which would still leave behind
+      // an empty `<strong></strong>` if we naively re-wrapped it.
+      if (!frag || !frag.hasChildNodes()) return null;
+      const text = frag.textContent || "";
+      const hasElementChild = Boolean(frag.querySelector && frag.querySelector("*"));
+      if (text.length === 0 && !hasElementChild) return null;
+      if (wrapTemplate) {
+        const wrapper = wrapTemplate.cloneNode(false);
+        wrapper.appendChild(frag);
+        parent.insertBefore(wrapper, target);
+        return wrapper;
+      }
+      // Inline insert without wrapping (toggle-off drops the
+      // ancestor for the slice).
+      while (frag.firstChild) parent.insertBefore(frag.firstChild, target);
+      return null;
+    };
+    insertSiblingsBefore(ancestor, prefixFragment, ancestor);
+    const middleAnchor = ancestor;
+    insertSiblingsBefore(middleAnchor, middleFragment, null);
+    insertSiblingsBefore(ancestor, suffixFragment, ancestor);
+    parent.removeChild(ancestor);
+    void spec;
+  }
+
+  /**
+   * J-UI-5 (#1083, R-5.7): toggle wrap the lines covered by the
+   * selection in `<ul>`/`<ol>`. Each line becomes one `<li>`. When
+   * the selection is already inside a list of the same tag, unwrap
+   * the items back to plain text.
+   */
+  _toggleListAtSelection(listTag) {
+    if (!this._bodyElement) return;
+    const range = this._activeRange();
+    if (!range) return;
+    if (!this._bodyElement.contains(range.startContainer)) return;
+    const existing = this._findAncestorTag(range.startContainer, [listTag]);
+    if (existing) {
+      // Codex review #1095 threads PRRT_kwDOBwxLXs5-Gun0 / -GulD:
+      // toggle-off must only unwrap the `<li>`s that the selection
+      // intersects, leaving sibling items intact. Only when the user
+      // covers every item (or the whole list) do we drop the list
+      // wrapper entirely.
+      const parent = existing.parentNode;
+      if (!parent) return;
+      const items = Array.from(existing.querySelectorAll("li"));
+      const selectedSet = new Set();
+      for (const li of items) {
+        try {
+          if (range.intersectsNode(li)) selectedSet.add(li);
+        } catch (_e) {
+          // ignore — leaves li unselected
+        }
+      }
+      const targetSet = selectedSet.size > 0 ? selectedSet : new Set(items);
+      // Codex review #1095 thread PRRT_kwDOBwxLXs5-NGAY: walk the
+      // list's children in DOM order and replace selected `<li>`s
+      // with sibling `<div>` blocks at the SAME ordinal position,
+      // so item order survives even when selected and unselected
+      // items interleave (e.g. items=[a, b, c] with [a, c] selected
+      // must serialise as div_a, ul[b], div_c — not a, c, b).
+      // Unselected runs collapse into a residual `<ul>`/`<ol>` of
+      // the original tag so list semantics persist where needed.
+      const childItems = Array.from(existing.children).filter(
+        (child) => child.tagName && child.tagName.toLowerCase() === "li"
+      );
+      const parentList = existing.parentNode;
+      const segments = [];
+      let currentResidual = null;
+      for (const li of childItems) {
+        if (targetSet.has(li)) {
+          const div = document.createElement("div");
+          while (li.firstChild) div.appendChild(li.firstChild);
+          segments.push(div);
+          currentResidual = null;
+        } else {
+          if (!currentResidual) {
+            currentResidual = document.createElement(listTag);
+            segments.push(currentResidual);
+          }
+          // Move the `<li>` into the residual list, preserving its
+          // own children (and any rich content inside).
+          currentResidual.appendChild(li);
+        }
+      }
+      for (const segment of segments) {
+        parentList.insertBefore(segment, existing);
+      }
+      parentList.removeChild(existing);
+      this._afterBodyMutation();
+      return;
+    }
+    // J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyb):
+    // preserve inline markup when toggling list formatting. Extract
+    // the live DocumentFragment from the range (carrying any
+    // `<strong>`, `<em>`, `<a>`, mention chips, etc.), split it into
+    // line groups, and inject each group into a fresh `<li>` so
+    // formatting + chips survive the wrap.
+    let fragment;
+    try {
+      fragment = range.cloneContents();
+    } catch (_e) {
+      return;
+    }
+    if (!fragment || !fragment.hasChildNodes()) return;
+    const lineGroups = splitFragmentIntoLineGroups(fragment);
+    if (lineGroups.length === 0) return;
+    const list = document.createElement(listTag);
+    for (const group of lineGroups) {
+      const li = document.createElement("li");
+      for (const node of group) li.appendChild(node);
+      // Skip <li> elements whose contents serialise to nothing — these
+      // come from blank lines in the source and would otherwise paint
+      // empty bullets.
+      if (li.textContent.length === 0 && !li.querySelector("*")) continue;
+      list.appendChild(li);
+    }
+    if (!list.firstChild) return;
+    try {
+      range.deleteContents();
+      range.insertNode(list);
+      const restored = document.createRange();
+      restored.selectNodeContents(list);
+      this._restoreSelectionRange(restored);
+    } catch (_e) {
+      return;
+    }
+    this._afterBodyMutation();
+  }
+
+  /**
+   * J-UI-5 (#1083, R-5.7): open the existing `<wavy-link-modal>` to
+   * collect a URL, then wrap the active range in `<a href=…>`. The
+   * range is captured before the modal opens so caret/selection
+   * survive across modal interactions.
+   */
+  _openLinkModalForSelection() {
+    if (!this._bodyElement) return;
+    const range = this._activeRange();
+    if (!range) return;
+    if (!this._bodyElement.contains(range.startContainer)) return;
+    let preselectedDisplay = "";
+    try {
+      preselectedDisplay = range.toString();
+    } catch (_e) {
+      preselectedDisplay = "";
+    }
+    // J-UI-5 (#1083): each composer owns its own link modal so that
+    // two composers (wave-root + inline reply) opened simultaneously
+    // never share a modal node — sharing would mean their independent
+    // submit / cancel listeners fire against each other.
+    let modal = this._linkModalElement;
+    if (!modal || !modal.isConnected) {
+      modal = document.createElement("wavy-link-modal");
+      modal.setAttribute("data-j2cl-link-modal", "true");
+      document.body.appendChild(modal);
+      this._linkModalElement = modal;
+    }
+    modal.urlValue = "";
+    modal.displayValue = preselectedDisplay;
+    modal.open = true;
+    const onSubmit = (event) => {
+      const detail = event && event.detail;
+      modal.removeEventListener("wavy-link-modal-submit", onSubmit);
+      modal.removeEventListener("wavy-link-modal-cancel", onCancel);
+      modal.open = false;
+      if (!detail || !detail.url) return;
+      this._wrapRangeInLink(range, detail.url, detail.display || preselectedDisplay);
+    };
+    const onCancel = () => {
+      modal.removeEventListener("wavy-link-modal-submit", onSubmit);
+      modal.removeEventListener("wavy-link-modal-cancel", onCancel);
+      modal.open = false;
+      // Restore caret to the captured range so the user is back where
+      // they were before the modal stole focus.
+      this._restoreSelectionRange(range.cloneRange());
+    };
+    modal.addEventListener("wavy-link-modal-submit", onSubmit);
+    modal.addEventListener("wavy-link-modal-cancel", onCancel);
+  }
+
+  _wrapRangeInLink(range, url, displayText) {
+    if (!this._bodyElement) return;
+    if (!this._bodyElement.contains(range.startContainer)) return;
+    // J-UI-5 (#1083): defense in depth. The wavy-link-modal already
+    // validates the URL scheme, but the wrap helper is also reachable
+    // by any consumer dispatching `wavy-link-modal-submit` directly,
+    // so re-check here. Reject `javascript:` / `data:` / `vbscript:`
+    // URLs so a misbehaving caller cannot inject script-bearing hrefs.
+    if (!isSafeLinkHref(url)) return;
+    const anchor = document.createElement("a");
+    anchor.setAttribute("href", url);
+    // External-link safety defaults: open in same tab, drop the
+    // referrer/window-opener handle when the user clicks. Composer
+    // anchors do not need a target attribute, but rel hardens the
+    // default behaviour for any future caller that adds one.
+    anchor.setAttribute("rel", "noopener noreferrer");
+    if (displayText && range.collapsed) {
+      anchor.textContent = displayText;
+    } else {
+      try {
+        anchor.appendChild(range.extractContents());
+      } catch (_e) {
+        return;
+      }
+    }
+    try {
+      range.insertNode(anchor);
+    } catch (_e) {
+      return;
+    }
+    const restored = document.createRange();
+    restored.selectNodeContents(anchor);
+    this._restoreSelectionRange(restored);
+    this._afterBodyMutation();
+  }
+
+  _unwrapLinkAtSelection() {
+    if (!this._bodyElement) return;
+    const range = this._activeRange();
+    if (!range) return;
+    if (!this._bodyElement.contains(range.startContainer)) return;
+    const anchor = this._findAncestorTag(range.startContainer, ["a"]);
+    if (!anchor) return;
+    // Codex review #1095 thread PRRT_kwDOBwxLXs5-NWWt: partial-range
+    // unlink must SPLIT the `<a>` so text outside the selection
+    // keeps its link. The split helper clones the ancestor's
+    // attributes (href included) onto the prefix + suffix clones,
+    // so the surrounding linked text survives intact. When the
+    // selection covers the whole anchor, fall back to a plain
+    // unwrap (cheaper, identical DOM result).
+    if (rangeFullyContainsNode(range, anchor)) {
+      this._unwrapElement(anchor);
+    } else {
+      this._unwrapAncestorWithinRange(anchor, range, null);
+    }
+    this._afterBodyMutation();
+  }
+
+  /**
+   * J-UI-5 (#1083, R-5.7): flatten formatting tags inside the active
+   * range so the user can recover plain text. Strips the formatting
+   * wraps we know about (`<strong>`, `<em>`, `<u>`, `<s>`, `<a>`,
+   * `<ul>`, `<ol>`, `<li>`, `<blockquote>`) **only inside the selected
+   * range**. Mention chips are left intact — they are semantic, not
+   * visual formatting.
+   *
+   * Scoping the strip to the range matters: a user clicking
+   * "Clear formatting" with one bold word selected must not erase
+   * every other formatted run elsewhere in the body.
+   */
+  _clearFormattingAtSelection() {
+    if (!this._bodyElement) return;
+    const range = this._activeRange();
+    if (!range) return;
+    if (!this._bodyElement.contains(range.startContainer)) return;
+    // J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-C84T):
+    // inline wraps (bold/italic/underline/strike/link/headings) are
+    // unwrapped when they intersect the selection — selecting the
+    // middle of a bold word and clearing should drop bold from the
+    // whole wrap, matching the intuitive "remove formatting from this
+    // text" expectation.
+    //
+    // Container wraps (`ul`, `ol`, `li`, `blockquote`) are different:
+    // unwrapping a `<ul>` because the user selected ONE `<li>`
+    // strips list membership from sibling items the user did not
+    // touch. Only unwrap a container when the entire container's
+    // tree is inside the selection.
+    const inlineTags = new Set([
+      "strong",
+      "b",
+      "em",
+      "i",
+      "u",
+      "s",
+      "strike",
+      "del",
+      "a",
+      "h1",
+      "h2",
+      "h3",
+      "h4"
+    ]);
+    // `<li>` is intentionally NOT a container candidate: stripping it
+    // separately would pull the item's text into its parent list and
+    // collapse adjacent items together. We rely on the `<ul>`/`<ol>`
+    // unwrap (which expands each `<li>` into its own `<div>` block,
+    // see `_unwrapElement`) to handle list teardown.
+    const containerTags = new Set(["ul", "ol", "blockquote"]);
+    const walker = document.createTreeWalker(this._bodyElement, NodeFilter.SHOW_ELEMENT, null);
+    const stripCandidates = [];
+    let node = walker.currentNode;
+    while ((node = walker.nextNode())) {
+      const tag = node.tagName ? node.tagName.toLowerCase() : "";
+      const isInline = inlineTags.has(tag);
+      const isContainer = containerTags.has(tag);
+      if (!isInline && !isContainer) continue;
+      if (node.classList && node.classList.contains("wavy-mention-chip")) continue;
+      try {
+        if (!range.intersectsNode(node)) continue;
+      } catch (_e) {
+        continue;
+      }
+      if (isContainer && !rangeFullyContainsNode(range, node)) {
+        // Container only partially covered — sibling items would lose
+        // formatting if we unwrap. Skip and let the user clear
+        // per-item by widening the selection.
+        continue;
+      }
+      stripCandidates.push(node);
+    }
+    // Unwrap children-first so an outer wrap's children migrate cleanly
+    // (otherwise the outer unwrap orphans inner candidates).
+    stripCandidates.reverse();
+    for (const candidate of stripCandidates) {
+      this._unwrapElement(candidate);
+    }
+    this._afterBodyMutation();
+  }
+
+  _findAncestorTag(node, tagNames) {
+    if (!node || !this._bodyElement) return null;
+    const lowered = tagNames.map((t) => t.toLowerCase());
+    let current = node.nodeType === Node.ELEMENT_NODE ? node : node.parentNode;
+    while (current && current !== this._bodyElement) {
+      if (current.nodeType === Node.ELEMENT_NODE) {
+        const tag = current.tagName ? current.tagName.toLowerCase() : "";
+        if (lowered.includes(tag)) return current;
+      }
+      current = current.parentNode;
+    }
+    return null;
+  }
+
+  _unwrapElement(element) {
+    if (!element) return;
+    const parent = element.parentNode;
+    if (!parent) return;
+    // Codex review #1095 thread PRRT_kwDOBwxLXs5-F-d2: container
+    // unwraps (`<ul>`, `<ol>`) must preserve item boundaries so
+    // `<ul><li>a</li><li>b</li></ul>` does not collapse to `ab`.
+    // Wrap each `<li>`'s contents in a `<div>` block so the post-
+    // unwrap DOM keeps one block per former item; the body's text
+    // serializer treats a `<div>` boundary as a newline.
+    const tag = element.tagName ? element.tagName.toLowerCase() : "";
+    if (tag === "ul" || tag === "ol") {
+      const itemElements = Array.from(element.children).filter(
+        (child) => child.tagName && child.tagName.toLowerCase() === "li"
+      );
+      if (itemElements.length > 0) {
+        for (const li of itemElements) {
+          const div = document.createElement("div");
+          while (li.firstChild) div.appendChild(li.firstChild);
+          parent.insertBefore(div, element);
+        }
+        parent.removeChild(element);
+        return;
+      }
+    }
+    while (element.firstChild) parent.insertBefore(element.firstChild, element);
+    parent.removeChild(element);
+  }
+
+  /**
+   * J-UI-5 (#1083, R-5.2): re-emit `draft-change` and refresh the
+   * cached selection descriptor after a toolbar mutation so
+   * downstream consumers (toolbar pressed state, save indicator,
+   * the controller's draft cache) see the edit.
+   */
+  _afterBodyMutation() {
+    const value = this._serializeBodyText();
+    this.draft = value;
+    this.dispatchEvent(
+      new CustomEvent("draft-change", {
+        detail: { value, replyTargetBlipId: this.replyTargetBlipId, mode: this.mode },
+        bubbles: true,
+        composed: true
+      })
+    );
+    // Re-emit selection-change so the floating toolbar's pressed
+    // state mirrors the new annotation set immediately.
+    this._onSelectionChange();
+  }
 
   /**
    * F-3.S2 (#1038, R-5.4 step 6): insert a `<ul class="wavy-task-list">`
@@ -317,9 +1109,14 @@ export class WavyComposer extends LitElement {
    */
   _insertTaskListAtCaret() {
     if (!this._bodyElement) return;
-    const selection = document.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0);
+    // Codex review #1095 thread PRRT_kwDOBwxLXs5-F-ds: read the
+    // active range via `_activeRange()` (cached at the body's
+    // `selectionchange` listener) instead of `document.getSelection()`
+    // directly, so the action still works after the toolbar steals
+    // focus in Firefox / WebKit (where `document.getSelection()` does
+    // not pierce shadow roots).
+    const range = this._activeRange();
+    if (!range) return;
     if (!this._bodyElement.contains(range.startContainer)) return;
     const ul = document.createElement("ul");
     ul.className = "wavy-task-list";
@@ -344,8 +1141,7 @@ export class WavyComposer extends LitElement {
     const caretRange = document.createRange();
     caretRange.selectNodeContents(li);
     caretRange.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(caretRange);
+    this._restoreSelectionRange(caretRange);
     // Re-emit draft-change so consumers see the new line.
     const value = this._serializeBodyText();
     this.draft = value;
@@ -439,8 +1235,15 @@ export class WavyComposer extends LitElement {
    */
   _bodyHasRichContent() {
     if (!this._bodyElement) return false;
+    // J-UI-5 (#1083): inline format wraps (bold/italic/underline/strike/
+    // link) and block wraps (lists, blockquote, headings) are also rich
+    // content the plain-text `draft` cannot round-trip. Counting them
+    // here keeps the next Lit re-render from clobbering the wraps via
+    // a textContent overwrite.
     return Boolean(
-      this._bodyElement.querySelector(".wavy-mention-chip, .wavy-task-list")
+      this._bodyElement.querySelector(
+        ".wavy-mention-chip, .wavy-task-list, strong, b, em, i, u, s, strike, del, a, ul, ol, blockquote, h1, h2, h3, h4"
+      )
     );
   }
 
@@ -463,29 +1266,73 @@ export class WavyComposer extends LitElement {
     if (!this._bodyElement) return "";
     // Walk immediate child nodes to capture newlines that contenteditable
     // adds as <div> wrappers per-line (Enter key) or <br> nodes.
-    let text = "";
-    for (const node of this._bodyElement.childNodes) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        text += node.textContent;
-      } else if (node.nodeType === Node.ELEMENT_NODE) {
+    //
+    // Coderabbit review #1095 thread PRRT_kwDOBwxLXs5-NWWy: list and
+    // blockquote containers must emit explicit `\n` separators between
+    // their block children. Without this, `<ul><li>a</li><li>b</li></ul>`
+    // serialised as `ab` in the draft preview while the DocOp submit
+    // path sees them as separate runs — the preview no longer matched
+    // the submitted content. Mirror the structure DocOp serialization
+    // uses by handling `<ul>` / `<ol>` (newline-separated `<li>`s)
+    // and `<blockquote>` (newline-separated block children) inline.
+    const out = { text: "" };
+    const ensureLineBreak = () => {
+      if (out.text.length > 0 && !out.text.endsWith("\n")) {
+        out.text += "\n";
+      }
+    };
+    const walk = (parent) => {
+      for (const node of parent.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          out.text += node.textContent;
+          continue;
+        }
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
         const tag = node.tagName.toLowerCase();
         if (tag === "br") {
-          text += "\n";
-        } else if (tag === "div" || tag === "p") {
-          if (text.length > 0 && !text.endsWith("\n")) text += "\n";
-          text += node.textContent;
-        } else {
-          // F-3.S2 (#1038, R-5.3 step 4): mention chip spans are
-          // contenteditable=false; their textContent is "@<displayName>"
-          // which we want in the textual draft view so consumers see
-          // the right preview. The rich serializer below
-          // (_serializeBodyComponents) emits a separate annotation
-          // component for the same chip on submit.
-          text += node.textContent;
+          out.text += "\n";
+          continue;
         }
+        if (tag === "div" || tag === "p" || tag === "h1" || tag === "h2" || tag === "h3" || tag === "h4") {
+          ensureLineBreak();
+          walk(node);
+          continue;
+        }
+        if (tag === "ul" || tag === "ol") {
+          ensureLineBreak();
+          let firstItem = true;
+          for (const child of node.childNodes) {
+            if (
+              child.nodeType === Node.ELEMENT_NODE &&
+              child.tagName.toLowerCase() === "li"
+            ) {
+              if (!firstItem) ensureLineBreak();
+              walk(child);
+              firstItem = false;
+            }
+          }
+          ensureLineBreak();
+          continue;
+        }
+        if (tag === "blockquote") {
+          ensureLineBreak();
+          // Walk children; nested block boundaries inside the quote
+          // emit their own separators via the cases above.
+          walk(node);
+          ensureLineBreak();
+          continue;
+        }
+        // F-3.S2 (#1038, R-5.3 step 4): mention chip spans are
+        // contenteditable=false; their textContent is "@<displayName>"
+        // which we want in the textual draft view so consumers see
+        // the right preview. The rich serializer below
+        // (_serializeBodyComponents) emits a separate annotation
+        // component for the same chip on submit.
+        out.text += node.textContent;
       }
-    }
-    return text;
+    };
+    walk(this._bodyElement);
+    return out.text;
   }
 
   /**
@@ -623,17 +1470,16 @@ export class WavyComposer extends LitElement {
               flushText();
               const itemComps = components.splice(snapLen);
               pending = snapPending;
-              for (const c of itemComps) {
-                if (c.type === "text") {
-                  components.push({
-                    type: "annotated",
-                    text: c.text,
-                    annotationKey,
-                    annotationValue: "true"
-                  });
-                } else {
-                  components.push(c);
-                }
+              // Codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW:
+              // merge the list annotation onto every child run so
+              // `<li><strong>x</strong></li>` keeps both list/* AND
+              // fontWeight=bold on the same span.
+              for (const merged of mergeOuterAnnotation(
+                itemComps,
+                annotationKey,
+                "true"
+              )) {
+                components.push(merged);
               }
             }
           }
@@ -661,17 +1507,12 @@ export class WavyComposer extends LitElement {
           flushText();
           const bqComps = components.splice(snapLen);
           pending = snapPending;
-          for (const c of bqComps) {
-            if (c.type === "text") {
-              components.push({
-                type: "annotated",
-                text: c.text,
-                annotationKey: "block/quote",
-                annotationValue: "true"
-              });
-            } else {
-              components.push(c);
-            }
+          // Codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW: merge
+          // the block/quote annotation onto every child run so
+          // `<blockquote><strong>x</strong></blockquote>` keeps both
+          // block/quote AND fontWeight=bold on the same span.
+          for (const merged of mergeOuterAnnotation(bqComps, "block/quote", "true")) {
+            components.push(merged);
           }
           continue;
         }
@@ -696,17 +1537,12 @@ export class WavyComposer extends LitElement {
             flushText();
             const aComps = components.splice(snapLen);
             pending = snapPending;
-            for (const c of aComps) {
-              if (c.type === "text") {
-                components.push({
-                  type: "annotated",
-                  text: c.text,
-                  annotationKey: "link/manual",
-                  annotationValue: href
-                });
-              } else {
-                components.push(c);
-              }
+            // Codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW: merge
+            // the link/manual annotation onto every child run so
+            // `<a><strong>x</strong></a>` keeps both link/manual AND
+            // fontWeight=bold on the same span.
+            for (const merged of mergeOuterAnnotation(aComps, "link/manual", href)) {
+              components.push(merged);
             }
             continue;
           }
@@ -719,6 +1555,37 @@ export class WavyComposer extends LitElement {
             flushText();
           }
           walk(node.childNodes);
+          continue;
+        }
+        // J-UI-5 (#1083, R-5.7): inline format wraps. Walk children
+        // recursively so that nested formatting (e.g. <strong><em>...
+        // </em></strong>) and chips inside formatted text survive
+        // round-trip. Plain text inside the wrap is promoted to the
+        // matching annotation; pre-annotated children carry the inner
+        // annotation in their `annotations` list and we *append* the
+        // outer annotation to that list so the combined run round-trips
+        // (codex review #1095 thread PRRT_kwDOBwxLXs5-C84a).
+        const inlineAnnotation = inlineFormatAnnotation(tag);
+        if (inlineAnnotation) {
+          flushText();
+          const snapLen = components.length;
+          const snapPending = pending;
+          pending = "";
+          walk(node.childNodes);
+          flushText();
+          const innerComps = components.splice(snapLen);
+          pending = snapPending;
+          // Codex review #1095 thread PRRT_kwDOBwxLXs5-C84a: merge the
+          // outer annotation onto every child run (text + annotated)
+          // so combined `<strong><em>x</em></strong>` carries both
+          // fontWeight AND fontStyle on the same span.
+          for (const merged of mergeOuterAnnotation(
+            innerComps,
+            inlineAnnotation.key,
+            inlineAnnotation.value
+          )) {
+            components.push(merged);
+          }
           continue;
         }
         pending += node.textContent;
@@ -1208,10 +2075,24 @@ export class WavyComposer extends LitElement {
 
   _submit() {
     if (this.submitting || this.staleBasis) return;
+    // J-UI-5 (#1083, R-5.7): forward the per-fragment annotated
+    // component list so the Java controller can build a
+    // `J2clComposerDocument` that carries the user's formatting
+    // through the DocOp model. Plain-text consumers continue to
+    // read `value`; the legacy `<composer-inline-reply>` textarea
+    // path leaves `components` empty / absent and the view falls
+    // back to plain text on submit.
+    let components = [];
+    try {
+      components = this.serializeRichComponents();
+    } catch (_e) {
+      components = [];
+    }
     this.dispatchEvent(
       new CustomEvent("reply-submit", {
         detail: {
           value: this.draft,
+          components,
           replyTargetBlipId: this.replyTargetBlipId,
           mode: this.mode
         },
@@ -1262,6 +2143,7 @@ export class WavyComposer extends LitElement {
     if (!selection || selection.rangeCount === 0) {
       this._flushPendingDraftSync();
       this.activeSelection = {};
+      this._lastSelectionRange = null;
       this._dispatchSelectionEvent({});
       // F-3.S2: caret left the document; collapse the popover.
       if (this._mentionOpen) this._dismissMentionPopover("blur");
@@ -1273,6 +2155,7 @@ export class WavyComposer extends LitElement {
       // the floating toolbar collapses.
       this._flushPendingDraftSync();
       this.activeSelection = {};
+      this._lastSelectionRange = null;
       this._dispatchSelectionEvent({});
       if (this._mentionOpen) this._dismissMentionPopover("blur");
       return;
@@ -1291,6 +2174,11 @@ export class WavyComposer extends LitElement {
       activeAnnotations: this._collectActiveAnnotations(range)
     };
     this.activeSelection = descriptor;
+    // J-UI-5 (#1083, R-5.2): cache a clone of the live range so toolbar
+    // handlers have a stable selection to act on even when
+    // `document.getSelection()` cannot pierce the shadow root (Firefox /
+    // WebKit). Cleared by the no-selection / out-of-body branches above.
+    this._lastSelectionRange = range.cloneRange();
     this._dispatchSelectionEvent(descriptor);
     // F-3.S2 (#1038, R-5.3): re-evaluate the mention trigger from the
     // live caret. This catches cases where the user clicks elsewhere
