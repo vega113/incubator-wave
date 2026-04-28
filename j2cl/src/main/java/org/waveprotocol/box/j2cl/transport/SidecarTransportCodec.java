@@ -205,10 +205,12 @@ public final class SidecarTransportCodec {
     // thread. Used as the parent-blip for any reply <thread> that
     // opens before the next sibling blip on the same thread.
     List<String> mostRecentBlipPerThread = new ArrayList<String>();
-    // Per-thread sibling counter, keyed by the thread's structural
-    // key (depth + id) so re-used ids in different subtrees do not
-    // share counters.
-    Map<String, Integer> siblingCountersByThreadKey = new LinkedHashMap<String, Integer>();
+    // Per-open-thread sibling counter (parallel to threadStack so
+    // re-used thread ids in different subtrees do not collide —
+    // review-1089 round-1: a `<thread id="t+a">` nested under one
+    // blip and a sibling `<thread id="t+a">` under a different blip
+    // each get their own counter).
+    List<Integer> siblingCounterStack = new ArrayList<Integer>();
     // Stack of element types (lowercase). Used so we know which
     // mirror state to pop on element-end.
     List<String> elementStack = new ArrayList<String>();
@@ -224,6 +226,7 @@ public final class SidecarTransportCodec {
           String threadId = getAttribute(elementStart, "id");
           threadStack.add(threadId == null ? "" : threadId);
           mostRecentBlipPerThread.add("");
+          siblingCounterStack.add(Integer.valueOf(0));
         } else if ("blip".equals(safeType)) {
           String blipId = getAttribute(elementStart, "id");
           if (blipId == null || blipId.isEmpty()) {
@@ -239,10 +242,12 @@ public final class SidecarTransportCodec {
           if (threadStack.size() >= 2) {
             parentBlipId = mostRecentBlipPerThread.get(mostRecentBlipPerThread.size() - 2);
           }
-          String threadKey = depth + ":" + threadId;
-          Integer counter = siblingCountersByThreadKey.get(threadKey);
-          int siblingIndex = counter == null ? 0 : counter.intValue();
-          siblingCountersByThreadKey.put(threadKey, siblingIndex + 1);
+          int siblingIndex = 0;
+          if (!siblingCounterStack.isEmpty()) {
+            siblingIndex = siblingCounterStack.get(siblingCounterStack.size() - 1).intValue();
+            siblingCounterStack.set(
+                siblingCounterStack.size() - 1, Integer.valueOf(siblingIndex + 1));
+          }
           entries.add(
               new SidecarConversationManifest.Entry(
                   blipId, parentBlipId, threadId, depth, siblingIndex));
@@ -261,6 +266,9 @@ public final class SidecarTransportCodec {
           }
           if (!mostRecentBlipPerThread.isEmpty()) {
             mostRecentBlipPerThread.remove(mostRecentBlipPerThread.size() - 1);
+          }
+          if (!siblingCounterStack.isEmpty()) {
+            siblingCounterStack.remove(siblingCounterStack.size() - 1);
           }
         }
       }

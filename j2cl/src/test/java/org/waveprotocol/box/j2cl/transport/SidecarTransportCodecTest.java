@@ -756,6 +756,57 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void decodeSelectedWaveUpdateGivesEachOpenThreadItsOwnSiblingCounter() {
+    // <conversation>
+    //   <thread id="root">
+    //     <blip id="b+1"/>
+    //     <thread id="t+a">
+    //       <blip id="b+1a"/>
+    //       <blip id="b+1b"/>     <!-- siblingIndex 1 inside t+a under b+1 -->
+    //     </thread>
+    //     <blip id="b+2"/>
+    //     <thread id="t+a">       <!-- re-used id under a different parent -->
+    //       <blip id="b+2a"/>     <!-- must be siblingIndex 0, not 2 -->
+    //     </thread>
+    //   </thread>
+    // </conversation>
+    String json =
+        "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"a@example.com\"],"
+            + "\"3\":[{\"1\":\"conversation\",\"2\":{\"1\":["
+            + "{\"3\":{\"1\":\"conversation\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"thread\",\"2\":[{\"1\":\"id\",\"2\":\"root\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+1\"}]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"thread\",\"2\":[{\"1\":\"id\",\"2\":\"t+a\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+1a\"}]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+1b\"}]}},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+2\"}]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"thread\",\"2\":[{\"1\":\"id\",\"2\":\"t+a\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+2a\"}]}},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"4\":true}]}}]},"
+            + "\"6\":true,\"7\":\"ch3\"}}";
+
+    SidecarConversationManifest manifest =
+        SidecarTransportCodec.decodeSelectedWaveUpdate(json).getConversationManifest();
+
+    Assert.assertEquals(0, manifest.findByBlipId("b+1a").getSiblingIndex());
+    Assert.assertEquals(1, manifest.findByBlipId("b+1b").getSiblingIndex());
+    // b+2a must be siblingIndex 0 inside its own (separate) t+a
+    // thread, not 2 — review-1089 round-1 collision check.
+    Assert.assertEquals(0, manifest.findByBlipId("b+2a").getSiblingIndex());
+    Assert.assertEquals("b+2", manifest.findByBlipId("b+2a").getParentBlipId());
+  }
+
+  @Test
   public void decodeSelectedWaveUpdateLeavesManifestEmptyWhenConversationDocOpHasNoComponents() {
     String json =
         "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"

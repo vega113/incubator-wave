@@ -112,18 +112,28 @@ public final class SidecarConversationManifest {
     if (entriesInDfsOrder == null || entriesInDfsOrder.isEmpty()) {
       return EMPTY;
     }
+    // Filter null / empty-id entries AND dedupe by blipId so the
+    // ordered list and the by-id lookup map agree on what's present
+    // (review-1089 round-1: previously the ordered list could carry
+    // duplicates that the renderer would then render twice).
     Map<String, Entry> byId = new LinkedHashMap<String, Entry>();
+    List<Entry> filtered = new ArrayList<Entry>(entriesInDfsOrder.size());
     for (Entry entry : entriesInDfsOrder) {
       if (entry == null || entry.getBlipId().isEmpty()) {
         continue;
       }
       // First occurrence wins so a malformed manifest with duplicate
       // blip-id references does not silently overwrite the original.
-      if (!byId.containsKey(entry.getBlipId())) {
-        byId.put(entry.getBlipId(), entry);
+      if (byId.containsKey(entry.getBlipId())) {
+        continue;
       }
+      byId.put(entry.getBlipId(), entry);
+      filtered.add(entry);
     }
-    return new SidecarConversationManifest(entriesInDfsOrder, byId);
+    if (filtered.isEmpty()) {
+      return EMPTY;
+    }
+    return new SidecarConversationManifest(filtered, byId);
   }
 
   public boolean isEmpty() {

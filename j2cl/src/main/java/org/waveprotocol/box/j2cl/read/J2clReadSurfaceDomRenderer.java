@@ -477,30 +477,36 @@ public final class J2clReadSurfaceDomRenderer {
     rootThread.setAttribute("role", "list");
     surface.appendChild(rootThread);
 
-    int blipIndex = 0;
+    // J-UI-4 (#1082, R-3.1) — convert loaded entries into J2clReadBlip
+    // records and let appendBlipsAsTree do the same nested-thread
+    // assembly the live-blip path uses, so the viewport-windowed
+    // renderer doesn't flatten replies. Placeholders (still loading)
+    // remain as inline placeholder elements at the root level — their
+    // text/author/timestamp aren't known yet, and the row reserves
+    // height + announces aria-busy so the user sees the skeleton.
     boolean hasPlaceholder = false;
+    List<J2clReadBlip> loadedBlips = new ArrayList<J2clReadBlip>(entries.size());
     for (int i = 0; i < entries.size(); i++) {
       J2clReadWindowEntry entry = entries.get(i);
       if (entry.isLoaded()) {
-        rootThread.appendChild(
-            renderBlip(
-                new J2clReadBlip(
-                    entry.getBlipId(),
-                    entry.getText(),
-                    entry.getAttachments(),
-                    entry.getAuthorId(),
-                    entry.getAuthorDisplayName(),
-                    entry.getLastModifiedTimeMillis(),
-                    entry.getParentBlipId(),
-                    entry.getThreadId(),
-                    entry.isUnread(),
-                    entry.hasMention()),
-                blipIndex++));
+        loadedBlips.add(
+            new J2clReadBlip(
+                entry.getBlipId(),
+                entry.getText(),
+                entry.getAttachments(),
+                entry.getAuthorId(),
+                entry.getAuthorDisplayName(),
+                entry.getLastModifiedTimeMillis(),
+                entry.getParentBlipId(),
+                entry.getThreadId(),
+                entry.isUnread(),
+                entry.hasMention()));
       } else {
         hasPlaceholder = true;
         rootThread.appendChild(renderPlaceholder(entry));
       }
     }
+    appendBlipsAsTree(rootThread, loadedBlips);
     if (hasPlaceholder) {
       surface.setAttribute("aria-live", "polite");
       rootThread.setAttribute("aria-busy", "true");
@@ -1701,7 +1707,12 @@ public final class J2clReadSurfaceDomRenderer {
         && left.getAuthorId().equals(right.getAuthorId())
         && left.getLastModifiedTimeMillis() == right.getLastModifiedTimeMillis()
         && left.isUnread() == right.isUnread()
-        && left.hasMention() == right.hasMention();
+        && left.hasMention() == right.hasMention()
+        // J-UI-4 (#1082, R-3.1) — include manifest linkage fields so a
+        // rebuild fires when only parent/thread changes (e.g. a new reply
+        // arrives that re-parents an existing blip into a nested thread).
+        && left.getParentBlipId().equals(right.getParentBlipId())
+        && left.getThreadId().equals(right.getThreadId());
   }
 
   private boolean matchesRenderedWindowEntries(List<J2clReadWindowEntry> entries) {
