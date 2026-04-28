@@ -329,6 +329,13 @@ public final class J2clComposeSurfaceController {
   // chip aria-pressed state reflects "this is your own reaction." Null
   // means no listener installed.
   private CurrentUserAddressListener currentUserAddressListener;
+  // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: hook fired
+  // synchronously at the start of submitCreate so the search panel can
+  // stamp the active query for the upcoming optimistic stub before the
+  // bootstrap fetch and any user-driven query change. Null means no hook
+  // installed; legacy callers that did not register a hook continue to
+  // fall back to the success-time query inside onOptimisticDigest.
+  private Runnable preCreateSubmitHook;
   private String createDraft = "";
   // J-UI-3 (#1081, R-5.1): the title-input value separate from createDraft.
   // Composed into the rich-content document on submit alongside the body so
@@ -1149,6 +1156,19 @@ public final class J2clComposeSurfaceController {
   }
 
   /**
+   * J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: install a
+   * hook fired synchronously at the start of {@link #submitCreate}, BEFORE
+   * the gateway bootstrap fetch and the server round-trip. The root shell
+   * uses it to stamp the search panel's active query as the upcoming
+   * optimistic stub's submit-time scope so a query change between submit
+   * and success cannot bind the stub to the wrong rail. Idempotent —
+   * passing {@code null} disables the hook.
+   */
+  public void setPreCreateSubmitHook(Runnable hook) {
+    this.preCreateSubmitHook = hook;
+  }
+
+  /**
    * F-3.S3 (#1038, R-5.5): publish the latest per-blip reaction
    * snapshot from the model. The controller uses this on each toggle
    * click to decide whether the user is adding or removing their
@@ -1359,6 +1379,19 @@ public final class J2clComposeSurfaceController {
     final String submittedDraft = createDraft;
     final String submittedTitle = createTitleDraft;
     final int generation = ++createGeneration;
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: stamp the
+    // pre-submit search query (via the root shell's hook) BEFORE the
+    // bootstrap fetch and server round-trip so the optimistic stub
+    // scoping is anchored to the rail visible when the user clicked
+    // submit, not the rail visible when the server responds.
+    if (preCreateSubmitHook != null) {
+      try {
+        preCreateSubmitHook.run();
+      } catch (RuntimeException ignored) {
+        // Hook side-effects are best-effort; never fail the submit because
+        // an integration callback misbehaved.
+      }
+    }
     render();
     gateway.fetchRootSessionBootstrap(
         bootstrap -> {

@@ -133,6 +133,11 @@ public final class J2clRootShellController {
                     routeControllerRef[0].onRouteStateChanged(state, digestItem, userNavigation)),
             resolveViewportWidth());
     searchControllerRef[0] = controller;
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: stamp the
+    // active search query onto the next pending optimistic stub at the
+    // moment the user clicks submit, so a query change between submit
+    // and server-response cannot leak the stub into an unrelated rail.
+    composeController.setPreCreateSubmitHook(controller::markCreateSubmitted);
     // J-UI-3 (#1081, R-5.1): the rail's New Wave button focuses the create
     // form's title input. Listening on document.body so the event bubbles
     // up regardless of where the rail is currently mounted.

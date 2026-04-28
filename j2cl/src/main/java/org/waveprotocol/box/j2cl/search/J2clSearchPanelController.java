@@ -1,7 +1,9 @@
 package org.waveprotocol.box.j2cl.search;
 
 import elemental2.dom.DomGlobal;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,6 +101,16 @@ public final class J2clSearchPanelController
   // entry (no overwrite), and each stub is scoped to the query active at
   // submit time so it only renders into the rail it was created for.
   private final Map<String, PendingStub> pendingStubs = new LinkedHashMap<>();
+  // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: capture the
+  // active query at the moment the user clicks submit, not when the
+  // server response lands. Without this, a user who submits on query A
+  // and switches to query B before the server confirms ends up with the
+  // optimistic stub scoped to B (because onOptimisticDigest reads the
+  // currentQuery field at success-callback time). The compose controller
+  // calls {@link #markCreateSubmitted()} synchronously at the start of
+  // submitCreate; the queue is consumed in submission order when each
+  // onOptimisticDigest fires.
+  private final Deque<String> pendingSubmitQueries = new ArrayDeque<>();
   private final OptimisticScheduler optimisticScheduler;
 
   /**
@@ -339,6 +351,21 @@ public final class J2clSearchPanelController
   }
 
   /**
+   * J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: stamp the
+   * active query as the next pending optimistic stub's submit-time
+   * scope. Called synchronously by the compose controller at the start
+   * of submitCreate (BEFORE the bootstrap fetch + server round-trip),
+   * so a query change between submit and success cannot rebind the
+   * stub to the wrong rail. The corresponding {@link
+   * #onOptimisticDigest} call consumes the queue head in submission
+   * order. Idempotent if called multiple times — each call enqueues
+   * one entry and one onOptimisticDigest pops one entry.
+   */
+  public void markCreateSubmitted() {
+    pendingSubmitQueries.addLast(currentQuery == null ? "" : currentQuery);
+  }
+
+  /**
    * J-UI-3 (#1081, R-5.1): record an optimistic digest for the just-created
    * wave and prepend it to the rail immediately. The stub is dropped when
    * the next search response includes the matching waveId or after
@@ -349,8 +376,12 @@ public final class J2clSearchPanelController
    * <p>Multiple back-to-back creates each get their own pending entry so a
    * second submit before indexing catches up does not erase the first
    * (codex review thread on PR #1090). Each stub is scoped to the query
-   * active at submit time, so changing the rail query hides the stub from
-   * unrelated result sets and brings it back when the user navigates back.
+   * stamped by {@link #markCreateSubmitted} at the moment the user
+   * clicked submit, so changing the rail query between submit and
+   * server-success cannot leak the stub into an unrelated rail. When no
+   * such stamp is available (legacy callers that did not call
+   * markCreateSubmitted) the stub falls back to the active query, which
+   * preserves prior behaviour.
    */
   public void onOptimisticDigest(String waveId, String title) {
     if (waveId == null || waveId.isEmpty()) {
@@ -365,7 +396,11 @@ public final class J2clSearchPanelController
     if (previous != null && previous.timeoutHandle != null) {
       optimisticScheduler.cancel(previous.timeoutHandle);
     }
-    final PendingStub pending = new PendingStub(stub, currentQuery);
+    String submitQuery = pendingSubmitQueries.pollFirst();
+    if (submitQuery == null) {
+      submitQuery = currentQuery == null ? "" : currentQuery;
+    }
+    final PendingStub pending = new PendingStub(stub, submitQuery);
     pendingStubs.put(waveId, pending);
     lastModel = withActivePendingLabel(lastModel.withPrependedDigest(stub));
     view.render(lastModel);
