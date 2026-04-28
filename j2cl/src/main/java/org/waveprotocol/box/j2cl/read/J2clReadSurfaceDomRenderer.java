@@ -596,28 +596,33 @@ public final class J2clReadSurfaceDomRenderer {
    * before.
    */
   private void appendBlipsAsTree(HTMLElement rootThread, List<J2clReadBlip> blips) {
+    // First, drop nulls / empty-id entries up front so both code
+    // branches index against the same effective list (review-1082
+    // round-1: prevents the flat path's i-counter and the nested
+    // path's nextIndex counter from disagreeing on tabindex/aria
+    // when a list happens to contain placeholder records).
+    List<J2clReadBlip> effective = new ArrayList<J2clReadBlip>(blips.size());
     boolean hasNesting = false;
     for (J2clReadBlip blip : blips) {
-      if (blip != null && blip.getParentBlipId() != null
-          && !blip.getParentBlipId().isEmpty()) {
+      if (blip == null || blip.getBlipId() == null || blip.getBlipId().isEmpty()) {
+        continue;
+      }
+      effective.add(blip);
+      if (blip.getParentBlipId() != null && !blip.getParentBlipId().isEmpty()) {
         hasNesting = true;
-        break;
       }
     }
     if (!hasNesting) {
-      for (int i = 0; i < blips.size(); i++) {
-        rootThread.appendChild(renderBlip(blips.get(i), i));
+      for (int i = 0; i < effective.size(); i++) {
+        rootThread.appendChild(renderBlip(effective.get(i), i));
       }
       return;
     }
     Map<String, HTMLElement> blipHostsById = new HashMap<String, HTMLElement>();
     Map<String, HTMLElement> threadHostsByThreadKey = new HashMap<String, HTMLElement>();
-    int nextIndex = 0;
-    for (J2clReadBlip blip : blips) {
-      if (blip == null || blip.getBlipId() == null || blip.getBlipId().isEmpty()) {
-        continue;
-      }
-      HTMLElement blipElement = renderBlip(blip, nextIndex++);
+    for (int i = 0; i < effective.size(); i++) {
+      J2clReadBlip blip = effective.get(i);
+      HTMLElement blipElement = renderBlip(blip, i);
       blipHostsById.put(blip.getBlipId(), blipElement);
       String parentBlipId = blip.getParentBlipId();
       String threadId = blip.getThreadId() == null ? "" : blip.getThreadId();
@@ -627,8 +632,14 @@ public final class J2clReadSurfaceDomRenderer {
       }
       HTMLElement parentBlipHost = blipHostsById.get(parentBlipId);
       if (parentBlipHost == null) {
-        // Manifest references a parent blip we have not seen yet — fall
-        // back to root-thread placement so the blip is still visible.
+        // Defense-in-depth for a malformed manifest. The projector's
+        // DFS pre-order guarantees the parent renders before the
+        // child for any well-formed manifest, so this branch only
+        // fires when an upstream codec / manifest emits a child
+        // before its parent (or references a parent that does not
+        // exist in the streamed snapshot). Fall back to root-thread
+        // placement so the user still sees the blip's content
+        // instead of having it silently dropped.
         rootThread.appendChild(blipElement);
         continue;
       }

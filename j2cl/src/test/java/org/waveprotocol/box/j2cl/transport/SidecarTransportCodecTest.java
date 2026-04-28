@@ -711,6 +711,65 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void decodeSelectedWaveUpdateExtractsThreeLevelDeepReplyChain() {
+    // <conversation>
+    //   <thread id="root">
+    //     <blip id="b+1"/>
+    //     <thread id="t+a"><blip id="b+2"/>
+    //       <thread id="t+b"><blip id="b+3"/></thread>
+    //     </thread>
+    //   </thread>
+    // </conversation>
+    String json =
+        "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"a@example.com\"],"
+            + "\"3\":[{\"1\":\"conversation\",\"2\":{\"1\":["
+            + "{\"3\":{\"1\":\"conversation\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"thread\",\"2\":[{\"1\":\"id\",\"2\":\"root\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+1\"}]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"thread\",\"2\":[{\"1\":\"id\",\"2\":\"t+a\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+2\"}]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"thread\",\"2\":[{\"1\":\"id\",\"2\":\"t+b\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+3\"}]}},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"4\":true}]}}]},"
+            + "\"6\":true,\"7\":\"ch3\"}}";
+
+    SidecarConversationManifest manifest =
+        SidecarTransportCodec.decodeSelectedWaveUpdate(json).getConversationManifest();
+
+    Assert.assertEquals(3, manifest.getOrderedEntries().size());
+    Assert.assertEquals("b+1", manifest.getOrderedEntries().get(0).getBlipId());
+    Assert.assertEquals(0, manifest.getOrderedEntries().get(0).getDepth());
+    Assert.assertEquals("b+2", manifest.getOrderedEntries().get(1).getBlipId());
+    Assert.assertEquals("b+1", manifest.getOrderedEntries().get(1).getParentBlipId());
+    Assert.assertEquals(1, manifest.getOrderedEntries().get(1).getDepth());
+    Assert.assertEquals("b+3", manifest.getOrderedEntries().get(2).getBlipId());
+    Assert.assertEquals("b+2", manifest.getOrderedEntries().get(2).getParentBlipId());
+    Assert.assertEquals(2, manifest.getOrderedEntries().get(2).getDepth());
+  }
+
+  @Test
+  public void decodeSelectedWaveUpdateLeavesManifestEmptyWhenConversationDocOpHasNoComponents() {
+    String json =
+        "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"a@example.com\"],"
+            + "\"3\":[{\"1\":\"conversation\",\"2\":{}}]},"
+            + "\"6\":true,\"7\":\"ch3\"}}";
+
+    SidecarSelectedWaveUpdate update = SidecarTransportCodec.decodeSelectedWaveUpdate(json);
+
+    Assert.assertTrue(update.getConversationManifest().isEmpty());
+  }
+
+  @Test
   public void decodeSelectedWaveUpdateSkipsBlipElementsWithMissingId() {
     String json =
         "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
