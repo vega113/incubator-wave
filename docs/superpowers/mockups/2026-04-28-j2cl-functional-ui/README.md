@@ -1,7 +1,7 @@
 # J2CL Functional UI — Wavy Mockups
 
 Status: Draft, 2026-04-28
-Roadmap: `../../specs/2026-04-28-j2cl-functional-ui-roadmap.md` (document not yet added in this PR)
+Roadmap: `../../specs/2026-04-28-j2cl-functional-ui-roadmap.md` (reference-only — not included in this PR)
 Audit basis: [`../../audits/2026-04-26-j2cl-gwt-parity-audit.md`](../../audits/2026-04-26-j2cl-gwt-parity-audit.md)
 Parity matrix: [`../../../j2cl-gwt-parity-matrix.md`](../../../j2cl-gwt-parity-matrix.md)
 
@@ -172,7 +172,7 @@ verbatim, never a re-interpretation:
   (`--wavy-motion-pulse-duration` 600ms, `--wavy-easing-pulse`).
   Focus-frame transitions at 180ms with `--wavy-easing-focus`. Thread
   collapse at 240ms. In the product spec, reduced-motion handling
-  collapses all four to ~0; these mockup SVGs are illustrative and do
+  collapses all four to ~0; these mockups are illustrative and do
   not themselves guarantee that embedded SMIL animations will stop when
   `prefers-reduced-motion: reduce` is set.
 - **Hairline borders.** Cyan-alpha hairlines `rgba(34,211,238,0.18)` carry
