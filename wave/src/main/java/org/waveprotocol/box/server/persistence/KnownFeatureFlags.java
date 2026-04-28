@@ -48,6 +48,7 @@ public final class KnownFeatureFlags {
     defaults.add(new FeatureFlag("j-ui-3-new-wave", "J-UI-3 new-wave create flow: title input + optimistic rail prepend (#1081)", false, Collections.emptyMap()));
     defaults.add(new FeatureFlag("j2cl-inline-rich-composer", "Open a contenteditable <wavy-composer> with a selection-driven format toolbar at the chosen blip on /?view=j2cl-root, replacing the legacy textarea-shaped composer-inline-reply.", false, Collections.emptyMap()));
     defaults.add(new FeatureFlag("j2cl-server-first-paint", "Emit a <noscript> info banner on the J2CL root shell so visitors with JavaScript disabled see why interactive features (compose, reactions, live updates) are unavailable on the static snapshot. R-6.1 / R-6.3 first-paint guarantee.", false, Collections.emptyMap()));
+    defaults.add(new FeatureFlag("j2cl-debug-overlay", "V-2 (#1100): expose dev-facing strings (Opened wave, Live updates connected/reconnected, channel/snapshot detail, Read., Reply target: b+...) on /?view=j2cl-root. Default off in prod hides them so the user surface stays clean.", false, Collections.emptyMap()));
     defaults.add(new FeatureFlag("social-auth", "Enable Google and GitHub social sign-in and sign-up", false, Collections.emptyMap()));
     DEFAULTS = Collections.unmodifiableList(defaults);
   }

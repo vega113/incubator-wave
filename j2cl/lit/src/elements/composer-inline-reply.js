@@ -12,7 +12,11 @@ export class ComposerInlineReply extends LitElement {
     error: { type: String },
     activeCommand: { type: String, attribute: "active-command" },
     commandStatus: { type: String, attribute: "command-status" },
-    commandError: { type: String, attribute: "command-error" }
+    commandError: { type: String, attribute: "command-error" },
+    // V-2 (#1100): when off (default), the "Reply target: <id>" line
+    // does not render. connectedCallback() reads it from the body class
+    // set by HtmlRenderer (SSR); tests set the attribute directly.
+    debugOverlay: { type: Boolean, attribute: "debug-overlay", reflect: true }
   };
 
   static styles = css`
@@ -64,12 +68,24 @@ export class ComposerInlineReply extends LitElement {
     this.activeCommand = "";
     this.commandStatus = "";
     this.commandError = "";
+    this.debugOverlay = false;
     this._handleFocusRequest = () => this.focusComposer();
   }
 
   connectedCallback() {
     super.connectedCallback();
     this.addEventListener("composer-focus-request", this._handleFocusRequest);
+    // V-2 (#1100): default the debug-overlay property from the body
+    // class set by HtmlRenderer. Page-load value is stable, so a
+    // single read here is sufficient. Skip if already set programmatically
+    // (property would be true) so a pre-connect assignment isn't clobbered.
+    if (!this.hasAttribute("debug-overlay") && this.debugOverlay === false) {
+      this.debugOverlay = !!(
+        typeof document !== "undefined" &&
+        document.body &&
+        document.body.classList.contains("j2cl-debug-overlay-on")
+      );
+    }
   }
 
   disconnectedCallback() {
@@ -82,7 +98,9 @@ export class ComposerInlineReply extends LitElement {
     const submitDisabled = textareaDisabled || this.staleBasis;
     return html`
       <div class="reply">
-        <p class="target">Reply target: ${this.targetLabel || "No current wave"}</p>
+        ${this.debugOverlay
+          ? html`<p class="target">Reply target: ${this.targetLabel || "No current wave"}</p>`
+          : ""}
         <textarea
           aria-label="Reply"
           .value=${this.draft}

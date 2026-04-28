@@ -3415,10 +3415,8 @@ public final class HtmlRenderer {
   }
 
   /**
-   * J-UI-8 (#1086) + J-UI-5 (#1083): full overload that surfaces the viewer's account
-   * locale (R-6.1 "locale text respects user preference on the server HTML") plus the
-   * {@code j2cl-server-first-paint} flag value and the {@code j2cl-inline-rich-composer}
-   * flag value to the SSR.
+   * J-UI-8 (#1086) + J-UI-5 (#1083): bridge overload that delegates to the
+   * full V-2 overload with {@code debugOverlayEnabled=false}.
    */
   public static String renderJ2clRootShellPage(JSONObject sessionJson, String analyticsAccount,
       String buildCommit, long serverBuildTime, String currentReleaseId,
@@ -3428,6 +3426,38 @@ public final class HtmlRenderer {
       String viewerLocale,
       boolean serverFirstPaintEnabled,
       boolean inlineRichComposerEnabled) {
+    return renderJ2clRootShellPage(
+        sessionJson,
+        analyticsAccount,
+        buildCommit,
+        serverBuildTime,
+        currentReleaseId,
+        rootShellReturnTarget,
+        websocketAddress,
+        snapshotResult,
+        railCardsEnabled,
+        viewerLocale,
+        serverFirstPaintEnabled,
+        inlineRichComposerEnabled,
+        false);
+  }
+
+  /**
+   * V-2 (#1100): full overload that adds the {@code j2cl-debug-overlay} flag value.
+   * When on, the body emits the {@code j2cl-debug-overlay-on} class so a sidecar.css
+   * rule un-hides developer-facing strings (Opened wave eyebrow, status, channel/
+   * snapshot detail, the inline-reply target paragraph). Default off keeps the user
+   * surface clean per the V-2 visual-polish acceptance.
+   */
+  public static String renderJ2clRootShellPage(JSONObject sessionJson, String analyticsAccount,
+      String buildCommit, long serverBuildTime, String currentReleaseId,
+      String rootShellReturnTarget, String websocketAddress,
+      J2clSelectedWaveSnapshotRenderer.SnapshotResult snapshotResult,
+      boolean railCardsEnabled,
+      String viewerLocale,
+      boolean serverFirstPaintEnabled,
+      boolean inlineRichComposerEnabled,
+      boolean debugOverlayEnabled) {
     J2clSelectedWaveSnapshotRenderer.SnapshotResult resolvedSnapshotResult =
         snapshotResult == null
             ? J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave()
@@ -3487,7 +3517,10 @@ public final class HtmlRenderer {
     sb.append("<script type=\"module\" src=\"").append(safeResolvedBasePath).append("j2cl/assets/shell.js\"></script>\n");
     appendJ2clRootShellStatsShim(sb);
     appendAnalyticsFragment(sb, analyticsAccount, null);
-    sb.append("</head>\n<body class=\"j2cl-root-shell-page\">\n");
+    String bodyClasses = debugOverlayEnabled
+        ? "j2cl-root-shell-page j2cl-debug-overlay-on"
+        : "j2cl-root-shell-page";
+    sb.append("</head>\n<body class=\"").append(bodyClasses).append("\">\n");
     boolean hasServerFirstSnapshot =
         signedIn
             && resolvedSnapshotResult.getMode() == J2clSelectedWaveSnapshotRenderer.Mode.SNAPSHOT
@@ -3894,12 +3927,12 @@ public final class HtmlRenderer {
     sb.append("          </div>\n");
     sb.append("          <div class=\"sidecar-selected-host\" data-j2cl-selected-wave-host=\"true\">\n");
     sb.append("            <section class=\"sidecar-selected-card\" data-j2cl-server-first-mode=\"snapshot\" data-j2cl-server-first-selected-wave=\"preview-fixture-1\" data-j2cl-upgrade-placeholder=\"selected-wave\">\n");
-    sb.append("              <p class=\"sidecar-eyebrow\">Opened wave</p>\n");
+    sb.append("              <p class=\"sidecar-eyebrow\" data-j2cl-debug-only=\"true\">Opened wave</p>\n");
     sb.append("              <wavy-depth-nav-bar data-j2cl-server-first-chrome=\"true\" data-current-depth=\"top-thread\"></wavy-depth-nav-bar>\n");
     sb.append("              <h2 class=\"sidecar-selected-title\">Sample read-surface preview wave</h2>\n");
     sb.append("              <p class=\"sidecar-selected-unread\">3 unread</p>\n");
-    sb.append("              <p class=\"sidecar-selected-status\">Read-surface preview fixture — every F-2 chrome affordance is mounted on this single URL.</p>\n");
-    sb.append("              <p class=\"sidecar-selected-detail\">Open the version-history, profile, and depth-nav overlays via the floating controls; press <kbd>j</kbd>/<kbd>k</kbd> to move the focus frame.</p>\n");
+    sb.append("              <p class=\"sidecar-selected-status\" hidden>Read-surface preview fixture — every F-2 chrome affordance is mounted on this single URL.</p>\n");
+    sb.append("              <p class=\"sidecar-selected-detail\" data-j2cl-debug-only=\"true\">Open the version-history, profile, and depth-nav overlays via the floating controls; press <kbd>j</kbd>/<kbd>k</kbd> to move the focus frame.</p>\n");
     sb.append("              <output class=\"wavy-awareness-pill\" data-j2cl-awareness-pill=\"true\">2 new replies above</output>\n");
     sb.append("              <p class=\"sidecar-selected-participants\">alice@example.com, bob@example.com, carol@example.com</p>\n");
     sb.append("              <wavy-wave-nav-row data-j2cl-server-first-chrome=\"true\"></wavy-wave-nav-row>\n");
@@ -4655,7 +4688,7 @@ public final class HtmlRenderer {
       // no-JS path never leaves the region permanently aria-busy.
       sb.append("              <script>document.currentScript.parentElement.setAttribute('aria-busy','true');</script>\n");
     }
-    sb.append("              <p class=\"sidecar-eyebrow\">Opened wave</p>\n");
+    sb.append("              <p class=\"sidecar-eyebrow\" data-j2cl-debug-only=\"true\">Opened wave</p>\n");
     // F-2 slice 2 (#1046, R-3.7-chrome): depth-nav-bar landmark.
     // Hidden by default; the J2CL client (S5) writes the current depth
     // and toggles the hidden attribute via property assignment.
@@ -4664,10 +4697,10 @@ public final class HtmlRenderer {
         .append(escapeHtml(title))
         .append("</h2>\n");
     sb.append("              <p class=\"sidecar-selected-unread\" hidden></p>\n");
-    sb.append("              <p class=\"sidecar-selected-status\">")
+    sb.append("              <p class=\"sidecar-selected-status\" hidden>")
         .append(escapeHtml(status))
         .append("</p>\n");
-    sb.append("              <p class=\"sidecar-selected-detail\">")
+    sb.append("              <p class=\"sidecar-selected-detail\" data-j2cl-debug-only=\"true\">")
         .append(escapeHtml(detail))
         .append("</p>\n");
     // F-2 slice 5 (#1055, R-3.7 G.6): live-update awareness pill.
@@ -4885,7 +4918,7 @@ public final class HtmlRenderer {
       sb.append("    placeholder.removeAttribute('aria-busy');\n");
       sb.append("    var status=workflow.querySelector('.sidecar-selected-status');\n");
       sb.append("    var detail=workflow.querySelector('.sidecar-selected-detail');\n");
-      sb.append("    if(status){status.className='sidecar-selected-status sidecar-selected-status-error';status.textContent='Selected wave live upgrade failed.';}\n");
+      sb.append("    if(status){status.className='sidecar-selected-status sidecar-selected-status-error';status.textContent='Selected wave live upgrade failed.';status.hidden=false;}\n");
       sb.append("    if(detail){detail.textContent='The J2CL root-shell bundle failed to load. Refresh to retry.';}\n");
       sb.append("    if(window.__j2clRootShellStat){window.__j2clRootShellStat('shell_swap','bundle-load-error',0,!!placeholder.getAttribute('data-j2cl-server-first-selected-wave'));}\n");
       sb.append("    return;\n");

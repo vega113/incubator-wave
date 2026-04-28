@@ -277,6 +277,10 @@ export class WavyComposer extends LitElement {
     commandError: { type: String, attribute: "command-error" },
     keymapHint: { type: String, attribute: "keymap-hint" },
     saveIndicator: { type: String, attribute: "save-indicator" },
+    // V-2 (#1100): when off (default), the "Reply target: <id>" line
+    // does not render. connectedCallback() reads it from the body class
+    // set by HtmlRenderer (SSR); tests set the attribute directly.
+    debugOverlay: { type: Boolean, attribute: "debug-overlay", reflect: true },
     // F-3.S2 (#1038, R-5.3): mention suggestion candidates. The Java
     // view sets this from the wave's participant list. Each candidate
     // is `{address, displayName}`. Locale-aware filtering happens
@@ -431,6 +435,7 @@ export class WavyComposer extends LitElement {
     this.commandError = "";
     this.keymapHint = "Shift+Enter to send, Esc to discard";
     this.saveIndicator = "";
+    this.debugOverlay = false;
     this.participants = [];
     this._mentionOpen = false;
     this._mentionQuery = "";
@@ -475,6 +480,18 @@ export class WavyComposer extends LitElement {
     super.connectedCallback();
     this.addEventListener("composer-focus-request", this._handleFocusRequest);
     document.addEventListener("selectionchange", this._handleSelectionChange);
+    // V-2 (#1100): default debugOverlay from the body class set by
+    // HtmlRenderer when j2cl-debug-overlay is on. Body-class is page-
+    // load-stable, so a single read at connect is sufficient. Skip if
+    // already set programmatically (true) so a pre-connect assignment
+    // isn't clobbered when the attribute is absent.
+    if (!this.hasAttribute("debug-overlay") && this.debugOverlay === false) {
+      this.debugOverlay = !!(
+        typeof document !== "undefined" &&
+        document.body &&
+        document.body.classList.contains("j2cl-debug-overlay-on")
+      );
+    }
     // F-3.S2 (#1038, R-5.4 step 6): listen for the H.20 Insert-task
     // action emitted by the floating wavy format toolbar mounted in
     // the toolbar slot. The action is composer-local (per-composer,
@@ -2351,7 +2368,7 @@ export class WavyComposer extends LitElement {
           ${body}
           ${this._renderMentionPopover()}
           ${this._renderHintStrip()}
-          ${this.targetLabel
+          ${this.debugOverlay && this.targetLabel
             ? html`<p class="target">Reply target: ${this.targetLabel}</p>`
             : ""}
           ${this.status && !this.error

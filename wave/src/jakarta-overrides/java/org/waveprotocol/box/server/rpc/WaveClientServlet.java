@@ -276,6 +276,13 @@ public class WaveClientServlet extends HttpServlet {
       boolean inlineRichComposerEnabled =
           featureFlagService.isEnabled(
               "j2cl-inline-rich-composer", id != null ? id.getAddress() : null);
+      // V-2 (#1100): per-viewer flag gating for the developer-strings
+      // overlay. When off, the body omits the j2cl-debug-overlay-on
+      // class so sidecar.css hides eyebrow/status/detail and Lit
+      // composers render without the reply-target paragraph.
+      boolean debugOverlayEnabled =
+          featureFlagService.isEnabled(
+              "j2cl-debug-overlay", id != null ? id.getAddress() : null);
       response.setContentType("text/html");
       response.setCharacterEncoding("UTF-8");
       response.setHeader("Cache-Control", "private, no-store");
@@ -296,7 +303,8 @@ public class WaveClientServlet extends HttpServlet {
             railCardsEnabled,
             viewerLocale,
             serverFirstPaintEnabled,
-            inlineRichComposerEnabled)); // codeql[java/xss]
+            inlineRichComposerEnabled,
+            debugOverlayEnabled)); // codeql[java/xss]
       } catch (IOException e) {
         LOG.warning("Failed to render J2CL root shell page", e);
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);

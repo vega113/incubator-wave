@@ -79,6 +79,15 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       unread = queryRequired(existingCard, ".sidecar-selected-unread");
       status = queryRequired(existingCard, ".sidecar-selected-status");
       detail = queryRequired(existingCard, ".sidecar-selected-detail");
+      // V-2 (#1100): re-bound server-first DOM may pre-date the debug-only
+      // attribute; mark the dev-string elements so sidecar.css hides them.
+      // status is NOT marked debug-only here — error text must stay visible
+      // even when the debug overlay is off; visibility is set in render().
+      markDebugOnly(detail);
+      HTMLElement reboundEyebrow = (HTMLElement) existingCard.querySelector(".sidecar-eyebrow");
+      if (reboundEyebrow != null) {
+        markDebugOnly(reboundEyebrow);
+      }
       participantSummary = queryRequired(existingCard, ".sidecar-selected-participants");
       snippet = queryRequired(existingCard, ".sidecar-selected-snippet");
       composeHost = queryRequired(existingCard, ".sidecar-selected-compose");
@@ -117,6 +126,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     HTMLElement eyebrow = (HTMLElement) DomGlobal.document.createElement("p");
     eyebrow.className = "sidecar-eyebrow";
     eyebrow.textContent = "Opened wave";
+    markDebugOnly(eyebrow);
     coldCard.appendChild(eyebrow);
 
     // F-2 slice 2 (#1046, R-3.7-chrome): depth-nav bar (G.2 + G.3).
@@ -135,10 +145,14 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
     status = (HTMLElement) DomGlobal.document.createElement("p");
     status.className = "sidecar-selected-status";
+    // Not marked debug-only: error text must remain visible in non-debug mode.
+    // Visibility is controlled per-render in render() / renderPreservedServerFirstState().
+    status.hidden = true;
     coldCard.appendChild(status);
 
     detail = (HTMLElement) DomGlobal.document.createElement("p");
     detail.className = "sidecar-selected-detail";
+    markDebugOnly(detail);
     coldCard.appendChild(detail);
 
     // F-2 slice 5 (#1055, R-3.7 G.6): awareness pill — hidden by default
@@ -442,8 +456,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     }
 
     title.textContent = model.getTitleText();
-    unread.textContent = model.getUnreadText();
-    unread.hidden = model.getUnreadText().isEmpty();
+    String unreadText = effectiveUnreadText(model);
+    unread.textContent = unreadText;
+    unread.hidden = unreadText.isEmpty();
     unread.className =
         model.isReadStateStale()
             ? "sidecar-selected-unread sidecar-selected-unread-stale"
@@ -453,6 +468,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
             ? "sidecar-selected-status sidecar-selected-status-error"
             : "sidecar-selected-status";
     status.textContent = model.getStatusText();
+    status.hidden = !model.isError() && !isDebugOverlayOn();
     detail.textContent = model.getDetailText();
     participantSummary.textContent =
         model.getParticipantIds().isEmpty()
@@ -703,8 +719,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   }
 
   private void renderPreservedServerFirstState(J2clSelectedWaveModel model) {
-    unread.textContent = model.getUnreadText();
-    unread.hidden = model.getUnreadText().isEmpty();
+    String unreadText = effectiveUnreadText(model);
+    unread.textContent = unreadText;
+    unread.hidden = unreadText.isEmpty();
     unread.className =
         model.isReadStateStale()
             ? "sidecar-selected-unread sidecar-selected-unread-stale"
@@ -714,6 +731,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
             ? "sidecar-selected-status sidecar-selected-status-error"
             : "sidecar-selected-status";
     status.textContent = model.getStatusText();
+    status.hidden = !model.isError() && !isDebugOverlayOn();
     detail.textContent = model.getDetailText();
     if (model.isError()) {
       // Error is a terminal state: clear aria-busy so AT doesn't treat the
@@ -799,6 +817,47 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
   private static double now() {
     return DomGlobal.performance == null ? 0 : DomGlobal.performance.now();
+  }
+
+  // V-2 (#1100): mark dev-string elements so sidecar.css hides them when
+  // the j2cl-debug-overlay flag is off (default). The flag flips the
+  // .j2cl-debug-overlay-on class on <body>; the rule is in sidecar.css.
+  private static void markDebugOnly(HTMLElement element) {
+    if (element != null) {
+      element.setAttribute("data-j2cl-debug-only", "true");
+    }
+  }
+
+  // V-2 (#1100): the "Read." / "Selected digest is read." status words
+  // are dev-only; suppress them from the wave header unless the
+  // j2cl-debug-overlay flag is on (HtmlRenderer adds .j2cl-debug-overlay-on
+  // to <body> in that case, page-load-stable). Visible product text
+  // ("X unread.", "X unread in the selected digest.") flows through
+  // unchanged. The model's getUnreadText() is itself unchanged so
+  // existing tests and controllers still see the full string. The
+  // sentinel strings live in J2clSelectedWaveModel.formatUnreadText and
+  // resolveUnreadText — keep this list in lockstep.
+  private static String effectiveUnreadText(J2clSelectedWaveModel model) {
+    String text = model.getUnreadText();
+    if (text == null || text.isEmpty()) {
+      return "";
+    }
+    if (isDebugOverlayOn()) {
+      return text;
+    }
+    if ("Read.".equals(text) || "Selected digest is read.".equals(text)) {
+      return "";
+    }
+    return text;
+  }
+
+  // V-2 (#1100): true iff <body> carries `j2cl-debug-overlay-on`. Read
+  // afresh per render rather than cached so the helper stays trivial
+  // and the value still reflects the body class. Body is null in
+  // headless GwtTest environments.
+  private static boolean isDebugOverlayOn() {
+    HTMLElement body = (HTMLElement) DomGlobal.document.body;
+    return body != null && body.classList.contains("j2cl-debug-overlay-on");
   }
 
   @SuppressWarnings("unchecked")
