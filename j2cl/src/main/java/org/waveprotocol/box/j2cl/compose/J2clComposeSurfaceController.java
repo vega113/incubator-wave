@@ -1605,6 +1605,12 @@ public final class J2clComposeSurfaceController {
     // J-UI-3: prepend the title annotation when a non-blank title was typed.
     // titleText() is a no-op on null/empty so reply-paths pass through cleanly.
     builder.titleText(titleText);
+    // When a title and body text are both present, insert a newline between them so
+    // the two runs are not concatenated into a single character sequence in the blip.
+    if (titleText != null && !titleText.trim().isEmpty()
+        && draftText != null && !draftText.trim().isEmpty()) {
+      builder.text("\n");
+    }
     // Reply submits pass the snapshotted command id; create submits pass an empty id.
     J2clDailyToolbarAction action = J2clDailyToolbarAction.fromId(submittedAnnotationCommandId);
     String annotationKey = annotationKey(action);

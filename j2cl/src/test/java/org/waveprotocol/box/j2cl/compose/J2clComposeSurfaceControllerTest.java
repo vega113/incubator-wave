@@ -2650,8 +2650,10 @@ public class J2clComposeSurfaceControllerTest {
         "{\"1\":{\"3\":[{\"1\":\"conv/title\",\"3\":\"\"}]}}",
         "\"2\":\"Sprint planning\"",
         "{\"1\":{\"2\":[\"conv/title\"]}}",
+        "\"2\":\"\\n\"",
         "\"2\":\"Standup at 10am\"");
-    Assert.assertTrue(deltaJson.indexOf("Sprint planning") < deltaJson.indexOf("Standup at 10am"));
+    Assert.assertTrue(deltaJson.indexOf("Sprint planning") < deltaJson.indexOf("\\n"));
+    Assert.assertTrue(deltaJson.indexOf("\\n") < deltaJson.indexOf("Standup at 10am"));
   }
 
   // J-UI-3 — the legacy single-arg create handler still routes through
