@@ -48,10 +48,12 @@ shell-root-signed-out {
 
 shell-root {
   grid-template-columns: minmax(260px, 296px) 1fr;
+  grid-template-rows: auto auto 1fr auto auto;
   grid-template-areas:
     "skip skip"
     "header header"
     "nav main"
+    "nav rail-extension"
     "status status";
 }
 
@@ -119,7 +121,7 @@ shell-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
   padding: 12px 20px;
   border-radius: 0;
@@ -127,6 +129,8 @@ shell-header {
   box-shadow: none;
   border-bottom: 1px solid rgba(11, 19, 32, 0.10);
   backdrop-filter: none;
+  min-height: 64px;
+  box-sizing: border-box;
 }
 
 shell-header > [slot="brand"] {
@@ -220,7 +224,8 @@ shell-nav-rail > a:focus-visible {
 }
 
 /* V-1 (#1099): rail surface matches the mockup — flat white panel with a
- * hairline right border, no rounded card. */
+ * hairline right border, no rounded card. align-self: stretch fills the
+ * grid row so we don't have to assume a fixed header height. */
 shell-nav-rail {
   display: block;
   align-self: stretch;
@@ -228,7 +233,6 @@ shell-nav-rail {
   border-radius: 0;
   background: #ffffff;
   border-right: 1px solid rgba(11, 19, 32, 0.10);
-  min-height: calc(100vh - 64px);
 }
 
 shell-nav-rail > a {
@@ -286,21 +290,23 @@ shell-status-strip {
 @media (max-width: 860px) {
   shell-root {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto 1fr auto auto;
     grid-template-areas:
       "skip"
       "header"
       "nav"
       "main"
+      "rail-extension"
       "status";
-  }
-
-  shell-root,
-  shell-root-signed-out {
-    padding-left: 14px;
-    padding-right: 14px;
   }
 
   shell-header {
     align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  shell-nav-rail {
+    border-right: 0;
+    border-bottom: 1px solid rgba(11, 19, 32, 0.10);
   }
 }

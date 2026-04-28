@@ -4197,7 +4197,13 @@ public final class HtmlRenderer {
     String initialsRaw = computeUserInitials(rawAddress);
     String initials = StringEscapeUtils.escapeHtml4(initialsRaw);
     String selectedLocaleOpt = resolveLocaleOption(safeHtmlLang);
-    sb.append("    <wavy-header slot=\"actions-signed-in\" signed-in locale=\"")
+    // V-1 (#1099): no-brand suppresses the wavy-header inner SupaWave
+    // brand link so the J2CL root shell renders its canonical brand
+    // once via shell-header > [slot="brand"]. The light-DOM brand is
+    // still emitted below (parity contract); the shadow render skips
+    // it post-upgrade and a CSS rule in shell-tokens.css hides the
+    // SSR copy pre-upgrade.
+    sb.append("    <wavy-header slot=\"actions-signed-in\" signed-in no-brand locale=\"")
         .append(selectedLocaleOpt)
         .append("\" data-address=\"")
         .append(escapedAddress)
