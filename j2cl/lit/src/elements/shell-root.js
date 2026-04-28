@@ -55,20 +55,17 @@ export class ShellRoot extends LitElement {
     }
 
     @media (max-width: 1100px) {
-      /* On mid-width viewports the rail collapses BELOW the main region
-       * so the content column keeps its readable width. The
-       * grid-template-areas grow to 5 rows (skip / header / nav+main /
-       * nav+rail / status) so grid-template-rows must also expand to 5
-       * tracks; the 1fr stays on the main row so the content column
-       * still fills the viewport and the rail row stays auto-sized. */
+      /* On mid-width viewports collapse to a 2-column nav|main layout.
+       * rail-extension is hidden by default; omitting a dedicated rail row
+       * prevents a blank strip under main caused by the spanning nav track
+       * carrying height even when [hidden] collapses the rail panel. */
       :host {
         grid-template-columns: minmax(190px, 220px) 1fr;
-        grid-template-rows: auto auto 1fr auto auto;
+        grid-template-rows: auto auto 1fr auto;
         grid-template-areas:
           "skip skip"
           "header header"
           "nav main"
-          "nav rail"
           "status status";
       }
     }
