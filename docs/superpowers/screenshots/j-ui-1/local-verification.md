@@ -51,7 +51,7 @@ when the flag is on.
 
 After clicking the card's inner `<article>`:
 
-```
+```text
 location.href -> http://127.0.0.1:9898/?view=j2cl-root&q=in%3Ainbox&wave=local.net%2Fw%2B1f4vogi825404A
 ```
 
@@ -60,7 +60,7 @@ selection (round-trip verified).
 
 ### GWT path unaffected
 
-```
+```text
 GET /?view=gwt → 200, no <wavy-search-rail or data-rail-cards-enabled markers
 in the body (grep -c returned 0).
 ```

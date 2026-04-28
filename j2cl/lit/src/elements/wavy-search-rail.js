@@ -236,13 +236,14 @@ export class WavySearchRail extends LitElement {
       font: var(--wavy-type-meta, 0.6875rem / 1.4 sans-serif);
       color: var(--wavy-text-muted, rgba(232, 240, 255, 0.62));
     }
-    /* J-UI-1 (#1079): slotted <wavy-search-rail-card> digest cards. The
-       rail container provides the rhythm between the saved-search list
-       and the filter strip; the cards' own host styles supply the card
-       chrome. ::slotted scopes only direct children. */
+    /* J-UI-1 (#1079): slotted <wavy-search-rail-card> digest cards.
+       Inter-card spacing is owned by the card's :host style
+       (margin-bottom: var(--wavy-spacing-2)) — we DO NOT add another
+       margin here, otherwise the gap doubles. The last card uses a
+       slightly larger trailing margin to separate the digest list from
+       the filter strip below it. */
     slot[name="cards"]::slotted(wavy-search-rail-card) {
       display: block;
-      margin-bottom: var(--wavy-spacing-2, 8px);
     }
     slot[name="cards"]::slotted(wavy-search-rail-card:last-of-type) {
       margin-bottom: var(--wavy-spacing-3, 12px);
