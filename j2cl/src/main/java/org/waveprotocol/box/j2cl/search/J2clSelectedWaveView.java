@@ -648,6 +648,16 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
             : "sidecar-selected-status";
     status.textContent = model.getStatusText();
     detail.textContent = model.getDetailText();
+    if (model.isError()) {
+      // Error is a terminal state: clear aria-busy so AT doesn't treat the
+      // region as permanently loading. clearServerFirstMarkers() isn't called
+      // here because shouldPreserveServerFirstCard keeps the card alive on
+      // error, but the busy signal should not persist once an error surfaces.
+      HTMLElement card = (HTMLElement) contentList.parentElement;
+      if (card != null) {
+        card.removeAttribute("aria-busy");
+      }
+    }
   }
 
   private void clearServerFirstMarkers() {

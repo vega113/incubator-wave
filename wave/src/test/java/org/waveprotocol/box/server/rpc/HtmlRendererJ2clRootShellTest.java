@@ -396,12 +396,15 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
     JSONObject session = new JSONObject();
     session.put("address", "alice@example.com");
 
+    // Use a real snapshot so the only thing suppressing the banner is the flag.
     String html = HtmlRenderer.renderJ2clRootShellPage(
         session, "", "commit", 0L, "rel", "/", "ws.example:443",
-        J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "en", false);
+        J2clSelectedWaveSnapshotRenderer.SnapshotResult.snapshot(
+            "example.com/w+1", "<p>wave content</p>"),
+        false, "en", false);
 
     assertFalse(
-        "Flag-off must not emit the noscript banner",
+        "Flag-off must not emit the noscript banner even when a snapshot is present",
         html.contains("data-j2cl-noscript-banner"));
   }
 
@@ -415,9 +418,12 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
         J2clSelectedWaveSnapshotRenderer.SnapshotResult.snapshot(
             "example.com/w+1", "<p>wave content</p>"),
         false, "en", true);
+    // Use a snapshot for signed-out too so the only gate is the signed-in check.
     String htmlSignedOut = HtmlRenderer.renderJ2clRootShellPage(
         signedOut, "", "commit", 0L, "rel", "/", "ws.example:443",
-        J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "en", true);
+        J2clSelectedWaveSnapshotRenderer.SnapshotResult.snapshot(
+            "example.com/w+1", "<p>wave content</p>"),
+        false, "en", true);
 
     assertTrue(
         "Signed-in flag-on shell ships the banner",
@@ -427,14 +433,16 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
     // signed-in only per the J-UI-8 plan to keep the signed-out
     // experience untouched.
     assertFalse(
-        "Signed-out flag-on shell must not ship the banner — keeps signed-out chrome unchanged",
+        "Signed-out flag-on shell must not ship the banner even when snapshot is present",
         htmlSignedOut.contains("data-j2cl-noscript-banner"));
+    assertFalse(
+        "Signed-out chrome must not contain snapshot content",
+        htmlSignedOut.contains("wave content"));
   }
 
-  // Defense-in-depth + plan compliance: secondary BCP-47 subtags must be
-  // 2-8 chars per the spec. Single-char trailing subtags ("en-a",
-  // "en-1") would still be HTML-safe but violate the contract; pin them
-  // to "en" so the SSR never produces a malformed lang attribute.
+  // A terminal singleton (e.g. "en-a", "en-1") is invalid BCP-47 because an
+  // extension/private-use singleton MUST be followed by at least one subtag.
+  // These fall back to "en" to avoid a malformed lang attribute.
   public void testHtmlLangRejectsSingleCharSecondarySubtag() {
     JSONObject session = new JSONObject();
     session.put("address", "alice@example.com");
@@ -516,5 +524,26 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
     // grid host.
     int contentHostIdx = html.lastIndexOf("<div class=\"sidecar-selected-content\"", snapshotIdx);
     assertTrue("Snapshot must live inside .sidecar-selected-content", contentHostIdx >= 0);
+  }
+
+  public void testHtmlLangAcceptsBcp47ExtensionSubtags() {
+    JSONObject session = new JSONObject();
+    session.put("address", "alice@example.com");
+
+    // Unicode locale extension (u-ca-gregory) and private-use (x-phonebk)
+    // are valid BCP-47 and must round-trip.
+    String htmlUnicode = HtmlRenderer.renderJ2clRootShellPage(
+        session, "", "commit", 0L, "rel", "/", "ws.example:443",
+        J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "en-US-u-ca-gregory", false);
+    String htmlPrivate = HtmlRenderer.renderJ2clRootShellPage(
+        session, "", "commit", 0L, "rel", "/", "ws.example:443",
+        J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "de-x-phonebk", false);
+
+    assertTrue(
+        "Unicode extension tag must round-trip",
+        htmlUnicode.contains("<html lang=\"en-US-u-ca-gregory\">"));
+    assertTrue(
+        "Private-use extension tag must round-trip",
+        htmlPrivate.contains("<html lang=\"de-x-phonebk\">"));
   }
 }

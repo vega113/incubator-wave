@@ -3502,7 +3502,7 @@ public final class HtmlRenderer {
       // <wavy-blip-card> server-render contract). The raw address is
       // passed through alongside the safe (HTML-escaped) form so
       // computeUserInitials can run on the unescaped local part.
-      appendWavyHeaderActionsSlot(sb, address, safeAddress, safeResolvedReturnTarget, safeResolvedBasePath);
+      appendWavyHeaderActionsSlot(sb, address, safeAddress, safeResolvedReturnTarget, safeResolvedBasePath, safeHtmlLang);
       // The legacy inline Admin and Sign out links are PRESERVED until
       // the F-0 user-menu sheet ships (A.7 only mounts the trigger;
       // A.8–A.18 are F-0). Removing them now would orphan affordances
@@ -3756,7 +3756,7 @@ public final class HtmlRenderer {
     sb.append("      <span aria-hidden=\"true\">J2</span><span>SupaWave Read Surface Preview</span>\n");
     sb.append("    </a>\n");
     appendWavyHeaderActionsSlot(
-        sb, resolvedAddress, safeAddress, safeResolvedReturnTarget, safeResolvedBasePath);
+        sb, resolvedAddress, safeAddress, safeResolvedReturnTarget, safeResolvedBasePath, "en");
     sb.append("  </shell-header>\n");
     sb.append("  <shell-nav-rail slot=\"nav\" label=\"Primary\">\n");
     appendWavySearchRail(sb, safeInitialQuery, false);
@@ -3958,14 +3958,12 @@ public final class HtmlRenderer {
   /**
    * J-UI-8 (#1086, R-6.1): clamp a viewer-supplied locale string into a
    * BCP-47-shaped value safe for the {@code <html lang>} attribute. We
-   * accept the standard 2–3 letter language subtag plus optional region
-   * subtags ({@code en-US}, {@code zh-Hans-CN}); anything outside that
-   * shape — including null, empty, or hostile payloads — falls back to
-   * {@code en} so the attribute can never be used as an HTML / script
-   * injection vector. This is defense-in-depth: account locales already
-   * round-trip through the registration UI's allowlist, but the renderer
-   * is a fan-in point for several callers and must not assume the
-   * upstream sanitisation.
+   * accept the standard 2–3 letter language subtag, optional region/script
+   * subtags ({@code en-US}, {@code zh-Hans-CN}), and BCP-47 extension and
+   * private-use sequences ({@code en-US-u-ca-gregory}, {@code de-x-phonebk});
+   * anything outside that shape — including null, empty, or hostile payloads —
+   * falls back to {@code en} so the attribute can never be used as an HTML /
+   * script injection vector.
    */
   static String sanitizeHtmlLang(String locale) {
     if (locale == null || locale.isEmpty()) {
@@ -3980,6 +3978,7 @@ public final class HtmlRenderer {
     }
     int dashCount = 0;
     int subtagStart = 0;
+    boolean inExtension = false;
     for (int i = 0; i < len; i++) {
       char c = locale.charAt(i);
       if (c == '-' || c == '_') {
@@ -3987,23 +3986,27 @@ public final class HtmlRenderer {
           return "en"; // empty subtag / leading separator
         }
         int subtagLen = i - subtagStart;
-        // Primary subtag is letters only and 2-3 chars; secondary
-        // subtags are alphanumeric (region codes like 419, script tags
-        // like Hans) and 2-8 chars per BCP-47. Allowing single-char
-        // trailing subtags would let things like "en-a" through, which
-        // we explicitly reject — the plan specifies the 2-8 shape.
         if (dashCount == 0) {
-          if (subtagLen < 2 || subtagLen > 3) {
+          // Primary subtag: 2-3 ASCII letters only.
+          if (subtagLen < 2 || subtagLen > 3 || !isAsciiLetters(locale, subtagStart, i)) {
             return "en";
           }
-          if (!isAsciiLetters(locale, subtagStart, i)) {
+        } else if (subtagLen == 1) {
+          // Singleton subtag: BCP-47 extension or private-use introducer
+          // (e.g. 'u' for Unicode extension, 'x' for private use).
+          // After a singleton, subsequent subtags may be 1-8 chars.
+          if (!isAsciiAlnum(locale, subtagStart, i)) {
+            return "en";
+          }
+          inExtension = true;
+        } else if (inExtension) {
+          // Extension subtag: 1-8 alphanumeric chars (relaxed from 2-8).
+          if (subtagLen > 8 || !isAsciiAlnum(locale, subtagStart, i)) {
             return "en";
           }
         } else {
-          if (subtagLen < 2 || subtagLen > 8) {
-            return "en";
-          }
-          if (!isAsciiAlnum(locale, subtagStart, i)) {
+          // Normal secondary subtag: 2-8 alphanumeric chars.
+          if (subtagLen < 2 || subtagLen > 8 || !isAsciiAlnum(locale, subtagStart, i)) {
             return "en";
           }
         }
@@ -4019,8 +4022,16 @@ public final class HtmlRenderer {
       if (finalLen < 2 || finalLen > 3 || !isAsciiLetters(locale, subtagStart, len)) {
         return "en";
       }
-    } else if (finalLen < 2 || finalLen > 8 || !isAsciiAlnum(locale, subtagStart, len)) {
-      return "en";
+    } else if (inExtension) {
+      // Extension subtag: 1-8 chars. finalLen==0 means trailing separator.
+      if (finalLen < 1 || finalLen > 8 || !isAsciiAlnum(locale, subtagStart, len)) {
+        return "en";
+      }
+    } else {
+      // finalLen == 1 is a terminal singleton (no following subtags) — invalid BCP-47.
+      if (finalLen < 2 || finalLen > 8 || !isAsciiAlnum(locale, subtagStart, len)) {
+        return "en";
+      }
     }
     // Normalize separators to '-' (BCP-47) — Java's java.util.Locale
     // round-trips with '_' for older account rows; the HTML lang
@@ -4104,7 +4115,7 @@ public final class HtmlRenderer {
    */
   private static void appendWavyHeaderActionsSlot(
       StringBuilder sb, String rawAddress, String safeAddress,
-      String safeResolvedReturnTarget, String safeBasePath) {
+      String safeResolvedReturnTarget, String safeBasePath, String safeHtmlLang) {
     String escapedAddress = safeAddress == null ? "" : safeAddress;
     // computeUserInitials runs on the RAW address so the local-part
     // splitting matches the JS Lit element exactly (the Lit element
@@ -4112,7 +4123,9 @@ public final class HtmlRenderer {
     // escaped before being written into the avatar text node.
     String initialsRaw = computeUserInitials(rawAddress);
     String initials = StringEscapeUtils.escapeHtml4(initialsRaw);
-    sb.append("    <wavy-header slot=\"actions-signed-in\" signed-in locale=\"en\" data-address=\"")
+    sb.append("    <wavy-header slot=\"actions-signed-in\" signed-in locale=\"")
+        .append(safeHtmlLang)
+        .append("\" data-address=\"")
         .append(escapedAddress)
         .append("\" user-name=\"")
         .append(escapedAddress)
@@ -4124,14 +4137,15 @@ public final class HtmlRenderer {
         .append("\" aria-label=\"SupaWave home\">")
         .append("<span class=\"brand-dot\" aria-hidden=\"true\"></span>")
         .append("<span class=\"brand-text\">SupaWave</span></a>\n");
+    String selectedLocaleOpt = resolveLocaleOption(safeHtmlLang);
     sb.append("      <select class=\"locale\" aria-label=\"Language\">\n");
-    sb.append("        <option value=\"en\" selected>English</option>\n");
-    sb.append("        <option value=\"de\">Deutsch</option>\n");
-    sb.append("        <option value=\"es\">Español</option>\n");
-    sb.append("        <option value=\"fr\">Français</option>\n");
-    sb.append("        <option value=\"ru\">Русский</option>\n");
-    sb.append("        <option value=\"sl\">Slovenščina</option>\n");
-    sb.append("        <option value=\"zh_TW\">繁體中文</option>\n");
+    sb.append("        <option value=\"en\"").append("en".equals(selectedLocaleOpt) ? " selected" : "").append(">English</option>\n");
+    sb.append("        <option value=\"de\"").append("de".equals(selectedLocaleOpt) ? " selected" : "").append(">Deutsch</option>\n");
+    sb.append("        <option value=\"es\"").append("es".equals(selectedLocaleOpt) ? " selected" : "").append(">Español</option>\n");
+    sb.append("        <option value=\"fr\"").append("fr".equals(selectedLocaleOpt) ? " selected" : "").append(">Français</option>\n");
+    sb.append("        <option value=\"ru\"").append("ru".equals(selectedLocaleOpt) ? " selected" : "").append(">Русский</option>\n");
+    sb.append("        <option value=\"sl\"").append("sl".equals(selectedLocaleOpt) ? " selected" : "").append(">Slovenščina</option>\n");
+    sb.append("        <option value=\"zh_TW\"").append("zh_TW".equals(selectedLocaleOpt) ? " selected" : "").append(">繁體中文</option>\n");
     sb.append("      </select>\n");
     // A.5 notifications bell — server-renders the same SVG glyph the
     // Lit element renders so the icon does not appear empty pre-upgrade.
@@ -4155,6 +4169,36 @@ public final class HtmlRenderer {
         .append(escapedAddress)
         .append("</span></button>\n");
     sb.append("    </wavy-header>\n");
+  }
+
+  /**
+   * Maps a sanitized BCP-47 lang tag to one of the seven locale option values
+   * used by the wavy-header select ({@code en}, {@code de}, {@code es},
+   * {@code fr}, {@code ru}, {@code sl}, {@code zh_TW}). Tries an exact
+   * normalized match first (handling {@code zh-TW} → {@code zh_TW}), then
+   * falls back to the primary language subtag, then to {@code "en"}.
+   */
+  private static String resolveLocaleOption(String safeHtmlLang) {
+    if (safeHtmlLang == null || safeHtmlLang.isEmpty()) {
+      return "en";
+    }
+    String[] options = {"en", "de", "es", "fr", "ru", "sl", "zh_TW"};
+    String normalized = safeHtmlLang.replace('-', '_');
+    for (String opt : options) {
+      if (opt.equalsIgnoreCase(normalized)) {
+        return opt;
+      }
+    }
+    String primary = safeHtmlLang.contains("-")
+        ? safeHtmlLang.substring(0, safeHtmlLang.indexOf('-'))
+        : safeHtmlLang;
+    String[] primaryOptions = {"en", "de", "es", "fr", "ru", "sl"};
+    for (String opt : primaryOptions) {
+      if (opt.equalsIgnoreCase(primary)) {
+        return opt;
+      }
+    }
+    return "en";
   }
 
   /**
