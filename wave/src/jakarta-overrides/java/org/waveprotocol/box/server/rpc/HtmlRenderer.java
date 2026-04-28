@@ -3537,7 +3537,7 @@ public final class HtmlRenderer {
       // inline so no asset bump is required for visual parity.
       sb.append("    <a slot=\"brand\" id=\"j2cl-root-brand-link\" href=\"")
           .append(safeResolvedReturnTarget)
-          .append("\" aria-label=\"SupaWave home\">\n");
+          .append("\" aria-label=\"SupaWave\">\n");
       sb.append("      <span class=\"j2cl-brand-mark\" aria-hidden=\"true\">")
           .append("<svg viewBox=\"0 0 48 48\" width=\"36\" height=\"36\" aria-hidden=\"true\">")
           .append("<circle cx=\"24\" cy=\"24\" r=\"24\" fill=\"#0a4f82\"/>")
@@ -3546,7 +3546,7 @@ public final class HtmlRenderer {
           .append("</svg></span>\n");
       sb.append("      <span class=\"j2cl-brand-stack\">")
           .append("<span class=\"j2cl-brand-name\">SupaWave</span>")
-          .append("<span class=\"j2cl-brand-eyebrow\">J2CL · /?view=j2cl-root</span>")
+          .append("<span class=\"j2cl-brand-eyebrow\">J2CL · ").append(safeResolvedBasePath).append("?view=j2cl-root</span>")
           .append("</span>\n");
       sb.append("    </a>\n");
       // F-2 slice 3 (#1047): wavy header chrome (A.1, A.2, A.5, A.6,
@@ -3661,7 +3661,7 @@ public final class HtmlRenderer {
       // (mirrored from the signed-in branch above).
       sb.append("    <a slot=\"brand\" id=\"j2cl-root-brand-link\" href=\"")
           .append(safeResolvedReturnTarget)
-          .append("\" aria-label=\"SupaWave home\">\n");
+          .append("\" aria-label=\"SupaWave\">\n");
       sb.append("      <span class=\"j2cl-brand-mark\" aria-hidden=\"true\">")
           .append("<svg viewBox=\"0 0 48 48\" width=\"36\" height=\"36\" aria-hidden=\"true\">")
           .append("<circle cx=\"24\" cy=\"24\" r=\"24\" fill=\"#0a4f82\"/>")
@@ -3670,7 +3670,7 @@ public final class HtmlRenderer {
           .append("</svg></span>\n");
       sb.append("      <span class=\"j2cl-brand-stack\">")
           .append("<span class=\"j2cl-brand-name\">SupaWave</span>")
-          .append("<span class=\"j2cl-brand-eyebrow\">J2CL · /?view=j2cl-root</span>")
+          .append("<span class=\"j2cl-brand-eyebrow\">J2CL · ").append(safeResolvedBasePath).append("?view=j2cl-root</span>")
           .append("</span>\n");
       sb.append("    </a>\n");
       sb.append("    <span slot=\"actions-signed-out\">Signed out</span>\n");

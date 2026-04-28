@@ -31,10 +31,11 @@ export class WavyRailPanel extends LitElement {
       font: var(--wavy-type-body, 0.9375rem / 1.55 sans-serif);
     }
     /* V-1 (#1099): when the panel ships hidden (production user route
-     * with no plugin slotted), keep it out of the layout. Lit-rendered
-     * hosts inherit user-agent [hidden] semantics, but make the rule
-     * source-visible to match the convention used by
-     * wavy-floating-scroll-to-new / wavy-version-history / wavy-profile-overlay. */
+     * with no plugin slotted), keep it out of the layout. The explicit
+     * rule is required because the author-level :host { display: block }
+     * above would otherwise defeat the UA [hidden] style; matches the
+     * convention in wavy-floating-scroll-to-new / wavy-version-history /
+     * wavy-profile-overlay. */
     :host([hidden]) {
       display: none;
     }
