@@ -84,6 +84,24 @@ try {
   await page.goto(`${BASE}/?view=j2cl-root`, { waitUntil: "networkidle" });
   await page.waitForTimeout(800);
 
+  // Fail fast if registration / sign-in produced an unauthenticated
+  // shell — the V-5 acceptance contract requires a signed-in capture
+  // (mockup target is 01-shell-inbox-with-waves.svg). A signed-out
+  // screenshot would silently corrupt the before/after evidence.
+  const signedIn = await page.evaluate(() => {
+    return (
+      !!document.querySelector('shell-root') &&
+      !document.querySelector('shell-root-signed-out')
+    );
+  });
+  if (!signedIn) {
+    throw new Error(
+      "screenshot-v-5: page did not render a signed-in <shell-root> at " +
+        page.url() +
+        " — registration or fallback sign-in failed; refusing to capture a signed-out screenshot."
+    );
+  }
+
   await page.screenshot({ path: outPath, fullPage: false });
   console.log("wrote", outPath);
   console.log("registered", userEmail);

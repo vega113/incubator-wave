@@ -43,8 +43,43 @@ try {
     page.waitForLoadState("domcontentloaded"),
     page.locator('input.btn-primary').click()
   ]);
+
+  // Mirror screenshot-v-5.mjs's sign-in fallback so the probe doesn't
+  // silently record metrics from a signed-out shell when registration
+  // redirects through /auth/signin.
+  const postRegUrl = page.url();
+  if (/\/auth\/signin/.test(postRegUrl) || /\/auth\/register/.test(postRegUrl)) {
+    await page.goto(`${BASE}/auth/signin`, { waitUntil: "domcontentloaded" });
+    if (await page.locator("#address").count()) {
+      await page.locator("#address").fill(userAddress);
+      await page.locator("#password").fill(password);
+      await Promise.all([
+        page.waitForLoadState("domcontentloaded"),
+        page.locator('input.btn-primary, button[type="submit"]').first().click()
+      ]);
+    }
+  }
+
   await page.goto(`${BASE}/?view=j2cl-root`, { waitUntil: "networkidle" });
   await page.waitForTimeout(400);
+
+  // Hard-fail before reading any metrics if the page rendered as
+  // <shell-root-signed-out> — V-5's rail-width tokens have no visible
+  // target there, so a probe value drawn from that shell would lie in
+  // the PR annotations.
+  const signedIn = await page.evaluate(() => {
+    return (
+      !!document.querySelector('shell-root') &&
+      !document.querySelector('shell-root-signed-out')
+    );
+  });
+  if (!signedIn) {
+    throw new Error(
+      "probe-v-5: page did not render a signed-in <shell-root> at " +
+        page.url() +
+        " — refusing to record metrics from a signed-out shell."
+    );
+  }
 
   const tags = await page.evaluate(() => {
     const all = new Set();
