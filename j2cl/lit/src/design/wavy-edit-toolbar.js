@@ -30,6 +30,9 @@ export class WavyEditToolbar extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 0;
+      flex-wrap: wrap;
+      row-gap: var(--wavy-spacing-1, 4px);
+      max-width: calc(100vw - 32px);
     }
     /* V-3 (#1101): wavy-format-toolbar emits explicit
      * <span class="toolbar-divider"> siblings between groups. Style

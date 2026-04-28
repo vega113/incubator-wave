@@ -87,7 +87,7 @@ const DAILY_RICH_EDIT_ACTIONS = [
   { id: "rtl", label: "Right-to-left", group: "align", toggle: false },
   { id: "link", label: "Insert link", group: "link", toggle: false },
   { id: "unlink", label: "Remove link", group: "link", toggle: false },
-  { id: "clear-formatting", label: "Clear formatting", group: "link", toggle: false },
+  { id: "clear-formatting", label: "Clear formatting", group: "clear", toggle: false },
   // F-3.S2 (#1038, R-5.4 step 6 + H.20): inline task list insert.
   // Display-only inside the body (the `<input type="checkbox">` is
   // disabled — the per-blip task affordance owns model state).
@@ -99,12 +99,13 @@ const DAILY_RICH_EDIT_ACTIONS = [
   { id: "attachment-insert", label: "Attach file", group: "insert", toggle: false }
 ];
 
-const GROUP_ORDER = ["text", "block", "align", "link", "insert"];
+const GROUP_ORDER = ["text", "block", "align", "link", "clear", "insert"];
 const GROUP_LABELS = {
   text: "Text formatting",
   block: "Block formatting",
   align: "Alignment",
   link: "Link",
+  clear: "Clear formatting",
   insert: "Insert"
 };
 

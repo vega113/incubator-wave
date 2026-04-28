@@ -66,4 +66,15 @@ describe("<toolbar-button>", () => {
     expect(button.querySelector("svg")).to.equal(null);
     expect(button.textContent.trim()).to.equal("Archive");
   });
+
+  // V-3 (#1101): the title attribute is gated on icon presence so that
+  // text-mode consumers (wave-blip-toolbar etc.) do not gain unexpected
+  // hover tooltips from this slice. Per copilot review feedback.
+  it("does not set the title attribute in text mode", async () => {
+    const el = await fixture(html`
+      <toolbar-button action="archive" label="Archive"></toolbar-button>
+    `);
+    const button = el.renderRoot.querySelector("button");
+    expect(button.hasAttribute("title")).to.equal(false);
+  });
 });

@@ -97,7 +97,7 @@ export class ToolbarButton extends LitElement {
       <button
         type="button"
         aria-label=${this.label}
-        title=${this.label || nothing}
+        title=${this.icon && this.label ? this.label : nothing}
         aria-pressed=${this.toggle ? String(this.pressed) : nothing}
         data-action=${this.action}
         ?disabled=${this.disabled}
