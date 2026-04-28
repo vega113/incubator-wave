@@ -497,55 +497,94 @@ public final class J2clReadSurfaceDomRenderer {
     rootThread.setAttribute("role", "list");
     surface.appendChild(rootThread);
 
-    // J-UI-4 (#1082, R-3.1) — convert loaded entries into J2clReadBlip
-    // records and let appendBlipsAsTree do the same nested-thread
-    // assembly the live-blip path uses, so the viewport-windowed
-    // renderer doesn't flatten replies. Placeholders (still loading)
-    // remain as inline placeholder elements at the root level — their
-    // text/author/timestamp aren't known yet, and the row reserves
-    // height + announces aria-busy so the user sees the skeleton.
+    // J-UI-4 (#1082, R-3.1) — build the nested-thread DOM in a single
+    // pass so placeholders and loaded blips stay in their original server
+    // sequence (review-1089 round-3: the previous two-loop approach
+    // appended placeholders during the first loop and deferred all loaded
+    // blips to appendBlipsAsTree after it, which reordered DOM children
+    // whenever a loaded entry preceded a placeholder in the window).
     boolean hasPlaceholder = false;
-    List<J2clReadBlip> loadedBlips = new ArrayList<J2clReadBlip>(entries.size());
+    int blipIndex = 0;
+    Map<String, HTMLElement> winBlipHostsById = new HashMap<String, HTMLElement>();
+    Map<String, HTMLElement> winThreadHostsByKey = new HashMap<String, HTMLElement>();
     for (int i = 0; i < entries.size(); i++) {
       J2clReadWindowEntry entry = entries.get(i);
-      if (entry.isLoaded()) {
-        // J-UI-4 (#1082, R-3.1): prefer the entry's own parent /
-        // thread metadata when present, but otherwise fall back to
-        // the renderer's conversation manifest so the windowed
-        // render path can nest replies the same way the live-blip
-        // path does. The viewport state today builds entries via
-        // the simple loaded(...) factory which leaves parent /
-        // thread empty; the manifest fills the gap.
-        String entryParent = entry.getParentBlipId();
-        String entryThread = entry.getThreadId();
-        if ((entryParent == null || entryParent.isEmpty())
-            && (entryThread == null || entryThread.isEmpty())
-            && !conversationManifest.isEmpty()) {
-          SidecarConversationManifest.Entry manifestEntry =
-              conversationManifest.findByBlipId(entry.getBlipId());
-          if (manifestEntry != null) {
-            entryParent = manifestEntry.getParentBlipId();
-            entryThread = manifestEntry.getThreadId();
-          }
-        }
-        loadedBlips.add(
-            new J2clReadBlip(
-                entry.getBlipId(),
-                entry.getText(),
-                entry.getAttachments(),
-                entry.getAuthorId(),
-                entry.getAuthorDisplayName(),
-                entry.getLastModifiedTimeMillis(),
-                entryParent,
-                entryThread,
-                entry.isUnread(),
-                entry.hasMention()));
-      } else {
+      if (!entry.isLoaded()) {
         hasPlaceholder = true;
         rootThread.appendChild(renderPlaceholder(entry));
+        continue;
+      }
+      // J-UI-4 (#1082, R-3.1): prefer the entry's own parent /
+      // thread metadata when present, but otherwise fall back to
+      // the renderer's conversation manifest so the windowed
+      // render path can nest replies the same way the live-blip
+      // path does. The viewport state today builds entries via
+      // the simple loaded(...) factory which leaves parent /
+      // thread empty; the manifest fills the gap.
+      String entryParent = entry.getParentBlipId();
+      String entryThread = entry.getThreadId();
+      if ((entryParent == null || entryParent.isEmpty())
+          && (entryThread == null || entryThread.isEmpty())
+          && !conversationManifest.isEmpty()) {
+        SidecarConversationManifest.Entry manifestEntry =
+            conversationManifest.findByBlipId(entry.getBlipId());
+        if (manifestEntry != null) {
+          entryParent = manifestEntry.getParentBlipId();
+          entryThread = manifestEntry.getThreadId();
+        }
+      }
+      J2clReadBlip blip =
+          new J2clReadBlip(
+              entry.getBlipId(),
+              entry.getText(),
+              entry.getAttachments(),
+              entry.getAuthorId(),
+              entry.getAuthorDisplayName(),
+              entry.getLastModifiedTimeMillis(),
+              entryParent,
+              entryThread,
+              entry.isUnread(),
+              entry.hasMention());
+      HTMLElement blipElement = renderBlip(blip, blipIndex++);
+      winBlipHostsById.put(blip.getBlipId(), blipElement);
+      String parentBlipId = entryParent == null ? "" : entryParent;
+      String threadId = entryThread == null ? "" : entryThread;
+      if (parentBlipId.isEmpty()) {
+        rootThread.appendChild(blipElement);
+      } else {
+        HTMLElement parentHost = winBlipHostsById.get(parentBlipId);
+        if (parentHost == null) {
+          // Defense-in-depth: parent not yet rendered (out-of-order
+          // manifest or missing blip). Show the content at root level.
+          rootThread.appendChild(blipElement);
+        } else {
+          String threadKey = parentBlipId + "::" + threadId;
+          HTMLElement threadHost = winThreadHostsByKey.get(threadKey);
+          if (threadHost == null) {
+            threadHost = (HTMLElement) DomGlobal.document.createElement("div");
+            threadHost.className = "thread inline-thread j2cl-read-thread";
+            // review-1089 round-3: scope data-thread-id by parent so
+            // collapse state does not bleed across threads that share
+            // the same raw manifest threadId under different parents.
+            String scopedId =
+                !threadId.isEmpty() ? (parentBlipId + "::" + threadId) : ("inline-" + parentBlipId);
+            threadHost.setAttribute("data-thread-id", scopedId);
+            threadHost.setAttribute("data-parent-blip-id", parentBlipId);
+            if (parentHost.parentNode != null) {
+              if (parentHost.nextSibling != null) {
+                parentHost.parentNode.insertBefore(threadHost, parentHost.nextSibling);
+              } else {
+                parentHost.parentNode.appendChild(threadHost);
+              }
+            } else {
+              parentHost.appendChild(threadHost);
+            }
+            winThreadHostsByKey.put(threadKey, threadHost);
+          }
+          threadHost.appendChild(blipElement);
+        }
       }
     }
-    appendBlipsAsTree(rootThread, loadedBlips);
     if (hasPlaceholder) {
       surface.setAttribute("aria-live", "polite");
       rootThread.setAttribute("aria-busy", "true");
@@ -693,8 +732,11 @@ public final class J2clReadSurfaceDomRenderer {
       if (threadHost == null) {
         threadHost = (HTMLElement) DomGlobal.document.createElement("div");
         threadHost.className = "thread inline-thread j2cl-read-thread";
+        // review-1089 round-3: scope data-thread-id by parent so
+        // collapse state does not bleed across threads that share
+        // the same raw manifest threadId under different parents.
         if (!threadId.isEmpty()) {
-          threadHost.setAttribute("data-thread-id", threadId);
+          threadHost.setAttribute("data-thread-id", parentBlipId + "::" + threadId);
         } else {
           threadHost.setAttribute("data-thread-id", "inline-" + parentBlipId);
         }
