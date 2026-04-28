@@ -1,5 +1,6 @@
 package org.waveprotocol.box.j2cl.search;
 
+import elemental2.dom.DomGlobal;
 import org.waveprotocol.box.j2cl.transport.SidecarSessionBootstrap;
 
 public final class J2clSearchPanelController
@@ -84,6 +85,15 @@ public final class J2clSearchPanelController
   private int currentPageSize;
   private int requestGeneration;
   private J2clSearchResultModel lastModel = J2clSearchResultModel.empty("Search results will appear here.");
+  // J-UI-3 (#1081, R-5.1): optimistic-prepend bookkeeping. After a successful
+  // create the controller stores a stub digest here so the rail shows the new
+  // wave immediately while the server search index catches up. The stub is
+  // dropped once a refresh response includes the matching waveId, or after
+  // OPTIMISTIC_TIMEOUT_MS to bound a stuck stub if the index never returns
+  // it.
+  private J2clSearchDigestItem optimisticStub;
+  private int optimisticGeneration;
+  private static final int OPTIMISTIC_TIMEOUT_MS = 5_000;
 
   public J2clSearchPanelController(
       SearchGateway gateway,
@@ -214,7 +224,12 @@ public final class J2clSearchPanelController
           if (generation != requestGeneration) {
             return;
           }
-          lastModel = J2clSearchResultProjector.project(response, numResults);
+          J2clSearchResultModel projected = J2clSearchResultProjector.project(response, numResults);
+          // J-UI-3 (#1081, R-5.1): if the just-created wave is still missing
+          // from the server response, keep the optimistic stub at the top of
+          // the rail; otherwise drop the stub now that the real digest is
+          // present.
+          lastModel = applyOptimisticStub(projected);
           view.render(lastModel);
           view.setSelectedWaveId(selectedWaveId);
           if (selectedWaveId != null) {
@@ -233,6 +248,68 @@ public final class J2clSearchPanelController
           view.setStatus("Search request failed: " + error, true);
           view.setLoading(false);
         });
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): re-issues the current search query without
+   * resetting selection or page size. Public entrypoint used by the
+   * create-success path so the rail picks up the new digest after a wave
+   * is created. Idempotent — safe to call repeatedly.
+   */
+  public void refreshSearch() {
+    requestSearch();
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): record an optimistic digest for the just-created
+   * wave and prepend it to the rail immediately. The stub is dropped when
+   * the next search response includes the matching waveId or after
+   * {@link #OPTIMISTIC_TIMEOUT_MS}, whichever comes first. {@code title}
+   * is what the user typed; the stub author is left empty since we do not
+   * yet know the bootstrap address at this site.
+   */
+  public void onOptimisticDigest(String waveId, String title) {
+    if (waveId == null || waveId.isEmpty()) {
+      return;
+    }
+    String safeTitle = title == null ? "" : title;
+    String safeSnippet = "";
+    long now = (long) DomGlobal.window.performance.now();
+    optimisticStub =
+        new J2clSearchDigestItem(waveId, safeTitle, safeSnippet, "", 0, 1, now, false);
+    final int generation = ++optimisticGeneration;
+    lastModel = lastModel.withPrependedDigest(optimisticStub);
+    view.render(lastModel);
+    requestSearch();
+    // Bound a stuck stub: if the index never returns the wave, retire the
+    // stub after OPTIMISTIC_TIMEOUT_MS so a stale entry does not linger.
+    DomGlobal.setTimeout(
+        ignored -> {
+          if (generation == optimisticGeneration && optimisticStub != null) {
+            String stuckId = optimisticStub.getWaveId();
+            optimisticStub = null;
+            lastModel = lastModel.withoutDigest(stuckId);
+            view.render(lastModel);
+          }
+        },
+        OPTIMISTIC_TIMEOUT_MS);
+  }
+
+  /**
+   * Returns {@code projected} with the optimistic stub re-applied if the
+   * server response did not include the matching waveId. Clears the stub
+   * when the response already lists the new wave.
+   */
+  private J2clSearchResultModel applyOptimisticStub(J2clSearchResultModel projected) {
+    if (optimisticStub == null) {
+      return projected;
+    }
+    String stubId = optimisticStub.getWaveId();
+    if (projected.containsWave(stubId)) {
+      optimisticStub = null;
+      return projected;
+    }
+    return projected.withPrependedDigest(optimisticStub);
   }
 
   private void clearSelection(boolean userNavigation) {

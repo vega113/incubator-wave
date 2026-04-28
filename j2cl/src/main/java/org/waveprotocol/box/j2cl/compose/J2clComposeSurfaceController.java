@@ -162,9 +162,19 @@ public final class J2clComposeSurfaceController {
     default void onDeleteBlipRequested(String blipId, String expectedWaveId) {}
   }
 
-  @FunctionalInterface
   public interface CreateSuccessHandler {
     void onWaveCreated(String waveId);
+
+    /**
+     * J-UI-3 (#1081, R-5.1): called instead of {@link #onWaveCreated} on
+     * production paths that wire the optimistic-digest prepend in the
+     * search panel. {@code title} is the trimmed title-input value the
+     * user typed; the default delegates to {@link #onWaveCreated} so
+     * existing handlers continue to work.
+     */
+    default void onWaveCreated(String waveId, String title) {
+      onWaveCreated(waveId);
+    }
   }
 
   @FunctionalInterface
@@ -1387,8 +1397,11 @@ public final class J2clComposeSurfaceController {
     }
     createSubmitting = false;
     createDraft = "";
-    // J-UI-3 (#1081, R-5.1): clear the title on success so the next New
-    // Wave click presents an empty title input.
+    // J-UI-3 (#1081, R-5.1): snapshot the title before clearing it so the
+    // success handler can pass it through to the rail's optimistic-digest
+    // prepend; clear last so the rendered create form returns to its empty
+    // state.
+    String createdTitle = createTitleDraft;
     createTitleDraft = "";
     activeCommandId = "";
     annotationCommandId = "";
@@ -1398,7 +1411,7 @@ public final class J2clComposeSurfaceController {
     createErrorText = "";
     render();
     if (createSuccessHandler != null) {
-      createSuccessHandler.onWaveCreated(request.getCreatedWaveId());
+      createSuccessHandler.onWaveCreated(request.getCreatedWaveId(), createdTitle);
     }
   }
 
