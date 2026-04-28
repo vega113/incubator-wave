@@ -3900,7 +3900,7 @@ public final class HtmlRenderer {
     sb.append("              <wavy-depth-nav-bar data-j2cl-server-first-chrome=\"true\" data-current-depth=\"top-thread\"></wavy-depth-nav-bar>\n");
     sb.append("              <h2 class=\"sidecar-selected-title\">Sample read-surface preview wave</h2>\n");
     sb.append("              <p class=\"sidecar-selected-unread\">3 unread</p>\n");
-    sb.append("              <p class=\"sidecar-selected-status\" data-j2cl-debug-only=\"true\">Read-surface preview fixture — every F-2 chrome affordance is mounted on this single URL.</p>\n");
+    sb.append("              <p class=\"sidecar-selected-status\" hidden>Read-surface preview fixture — every F-2 chrome affordance is mounted on this single URL.</p>\n");
     sb.append("              <p class=\"sidecar-selected-detail\" data-j2cl-debug-only=\"true\">Open the version-history, profile, and depth-nav overlays via the floating controls; press <kbd>j</kbd>/<kbd>k</kbd> to move the focus frame.</p>\n");
     sb.append("              <output class=\"wavy-awareness-pill\" data-j2cl-awareness-pill=\"true\">2 new replies above</output>\n");
     sb.append("              <p class=\"sidecar-selected-participants\">alice@example.com, bob@example.com, carol@example.com</p>\n");
