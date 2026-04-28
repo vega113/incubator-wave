@@ -1,0 +1,23 @@
+{
+  "releaseId": "2026-04-28-issue-1085-j-ui-7",
+  "version": "PR #TBD",
+  "date": "2026-04-28",
+  "title": "J-UI-7: Live unread cue + read-state hooks for the J2CL search rail",
+  "summary": "When the J2CL search rail's per-user unread count changes (decrement on open, increment on a peer reply), the matching <wavy-search-rail-card> now fires a host-level cyan signal-pulse and refreshes its accessible name so the live update is visible and announceable. Read state is exposed to CSS via :host([unread-count=\"0\"]); the legacy DOM digest gains a matching data-read attribute and aria-label refresh.",
+  "sections": [
+    {
+      "type": "feature",
+      "items": [
+        "<wavy-search-rail-card> reflects unreadCount to the unread-count attribute, fires a host-level pulse on every post-initial change (the pulse box-shadow lives on the host, so the 1->0 zero-out case still has a visible cue after the badge disappears), and refreshes the article aria-label so AT consumers hear 'Sprint review. 2 unread.' or 'Sprint review. Read.'.",
+        "Rapid back-to-back unread mutations (e.g. a server push landing while the previous pulse is still ringing) keep the ring visible for the full duration after the latest pulse instead of being truncated by an earlier timer.",
+        "Legacy J2clDigestView toggles a data-read attribute on the focusable button root and refreshes its aria-label to match the live count."
+      ]
+    },
+    {
+      "type": "fix",
+      "items": [
+        "Closes the visible-cue gap recorded as R-4.4 FAIL in the 2026-04-26 J2CL/GWT parity audit. The data path (read-state fetch, search-panel listener, model mutation) was already wired across #931, #1056, and #1079; this slice attaches the cue and the assistive-technology surface so the live decrement is actually noticeable when it does fire."
+      ]
+    }
+  ]
+}
