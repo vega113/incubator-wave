@@ -162,7 +162,7 @@ shell-header > [slot="brand"] .j2cl-brand-stack {
 }
 
 shell-header > [slot="brand"] .j2cl-brand-name {
-  font-family: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont,
+  font-family: "Space Grotesk", Inter, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
@@ -170,7 +170,7 @@ shell-header > [slot="brand"] .j2cl-brand-name {
 }
 
 shell-header > [slot="brand"] .j2cl-brand-eyebrow {
-  font-family: "Geist", "Inter", -apple-system, BlinkMacSystemFont,
+  font-family: Geist, Inter, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   font-size: 0.6875rem;
   letter-spacing: 0.08em;

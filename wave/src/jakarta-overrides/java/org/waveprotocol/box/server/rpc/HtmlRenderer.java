@@ -4214,7 +4214,7 @@ public final class HtmlRenderer {
         .append("\">\n");
     sb.append("      <a class=\"brand\" href=\"")
         .append(safeResolvedReturnTarget)
-        .append("\" aria-label=\"SupaWave home\">")
+        .append("\" aria-label=\"SupaWave\">")
         .append("<span class=\"brand-dot\" aria-hidden=\"true\"></span>")
         .append("<span class=\"brand-text\">SupaWave</span></a>\n");
     sb.append("      <select class=\"locale\" aria-label=\"Language\">\n");
