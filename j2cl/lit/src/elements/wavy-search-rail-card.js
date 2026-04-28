@@ -226,16 +226,22 @@ export class WavySearchRailCard extends LitElement {
    * from a peer's reply) all fire the host-level pulse so the live
    * decrement is visible regardless of whether the badge ends up
    * visible afterwards.
+   *
+   * <p>The initialized flag flips on the first {@code updated()} call
+   * regardless of which properties changed. This way a card whose
+   * upgrade does not touch unreadCount (e.g. attribute and default
+   * both 0) still classifies its first user-driven mutation as a
+   * post-initial change and pulses accordingly.
    */
   updated(changed) {
-    if (!changed.has("unreadCount")) {
+    const wasInitialized = this._initialUpdateComplete;
+    this._initialUpdateComplete = true;
+    if (!wasInitialized) {
       return;
     }
-    if (!this._unreadCountInitialized) {
-      this._unreadCountInitialized = true;
-      return;
+    if (changed.has("unreadCount")) {
+      this.firePulse();
     }
-    this.firePulse();
   }
 
   _emitSelected() {

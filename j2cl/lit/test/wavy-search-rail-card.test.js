@@ -207,4 +207,131 @@ describe("<wavy-search-rail-card>", () => {
       expect(el.hasAttribute("selected")).to.equal(false);
     });
   });
+
+  // J-UI-7 (#1085, R-4.4): live mark-as-read decrement + the matching
+  // increment when a peer posts a new reply. The Java view mutates the
+  // `unread-count` attribute on the host; the element re-renders the
+  // badge, fires a host-level pulse, and exposes a CSS read-state hook
+  // so the cue is visible regardless of badge visibility.
+  describe("J-UI-7 live unread mutation (#1085)", () => {
+    it("does NOT pulse on the initial render (avoids paint-time noise)", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card
+          msg-count="3"
+          unread-count="2"
+          style="--wavy-motion-pulse-duration: 60;"
+        ></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      expect(el.dataset.pulse).to.be.undefined;
+    });
+
+    it("pulses on a 2 -> 1 decrement and keeps the badge", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card
+          msg-count="3"
+          unread-count="2"
+          style="--wavy-motion-pulse-duration: 60;"
+        ></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      el.setAttribute("unread-count", "1");
+      await el.updateComplete;
+      expect(el.dataset.pulse).to.equal("ring");
+      const badge = el.renderRoot.querySelector(".badge.unread");
+      expect(badge).to.exist;
+      expect(badge.textContent.trim()).to.equal("1");
+      await aTimeout(120);
+      expect(el.dataset.pulse).to.be.undefined;
+    });
+
+    it("pulses on a 1 -> 0 zero-out and removes the badge (host owns the cue)", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card
+          msg-count="3"
+          unread-count="1"
+          style="--wavy-motion-pulse-duration: 60;"
+        ></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      el.setAttribute("unread-count", "0");
+      await el.updateComplete;
+      expect(el.dataset.pulse).to.equal("ring");
+      // Badge is gone — but the host still pulses, which is the whole
+      // point of moving the box-shadow from .badge.unread to :host.
+      expect(el.renderRoot.querySelector(".badge.unread")).to.be.null;
+      // Reflected attribute survives.
+      expect(el.getAttribute("unread-count")).to.equal("0");
+    });
+
+    it("pulses on a 0 -> 2 increment and re-renders the badge", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card
+          msg-count="3"
+          unread-count="0"
+          style="--wavy-motion-pulse-duration: 60;"
+        ></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      expect(el.renderRoot.querySelector(".badge.unread")).to.be.null;
+      el.setAttribute("unread-count", "2");
+      await el.updateComplete;
+      expect(el.dataset.pulse).to.equal("ring");
+      const badge = el.renderRoot.querySelector(".badge.unread");
+      expect(badge).to.exist;
+      expect(badge.textContent.trim()).to.equal("2");
+    });
+
+    it("setting the same unread-count value does not fire a pulse (no churn)", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card
+          msg-count="3"
+          unread-count="2"
+          style="--wavy-motion-pulse-duration: 60;"
+        ></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      // No-op set: same numeric value.
+      el.setAttribute("unread-count", "2");
+      await el.updateComplete;
+      expect(el.dataset.pulse).to.be.undefined;
+    });
+
+    it("exposes :host([unread-count='0']) as a CSS read-state hook", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card unread-count="0"></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      const cs = getComputedStyle(el);
+      expect(cs.getPropertyValue("--wavy-rail-card-read").trim()).to.equal("1");
+      el.setAttribute("unread-count", "3");
+      await el.updateComplete;
+      const cs2 = getComputedStyle(el);
+      // CSS variable falls back to undefined ("") when the
+      // :host([unread-count="0"]) rule no longer matches.
+      expect(cs2.getPropertyValue("--wavy-rail-card-read").trim()).to.equal("");
+    });
+
+    it("article aria-label tracks the live unread count for AT", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card title="Sprint review" unread-count="2"></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      let article = el.renderRoot.querySelector("article");
+      expect(article.getAttribute("aria-label")).to.equal("Sprint review. 2 unread.");
+      el.setAttribute("unread-count", "0");
+      await el.updateComplete;
+      article = el.renderRoot.querySelector("article");
+      expect(article.getAttribute("aria-label")).to.equal("Sprint review. Read.");
+    });
+
+    it("zero-titled card still produces a sensible aria-label", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card unread-count="0"></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      const article = el.renderRoot.querySelector("article");
+      expect(article.getAttribute("aria-label")).to.equal("(no title). Read.");
+    });
+  });
 });
