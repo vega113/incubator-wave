@@ -53,6 +53,127 @@ function isSafeLinkHref(url) {
   return scheme === "http" || scheme === "https" || scheme === "mailto";
 }
 
+/**
+ * J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyb):
+ * split a DocumentFragment cloned from a Range into ordered groups
+ * of nodes that each represent ONE line, while preserving inline
+ * markup (`<strong>`, `<em>`, `<a>`, mention chips, ...). Block-level
+ * children (`<div>`, `<p>`, `<br>`) act as line separators; pre-
+ * existing `<li>` and `<ul>`/`<ol>` children are flattened into their
+ * contents so toggling a list ON over partial list-content does not
+ * nest lists. The caller wraps each group in a fresh `<li>` to build
+ * the new list.
+ */
+function splitFragmentIntoLineGroups(fragment) {
+  const groups = [];
+  let current = [];
+  const pushCurrent = () => {
+    if (current.length > 0) {
+      groups.push(current);
+      current = [];
+    }
+  };
+  const flatChildren = [];
+  const collect = (parent) => {
+    for (const child of Array.from(parent.childNodes)) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const t = child.tagName.toLowerCase();
+        if (t === "ul" || t === "ol") {
+          collect(child);
+          continue;
+        }
+        if (t === "li") {
+          collect(child);
+          flatChildren.push(document.createElement("__line_break"));
+          continue;
+        }
+      }
+      flatChildren.push(child);
+    }
+  };
+  collect(fragment);
+  for (const node of flatChildren) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = node.tagName.toLowerCase();
+      if (tag === "br" || tag === "__line_break") {
+        pushCurrent();
+        continue;
+      }
+      if (tag === "div" || tag === "p") {
+        // Block boundary: flush any pending inline content from the
+        // previous block, then walk this block's children inline so
+        // marks inside the block survive (`<div><strong>x</strong></div>`
+        // becomes one `<li>` containing `<strong>x</strong>`).
+        pushCurrent();
+        for (const inner of Array.from(node.childNodes)) {
+          current.push(inner);
+        }
+        pushCurrent();
+        continue;
+      }
+    }
+    // Text nodes carrying a literal `\n` (e.g. body.textContent
+    // `"first\nsecond"`) split into multiple lines too — otherwise
+    // newline-delimited drafts produce a single `<li>` containing the
+    // whole text.
+    if (node.nodeType === Node.TEXT_NODE && node.textContent.indexOf("\n") >= 0) {
+      const parts = node.textContent.split("\n");
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].length > 0) current.push(document.createTextNode(parts[i]));
+        if (i < parts.length - 1) pushCurrent();
+      }
+      continue;
+    }
+    current.push(node);
+  }
+  pushCurrent();
+  return groups;
+}
+
+/**
+ * J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW):
+ * fold an outer annotation onto a list of inner components produced
+ * by recursing into a wrap's children. Text components become
+ * annotated; pre-annotated components have the outer annotation
+ * appended to their `annotations` list so combined runs (e.g.
+ * `<li><strong>x</strong></li>`, `<a><em>x</em></a>`,
+ * `<blockquote><strong>x</strong></blockquote>`) round-trip both the
+ * outer annotation AND the inner formatting. Non-annotatable
+ * components (e.g. image attachments) flow through untouched.
+ */
+function mergeOuterAnnotation(innerComps, outerKey, outerValue) {
+  const out = [];
+  for (const c of innerComps) {
+    if (c.type === "text") {
+      out.push({
+        type: "annotated",
+        text: c.text,
+        annotationKey: outerKey,
+        annotationValue: outerValue,
+        annotations: [{ key: outerKey, value: outerValue }]
+      });
+      continue;
+    }
+    if (c.type === "annotated") {
+      const inner =
+        Array.isArray(c.annotations) && c.annotations.length > 0
+          ? c.annotations.slice()
+          : [{ key: c.annotationKey, value: c.annotationValue }];
+      const merged = inner.concat([{ key: outerKey, value: outerValue }]);
+      out.push({
+        type: "annotated",
+        text: c.text,
+        annotationKey: merged[0].key,
+        annotationValue: merged[0].value,
+        annotations: merged
+      });
+      continue;
+    }
+    out.push(c);
+  }
+  return out;
+}
+
 function inlineFormatAnnotation(tag) {
   switch (tag) {
     case "strong":
@@ -534,20 +655,32 @@ export class WavyComposer extends LitElement {
       this._afterBodyMutation();
       return;
     }
-    let text;
+    // J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyb):
+    // preserve inline markup when toggling list formatting. Extract
+    // the live DocumentFragment from the range (carrying any
+    // `<strong>`, `<em>`, `<a>`, mention chips, etc.), split it into
+    // line groups, and inject each group into a fresh `<li>` so
+    // formatting + chips survive the wrap.
+    let fragment;
     try {
-      text = range.toString();
+      fragment = range.cloneContents();
     } catch (_e) {
       return;
     }
-    const lines = text.split("\n").filter((line) => line.length > 0);
-    if (lines.length === 0) return;
+    if (!fragment || !fragment.hasChildNodes()) return;
+    const lineGroups = splitFragmentIntoLineGroups(fragment);
+    if (lineGroups.length === 0) return;
     const list = document.createElement(listTag);
-    for (const line of lines) {
+    for (const group of lineGroups) {
       const li = document.createElement("li");
-      li.textContent = line;
+      for (const node of group) li.appendChild(node);
+      // Skip <li> elements whose contents serialise to nothing — these
+      // come from blank lines in the source and would otherwise paint
+      // empty bullets.
+      if (li.textContent.length === 0 && !li.querySelector("*")) continue;
       list.appendChild(li);
     }
+    if (!list.firstChild) return;
     try {
       range.deleteContents();
       range.insertNode(list);
@@ -1101,17 +1234,16 @@ export class WavyComposer extends LitElement {
               flushText();
               const itemComps = components.splice(snapLen);
               pending = snapPending;
-              for (const c of itemComps) {
-                if (c.type === "text") {
-                  components.push({
-                    type: "annotated",
-                    text: c.text,
-                    annotationKey,
-                    annotationValue: "true"
-                  });
-                } else {
-                  components.push(c);
-                }
+              // Codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW:
+              // merge the list annotation onto every child run so
+              // `<li><strong>x</strong></li>` keeps both list/* AND
+              // fontWeight=bold on the same span.
+              for (const merged of mergeOuterAnnotation(
+                itemComps,
+                annotationKey,
+                "true"
+              )) {
+                components.push(merged);
               }
             }
           }
@@ -1139,17 +1271,12 @@ export class WavyComposer extends LitElement {
           flushText();
           const bqComps = components.splice(snapLen);
           pending = snapPending;
-          for (const c of bqComps) {
-            if (c.type === "text") {
-              components.push({
-                type: "annotated",
-                text: c.text,
-                annotationKey: "block/quote",
-                annotationValue: "true"
-              });
-            } else {
-              components.push(c);
-            }
+          // Codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW: merge
+          // the block/quote annotation onto every child run so
+          // `<blockquote><strong>x</strong></blockquote>` keeps both
+          // block/quote AND fontWeight=bold on the same span.
+          for (const merged of mergeOuterAnnotation(bqComps, "block/quote", "true")) {
+            components.push(merged);
           }
           continue;
         }
@@ -1174,17 +1301,12 @@ export class WavyComposer extends LitElement {
             flushText();
             const aComps = components.splice(snapLen);
             pending = snapPending;
-            for (const c of aComps) {
-              if (c.type === "text") {
-                components.push({
-                  type: "annotated",
-                  text: c.text,
-                  annotationKey: "link/manual",
-                  annotationValue: href
-                });
-              } else {
-                components.push(c);
-              }
+            // Codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW: merge
+            // the link/manual annotation onto every child run so
+            // `<a><strong>x</strong></a>` keeps both link/manual AND
+            // fontWeight=bold on the same span.
+            for (const merged of mergeOuterAnnotation(aComps, "link/manual", href)) {
+              components.push(merged);
             }
             continue;
           }
@@ -1217,40 +1339,16 @@ export class WavyComposer extends LitElement {
           flushText();
           const innerComps = components.splice(snapLen);
           pending = snapPending;
-          for (const c of innerComps) {
-            if (c.type === "text") {
-              components.push({
-                type: "annotated",
-                text: c.text,
-                annotationKey: inlineAnnotation.key,
-                annotationValue: inlineAnnotation.value,
-                annotations: [
-                  { key: inlineAnnotation.key, value: inlineAnnotation.value }
-                ]
-              });
-            } else if (c.type === "annotated") {
-              // Compose the outer annotation with whatever the inner
-              // walk already attached (italic / link / list / etc.).
-              const inner = Array.isArray(c.annotations) && c.annotations.length > 0
-                ? c.annotations.slice()
-                : [{ key: c.annotationKey, value: c.annotationValue }];
-              const merged = inner.concat([
-                { key: inlineAnnotation.key, value: inlineAnnotation.value }
-              ]);
-              components.push({
-                type: "annotated",
-                text: c.text,
-                // Singular `annotationKey`/`annotationValue` mirror the
-                // first annotation for backward-compatible consumers
-                // that read the legacy fields. Multi-annotation aware
-                // consumers walk the `annotations` array.
-                annotationKey: merged[0].key,
-                annotationValue: merged[0].value,
-                annotations: merged
-              });
-            } else {
-              components.push(c);
-            }
+          // Codex review #1095 thread PRRT_kwDOBwxLXs5-C84a: merge the
+          // outer annotation onto every child run (text + annotated)
+          // so combined `<strong><em>x</em></strong>` carries both
+          // fontWeight AND fontStyle on the same span.
+          for (const merged of mergeOuterAnnotation(
+            innerComps,
+            inlineAnnotation.key,
+            inlineAnnotation.value
+          )) {
+            components.push(merged);
           }
           continue;
         }

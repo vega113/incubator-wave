@@ -458,3 +458,157 @@ describe("wavy-composer align/rtl actions", () => {
     expect(body.getAttribute("dir") || "").to.not.equal("rtl");
   });
 });
+
+// J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyW):
+// outer wrappers (lists, blockquotes, anchors) must merge their
+// annotation onto pre-annotated inner runs so combined formatting
+// round-trips through reply-submit.
+describe("wavy-composer outer-wrapper annotation merge", () => {
+  it("emits both list and inline annotations for <li><strong>x</strong></li>", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    bodyOf(el).innerHTML = "<ul><li><strong>bold-list</strong></li></ul>";
+    el._onBodyInput();
+
+    const submitPromise = oneEvent(el, "reply-submit");
+    el._submit();
+    const evt = await submitPromise;
+
+    const combined = evt.detail.components.find(
+      (c) =>
+        c.type === "annotated" &&
+        Array.isArray(c.annotations) &&
+        c.annotations.some((a) => a.key === "list/unordered" && a.value === "true") &&
+        c.annotations.some((a) => a.key === "fontWeight" && a.value === "bold")
+    );
+    expect(combined, "annotations carry list + bold").to.exist;
+    expect(combined.text).to.equal("bold-list");
+  });
+
+  it("emits both link and inline annotations for <a><em>x</em></a>", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    bodyOf(el).innerHTML = '<a href="https://x.test"><em>linked-italic</em></a>';
+    el._onBodyInput();
+
+    const submitPromise = oneEvent(el, "reply-submit");
+    el._submit();
+    const evt = await submitPromise;
+
+    const combined = evt.detail.components.find(
+      (c) =>
+        c.type === "annotated" &&
+        Array.isArray(c.annotations) &&
+        c.annotations.some((a) => a.key === "link/manual" && a.value === "https://x.test") &&
+        c.annotations.some((a) => a.key === "fontStyle" && a.value === "italic")
+    );
+    expect(combined, "annotations carry link + italic").to.exist;
+    expect(combined.text).to.equal("linked-italic");
+  });
+
+  it("emits both blockquote and inline annotations for <blockquote><strong>x</strong></blockquote>", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    bodyOf(el).innerHTML = "<blockquote><strong>quoted-bold</strong></blockquote>";
+    el._onBodyInput();
+
+    const submitPromise = oneEvent(el, "reply-submit");
+    el._submit();
+    const evt = await submitPromise;
+
+    const combined = evt.detail.components.find(
+      (c) =>
+        c.type === "annotated" &&
+        Array.isArray(c.annotations) &&
+        c.annotations.some((a) => a.key === "block/quote" && a.value === "true") &&
+        c.annotations.some((a) => a.key === "fontWeight" && a.value === "bold")
+    );
+    expect(combined, "annotations carry blockquote + bold").to.exist;
+    expect(combined.text).to.equal("quoted-bold");
+  });
+});
+
+// J-UI-5 (#1083, codex review #1095 thread PRRT_kwDOBwxLXs5-DSyb):
+// list toggle must preserve inline markup inside the selection
+// (links, bold/italic, mention chips) — not flatten to plain text
+// via range.toString().
+describe("wavy-composer list toggle preserves inline markup", () => {
+  it("keeps <strong> inside the new <li> when toggling Unordered List", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML = "<strong>bolded</strong>";
+    body.focus();
+    const range = document.createRange();
+    range.selectNodeContents(body);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    el.dispatchEvent(
+      new CustomEvent("wavy-format-toolbar-action", {
+        detail: { actionId: "unordered-list", selectionDescriptor: {} },
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    const li = body.querySelector("ul > li");
+    expect(li, "<li> created").to.exist;
+    expect(li.querySelector("strong"), "<strong> survives inside <li>").to.exist;
+    expect(li.textContent).to.equal("bolded");
+  });
+
+  it("keeps <a href> inside the new <li> when toggling Ordered List", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML = '<a href="https://example.com">linked-line</a>';
+    body.focus();
+    const range = document.createRange();
+    range.selectNodeContents(body);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    el.dispatchEvent(
+      new CustomEvent("wavy-format-toolbar-action", {
+        detail: { actionId: "ordered-list", selectionDescriptor: {} },
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    const li = body.querySelector("ol > li");
+    expect(li, "<li> created").to.exist;
+    const anchor = li.querySelector("a");
+    expect(anchor, "<a> survives inside <li>").to.exist;
+    expect(anchor.getAttribute("href")).to.equal("https://example.com");
+    expect(li.textContent).to.equal("linked-line");
+  });
+
+  it("keeps mention chips inside the new <li> when toggling Unordered List", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML =
+      '<span class="wavy-mention-chip" data-mention-id="alice@x.test" contenteditable="false">@Alice</span> ping';
+    body.focus();
+    const range = document.createRange();
+    range.selectNodeContents(body);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    el.dispatchEvent(
+      new CustomEvent("wavy-format-toolbar-action", {
+        detail: { actionId: "unordered-list", selectionDescriptor: {} },
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    const li = body.querySelector("ul > li");
+    expect(li, "<li> created").to.exist;
+    const chip = li.querySelector(".wavy-mention-chip");
+    expect(chip, "mention chip survives inside <li>").to.exist;
+    expect(chip.getAttribute("data-mention-id")).to.equal("alice@x.test");
+  });
+});
