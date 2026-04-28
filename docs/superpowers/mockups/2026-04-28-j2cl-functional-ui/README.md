@@ -1,7 +1,7 @@
 # J2CL Functional UI — Wavy Mockups
 
 Status: Draft, 2026-04-28
-Roadmap: [`../../specs/2026-04-28-j2cl-functional-ui-roadmap.md`](../../specs/2026-04-28-j2cl-functional-ui-roadmap.md)
+Roadmap: `../../specs/2026-04-28-j2cl-functional-ui-roadmap.md` (document not yet added in this PR)
 Audit basis: [`../../audits/2026-04-26-j2cl-gwt-parity-audit.md`](../../audits/2026-04-26-j2cl-gwt-parity-audit.md)
 Parity matrix: [`../../../j2cl-gwt-parity-matrix.md`](../../../j2cl-gwt-parity-matrix.md)
 
@@ -67,8 +67,9 @@ invent a component to ship a slice.
   task)
 - `wavy-focus-frame` — cyan ring + glow shown on the focused blip in #02
   and #06
-- `wavy-thread-collapse` (`wavy-thread-collapse.css`) — chevron + collapsed
-  count line ("3 collapsed replies")
+- `wavy-thread-collapse.css` / `.j2cl-read-thread-toggle` /
+  `.j2cl-read-thread-collapsed` — chevron + collapsed count line
+  ("3 collapsed replies")
 - `wavy-floating-scroll-to-new` — the cyan "↓ N new blips below" pill
 - `wavy-back-to-inbox` — mobile-only back button in #06
 - `wavy-depth-nav-bar` — breadcrumb under deep threads (latent, not all
@@ -170,8 +171,9 @@ verbatim, never a re-interpretation:
 - **Motion.** Pulse ring on the just-mutated unread badge
   (`--wavy-motion-pulse-duration` 600ms, `--wavy-easing-pulse`).
   Focus-frame transitions at 180ms with `--wavy-easing-focus`. Thread
-  collapse at 240ms. Reduced-motion media query collapses all four to
-  ~0 — the SVGs use SMIL animations that the browser will skip when
+  collapse at 240ms. In the product spec, reduced-motion handling
+  collapses all four to ~0; these mockup SVGs are illustrative and do
+  not themselves guarantee that embedded SMIL animations will stop when
   `prefers-reduced-motion: reduce` is set.
 - **Hairline borders.** Cyan-alpha hairlines `rgba(34,211,238,0.18)` carry
   the surface seams in dark; black-alpha `rgba(11,19,32,0.10)` in light.
@@ -211,7 +213,7 @@ Every visible string in the mockups uses the canonical terminology:
 
 ## 8. Verifying the mockups locally
 
-```
+```bash
 cd docs/superpowers/mockups/2026-04-28-j2cl-functional-ui
 python3 -m http.server 8080
 # open http://localhost:8080/01-shell-inbox-with-waves.svg ...
