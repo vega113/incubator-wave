@@ -4,6 +4,7 @@
 import path from "node:path";
 import url from "node:url";
 import { createRequire } from "node:module";
+import { randomBytes } from "node:crypto";
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 const litRequire = createRequire(path.join(repoRoot, "j2cl/lit/package.json"));
@@ -17,7 +18,7 @@ for (let i = 0; i < args.length; i++) {
 const HOST = "127.0.0.1";
 const BASE = `http://${HOST}:${port}`;
 
-const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const stamp = Date.now().toString(36) + randomBytes(2).toString("hex");
 const userAddress = `qav5p${stamp}`;
 const userEmail = `${userAddress}@local.net`;
 const password = "Pass" + stamp + "!";
