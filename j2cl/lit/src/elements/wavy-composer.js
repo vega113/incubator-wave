@@ -671,13 +671,35 @@ export class WavyComposer extends LitElement {
     try {
       prefixFragment = prefixRange.cloneContents();
       suffixFragment = suffixRange.cloneContents();
-      // Range slice intersected with ancestor contents is the
-      // active selection's interior. cloneContents preserves nested
-      // formatting (e.g. `<strong><em>x</em>y</strong>` ⇒ inner
-      // `<em>x</em>` keeps italics on the un-bolded fragment).
+      // Codex review #1095 thread PRRT_kwDOBwxLXs5-N9fu: clamp the
+      // middle slice to the ancestor's bounds. If the user's
+      // selection ends OUTSIDE the formatted ancestor (e.g.
+      // `<strong>hello</strong> world` with a range from `lo` into
+      // ` wor`), the raw selection endpoints would pull text from
+      // outside the ancestor into `cloneContents()`. That cloned
+      // outside text would then be inserted before the ancestor,
+      // and the ancestor itself removed — duplicating ` wor` in the
+      // body. Use `selectNodeContents(ancestor)` as the natural
+      // baseline and only narrow start/end when the corresponding
+      // selection endpoint is actually inside the ancestor.
       const innerRange = document.createRange();
-      innerRange.setStart(range.startContainer, range.startOffset);
-      innerRange.setEnd(range.endContainer, range.endOffset);
+      innerRange.selectNodeContents(ancestor);
+      const startInside =
+          ancestor === range.startContainer || ancestor.contains(range.startContainer);
+      const endInside =
+          ancestor === range.endContainer || ancestor.contains(range.endContainer);
+      if (startInside) {
+        innerRange.setStart(range.startContainer, range.startOffset);
+      }
+      if (endInside) {
+        innerRange.setEnd(range.endContainer, range.endOffset);
+      }
+      // If neither endpoint is inside the ancestor we cannot trust
+      // the selection to describe a meaningful slice — bail rather
+      // than corrupting the body.
+      if (!startInside && !endInside) {
+        return;
+      }
       middleFragment = innerRange.cloneContents();
     } catch (_e) {
       return;

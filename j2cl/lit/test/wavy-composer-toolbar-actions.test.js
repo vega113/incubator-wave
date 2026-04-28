@@ -648,6 +648,38 @@ describe("wavy-composer list toggle preserves inline markup", () => {
 // at the selection boundaries — text outside the selection keeps
 // the formatting.
 describe("wavy-composer inline toggle-off splits the ancestor", () => {
+  // Codex P1 review #1095 thread PRRT_kwDOBwxLXs5-N9fu: a selection
+  // that starts INSIDE a formatted ancestor and ends OUTSIDE it must
+  // not duplicate or reorder the outside text. The split-unwrap
+  // helper clamps its inner-slice range to the ancestor's bounds so
+  // only the in-ancestor portion is unwrapped.
+  it("Bold off across a boundary does not duplicate text outside the ancestor", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML = "<strong>hello</strong> world";
+    body.focus();
+    const strong = body.querySelector("strong");
+    const trailing = body.lastChild; // " world" text node
+    // Range: from "lo" inside <strong> to " wor" inside the trailing
+    // text node. This crosses the </strong> boundary.
+    const range = document.createRange();
+    range.setStart(strong.firstChild, 3);
+    range.setEnd(trailing, 4);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    dispatchToolbarAction(el, "bold");
+
+    // The body's textual content must still read "hello world" — no
+    // " wor" duplication. The bold-toggle-off only removed bold from
+    // the in-strong slice ("lo"); "hel" stays bold.
+    expect(body.textContent).to.equal("hello world");
+    const bolds = Array.from(body.querySelectorAll("strong")).map((s) => s.textContent);
+    expect(bolds.join("|"), "only the in-ancestor prefix stays bold").to.equal("hel");
+  });
+
   it("Bold off on partial range keeps the rest bold", async () => {
     const el = await fixture(html`<wavy-composer available></wavy-composer>`);
     const body = bodyOf(el);
