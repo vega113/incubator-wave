@@ -174,12 +174,19 @@ public final class J2clComposerDocument {
       if (text == null || text.trim().isEmpty()) {
         return this;
       }
+      // J-UI-5 (#1083): Component now carries a `List<Annotation>` so
+      // multi-annotation runs (e.g. bold+italic) can serialise without
+      // duplicating chars. Title runs only ever carry the single
+      // `conv/title` annotation, so the list has exactly one entry.
+      List<Annotation> single = new ArrayList<Annotation>(1);
+      single.add(new Annotation(TITLE_ANNOTATION_KEY, TITLE_ANNOTATION_AUTO_VALUE));
       components.add(
           new Component(
               ComponentType.ANNOTATED_TEXT,
               text,
               TITLE_ANNOTATION_KEY,
               TITLE_ANNOTATION_AUTO_VALUE,
+              single,
               "",
               ""));
       return this;

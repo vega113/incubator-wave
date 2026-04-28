@@ -737,27 +737,49 @@ export class WavyComposer extends LitElement {
       const parent = existing.parentNode;
       if (!parent) return;
       const items = Array.from(existing.querySelectorAll("li"));
-      const selectedItems = items.filter((li) => {
+      const selectedSet = new Set();
+      for (const li of items) {
         try {
-          return range.intersectsNode(li);
+          if (range.intersectsNode(li)) selectedSet.add(li);
         } catch (_e) {
-          return false;
+          // ignore — leaves li unselected
         }
-      });
-      const targetItems = selectedItems.length > 0 ? selectedItems : items;
-      // Each unwrapped <li> becomes a <div> so block-level
-      // separation between adjacent former list items survives.
-      for (const li of targetItems) {
-        const div = document.createElement("div");
-        while (li.firstChild) div.appendChild(li.firstChild);
-        existing.parentNode.insertBefore(div, existing);
-        li.parentNode.removeChild(li);
       }
-      // Drop the empty list wrapper; otherwise leave it in place
-      // with the remaining items as a residual list.
-      if (existing.querySelector("li") == null && existing.parentNode) {
-        existing.parentNode.removeChild(existing);
+      const targetSet = selectedSet.size > 0 ? selectedSet : new Set(items);
+      // Codex review #1095 thread PRRT_kwDOBwxLXs5-NGAY: walk the
+      // list's children in DOM order and replace selected `<li>`s
+      // with sibling `<div>` blocks at the SAME ordinal position,
+      // so item order survives even when selected and unselected
+      // items interleave (e.g. items=[a, b, c] with [a, c] selected
+      // must serialise as div_a, ul[b], div_c — not a, c, b).
+      // Unselected runs collapse into a residual `<ul>`/`<ol>` of
+      // the original tag so list semantics persist where needed.
+      const childItems = Array.from(existing.children).filter(
+        (child) => child.tagName && child.tagName.toLowerCase() === "li"
+      );
+      const parentList = existing.parentNode;
+      const segments = [];
+      let currentResidual = null;
+      for (const li of childItems) {
+        if (targetSet.has(li)) {
+          const div = document.createElement("div");
+          while (li.firstChild) div.appendChild(li.firstChild);
+          segments.push(div);
+          currentResidual = null;
+        } else {
+          if (!currentResidual) {
+            currentResidual = document.createElement(listTag);
+            segments.push(currentResidual);
+          }
+          // Move the `<li>` into the residual list, preserving its
+          // own children (and any rich content inside).
+          currentResidual.appendChild(li);
+        }
       }
+      for (const segment of segments) {
+        parentList.insertBefore(segment, existing);
+      }
+      parentList.removeChild(existing);
       this._afterBodyMutation();
       return;
     }
