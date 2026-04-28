@@ -625,6 +625,16 @@ public final class J2clComposeSurfaceController {
 
   public void onSignedOut() {
     signedOut = true;
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DQdB: a sign-out
+    // mid-create bumps createGeneration which gates the deferred
+    // success/failure callbacks out, so handleCreateFailure (and its
+    // failure hook) never run. The pre-submit hook already queued a
+    // submit-query stamp on the search panel; without explicit cleanup
+    // here that stamp would leak forward and scope the next successful
+    // create's stub to the wrong rail. Snapshot the in-flight bit
+    // BEFORE we clear createSubmitting, then run the failure hook to
+    // drop the orphaned stamp.
+    boolean abortedInFlightCreate = createSubmitting;
     createGeneration++;
     replyGeneration++;
     createSubmitting = false;
@@ -648,6 +658,17 @@ public final class J2clComposeSurfaceController {
     createStatusText = "Sign in to create or reply in the J2CL root shell.";
     replyStatusText = createStatusText;
     render();
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DQdB: drop the
+    // submit-query stamp left behind by an in-flight create that the
+    // generation guard will now silently discard. Run AFTER render so
+    // the view sees the signed-out chrome before any downstream effect.
+    if (abortedInFlightCreate && createFailureHook != null) {
+      try {
+        createFailureHook.run();
+      } catch (RuntimeException ignored) {
+        // Best-effort: never re-throw out of an integration callback.
+      }
+    }
   }
 
   public void onCreateDraftChanged(String draft) {

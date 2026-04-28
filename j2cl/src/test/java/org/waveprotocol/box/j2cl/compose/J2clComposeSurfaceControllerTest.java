@@ -3655,6 +3655,55 @@ public class J2clComposeSurfaceControllerTest {
                         && "wave-changed".equals(e.getFields().get("outcome"))));
   }
 
+  // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DQdB: a sign-out
+  // mid-create bumps createGeneration so the deferred submit/bootstrap
+  // callbacks are gated out, which means handleCreateFailure (and its
+  // failure hook) never fires. onSignedOut must therefore drop the
+  // submit-query stamp itself when there was an in-flight create, or
+  // the next successful create scopes its optimistic stub to the
+  // wrong rail.
+  @Test
+  public void onSignedOutMidCreateRunsFailureHookSoStampDoesNotLeak() {
+    final int[] failureHookFires = {0};
+    FakeGateway gateway = new FakeGateway();
+    gateway.autoResolveBootstrap = false; // hold the in-flight create.
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(),
+            new ArrayList<String>(), new ArrayList<String>());
+    controller.setCreateFailureHook(() -> failureHookFires[0]++);
+    controller.start();
+    controller.onCreateSubmittedWithTitle("In-flight title", "body");
+    Assert.assertTrue(
+        "create must be in flight before sign-out aborts it",
+        view.model.isCreateSubmitting());
+    int firesBeforeSignOut = failureHookFires[0];
+
+    controller.onSignedOut();
+
+    Assert.assertEquals(
+        "sign-out abort must run the failure hook so the stamp is dropped",
+        firesBeforeSignOut + 1,
+        failureHookFires[0]);
+  }
+
+  // J-UI-3 — when no create is in flight, sign-out must NOT call the
+  // failure hook (no stamp to drop).
+  @Test
+  public void onSignedOutWithoutInflightCreateDoesNotRunFailureHook() {
+    final int[] failureHookFires = {0};
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(new FakeGateway(), view, new FakeFactory(),
+            new ArrayList<String>(), new ArrayList<String>());
+    controller.setCreateFailureHook(() -> failureHookFires[0]++);
+    controller.start();
+
+    controller.onSignedOut();
+
+    Assert.assertEquals(0, failureHookFires[0]);
+  }
+
   private static J2clComposeSurfaceController newControllerWithTelemetry(
       FakeView view, J2clClientTelemetry.Sink telemetrySink) {
     return new J2clComposeSurfaceController(
