@@ -802,6 +802,34 @@ public class J2clSearchPanelControllerTest {
         view.lastModel.getWaveCountText().endsWith("(+1 pending)"));
   }
 
+  // J-UI-3: a second onOptimisticDigest before search returns must replace the
+  // "(+1 pending)" suffix with "(+2 pending)" rather than accumulating both.
+  @Test
+  public void backToBackCreatesUpdatePendingCountText() {
+    FakeGateway gateway = new FakeGateway(responseWithDigests());
+    FakeView view = new FakeView();
+    FakeOptimisticScheduler scheduler = new FakeOptimisticScheduler();
+    J2clSearchPanelController controller =
+        new J2clSearchPanelController(
+            gateway, view, (state, digestItem, userNavigation) -> { }, 1200, scheduler);
+    controller.start("in:inbox", null);
+
+    controller.onOptimisticDigest("example.com/w+a", "Wave A");
+    String afterFirst = view.lastModel.getWaveCountText();
+    Assert.assertTrue(
+        "first create must show (+1 pending), got: " + afterFirst,
+        afterFirst.endsWith("(+1 pending)"));
+
+    controller.onOptimisticDigest("example.com/w+b", "Wave B");
+    String afterSecond = view.lastModel.getWaveCountText();
+    Assert.assertTrue(
+        "second create must show (+2 pending), got: " + afterSecond,
+        afterSecond.endsWith("(+2 pending)"));
+    Assert.assertFalse(
+        "second create must not retain the (+1 pending) marker, got: " + afterSecond,
+        afterSecond.contains("(+1 pending)"));
+  }
+
   // J-UI-3: refreshSearch is idempotent and re-issues the active query
   // without resetting selection or page size.
   @Test

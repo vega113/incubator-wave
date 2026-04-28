@@ -367,7 +367,7 @@ public final class J2clSearchPanelController
     }
     final PendingStub pending = new PendingStub(stub, currentQuery);
     pendingStubs.put(waveId, pending);
-    lastModel = lastModel.withPrependedDigest(stub);
+    lastModel = withActivePendingLabel(lastModel.withPrependedDigest(stub));
     view.render(lastModel);
     // Schedule the stuck-stub bound BEFORE issuing requestSearch so a
     // synchronous response callback (in tests, or a hot-cache server) can
@@ -379,7 +379,7 @@ public final class J2clSearchPanelController
               PendingStub stillPending = pendingStubs.get(waveId);
               if (stillPending == pending) {
                 pendingStubs.remove(waveId);
-                lastModel = lastModel.withoutDigest(waveId);
+                lastModel = withActivePendingLabel(lastModel.withoutDigest(waveId));
                 view.render(lastModel);
               }
             });
@@ -427,24 +427,45 @@ public final class J2clSearchPanelController
       }
     }
     if (prependedCount > 0) {
-      // CodeRabbit minor PRRT_kwDOBwxLXs5-Cpes: the projector's count text
-      // ("N waves" / "N of M waves [· K unread]") reflects the server
-      // response only. When we prepend optimistic stubs the rail header
-      // would otherwise still show the stale server count, so we suffix
-      // a "(+N pending)" marker. The unread count is unchanged because
-      // optimistic stubs render with unread=0.
-      String suffix = " (+" + prependedCount + " pending)";
-      String existingText = result.getWaveCountText();
-      if (!existingText.endsWith(suffix)) {
-        result =
-            new J2clSearchResultModel(
-                result.getDigestItems(),
-                existingText.isEmpty() ? suffix.trim() : existingText + suffix,
-                result.isShowMoreVisible(),
-                result.getEmptyMessage());
-      }
+      result = withActivePendingLabel(result);
     }
     return result;
+  }
+
+  /**
+   * Returns {@code model} with a "(+N pending)" suffix on the wave-count text
+   * reflecting the number of optimistic stubs currently active for the current
+   * query. Any existing pending suffix is stripped before the new one is
+   * appended so back-to-back creates do not accumulate multiple suffixes.
+   */
+  private J2clSearchResultModel withActivePendingLabel(J2clSearchResultModel model) {
+    int count = 0;
+    for (PendingStub ps : pendingStubs.values()) {
+      if (ps.query == null ? currentQuery == null : ps.query.equals(currentQuery)) {
+        count++;
+      }
+    }
+    String base = stripPendingSuffix(model.getWaveCountText());
+    String updated =
+        count > 0
+            ? (base.isEmpty() ? "(+" + count + " pending)" : base + " (+" + count + " pending)")
+            : base;
+    if (updated.equals(model.getWaveCountText())) {
+      return model;
+    }
+    return new J2clSearchResultModel(
+        model.getDigestItems(), updated, model.isShowMoreVisible(), model.getEmptyMessage());
+  }
+
+  private static String stripPendingSuffix(String text) {
+    if (text == null || !text.endsWith(" pending)")) {
+      return text == null ? "" : text;
+    }
+    int i = text.lastIndexOf("(+");
+    if (i < 0) {
+      return text;
+    }
+    return text.substring(0, i).trim();
   }
 
   private void clearSelection(boolean userNavigation) {
