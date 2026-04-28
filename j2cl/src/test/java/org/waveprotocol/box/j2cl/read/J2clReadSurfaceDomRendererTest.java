@@ -202,6 +202,411 @@ public class J2clReadSurfaceDomRendererTest {
         host.querySelectorAll("[data-j2cl-read-blip='true']").length);
   }
 
+  // J-UI-6 (#1084, R-5.4): persisted task done state must surface as
+  // data-task-completed on the rendered <wave-blip> so the F-3.S2
+  // strikethrough CSS applies after reload + live updates from other
+  // clients. Without the renderer write the body would render unstyled
+  // even though the task/done annotation is correct on disk.
+  @Test
+  public void renderSetsDataTaskCompletedAttributeWhenTaskDone() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clReadBlip done =
+        new J2clReadBlip(
+            "b+done",
+            "Pin retry",
+            Collections.<J2clAttachmentRenderModel>emptyList(),
+            "alice@example.com",
+            "alice@example.com",
+            1714240000000L,
+            "",
+            "",
+            /* unread= */ false,
+            /* hasMention= */ false,
+            /* deleted= */ false,
+            /* taskDone= */ true,
+            /* taskAssignee= */ "bob@example.com",
+            /* taskDueTimestamp= */ 1714560000000L);
+
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(done), Collections.<String>emptyList()));
+
+    HTMLElement element = blip(host, "b+done");
+    Assert.assertNotNull(element);
+    Assert.assertTrue(
+        "task done blip must carry data-task-completed",
+        element.hasAttribute("data-task-completed"));
+    Assert.assertEquals(
+        "bob@example.com", element.getAttribute("data-task-assignee"));
+    Assert.assertEquals(
+        "1970-01-01 lookup is wrong; renderer must format from epoch ms",
+        "2024-05-01",
+        element.getAttribute("data-task-due-date"));
+  }
+
+  @Test
+  public void renderOmitsTaskAttributesWhenOpen() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    // Open task: no annotations recorded. Renderer must NOT write the
+    // attributes — otherwise the strikethrough CSS would paint despite
+    // the task being open.
+    J2clReadBlip open = new J2clReadBlip("b+open", "Body");
+
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(open), Collections.<String>emptyList()));
+
+    HTMLElement element = blip(host, "b+open");
+    Assert.assertNotNull(element);
+    Assert.assertFalse(
+        "open task blip must NOT carry data-task-completed",
+        element.hasAttribute("data-task-completed"));
+    Assert.assertFalse(element.hasAttribute("data-task-assignee"));
+    Assert.assertFalse(element.hasAttribute("data-task-due-date"));
+  }
+
+  @Test
+  public void rerenderRemovesDataTaskCompletedWhenTaskReopens() {
+    // Same-wave update where task/done flips back to false must clear the
+    // data-task-completed attribute. Without the explicit clear branch,
+    // the F-2 fast-path equality check (now extended in J-UI-6 to include
+    // task state) would still rebuild the surface, but the per-blip
+    // attribute would carry over via the host element reuse path.
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    J2clReadBlip done =
+        new J2clReadBlip(
+            "b+toggle",
+            "Body",
+            Collections.<J2clAttachmentRenderModel>emptyList(),
+            "alice@example.com",
+            "alice@example.com",
+            1714240000000L,
+            "",
+            "",
+            /* unread= */ false,
+            /* hasMention= */ false,
+            /* deleted= */ false,
+            /* taskDone= */ true,
+            /* taskAssignee= */ "",
+            /* taskDueTimestamp= */
+            org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
+    J2clReadBlip reopened = done.withTaskDone(false);
+
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(done), Collections.<String>emptyList()));
+    Assert.assertTrue(
+        blip(host, "b+toggle").hasAttribute("data-task-completed"));
+
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(reopened), Collections.<String>emptyList()));
+
+    Assert.assertFalse(
+        "reopened task blip must NOT carry data-task-completed",
+        blip(host, "b+toggle").hasAttribute("data-task-completed"));
+  }
+
+  @Test
+  public void renderWindowSetsDataTaskCompletedFromWindowEntry() {
+    // The dominant production path is renderWindow over the flat render
+    // — this test guards the same data-task-completed write on the
+    // window-render path so the strikethrough/checkmark works on reload
+    // when a wave is opened with an existing task/done annotation.
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clReadWindowEntry done =
+        J2clReadWindowEntry.loadedWithTaskMetadata(
+            "blip:b+done",
+            0L,
+            9L,
+            "b+done",
+            "Pin retry",
+            Collections.<J2clAttachmentRenderModel>emptyList(),
+            "alice@example.com",
+            "alice@example.com",
+            1714240000000L,
+            "",
+            "",
+            /* unread= */ false,
+            /* hasMention= */ false,
+            /* taskDone= */ true,
+            /* taskAssignee= */ "bob@example.com",
+            /* taskDueTimestamp= */ 1714560000000L);
+
+    Assert.assertTrue(renderer.renderWindow(Arrays.asList(done)));
+
+    HTMLElement element = blip(host, "b+done");
+    Assert.assertNotNull(element);
+    Assert.assertTrue(element.hasAttribute("data-task-completed"));
+    Assert.assertEquals(
+        "bob@example.com", element.getAttribute("data-task-assignee"));
+    Assert.assertEquals(
+        "2024-05-01", element.getAttribute("data-task-due-date"));
+  }
+
+  @Test
+  public void formatDueDateReturnsEmptyForUnknownTimestamp() {
+    Assert.assertEquals(
+        "",
+        J2clReadSurfaceDomRenderer.formatDueDate(
+            org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP));
+    Assert.assertEquals("", J2clReadSurfaceDomRenderer.formatDueDate(0L));
+    Assert.assertEquals("", J2clReadSurfaceDomRenderer.formatDueDate(-7L));
+  }
+
+  @Test
+  public void formatDueDatePadsSingleDigitMonthAndDay() {
+    assumeBrowserDom();
+    // 2024-01-05 00:00:00 UTC
+    long jan5 = 1704412800000L;
+    Assert.assertEquals("2024-01-05", J2clReadSurfaceDomRenderer.formatDueDate(jan5));
+  }
+
+  // J-UI-6 (#1084, R-5.4): optimistic toggle state must survive an unrelated
+  // live-update re-render while the toggle delta is still in flight.
+  // Otherwise the equality-check fix that lets live updates from other clients
+  // re-render correctly would have a side-effect of flickering the user's own
+  // optimistic toggle back to the pre-toggle state on a same-wave update.
+  @Test
+  public void optimisticTaskStateOverridesModelDuringInFlightToggle() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    // Initial render: server says task is open.
+    J2clReadBlip open =
+        new J2clReadBlip(
+            "b+toggle",
+            "Body",
+            Collections.<J2clAttachmentRenderModel>emptyList(),
+            "alice@example.com",
+            "alice@example.com",
+            1714240000000L,
+            "",
+            "",
+            /* unread= */ false,
+            /* hasMention= */ false,
+            /* deleted= */ false,
+            /* taskDone= */ false,
+            /* taskAssignee= */ "",
+            /* taskDueTimestamp= */
+            org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(open), Collections.<String>emptyList()));
+    Assert.assertFalse(blip(host, "b+toggle").hasAttribute("data-task-completed"));
+
+    // User clicks toggle → optimistic done. View notifies the renderer.
+    renderer.noteOptimisticTaskState(/* waveId= */ "", "b+toggle", true);
+
+    // An unrelated live update arrives (e.g. another user's reaction). The
+    // model's task/done is still false because the server hasn't echoed
+    // our toggle yet. A re-render with a different reaction triggers a
+    // full rebuild via sameReadBlip → false (text unchanged but that
+    // fires a path through render — for this test, we trigger a rebuild
+    // by passing a contentEntries argument with an extra non-empty entry
+    // marker, which forces matchesRenderedBlips to fall through).
+    //
+    // We exercise the rebuild by re-rendering with text that differs by
+    // one character so matchesRenderedBlips returns false.
+    J2clReadBlip openWithReactionUpdate =
+        new J2clReadBlip(
+            "b+toggle",
+            "Body!",
+            Collections.<J2clAttachmentRenderModel>emptyList(),
+            "alice@example.com",
+            "alice@example.com",
+            1714240000000L,
+            "",
+            "",
+            /* unread= */ false,
+            /* hasMention= */ false,
+            /* deleted= */ false,
+            /* taskDone= */ false,
+            /* taskAssignee= */ "",
+            /* taskDueTimestamp= */
+            org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
+    Assert.assertTrue(
+        renderer.render(
+            Arrays.asList(openWithReactionUpdate), Collections.<String>emptyList()));
+
+    // Optimistic state must have survived the rebuild.
+    Assert.assertTrue(
+        "optimistic toggle must override stale model value during in-flight",
+        blip(host, "b+toggle").hasAttribute("data-task-completed"));
+    // Optimistic state is still tracked because the model has not yet
+    // caught up.
+    Assert.assertEquals(
+        Boolean.TRUE,
+        renderer.optimisticTaskValueForTest(/* waveId= */ "", "b+toggle"));
+  }
+
+  @Test
+  public void optimisticTaskStateClearsWhenServerEchoCatchesUp() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clReadBlip open =
+        new J2clReadBlip(
+            "b+echoed",
+            "Body",
+            Collections.<J2clAttachmentRenderModel>emptyList(),
+            "alice@example.com",
+            "alice@example.com",
+            1714240000000L,
+            "",
+            "",
+            /* unread= */ false,
+            /* hasMention= */ false,
+            /* deleted= */ false,
+            /* taskDone= */ false,
+            /* taskAssignee= */ "",
+            /* taskDueTimestamp= */
+            org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(open), Collections.<String>emptyList()));
+    renderer.noteOptimisticTaskState(/* waveId= */ "", "b+echoed", true);
+
+    // Server echo: model now reports task/done=true. Re-render must clear
+    // the optimistic entry so future open transitions are not blocked by
+    // a stale optimistic-true override.
+    J2clReadBlip done = open.withTaskDone(true);
+    // Force a rebuild by changing other state too.
+    J2clReadBlip doneWithText =
+        new J2clReadBlip(
+            "b+echoed",
+            "Body!",
+            Collections.<J2clAttachmentRenderModel>emptyList(),
+            "alice@example.com",
+            "alice@example.com",
+            1714240000000L,
+            "",
+            "",
+            /* unread= */ false,
+            /* hasMention= */ false,
+            /* deleted= */ false,
+            /* taskDone= */ true,
+            /* taskAssignee= */ "",
+            /* taskDueTimestamp= */
+            org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(doneWithText), Collections.<String>emptyList()));
+
+    Assert.assertTrue(blip(host, "b+echoed").hasAttribute("data-task-completed"));
+    // Optimistic entry must be cleared once the model agrees so a later
+    // open transition is not stuck.
+    Assert.assertNull(
+        "optimistic state must clear once model catches up",
+        renderer.optimisticTaskValueForTest(/* waveId= */ "", "b+echoed"));
+    // Avoid unused-warning on the helper-built reference.
+    Assert.assertEquals("b+echoed", done.getBlipId());
+  }
+
+  // PR #1097 review (codex P2): the optimistic-toggle override must not
+  // bleed across waves that share the same blip id (every wave's root
+  // is `b+root`). Composite-key lookup keeps stale entries from one
+  // wave's toggle from painting the strikethrough on another wave.
+  @Test
+  public void optimisticTaskStateIsNamespacedByWaveId() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+
+    // User toggles the root blip on wave A while still mounted on wave A.
+    host.setAttribute("data-wave-id", "example.com/w+A");
+    J2clReadBlip openOnA = new J2clReadBlip("b+root", "A body");
+    Assert.assertTrue(renderer.render(Arrays.asList(openOnA), Collections.<String>emptyList()));
+    renderer.noteOptimisticTaskState("example.com/w+A", "b+root", true);
+
+    // User switches to wave B (data-wave-id flips on the host) before
+    // the server echoes. Wave B's b+root is not the same task — it must
+    // render open even though the (wave A) optimistic entry says done.
+    host.setAttribute("data-wave-id", "example.com/w+B");
+    J2clReadBlip openOnB = new J2clReadBlip("b+root", "B body");
+    Assert.assertTrue(renderer.render(Arrays.asList(openOnB), Collections.<String>emptyList()));
+
+    Assert.assertFalse(
+        "optimistic toggle on wave A must not bleed into wave B",
+        blip(host, "b+root").hasAttribute("data-task-completed"));
+    // Wave A's entry is still pending (server has not echoed yet).
+    Assert.assertEquals(
+        Boolean.TRUE,
+        renderer.optimisticTaskValueForTest("example.com/w+A", "b+root"));
+    Assert.assertNull(
+        renderer.optimisticTaskValueForTest("example.com/w+B", "b+root"));
+  }
+
+  // PR #1097 review (codex P1): the toggle submit path has explicit
+  // failure outcomes (bootstrap / build / submit) that never update
+  // model state. Without a TTL the optimistic override would stick
+  // forever and force the wrong state on every subsequent render.
+  @Test
+  public void optimisticTaskStateExpiresAfterTtlOnFailedSubmit() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    J2clReadBlip open = new J2clReadBlip("b+stuck", "Body");
+
+    Assert.assertTrue(renderer.render(Arrays.asList(open), Collections.<String>emptyList()));
+    renderer.noteOptimisticTaskState("", "b+stuck", true);
+    // Inject an entry whose deadline is already in the past — emulates
+    // the situation where a failed submit left the override stuck and
+    // wall-clock time has now advanced past TTL.
+    forceExpireOptimisticTaskEntry(renderer, /* waveId= */ "", "b+stuck");
+
+    // Render with a different text so matchesRenderedBlips fires the
+    // full rebuild path and applyTaskState runs.
+    J2clReadBlip openLater = new J2clReadBlip("b+stuck", "Body!");
+    Assert.assertTrue(
+        renderer.render(Arrays.asList(openLater), Collections.<String>emptyList()));
+
+    Assert.assertFalse(
+        "expired optimistic override must not pin the strikethrough",
+        blip(host, "b+stuck").hasAttribute("data-task-completed"));
+    // Entry is purged, so future toggles start clean.
+    Assert.assertNull(renderer.optimisticTaskValueForTest("", "b+stuck"));
+  }
+
+  /**
+   * Reflects into the renderer's optimistic-toggle map and rewrites the
+   * deadline for the named entry to a long-past value. Used by the
+   * TTL-expiration test above; isolated as a helper to keep the test
+   * body focused on the assertion.
+   */
+  private static void forceExpireOptimisticTaskEntry(
+      J2clReadSurfaceDomRenderer renderer, String waveId, String blipId) {
+    try {
+      Field field = J2clReadSurfaceDomRenderer.class.getDeclaredField("optimisticTaskState");
+      field.setAccessible(true);
+      @SuppressWarnings("unchecked")
+      java.util.Map<String, Object> map =
+          (java.util.Map<String, Object>) field.get(renderer);
+      String wave = waveId == null ? "" : waveId;
+      String key = wave + "\u0001" + blipId;
+      Object existing = map.get(key);
+      Assert.assertNotNull("expected entry for key " + key, existing);
+      Class<?> entryClass =
+          Class.forName(
+              "org.waveprotocol.box.j2cl.read.J2clReadSurfaceDomRenderer$OptimisticTaskEntry");
+      Field doneField = entryClass.getDeclaredField("done");
+      Field expiresField = entryClass.getDeclaredField("expiresAtMs");
+      doneField.setAccessible(true);
+      expiresField.setAccessible(true);
+      boolean prevDone = doneField.getBoolean(existing);
+      java.lang.reflect.Constructor<?> ctor =
+          entryClass.getDeclaredConstructor(boolean.class, long.class);
+      ctor.setAccessible(true);
+      Object replacement = ctor.newInstance(prevDone, /* expiresAtMs= */ 0L);
+      map.put(key, replacement);
+    } catch (Exception e) {
+      throw new AssertionError("force-expire failed", e);
+    }
+  }
+
   @Test
   public void collapsingWithoutFocusedBlipSanitizesHiddenTabStop() {
     assumeBrowserDom();

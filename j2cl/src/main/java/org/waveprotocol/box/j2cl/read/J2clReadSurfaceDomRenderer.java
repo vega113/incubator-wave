@@ -22,6 +22,7 @@ import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
+import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
 import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.transport.SidecarConversationManifest;
 import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
@@ -124,6 +125,48 @@ public final class J2clReadSurfaceDomRenderer {
   // mutation forced a rebuild.
   private SidecarConversationManifest renderedConversationManifest =
       SidecarConversationManifest.empty();
+  // J-UI-6 (#1084, R-5.4): per-blip optimistic toggle state set by the
+  // view's wave-blip-task-toggled body listener. The renderer applies
+  // these as overrides on top of the model's projected taskDone so a
+  // concurrent unrelated live update arriving inside the self-toggle's
+  // in-flight window does not flicker the strikethrough back to its
+  // pre-toggle state. Entries are cleared automatically when the model's
+  // projected state catches up to the optimistic value (server echo
+  // observed) so a server rejection naturally reverts the UI on the
+  // next projection.
+  //
+  // PR #1097 review (codex P2): the key combines the wave id with the
+  // blip id so a stale entry from one wave cannot bleed onto another
+  // wave that reuses the same blip id (e.g. the `b+root` ids that every
+  // wave's root blip carries) when the user switches waves before the
+  // server echoes their toggle.
+  //
+  // PR #1097 review (codex P1): each entry carries a deadline so a
+  // failed submit (the toggle path has explicit failure outcomes for
+  // bootstrap / build / submit that never update model state) cannot
+  // leave the optimistic override stuck indefinitely. After
+  // {@link #OPTIMISTIC_TASK_TTL_MS} milliseconds we trust the model
+  // value and drop the override even if it never agreed.
+  private static final long OPTIMISTIC_TASK_TTL_MS = 30_000L;
+  private final Map<String, OptimisticTaskEntry> optimisticTaskState =
+      new HashMap<String, OptimisticTaskEntry>();
+
+  /**
+   * J-UI-6 (#1084, R-5.4) value type for the optimistic-toggle map.
+   * Carries the optimistic boolean alongside an absolute deadline (in
+   * the same units as {@link #currentTimeMs()}) past which the entry
+   * is treated as a stale failed-submit residue and dropped on the
+   * next projection.
+   */
+  private static final class OptimisticTaskEntry {
+    final boolean done;
+    final long expiresAtMs;
+
+    OptimisticTaskEntry(boolean done, long expiresAtMs) {
+      this.done = done;
+      this.expiresAtMs = expiresAtMs;
+    }
+  }
 
   public J2clReadSurfaceDomRenderer(HTMLDivElement host) {
     this(host, J2clClientTelemetry.noop());
@@ -578,6 +621,12 @@ public final class J2clReadSurfaceDomRenderer {
           entryThread = manifestEntry.getThreadId();
         }
       }
+      // J-UI-6 (#1084, R-5.4): plumb persisted task done state, assignee,
+      // and due-date through the renderWindow path so reload + live updates
+      // from other clients render the strikethrough/checkmark on the
+      // dominant production path. Without this the renderer would build a
+      // J2clReadBlip with task fields defaulted to empty even when the
+      // wave-blip-task-toggled annotation has been written.
       J2clReadBlip blip =
           new J2clReadBlip(
               entry.getBlipId(),
@@ -589,7 +638,11 @@ public final class J2clReadSurfaceDomRenderer {
               entryParent,
               entryThread,
               entry.isUnread(),
-              entry.hasMention());
+              entry.hasMention(),
+              /* deleted= */ false,
+              /* taskDone= */ entry.isTaskDone(),
+              /* taskAssignee= */ entry.getTaskAssignee(),
+              /* taskDueTimestamp= */ entry.getTaskDueTimestamp());
       HTMLElement blipElement = renderBlip(blip, blipIndex++);
       winBlipHostsById.put(blip.getBlipId(), blipElement);
       HTMLElement blipTarget = resolveWinThreadTarget(
@@ -854,6 +907,21 @@ public final class J2clReadSurfaceDomRenderer {
     if (blip.hasMention()) {
       element.setAttribute("has-mention", "");
     }
+    // J-UI-6 (#1084, R-5.4): persisted task done state surfaces on the
+    // host so the strikethrough/checkmark CSS rule
+    // `:host([data-task-completed]) .body { …line-through; }` paints. The
+    // task-affordance child element reads the same attribute on this host
+    // via property binding, so its aria-checked state stays in sync after
+    // reload + live updates from other clients. The applyTaskState helper
+    // also consults the optimistic-toggle registry so a self-initiated
+    // toggle that is still in flight is preserved across unrelated
+    // live updates.
+    applyTaskState(
+        element,
+        blip.getBlipId(),
+        blip.isTaskDone(),
+        blip.getTaskAssignee(),
+        blip.getTaskDueTimestamp());
 
     // The renderer doesn't know the parent wave id (it lives one layer up
     // in J2clSelectedWaveView). The view sets `data-wave-id` on the host
@@ -898,6 +966,184 @@ public final class J2clReadSurfaceDomRenderer {
 
   private static void setProperty(HTMLElement element, String name, Object value) {
     Js.asPropertyMap(element).set(name, value);
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): apply persisted task state to a {@code <wave-blip>}
+   * element. Sets or clears {@code data-task-completed},
+   * {@code data-task-assignee}, and {@code data-task-due-date} so the strikethrough
+   * CSS rule paints and the inner {@code <wavy-task-affordance>}'s details popover
+   * re-mounts with the persisted assignee + due-date.
+   *
+   * <p>The function explicitly clears the attributes when the state is open
+   * (rather than just no-op'ing) so a same-wave update that flips done → open
+   * removes the strikethrough on the next render. Without explicit clears the
+   * F-2 fast-path would leave a stale attribute after the renderer reuses an
+   * existing host on a partial re-render.
+   *
+   * <p>Optimistic state precedence: if the renderer has been told about a
+   * self-toggle that is still in-flight (via
+   * {@link #noteOptimisticTaskState(String, boolean)}), the optimistic value
+   * wins until the server-confirmed projection catches up. This prevents an
+   * unrelated live update from briefly reverting the strikethrough back to
+   * the pre-toggle state during the toggle's in-flight window.
+   */
+  private void applyTaskState(
+      HTMLElement element,
+      String blipId,
+      boolean modelTaskDone,
+      String taskAssignee,
+      long taskDueTimestamp) {
+    if (element == null) {
+      return;
+    }
+    boolean taskDone = modelTaskDone;
+    String key = optimisticTaskKey(currentWaveId(), blipId);
+    OptimisticTaskEntry optimistic = key.isEmpty() ? null : optimisticTaskState.get(key);
+    if (optimistic != null) {
+      long nowMs = (long) currentTimeMs();
+      if (optimistic.expiresAtMs <= nowMs) {
+        // PR #1097 review (codex P1): stale override past the deadline.
+        // The submit path can fail without updating the model; without
+        // a TTL the override would stick forever. Drop it and trust
+        // the model.
+        optimisticTaskState.remove(key);
+      } else if (optimistic.done == modelTaskDone) {
+        // Server caught up — clear the optimistic override and let the
+        // model win going forward.
+        optimisticTaskState.remove(key);
+      } else {
+        // Apply the optimistic value over the (still-stale) model.
+        taskDone = optimistic.done;
+      }
+    }
+    if (taskDone) {
+      element.setAttribute("data-task-completed", "");
+    } else {
+      element.removeAttribute("data-task-completed");
+    }
+    String assignee = taskAssignee == null ? "" : taskAssignee.trim();
+    if (assignee.isEmpty()) {
+      element.removeAttribute("data-task-assignee");
+    } else {
+      element.setAttribute("data-task-assignee", assignee);
+    }
+    String dueDate = formatDueDate(taskDueTimestamp);
+    if (dueDate.isEmpty()) {
+      element.removeAttribute("data-task-due-date");
+    } else {
+      element.setAttribute("data-task-due-date", dueDate);
+    }
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): record a self-initiated task toggle as the
+   * optimistic state for ({@code waveId}, {@code blipId}) until the
+   * server-confirmed projection agrees. Called by the view's body-level
+   * {@code wave-blip-task-toggled} listener so a same-wave update that
+   * arrives in the brief window between submit and server echo does not
+   * flicker the strikethrough.
+   *
+   * <p>The entry is namespaced by wave id so a stale toggle on wave A's
+   * {@code b+root} cannot leak onto wave B's {@code b+root} when the
+   * user switches waves before the server echoes the original toggle
+   * (PR #1097 review codex P2). It is also bounded by {@link
+   * #OPTIMISTIC_TASK_TTL_MS} so a failed submit cannot leave the
+   * override stuck (PR #1097 review codex P1).
+   *
+   * <p>Idempotent within the TTL window: a second call with the same
+   * value re-extends the deadline. Setting the state explicitly to the
+   * model's already-projected value clears on the next render.
+   */
+  public void noteOptimisticTaskState(String waveId, String blipId, boolean completed) {
+    if (blipId == null || blipId.isEmpty()) {
+      return;
+    }
+    long deadline = (long) currentTimeMs() + OPTIMISTIC_TASK_TTL_MS;
+    optimisticTaskState.put(
+        optimisticTaskKey(waveId, blipId), new OptimisticTaskEntry(completed, deadline));
+  }
+
+  /**
+   * Builds the {@code waveId::blipId} composite key used by
+   * {@link #optimisticTaskState}. {@code waveId} normalises to the empty
+   * string when null/missing so unit fixtures (which mount wave-blip
+   * elements without setting {@code data-wave-id} on the host) still
+   * exercise the map.
+   */
+  private static String optimisticTaskKey(String waveId, String blipId) {
+    if (blipId == null || blipId.isEmpty()) {
+      return "";
+    }
+    String wave = waveId == null ? "" : waveId;
+    return wave + "\u0001" + blipId;
+  }
+
+  /**
+   * Reads the wave id from the host element's {@code data-wave-id}
+   * attribute. The view sets this on the content-list host before
+   * triggering a render; null/missing returns the empty string so the
+   * optimistic-state lookup degrades to a wave-agnostic key for
+   * fixtures that don't set the attribute.
+   */
+  private String currentWaveId() {
+    if (host == null) {
+      return "";
+    }
+    String waveId = host.getAttribute("data-wave-id");
+    return waveId == null ? "" : waveId;
+  }
+
+  /**
+   * J-UI-6 (#1084): visible-for-test accessor for the in-flight optimistic
+   * toggle map. Consumers should treat the returned set as a read-only
+   * snapshot.
+   */
+  Map<String, OptimisticTaskEntry> optimisticTaskStateForTest() {
+    return Collections.unmodifiableMap(optimisticTaskState);
+  }
+
+  /**
+   * J-UI-6 (#1084) test helper that returns just the boolean value for
+   * a given (wave, blip) — abstracts the composite-key encoding so tests
+   * stay readable.
+   */
+  Boolean optimisticTaskValueForTest(String waveId, String blipId) {
+    OptimisticTaskEntry entry = optimisticTaskState.get(optimisticTaskKey(waveId, blipId));
+    return entry == null ? null : Boolean.valueOf(entry.done);
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): convert a ms-since-epoch task due timestamp to the
+   * {@code YYYY-MM-DD} string the lit task-metadata-popover expects in its
+   * {@code data-task-due-date} attribute. Returns the empty string for unset
+   * ({@link J2clTaskItemModel#UNKNOWN_DUE_TIMESTAMP}) or otherwise invalid
+   * values so the renderer can clear the attribute via removeAttribute rather
+   * than write a misleading "1970-01-01" anchor.
+   */
+  static String formatDueDate(long dueTimestampMs) {
+    if (dueTimestampMs == J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP || dueTimestampMs <= 0L) {
+      return "";
+    }
+    elemental2.core.JsDate date = new elemental2.core.JsDate((double) dueTimestampMs);
+    double yearD = date.getUTCFullYear();
+    double monthD = date.getUTCMonth();
+    double dayD = date.getUTCDate();
+    if (Double.isNaN(yearD) || Double.isNaN(monthD) || Double.isNaN(dayD)) {
+      return "";
+    }
+    int year = (int) yearD;
+    int month = (int) monthD + 1;
+    int day = (int) dayD;
+    StringBuilder out = new StringBuilder(10);
+    out.append(year);
+    out.append('-');
+    if (month < 10) out.append('0');
+    out.append(month);
+    out.append('-');
+    if (day < 10) out.append('0');
+    out.append(day);
+    return out.toString();
   }
 
   /**
@@ -1893,7 +2139,13 @@ public final class J2clReadSurfaceDomRenderer {
         // rebuild fires when only parent/thread changes (e.g. a new reply
         // arrives that re-parents an existing blip into a nested thread).
         && left.getParentBlipId().equals(right.getParentBlipId())
-        && left.getThreadId().equals(right.getThreadId());
+        && left.getThreadId().equals(right.getThreadId())
+        // J-UI-6 (#1084, R-5.4): include task state in the fast-path equality so a
+        // same-wave update that only flips task/done is not treated as a no-op
+        // and the strikethrough actually repaints.
+        && left.isTaskDone() == right.isTaskDone()
+        && left.getTaskAssignee().equals(right.getTaskAssignee())
+        && left.getTaskDueTimestamp() == right.getTaskDueTimestamp();
   }
 
   private boolean matchesRenderedWindowEntries(List<J2clReadWindowEntry> entries) {
@@ -1923,7 +2175,13 @@ public final class J2clReadSurfaceDomRenderer {
         && left.getAuthorId().equals(right.getAuthorId())
         && left.getLastModifiedTimeMillis() == right.getLastModifiedTimeMillis()
         && left.isUnread() == right.isUnread()
-        && left.hasMention() == right.hasMention();
+        && left.hasMention() == right.hasMention()
+        // J-UI-6 (#1084, R-5.4): see sameReadBlip — the dominant production
+        // path is renderWindow, so the task state must enter the equality
+        // check on this code path too.
+        && left.isTaskDone() == right.isTaskDone()
+        && left.getTaskAssignee().equals(right.getTaskAssignee())
+        && left.getTaskDueTimestamp() == right.getTaskDueTimestamp();
   }
 
   private HTMLElement renderedBlipById(String blipId) {

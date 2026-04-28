@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
 
 /**
  * Per-blip read-surface model carried through the J2CL read path.
@@ -48,6 +49,29 @@ public final class J2clReadBlip {
    * actually skip the blip.
    */
   private final boolean deleted;
+  /**
+   * J-UI-6 (#1084, R-5.4): persisted task done-state read off the blip's
+   * {@code task/done=true} annotation written by
+   * {@link org.waveprotocol.box.j2cl.richtext.J2clRichContentDeltaFactory#taskToggleRequest}.
+   * Drives the strikethrough/checkmark rendering on {@code <wave-blip>} via
+   * the {@code data-task-completed} attribute the renderer sets when this
+   * flag is true. Survives across reload (the annotation is part of the
+   * authoritative wavelet DocOp) and across live updates from other clients.
+   */
+  private final boolean taskDone;
+  /**
+   * J-UI-6 (#1084, R-5.4 — "associated metadata overlays preserved"):
+   * persisted task assignee read off the blip's {@code task/assignee}
+   * annotation. Empty string when the annotation is absent or empty.
+   */
+  private final String taskAssignee;
+  /**
+   * J-UI-6 (#1084, R-5.4 — "associated metadata overlays preserved"):
+   * persisted task due-date timestamp (ms since epoch) read off the blip's
+   * {@code task/dueTs} annotation. {@link J2clTaskItemModel#UNKNOWN_DUE_TIMESTAMP}
+   * when the annotation is absent or unparseable.
+   */
+  private final long taskDueTimestamp;
 
   public J2clReadBlip(String blipId, String text) {
     this(blipId, text, Collections.<J2clAttachmentRenderModel>emptyList());
@@ -106,6 +130,42 @@ public final class J2clReadBlip {
       boolean unread,
       boolean hasMention,
       boolean deleted) {
+    this(
+        blipId,
+        text,
+        attachments,
+        authorId,
+        authorDisplayName,
+        lastModifiedTimeMillis,
+        parentBlipId,
+        threadId,
+        unread,
+        hasMention,
+        deleted,
+        /* taskDone= */ false,
+        /* taskAssignee= */ "",
+        /* taskDueTimestamp= */ J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP);
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4) — full constructor that carries the persisted
+   * task done state, assignee, and due timestamp through the read path.
+   */
+  public J2clReadBlip(
+      String blipId,
+      String text,
+      List<J2clAttachmentRenderModel> attachments,
+      String authorId,
+      String authorDisplayName,
+      long lastModifiedTimeMillis,
+      String parentBlipId,
+      String threadId,
+      boolean unread,
+      boolean hasMention,
+      boolean deleted,
+      boolean taskDone,
+      String taskAssignee,
+      long taskDueTimestamp) {
     this.blipId = blipId == null ? "" : blipId;
     this.text = text == null ? "" : text;
     this.attachments =
@@ -120,6 +180,9 @@ public final class J2clReadBlip {
     this.unread = unread;
     this.hasMention = hasMention;
     this.deleted = deleted;
+    this.taskDone = taskDone;
+    this.taskAssignee = taskAssignee == null ? "" : taskAssignee;
+    this.taskDueTimestamp = taskDueTimestamp;
   }
 
   /** Builder-style copy that flips the unread flag without re-typing the rest. */
@@ -138,7 +201,37 @@ public final class J2clReadBlip {
         threadId,
         nextUnread,
         hasMention,
-        deleted);
+        deleted,
+        taskDone,
+        taskAssignee,
+        taskDueTimestamp);
+  }
+
+  /**
+   * J-UI-6 (#1084) — builder-style copy that flips the persisted task-done
+   * flag. Used by the read-state path to carry the optimistic local toggle
+   * into the next render before the server-confirmed annotation arrives, in
+   * symmetry with {@link #withUnread(boolean)}.
+   */
+  public J2clReadBlip withTaskDone(boolean nextTaskDone) {
+    if (nextTaskDone == this.taskDone) {
+      return this;
+    }
+    return new J2clReadBlip(
+        blipId,
+        text,
+        attachments,
+        authorId,
+        authorDisplayName,
+        lastModifiedTimeMillis,
+        parentBlipId,
+        threadId,
+        unread,
+        hasMention,
+        deleted,
+        nextTaskDone,
+        taskAssignee,
+        taskDueTimestamp);
   }
 
   public String getBlipId() {
@@ -191,5 +284,31 @@ public final class J2clReadBlip {
    */
   public boolean isDeleted() {
     return deleted;
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): persisted task-done state read from the
+   * {@code task/done=true} annotation. Drives the strikethrough/checkmark
+   * rendering on the blip body.
+   */
+  public boolean isTaskDone() {
+    return taskDone;
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): persisted task assignee read from the
+   * {@code task/assignee} annotation. Empty string when unset.
+   */
+  public String getTaskAssignee() {
+    return taskAssignee;
+  }
+
+  /**
+   * J-UI-6 (#1084, R-5.4): persisted task due-date timestamp (ms since epoch)
+   * read from the {@code task/dueTs} annotation, or
+   * {@link J2clTaskItemModel#UNKNOWN_DUE_TIMESTAMP} when unset.
+   */
+  public long getTaskDueTimestamp() {
+    return taskDueTimestamp;
   }
 }
