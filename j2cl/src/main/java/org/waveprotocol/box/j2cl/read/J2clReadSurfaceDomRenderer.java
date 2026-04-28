@@ -520,6 +520,12 @@ public final class J2clReadSurfaceDomRenderer {
     int blipIndex = 0;
     Map<String, HTMLElement> winBlipHostsById = new HashMap<String, HTMLElement>();
     Map<String, HTMLElement> winThreadHostsByKey = new HashMap<String, HTMLElement>();
+    // review-1089 round-4 (codex P2): track the last inline-thread host
+    // inserted under each parent so subsequent sibling threads land
+    // *after* earlier threads. Inserting before parentHost.nextSibling
+    // unconditionally would mount thread B in front of the already-
+    // inserted thread A, reversing manifest DFS sibling order.
+    Map<String, HTMLElement> winLastThreadHostByParent = new HashMap<String, HTMLElement>();
     for (int i = 0; i < entries.size(); i++) {
       J2clReadWindowEntry entry = entries.get(i);
       if (!entry.isLoaded()) {
@@ -583,16 +589,25 @@ public final class J2clReadSurfaceDomRenderer {
                 !threadId.isEmpty() ? (parentBlipId + "::" + threadId) : ("inline-" + parentBlipId);
             threadHost.setAttribute("data-thread-id", scopedId);
             threadHost.setAttribute("data-parent-blip-id", parentBlipId);
-            if (parentHost.parentNode != null) {
-              if (parentHost.nextSibling != null) {
-                parentHost.parentNode.insertBefore(threadHost, parentHost.nextSibling);
+            // review-1089 round-4 (codex P2): if a previous thread was
+            // already mounted for this parent, anchor the new thread
+            // after that thread host instead of after the parent so
+            // sibling threads stay in manifest DFS order.
+            HTMLElement winAnchor = winLastThreadHostByParent.get(parentBlipId);
+            if (winAnchor == null) {
+              winAnchor = parentHost;
+            }
+            if (winAnchor.parentNode != null) {
+              if (winAnchor.nextSibling != null) {
+                winAnchor.parentNode.insertBefore(threadHost, winAnchor.nextSibling);
               } else {
-                parentHost.parentNode.appendChild(threadHost);
+                winAnchor.parentNode.appendChild(threadHost);
               }
             } else {
               parentHost.appendChild(threadHost);
             }
             winThreadHostsByKey.put(threadKey, threadHost);
+            winLastThreadHostByParent.put(parentBlipId, threadHost);
           }
           threadHost.appendChild(blipElement);
         }
@@ -721,6 +736,10 @@ public final class J2clReadSurfaceDomRenderer {
     }
     Map<String, HTMLElement> blipHostsById = new HashMap<String, HTMLElement>();
     Map<String, HTMLElement> threadHostsByThreadKey = new HashMap<String, HTMLElement>();
+    // review-1089 round-4 (codex P2): track the last inline-thread host
+    // mounted under each parent so subsequent sibling threads land
+    // *after* earlier ones, matching manifest DFS sibling order.
+    Map<String, HTMLElement> lastThreadHostByParent = new HashMap<String, HTMLElement>();
     for (int i = 0; i < effective.size(); i++) {
       J2clReadBlip blip = effective.get(i);
       HTMLElement blipElement = renderBlip(blip, i);
@@ -767,11 +786,19 @@ public final class J2clReadSurfaceDomRenderer {
         // line-through; color: var(--wavy-text-quiet); }`). Nested
         // replies are unrelated to the parent's task state and must
         // not pick up that visual treatment.
-        if (parentBlipHost.parentNode != null) {
-          if (parentBlipHost.nextSibling != null) {
-            parentBlipHost.parentNode.insertBefore(threadHost, parentBlipHost.nextSibling);
+        // review-1089 round-4 (codex P2): anchor after the last thread
+        // host for this parent (if any) so sibling threads stay in
+        // manifest DFS order — otherwise the second thread would be
+        // inserted before the first.
+        HTMLElement anchor = lastThreadHostByParent.get(parentBlipId);
+        if (anchor == null) {
+          anchor = parentBlipHost;
+        }
+        if (anchor.parentNode != null) {
+          if (anchor.nextSibling != null) {
+            anchor.parentNode.insertBefore(threadHost, anchor.nextSibling);
           } else {
-            parentBlipHost.parentNode.appendChild(threadHost);
+            anchor.parentNode.appendChild(threadHost);
           }
         } else {
           // The parent is somehow detached (defensive — should not
@@ -781,6 +808,7 @@ public final class J2clReadSurfaceDomRenderer {
           parentBlipHost.appendChild(threadHost);
         }
         threadHostsByThreadKey.put(threadKey, threadHost);
+        lastThreadHostByParent.put(parentBlipId, threadHost);
       }
       threadHost.appendChild(blipElement);
     }
