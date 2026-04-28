@@ -134,7 +134,39 @@ public final class J2clReadSurfaceDomRenderer {
   // projected state catches up to the optimistic value (server echo
   // observed) so a server rejection naturally reverts the UI on the
   // next projection.
-  private final Map<String, Boolean> optimisticTaskState = new HashMap<String, Boolean>();
+  //
+  // PR #1097 review (codex P2): the key combines the wave id with the
+  // blip id so a stale entry from one wave cannot bleed onto another
+  // wave that reuses the same blip id (e.g. the `b+root` ids that every
+  // wave's root blip carries) when the user switches waves before the
+  // server echoes their toggle.
+  //
+  // PR #1097 review (codex P1): each entry carries a deadline so a
+  // failed submit (the toggle path has explicit failure outcomes for
+  // bootstrap / build / submit that never update model state) cannot
+  // leave the optimistic override stuck indefinitely. After
+  // {@link #OPTIMISTIC_TASK_TTL_MS} milliseconds we trust the model
+  // value and drop the override even if it never agreed.
+  private static final long OPTIMISTIC_TASK_TTL_MS = 30_000L;
+  private final Map<String, OptimisticTaskEntry> optimisticTaskState =
+      new HashMap<String, OptimisticTaskEntry>();
+
+  /**
+   * J-UI-6 (#1084, R-5.4) value type for the optimistic-toggle map.
+   * Carries the optimistic boolean alongside an absolute deadline (in
+   * the same units as {@link #currentTimeMs()}) past which the entry
+   * is treated as a stale failed-submit residue and dropped on the
+   * next projection.
+   */
+  private static final class OptimisticTaskEntry {
+    final boolean done;
+    final long expiresAtMs;
+
+    OptimisticTaskEntry(boolean done, long expiresAtMs) {
+      this.done = done;
+      this.expiresAtMs = expiresAtMs;
+    }
+  }
 
   public J2clReadSurfaceDomRenderer(HTMLDivElement host) {
     this(host, J2clClientTelemetry.noop());
@@ -966,15 +998,23 @@ public final class J2clReadSurfaceDomRenderer {
       return;
     }
     boolean taskDone = modelTaskDone;
-    Boolean optimistic = blipId == null ? null : optimisticTaskState.get(blipId);
+    String key = optimisticTaskKey(currentWaveId(), blipId);
+    OptimisticTaskEntry optimistic = key.isEmpty() ? null : optimisticTaskState.get(key);
     if (optimistic != null) {
-      // Server caught up — clear the optimistic override and let the model
-      // win going forward. Otherwise apply the optimistic value over the
-      // (still-stale) model snapshot.
-      if (optimistic.booleanValue() == modelTaskDone) {
-        optimisticTaskState.remove(blipId);
+      long nowMs = (long) currentTimeMs();
+      if (optimistic.expiresAtMs <= nowMs) {
+        // PR #1097 review (codex P1): stale override past the deadline.
+        // The submit path can fail without updating the model; without
+        // a TTL the override would stick forever. Drop it and trust
+        // the model.
+        optimisticTaskState.remove(key);
+      } else if (optimistic.done == modelTaskDone) {
+        // Server caught up — clear the optimistic override and let the
+        // model win going forward.
+        optimisticTaskState.remove(key);
       } else {
-        taskDone = optimistic.booleanValue();
+        // Apply the optimistic value over the (still-stale) model.
+        taskDone = optimistic.done;
       }
     }
     if (taskDone) {
@@ -998,21 +1038,60 @@ public final class J2clReadSurfaceDomRenderer {
 
   /**
    * J-UI-6 (#1084, R-5.4): record a self-initiated task toggle as the
-   * optimistic state for {@code blipId} until the server-confirmed
-   * projection agrees. Called by the view's body-level
+   * optimistic state for ({@code waveId}, {@code blipId}) until the
+   * server-confirmed projection agrees. Called by the view's body-level
    * {@code wave-blip-task-toggled} listener so a same-wave update that
    * arrives in the brief window between submit and server echo does not
    * flicker the strikethrough.
    *
-   * <p>Idempotent: a second call with the same value is a no-op. Setting
-   * the state explicitly to the model's already-projected value clears
-   * the entry (the optimistic intent is satisfied).
+   * <p>The entry is namespaced by wave id so a stale toggle on wave A's
+   * {@code b+root} cannot leak onto wave B's {@code b+root} when the
+   * user switches waves before the server echoes the original toggle
+   * (PR #1097 review codex P2). It is also bounded by {@link
+   * #OPTIMISTIC_TASK_TTL_MS} so a failed submit cannot leave the
+   * override stuck (PR #1097 review codex P1).
+   *
+   * <p>Idempotent within the TTL window: a second call with the same
+   * value re-extends the deadline. Setting the state explicitly to the
+   * model's already-projected value clears on the next render.
    */
-  public void noteOptimisticTaskState(String blipId, boolean completed) {
+  public void noteOptimisticTaskState(String waveId, String blipId, boolean completed) {
     if (blipId == null || blipId.isEmpty()) {
       return;
     }
-    optimisticTaskState.put(blipId, Boolean.valueOf(completed));
+    long deadline = (long) currentTimeMs() + OPTIMISTIC_TASK_TTL_MS;
+    optimisticTaskState.put(
+        optimisticTaskKey(waveId, blipId), new OptimisticTaskEntry(completed, deadline));
+  }
+
+  /**
+   * Builds the {@code waveId::blipId} composite key used by
+   * {@link #optimisticTaskState}. {@code waveId} normalises to the empty
+   * string when null/missing so unit fixtures (which mount wave-blip
+   * elements without setting {@code data-wave-id} on the host) still
+   * exercise the map.
+   */
+  private static String optimisticTaskKey(String waveId, String blipId) {
+    if (blipId == null || blipId.isEmpty()) {
+      return "";
+    }
+    String wave = waveId == null ? "" : waveId;
+    return wave + "\u0001" + blipId;
+  }
+
+  /**
+   * Reads the wave id from the host element's {@code data-wave-id}
+   * attribute. The view sets this on the content-list host before
+   * triggering a render; null/missing returns the empty string so the
+   * optimistic-state lookup degrades to a wave-agnostic key for
+   * fixtures that don't set the attribute.
+   */
+  private String currentWaveId() {
+    if (host == null) {
+      return "";
+    }
+    String waveId = host.getAttribute("data-wave-id");
+    return waveId == null ? "" : waveId;
   }
 
   /**
@@ -1020,8 +1099,18 @@ public final class J2clReadSurfaceDomRenderer {
    * toggle map. Consumers should treat the returned set as a read-only
    * snapshot.
    */
-  Map<String, Boolean> optimisticTaskStateForTest() {
+  Map<String, OptimisticTaskEntry> optimisticTaskStateForTest() {
     return Collections.unmodifiableMap(optimisticTaskState);
+  }
+
+  /**
+   * J-UI-6 (#1084) test helper that returns just the boolean value for
+   * a given (wave, blip) — abstracts the composite-key encoding so tests
+   * stay readable.
+   */
+  Boolean optimisticTaskValueForTest(String waveId, String blipId) {
+    OptimisticTaskEntry entry = optimisticTaskState.get(optimisticTaskKey(waveId, blipId));
+    return entry == null ? null : Boolean.valueOf(entry.done);
   }
 
   /**

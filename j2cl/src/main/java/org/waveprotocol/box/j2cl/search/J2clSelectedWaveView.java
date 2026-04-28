@@ -260,11 +260,6 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   }
 
   /**
-   * F-2 slice 2 (#1046): delegated event listeners for the chrome event
-   * surface. S2 records telemetry for each click; S5 will add the
-   * controller wiring on top.
-   */
-  /**
    * J-UI-6 (#1084, R-5.4): forward {@code wave-blip-task-toggled} events to
    * the read renderer so the optimistic toggle state survives an unrelated
    * live update arriving inside the in-flight window between the user's
@@ -304,10 +299,28 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
           } else {
             completed = "true".equals(String.valueOf(completedValue));
           }
-          renderer.noteOptimisticTaskState(blipId, completed);
+          // PR #1097 review (codex P2): namespace the optimistic-toggle
+          // entry by wave id so a stale entry from one wave does not
+          // bleed onto another wave that reuses the same blip id.
+          // Prefer the event's detail.waveId (the affordance dispatches
+          // it explicitly), and fall back to the content-list host's
+          // data-wave-id attribute when the dispatcher omitted it.
+          Object waveIdValue = jsinterop.base.Js.asPropertyMap(detail).get("waveId");
+          String waveId =
+              waveIdValue == null ? "" : String.valueOf(waveIdValue);
+          if (waveId.isEmpty()) {
+            String hostWaveId = contentList.getAttribute("data-wave-id");
+            waveId = hostWaveId == null ? "" : hostWaveId;
+          }
+          renderer.noteOptimisticTaskState(waveId, blipId, completed);
         });
   }
 
+  /**
+   * F-2 slice 2 (#1046): delegated event listeners for the chrome event
+   * surface. S2 records telemetry for each click; S5 will add the
+   * controller wiring on top.
+   */
   private static void bindChromeEvents(HTMLElement card, J2clClientTelemetry.Sink sink) {
     String[] navEvents = {
       "wave-nav-recent-requested",

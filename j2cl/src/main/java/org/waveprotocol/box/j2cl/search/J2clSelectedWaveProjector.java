@@ -791,8 +791,10 @@ public final class J2clSelectedWaveProjector {
       try {
         due = Long.parseLong(trimmed);
       } catch (NumberFormatException ignored) {
-        // Unparseable values leave the previous resolution in place; the
-        // reader is conservative and prefers "unset" over a corrupt value.
+        // Unparseable values reset to "unset" rather than rendering a
+        // corrupt epoch placeholder. The reader is conservative — a
+        // single garbage range overrides any prior successfully-parsed
+        // value because we cannot tell which one the writer intended.
         due = J2clTaskItemModel.UNKNOWN_DUE_TIMESTAMP;
       }
     }
