@@ -3450,14 +3450,21 @@ public final class HtmlRenderer {
     appendJ2clRootShellStatsShim(sb);
     appendAnalyticsFragment(sb, analyticsAccount, null);
     sb.append("</head>\n<body class=\"j2cl-root-shell-page\">\n");
-    if (serverFirstPaintEnabled && signedIn) {
+    boolean hasServerFirstSnapshot =
+        signedIn
+            && resolvedSnapshotResult.getMode() == J2clSelectedWaveSnapshotRenderer.Mode.SNAPSHOT
+            && resolvedSnapshotResult.hasSnapshotHtml();
+    if (serverFirstPaintEnabled && hasServerFirstSnapshot) {
       // J-UI-8 (#1086, R-6.1): static info banner for signed-in
       // visitors with JavaScript disabled. The <noscript> wrapper makes
       // the entire block a no-op when JS is enabled, so flag-on with
       // JS-on is identical to flag-off. Signed-out users already see a
       // sign-in CTA via the regular signed-out chrome, so they do not
       // need the banner — keeping the signed-out experience untouched
-      // matches the plan's "signed in only" scoping.
+      // matches the plan's "signed in only" scoping. Guard on
+      // hasServerFirstSnapshot so NO_WAVE/deferred/denied/error routes
+      // never emit the "static read-only snapshot" copy — that text is
+      // only accurate when a snapshot is actually present.
       appendJ2clRootShellNoscriptBanner(sb);
     }
     if (signedIn) {
@@ -4750,6 +4757,7 @@ public final class HtmlRenderer {
       sb.append("  if(!workflow){return;}\n");
       sb.append("  var placeholder=selectedWavePlaceholder();\n");
       sb.append("  if(placeholder){\n");
+      sb.append("    placeholder.removeAttribute('aria-busy');\n");
       sb.append("    var status=workflow.querySelector('.sidecar-selected-status');\n");
       sb.append("    var detail=workflow.querySelector('.sidecar-selected-detail');\n");
       sb.append("    if(status){status.className='sidecar-selected-status sidecar-selected-status-error';status.textContent='Selected wave live upgrade failed.';}\n");

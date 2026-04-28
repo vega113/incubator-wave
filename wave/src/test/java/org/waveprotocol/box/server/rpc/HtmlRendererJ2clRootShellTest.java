@@ -239,6 +239,9 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
     assertFalse(
         "no-wave card must not carry aria-busy — there is nothing to upgrade away from",
         cardOpenTag.contains("aria-busy"));
+    assertFalse(
+        "no-wave card must not emit aria-busy inline script",
+        html.contains("setAttribute('aria-busy'"));
   }
 
   // J-UI-8 (#1086, R-6.1): <html lang> reflects the viewer's account
@@ -360,10 +363,12 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
 
     String html = HtmlRenderer.renderJ2clRootShellPage(
         session, "", "commit", 0L, "rel", "/", "ws.example:443",
-        J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "en", true);
+        J2clSelectedWaveSnapshotRenderer.SnapshotResult.snapshot(
+            "example.com/w+1", "<p>wave content</p>"),
+        false, "en", true);
 
     assertTrue(
-        "Flag-on must emit the noscript banner element",
+        "Flag-on with snapshot must emit the noscript banner element",
         html.contains("data-j2cl-noscript-banner=\"true\""));
     int bannerIdx = html.indexOf("data-j2cl-noscript-banner=\"true\"");
     int noscriptOpen = html.lastIndexOf("<noscript>", bannerIdx);
@@ -372,6 +377,19 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
         "Banner must live inside a <noscript> wrapper so JS-on visitors do not see it",
         noscriptOpen >= 0 && noscriptClose >= 0 && noscriptOpen < bannerIdx
             && bannerIdx < noscriptClose);
+  }
+
+  public void testNoscriptBannerOmittedWhenNoSnapshot() {
+    JSONObject session = new JSONObject();
+    session.put("address", "alice@example.com");
+
+    String html = HtmlRenderer.renderJ2clRootShellPage(
+        session, "", "commit", 0L, "rel", "/", "ws.example:443",
+        J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "en", true);
+
+    assertFalse(
+        "Flag-on + signed-in but NO_WAVE must not emit the snapshot banner — text would be false",
+        html.contains("data-j2cl-noscript-banner"));
   }
 
   public void testServerFirstPaintFlagOffOmitsNoscriptBanner() {
@@ -394,7 +412,9 @@ public final class HtmlRendererJ2clRootShellTest extends TestCase {
 
     String htmlSignedIn = HtmlRenderer.renderJ2clRootShellPage(
         signedIn, "", "commit", 0L, "rel", "/", "ws.example:443",
-        J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "en", true);
+        J2clSelectedWaveSnapshotRenderer.SnapshotResult.snapshot(
+            "example.com/w+1", "<p>wave content</p>"),
+        false, "en", true);
     String htmlSignedOut = HtmlRenderer.renderJ2clRootShellPage(
         signedOut, "", "commit", 0L, "rel", "/", "ws.example:443",
         J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave(), false, "en", true);

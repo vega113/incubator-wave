@@ -494,11 +494,15 @@ public final class WaveClientServletJ2clRootShellTest {
   // banner ships when the flag is on for the viewer.
   @Test
   public void j2clRootResponseShipsNoscriptBannerWhenFlagIsOn() throws Exception {
+    J2clSelectedWaveSnapshotRenderer snapshotRenderer = defaultSnapshotRenderer();
+    when(snapshotRenderer.renderRequestedWave(any(), any()))
+        .thenReturn(J2clSelectedWaveSnapshotRenderer.SnapshotResult.snapshot(
+            "example.com/w+1", "<p>wave content</p>"));
     WaveClientServlet servlet =
         createServletWithLocale(
             ParticipantId.ofUnsafe("alice@example.com"),
             HumanAccountData.ROLE_USER,
-            defaultSnapshotRenderer(),
+            snapshotRenderer,
             null,
             new FeatureFlagStore.FeatureFlag(
                 "j2cl-server-first-paint", "noscript banner", true, Collections.emptyMap()));
@@ -506,6 +510,7 @@ public final class WaveClientServletJ2clRootShellTest {
     HttpServletResponse response = mock(HttpServletResponse.class);
     StringWriter body = new StringWriter();
     when(request.getParameter("view")).thenReturn("j2cl-root");
+    when(request.getParameter("wave")).thenReturn("example.com/w+1");
     when(request.getParameterNames()).thenReturn(Collections.emptyEnumeration());
     when(request.getSession(false)).thenReturn(mock(HttpSession.class));
     when(response.getWriter()).thenReturn(new PrintWriter(body));
@@ -513,7 +518,7 @@ public final class WaveClientServletJ2clRootShellTest {
     servlet.doGet(request, response);
 
     assertTrue(
-        "Flag-on servlet response must ship the noscript banner",
+        "Flag-on servlet response must ship the noscript banner when snapshot is present",
         body.toString().contains("data-j2cl-noscript-banner=\"true\""));
   }
 
