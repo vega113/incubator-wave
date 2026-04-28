@@ -96,7 +96,7 @@
   /* V-5 (#1103) — density tokens for 01-shell-inbox-with-waves.svg.
    * Mockup measurements at 1440×900: rail 296 px (20.5%), search-result
    * panel 448 px, wave panel 696 px; digest cards 92–120 px tall with
-   * 16 px internal padding and 16 px stack gap. The Lit shell collapses
+   * 12 px vertical padding and 12 px stack gap. The Lit shell collapses
    * the rail+search-result panel into one column today, so the rail
    * here covers the visible nav strip and the wave panel takes the
    * rest. Pane gutter shrinks the inner inset of the wave-panel
