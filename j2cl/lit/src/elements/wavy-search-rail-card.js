@@ -46,7 +46,14 @@ export class WavySearchRailCard extends LitElement {
     postedAt: { type: String, attribute: "posted-at" },
     postedAtIso: { type: String, attribute: "posted-at-iso" },
     msgCount: { type: Number, attribute: "msg-count" },
-    unreadCount: { type: Number, attribute: "unread-count" },
+    /**
+     * J-UI-7 (#1085, R-4.4): reflect to the `unread-count` attribute so
+     * the attribute is the single source of truth and CSS can style the
+     * read state via `:host([unread-count="0"])`. The J2CL Java view
+     * mutates the attribute live; reflection keeps the property and the
+     * attribute in sync without a second `data-read` flag.
+     */
+    unreadCount: { type: Number, attribute: "unread-count", reflect: true },
     pinned: { type: Boolean, reflect: true },
     authors: { type: String },
     /**
@@ -68,8 +75,11 @@ export class WavySearchRailCard extends LitElement {
       border: 1px solid var(--wavy-border-hairline, rgba(34, 211, 238, 0.18));
       border-radius: var(--wavy-radius-card, 12px);
       cursor: pointer;
-      transition: border-color var(--wavy-motion-focus-duration, 180ms)
-        var(--wavy-easing-focus, cubic-bezier(0.2, 0, 0.2, 1));
+      transition:
+        border-color var(--wavy-motion-focus-duration, 180ms)
+          var(--wavy-easing-focus, cubic-bezier(0.2, 0, 0.2, 1)),
+        box-shadow var(--wavy-motion-pulse-duration, 600ms)
+          var(--wavy-easing-focus, cubic-bezier(0.2, 0, 0.2, 1));
     }
     :host(:hover),
     :host(:focus-within) {
@@ -153,11 +163,17 @@ export class WavySearchRailCard extends LitElement {
       background: var(--wavy-signal-cyan, #22d3ee);
       color: var(--wavy-bg-base, #0b1120);
       font-weight: 600;
-      transition: box-shadow var(--wavy-motion-pulse-duration, 600ms)
-        var(--wavy-easing-focus, cubic-bezier(0.2, 0, 0.2, 1));
     }
-    :host([data-pulse="ring"]) .badge.unread {
+    :host([data-pulse="ring"]) {
       box-shadow: var(--wavy-pulse-ring, 0 0 0 4px rgba(34, 211, 238, 0.22));
+    }
+    /*
+     * J-UI-7 (#1085, R-4.4): expose a CSS hook for the read state so
+     * downstream styling (and parity tests) can detect a fully-read
+     * card without scraping the badge DOM.
+     */
+    :host([unread-count="0"]) {
+      --wavy-rail-card-read: 1;
     }
     time.ts {
       font: var(--wavy-type-meta, 0.6875rem / 1.4 sans-serif);
@@ -189,9 +205,41 @@ export class WavySearchRailCard extends LitElement {
         getComputedStyle(this).getPropertyValue("--wavy-motion-pulse-duration") || "600",
         10
       ) || 600;
-    setTimeout(() => {
+    // Cancel any in-flight clear-timer so a rapid second pulse does not
+    // get truncated by the first pulse's timer firing mid-second-pulse.
+    if (this._pulseClearHandle) {
+      clearTimeout(this._pulseClearHandle);
+    }
+    this._pulseClearHandle = setTimeout(() => {
       delete this.dataset.pulse;
+      this._pulseClearHandle = 0;
     }, dur);
+  }
+
+  /**
+   * J-UI-7 (#1085, R-4.4): auto-pulse on every unreadCount transition
+   * after the initial render. The first render does not pulse — that
+   * would noisily flash every card on the search list whenever the
+   * page loads. Subsequent transitions (decrement on open, increment
+   * from a peer's reply) all fire the host-level pulse so the live
+   * decrement is visible regardless of whether the badge ends up
+   * visible afterwards.
+   *
+   * <p>The initialized flag flips on the first {@code updated()} call
+   * regardless of which properties changed. This way a card whose
+   * upgrade does not touch unreadCount (e.g. attribute and default
+   * both 0) still classifies its first user-driven mutation as a
+   * post-initial change and pulses accordingly.
+   */
+  updated(changed) {
+    const wasInitialized = this._initialUpdateComplete;
+    this._initialUpdateComplete = true;
+    if (!wasInitialized) {
+      return;
+    }
+    if (changed.has("unreadCount")) {
+      this.firePulse();
+    }
   }
 
   _emitSelected() {
@@ -202,6 +250,23 @@ export class WavySearchRailCard extends LitElement {
         detail: { waveId: this.waveId }
       })
     );
+  }
+
+  /**
+   * J-UI-7 (#1085, R-4.4): the focusable `<article>` exposes both the
+   * title and the live unread state to assistive technology, so users
+   * hear the count change when they navigate back to a card whose
+   * unread count just decremented (or incremented). When unreadCount
+   * is 0 the announcement collapses to "<title>. Read." rather than
+   * shouting "0 unread.".
+   */
+  _composeAriaLabel() {
+    const title = this.title || "(no title)";
+    const count = Math.max(0, this.unreadCount || 0);
+    if (count <= 0) {
+      return title + ". Read.";
+    }
+    return title + ". " + count + " unread.";
   }
 
   _initials(name) {
@@ -233,7 +298,7 @@ export class WavySearchRailCard extends LitElement {
         }}
         tabindex="0"
         role="article"
-        aria-label=${this.title || "(no title)"}
+        aria-label=${this._composeAriaLabel()}
         aria-current=${this.selected ? "true" : nothing}
       >
         <div class="top">
