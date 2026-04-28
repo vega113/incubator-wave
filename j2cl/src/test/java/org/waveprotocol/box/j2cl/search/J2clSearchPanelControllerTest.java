@@ -767,6 +767,111 @@ public class J2clSearchPanelControllerTest {
         view.lastModel.getDigestItems().get(0).getWaveId());
   }
 
+  // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: the
+  // optimistic stub must be scoped to the query active at SUBMIT time,
+  // not the query active when the server-response callback fires. The
+  // compose controller calls markCreateSubmitted() synchronously at
+  // submit time; by the time onOptimisticDigest fires later, the user
+  // may have switched queries — but the stub belongs to the rail they
+  // were viewing when they clicked submit.
+  @Test
+  public void optimisticStubScopedBySubmitTimeQueryNotSuccessTimeQuery() {
+    FakeGateway gateway =
+        new FakeGateway(
+            responseWithDigests(
+                new SidecarSearchResponse.Digest(
+                    "Inbox wave",
+                    "Snippet",
+                    "example.com/w+inbox",
+                    1L,
+                    0,
+                    1,
+                    Collections.singletonList("user@example.com"),
+                    "user@example.com",
+                    false)));
+    FakeView view = new FakeView();
+    FakeOptimisticScheduler scheduler = new FakeOptimisticScheduler();
+    J2clSearchPanelController controller =
+        new J2clSearchPanelController(
+            gateway, view, (state, digestItem, userNavigation) -> { }, 1200, scheduler);
+    controller.start("in:inbox", null);
+
+    // User clicks submit on in:inbox; compose controller stamps the
+    // submit-time query before the bootstrap fetch.
+    controller.markCreateSubmitted();
+
+    // Before the server responds, the user navigates to a different rail.
+    gateway.response = responseWithDigests(
+        new SidecarSearchResponse.Digest(
+            "Mention",
+            "Snippet",
+            "example.com/w+mention",
+            2L,
+            0,
+            1,
+            Collections.singletonList("user@example.com"),
+            "user@example.com",
+            false));
+    controller.onQuerySubmitted("with:@me");
+
+    // Now the server responds; the optimistic prepend must scope to
+    // in:inbox (the submit-time query), NOT with:@me.
+    controller.onOptimisticDigest("example.com/w+pending", "Pending wave");
+    Assert.assertNull(
+        "stub belongs to in:inbox, not the active with:@me rail",
+        view.lastModel.findDigestItem("example.com/w+pending"));
+
+    // Switching back to in:inbox brings the stub forward.
+    gateway.response = responseWithDigests(
+        new SidecarSearchResponse.Digest(
+            "Inbox wave",
+            "Snippet",
+            "example.com/w+inbox",
+            1L,
+            0,
+            1,
+            Collections.singletonList("user@example.com"),
+            "user@example.com",
+            false));
+    controller.onQuerySubmitted("in:inbox");
+    Assert.assertNotNull(
+        "stub reappears once the user is back on the submit-time query",
+        view.lastModel.findDigestItem("example.com/w+pending"));
+  }
+
+  // J-UI-3 — when no markCreateSubmitted() stamp is queued (legacy path),
+  // onOptimisticDigest falls back to the success-time query so existing
+  // wiring continues to work.
+  @Test
+  public void optimisticStubFallsBackToActiveQueryWhenNoSubmitStampQueued() {
+    FakeGateway gateway =
+        new FakeGateway(
+            responseWithDigests(
+                new SidecarSearchResponse.Digest(
+                    "Other",
+                    "Snippet",
+                    "example.com/w+other",
+                    1L,
+                    0,
+                    1,
+                    Collections.singletonList("user@example.com"),
+                    "user@example.com",
+                    false)));
+    FakeView view = new FakeView();
+    FakeOptimisticScheduler scheduler = new FakeOptimisticScheduler();
+    J2clSearchPanelController controller =
+        new J2clSearchPanelController(
+            gateway, view, (state, digestItem, userNavigation) -> { }, 1200, scheduler);
+    controller.start("in:inbox", null);
+
+    // No markCreateSubmitted() — direct onOptimisticDigest.
+    controller.onOptimisticDigest("example.com/w+pending", "Pending");
+
+    Assert.assertNotNull(
+        "fallback path scopes the stub to the active query",
+        view.lastModel.findDigestItem("example.com/w+pending"));
+  }
+
   // J-UI-3 (#1081, R-5.1) — CodeRabbit minor PRRT_kwDOBwxLXs5-Cpes: when
   // an optimistic stub is prepended, the rail header's wave-count text
   // must reflect the new entry instead of showing the stale server count.
