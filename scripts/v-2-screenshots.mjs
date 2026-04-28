@@ -7,7 +7,7 @@ import path from "node:path";
 const port = process.argv[2] || "9902";
 const outDir = process.argv[3] || "docs/superpowers/screenshots/v-2";
 const debugOverlay = process.argv[4] === "debug-overlay";
-const tag = process.argv[5] || (debugOverlay ? "after-debug-on" : "after");
+const tag = process.argv[5] || "after";
 
 fs.mkdirSync(outDir, { recursive: true });
 
