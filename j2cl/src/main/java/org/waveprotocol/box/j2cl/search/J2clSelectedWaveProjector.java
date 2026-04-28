@@ -90,7 +90,15 @@ public final class J2clSelectedWaveProjector {
     // the list into manifest depth-first pre-order traversal so reply
     // ordering matches the conversation model. Empty manifest = no
     // change (fall back to enrichment-derived ordering).
-    readBlips = applyConversationManifest(readBlips, update.getConversationManifest());
+    // review-1089 round-4 (codex P1 + coderabbitai major): use the
+    // *effective* manifest (chooseManifest) here too — same-wave
+    // fragment-only updates omit the conversation document, and
+    // passing an empty manifest would leave readBlips flat until a
+    // full snapshot resends. The same effective manifest is then
+    // stored on the model below so ordering and stored state agree.
+    SidecarConversationManifest effectiveManifest =
+        chooseManifest(update.getConversationManifest(), previousMatchesWave, previous);
+    readBlips = applyConversationManifest(readBlips, effectiveManifest);
     J2clSidecarWriteSession writeSession = buildWriteSession(selectedWaveId, update, previous, participantIds);
     boolean interactionEditable = writeSession != null;
     List<J2clInteractionBlipModel> interactionBlips =
@@ -164,8 +172,7 @@ public final class J2clSelectedWaveProjector {
         // document (live/fragment-only updates do this), preserve the
         // previous wave's manifest so the next renderWindow() does not
         // fall back to flat threading until a full snapshot resends.
-        .withConversationManifest(
-            chooseManifest(update.getConversationManifest(), previousMatchesWave, previous));
+        .withConversationManifest(effectiveManifest);
   }
 
   /**
