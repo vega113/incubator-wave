@@ -609,7 +609,17 @@ export class WavyComposer extends LitElement {
     const allTags = [spec.tag, ...(spec.siblings || [])];
     const ancestor = this._findAncestorTag(range.startContainer, allTags);
     if (ancestor) {
-      this._unwrapElement(ancestor);
+      // Codex review #1095 threads PRRT_kwDOBwxLXs5-Gunw / -F-8i:
+      // partial-range toggle-off must SPLIT the ancestor at the
+      // selection boundaries — otherwise unwrapping the whole
+      // wrapper drops formatting from text outside the active
+      // range. When the selection covers the entire ancestor, fall
+      // back to a plain unwrap (cheaper and produces identical DOM).
+      if (rangeFullyContainsNode(range, ancestor)) {
+        this._unwrapElement(ancestor);
+      } else {
+        this._unwrapAncestorWithinRange(ancestor, range, spec);
+      }
       this._afterBodyMutation();
       return;
     }
@@ -629,6 +639,84 @@ export class WavyComposer extends LitElement {
   }
 
   /**
+   * J-UI-5 (#1083, codex review #1095 threads PRRT_kwDOBwxLXs5-Gunw +
+   * PRRT_kwDOBwxLXs5-F-8i): split an existing inline wrapper around
+   * the active selection so toggle-off only removes formatting from
+   * the selected fragment, not the whole wrap. The wrapper is
+   * cloned for the prefix (text before the selection) and the
+   * suffix (text after); the selected slice is extracted out and
+   * inserted as a sibling between the two clones, then the
+   * original wrapper is removed.
+   */
+  _unwrapAncestorWithinRange(ancestor, range, spec) {
+    const parent = ancestor.parentNode;
+    if (!parent) return;
+    let prefixRange;
+    let suffixRange;
+    try {
+      prefixRange = document.createRange();
+      prefixRange.selectNodeContents(ancestor);
+      prefixRange.setEnd(range.startContainer, range.startOffset);
+      suffixRange = document.createRange();
+      suffixRange.selectNodeContents(ancestor);
+      suffixRange.setStart(range.endContainer, range.endOffset);
+    } catch (_e) {
+      // Selection may sit outside the ancestor on weird boundaries;
+      // bail rather than corrupting the body.
+      return;
+    }
+    let prefixFragment;
+    let suffixFragment;
+    let middleFragment;
+    try {
+      prefixFragment = prefixRange.cloneContents();
+      suffixFragment = suffixRange.cloneContents();
+      // Range slice intersected with ancestor contents is the
+      // active selection's interior. cloneContents preserves nested
+      // formatting (e.g. `<strong><em>x</em>y</strong>` ⇒ inner
+      // `<em>x</em>` keeps italics on the un-bolded fragment).
+      const innerRange = document.createRange();
+      innerRange.setStart(range.startContainer, range.startOffset);
+      innerRange.setEnd(range.endContainer, range.endOffset);
+      middleFragment = innerRange.cloneContents();
+    } catch (_e) {
+      return;
+    }
+    const insertSiblingsBefore = (target, frag, wrapTagName) => {
+      // Skip empty fragments — happens when the selection starts at
+      // offset 0 (no prefix) or covers the ancestor's last char (no
+      // suffix). cloneContents can also produce a fragment that holds
+      // an empty text node (length 0), which would still leave behind
+      // an empty `<strong></strong>` if we naively re-wrapped it.
+      if (!frag || !frag.hasChildNodes()) return null;
+      const text = frag.textContent || "";
+      const hasElementChild = Boolean(frag.querySelector && frag.querySelector("*"));
+      if (text.length === 0 && !hasElementChild) return null;
+      if (wrapTagName) {
+        const wrapper = document.createElement(wrapTagName);
+        wrapper.appendChild(frag);
+        parent.insertBefore(wrapper, target);
+        return wrapper;
+      }
+      // Inline insert without wrapping (toggle-off drops the
+      // ancestor for the slice).
+      while (frag.firstChild) parent.insertBefore(frag.firstChild, target);
+      return null;
+    };
+    insertSiblingsBefore(ancestor, prefixFragment, ancestor.tagName.toLowerCase());
+    const middleAnchor = ancestor;
+    insertSiblingsBefore(middleAnchor, middleFragment, null);
+    insertSiblingsBefore(ancestor, suffixFragment, ancestor.tagName.toLowerCase());
+    parent.removeChild(ancestor);
+    // `spec` is currently unused but kept on the call site for
+    // future tag-specific behaviour (e.g. retaining link href on
+    // `<a>` partial unwrap should preserve href on the prefix +
+    // suffix clones, which `cloneNode` handles via createElement
+    // matching the original tagName).
+    void spec;
+  }
+
+  /**
    * J-UI-5 (#1083, R-5.7): toggle wrap the lines covered by the
    * selection in `<ul>`/`<ol>`. Each line becomes one `<li>`. When
    * the selection is already inside a list of the same tag, unwrap
@@ -641,17 +729,35 @@ export class WavyComposer extends LitElement {
     if (!this._bodyElement.contains(range.startContainer)) return;
     const existing = this._findAncestorTag(range.startContainer, [listTag]);
     if (existing) {
-      // Unwrap each <li>'s text into the parent and remove the list.
+      // Codex review #1095 threads PRRT_kwDOBwxLXs5-Gun0 / -GulD:
+      // toggle-off must only unwrap the `<li>`s that the selection
+      // intersects, leaving sibling items intact. Only when the user
+      // covers every item (or the whole list) do we drop the list
+      // wrapper entirely.
       const parent = existing.parentNode;
       if (!parent) return;
       const items = Array.from(existing.querySelectorAll("li"));
-      const fragments = items.map((li) => {
+      const selectedItems = items.filter((li) => {
+        try {
+          return range.intersectsNode(li);
+        } catch (_e) {
+          return false;
+        }
+      });
+      const targetItems = selectedItems.length > 0 ? selectedItems : items;
+      // Each unwrapped <li> becomes a <div> so block-level
+      // separation between adjacent former list items survives.
+      for (const li of targetItems) {
         const div = document.createElement("div");
         while (li.firstChild) div.appendChild(li.firstChild);
-        return div;
-      });
-      for (const frag of fragments) parent.insertBefore(frag, existing);
-      parent.removeChild(existing);
+        existing.parentNode.insertBefore(div, existing);
+        li.parentNode.removeChild(li);
+      }
+      // Drop the empty list wrapper; otherwise leave it in place
+      // with the remaining items as a residual list.
+      if (existing.querySelector("li") == null && existing.parentNode) {
+        existing.parentNode.removeChild(existing);
+      }
       this._afterBodyMutation();
       return;
     }
@@ -835,7 +941,12 @@ export class WavyComposer extends LitElement {
       "h3",
       "h4"
     ]);
-    const containerTags = new Set(["ul", "ol", "li", "blockquote"]);
+    // `<li>` is intentionally NOT a container candidate: stripping it
+    // separately would pull the item's text into its parent list and
+    // collapse adjacent items together. We rely on the `<ul>`/`<ol>`
+    // unwrap (which expands each `<li>` into its own `<div>` block,
+    // see `_unwrapElement`) to handle list teardown.
+    const containerTags = new Set(["ul", "ol", "blockquote"]);
     const walker = document.createTreeWalker(this._bodyElement, NodeFilter.SHOW_ELEMENT, null);
     const stripCandidates = [];
     let node = walker.currentNode;
@@ -885,6 +996,27 @@ export class WavyComposer extends LitElement {
     if (!element) return;
     const parent = element.parentNode;
     if (!parent) return;
+    // Codex review #1095 thread PRRT_kwDOBwxLXs5-F-d2: container
+    // unwraps (`<ul>`, `<ol>`) must preserve item boundaries so
+    // `<ul><li>a</li><li>b</li></ul>` does not collapse to `ab`.
+    // Wrap each `<li>`'s contents in a `<div>` block so the post-
+    // unwrap DOM keeps one block per former item; the body's text
+    // serializer treats a `<div>` boundary as a newline.
+    const tag = element.tagName ? element.tagName.toLowerCase() : "";
+    if (tag === "ul" || tag === "ol") {
+      const itemElements = Array.from(element.children).filter(
+        (child) => child.tagName && child.tagName.toLowerCase() === "li"
+      );
+      if (itemElements.length > 0) {
+        for (const li of itemElements) {
+          const div = document.createElement("div");
+          while (li.firstChild) div.appendChild(li.firstChild);
+          parent.insertBefore(div, element);
+        }
+        parent.removeChild(element);
+        return;
+      }
+    }
     while (element.firstChild) parent.insertBefore(element.firstChild, element);
     parent.removeChild(element);
   }
@@ -921,9 +1053,14 @@ export class WavyComposer extends LitElement {
    */
   _insertTaskListAtCaret() {
     if (!this._bodyElement) return;
-    const selection = document.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0);
+    // Codex review #1095 thread PRRT_kwDOBwxLXs5-F-ds: read the
+    // active range via `_activeRange()` (cached at the body's
+    // `selectionchange` listener) instead of `document.getSelection()`
+    // directly, so the action still works after the toolbar steals
+    // focus in Firefox / WebKit (where `document.getSelection()` does
+    // not pierce shadow roots).
+    const range = this._activeRange();
+    if (!range) return;
     if (!this._bodyElement.contains(range.startContainer)) return;
     const ul = document.createElement("ul");
     ul.className = "wavy-task-list";
@@ -948,8 +1085,7 @@ export class WavyComposer extends LitElement {
     const caretRange = document.createRange();
     caretRange.selectNodeContents(li);
     caretRange.collapse(false);
-    selection.removeAllRanges();
-    selection.addRange(caretRange);
+    this._restoreSelectionRange(caretRange);
     // Re-emit draft-change so consumers see the new line.
     const value = this._serializeBodyText();
     this.draft = value;

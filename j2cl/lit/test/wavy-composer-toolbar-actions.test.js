@@ -612,3 +612,136 @@ describe("wavy-composer list toggle preserves inline markup", () => {
     expect(chip.getAttribute("data-mention-id")).to.equal("alice@x.test");
   });
 });
+
+// J-UI-5 (#1083, codex / coderabbit threads PRRT_kwDOBwxLXs5-Gunw,
+// PRRT_kwDOBwxLXs5-F-8i): inline toggle-off must split the wrapper
+// at the selection boundaries — text outside the selection keeps
+// the formatting.
+describe("wavy-composer inline toggle-off splits the ancestor", () => {
+  it("Bold off on partial range keeps the rest bold", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML = "<strong>hello world</strong>";
+    body.focus();
+    // Select only "hello".
+    const strong = body.querySelector("strong");
+    const range = document.createRange();
+    range.setStart(strong.firstChild, 0);
+    range.setEnd(strong.firstChild, 5);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    el.dispatchEvent(
+      new CustomEvent("wavy-format-toolbar-action", {
+        detail: { actionId: "bold", selectionDescriptor: {} },
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    // "hello" is no longer bold but " world" remains bold.
+    const survivors = Array.from(body.querySelectorAll("strong")).map(
+      (s) => s.textContent
+    );
+    expect(survivors.join("|")).to.equal(" world");
+    expect(body.textContent).to.equal("hello world");
+  });
+});
+
+// J-UI-5 (#1083, codex / coderabbit threads PRRT_kwDOBwxLXs5-Gun0,
+// PRRT_kwDOBwxLXs5-GulD): list toggle-off must only unwrap the
+// selected `<li>`s; sibling items keep list semantics.
+describe("wavy-composer list toggle-off scopes to selected items", () => {
+  it("Unordered list off on one <li> keeps siblings inside <ul>", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML = "<ul><li>keep</li><li>strip</li></ul>";
+    body.focus();
+    // Select inside the second <li>.
+    const items = body.querySelectorAll("li");
+    const range = document.createRange();
+    range.selectNodeContents(items[1]);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    el.dispatchEvent(
+      new CustomEvent("wavy-format-toolbar-action", {
+        detail: { actionId: "unordered-list", selectionDescriptor: {} },
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    // First <li> stays inside <ul>; second <li> now a <div>.
+    const ul = body.querySelector("ul");
+    expect(ul, "<ul> survives because sibling kept list membership").to.exist;
+    expect(ul.querySelectorAll("li").length).to.equal(1);
+    expect(ul.querySelector("li").textContent).to.equal("keep");
+  });
+
+  it("Unordered list off when selection covers every <li> removes the <ul>", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML = "<ul><li>a</li><li>b</li></ul>";
+    body.focus();
+    const items = body.querySelectorAll("li");
+    // Selection that starts inside the first <li> and ends inside the
+    // second — both items are covered, so the unwrap empties the
+    // `<ul>` and the wrapper itself is dropped.
+    const range = document.createRange();
+    range.setStart(items[0].firstChild, 0);
+    range.setEnd(items[1].firstChild, 1);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    el.dispatchEvent(
+      new CustomEvent("wavy-format-toolbar-action", {
+        detail: { actionId: "unordered-list", selectionDescriptor: {} },
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    expect(body.querySelector("ul")).to.not.exist;
+  });
+});
+
+// J-UI-5 (#1083, coderabbit thread PRRT_kwDOBwxLXs5-F-d2): clearing
+// formatting on a fully-covered <ul>/<ol> must keep item boundaries
+// (block separation), not collapse "a" + "b" into "ab".
+describe("wavy-composer clear-formatting preserves list boundaries", () => {
+  it("clear formatting on a full <ul> keeps items as separate blocks", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const body = bodyOf(el);
+    body.innerHTML = "<ul><li>a</li><li>b</li></ul>";
+    body.focus();
+    const range = document.createRange();
+    range.selectNodeContents(body);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    el._onSelectionChange();
+
+    el.dispatchEvent(
+      new CustomEvent("wavy-format-toolbar-action", {
+        detail: { actionId: "clear-formatting", selectionDescriptor: {} },
+        bubbles: true,
+        composed: true
+      })
+    );
+
+    // <ul>/<ol> gone, <li> gone, but each former item is a separate
+    // <div> block so the body's serialized text reads "a\nb", not "ab".
+    expect(body.querySelector("ul")).to.not.exist;
+    expect(body.querySelector("li")).to.not.exist;
+    const blocks = body.querySelectorAll("div");
+    expect(blocks.length).to.be.greaterThan(1);
+    expect(el._serializeBodyText()).to.contain("a\nb");
+  });
+});
