@@ -485,12 +485,13 @@ public final class J2clSearchPanelView implements J2clSearchPanelController.View
           // wavy-search-filter-toggled and wavy-search-submit; the
           // filter listener already drove a search via onFilterToggled.
           // Skip the redundant submit so the chip click does not
-          // produce two identical backend requests.
-          if (chipDrivenSubmitPending != null
-              && chipDrivenSubmitPending.equals(resolved)) {
+          // produce two identical backend requests. See
+          // shouldSuppressChipDrivenSubmit for the predicate.
+          if (shouldSuppressChipDrivenSubmit(chipDrivenSubmitPending, resolved)) {
             chipDrivenSubmitPending = null;
             return;
           }
+          chipDrivenSubmitPending = null;
           listener.onQuerySubmitted(resolved);
         });
     searchRail.addEventListener(
@@ -553,6 +554,24 @@ public final class J2clSearchPanelView implements J2clSearchPanelController.View
           // without going through the new-query reset path.
           listener.onRefreshRequested();
         });
+  }
+
+  /**
+   * J-UI-2 (#1080 / R-4.5): predicate for the wavy-search-submit
+   * dedupe. Returns true when the pending chip-driven submit query
+   * matches the resolved submit value — the contract relies on the
+   * Lit rail dispatching {@code wavy-search-filter-toggled} BEFORE
+   * {@code wavy-search-submit} on a chip toggle (verified by the
+   * "filter-toggled is dispatched BEFORE wavy-search-submit"
+   * regression test in {@code wavy-search-rail.test.js}). Extracted
+   * for JVM testability — the live event-listener path uses
+   * elemental2 DOM types which are not available under plain JUnit.
+   */
+  static boolean shouldSuppressChipDrivenSubmit(String pending, String resolved) {
+    if (pending == null) {
+      return false;
+    }
+    return pending.equals(resolved);
   }
 
   private static String readDetailString(Event evt, String key) {

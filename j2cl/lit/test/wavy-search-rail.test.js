@@ -400,6 +400,27 @@ describe("<wavy-search-rail>", () => {
         "submit:in:inbox is:unread"
       ]);
     });
+
+    it("filter-toggled is dispatched BEFORE wavy-search-submit (dedup order contract)", async () => {
+      // J-UI-2 (#1080): the J2CL view's chipDrivenSubmitPending dedup
+      // assumes filter-toggled lands first, sets the flag, and the
+      // following submit listener sees and consumes the flag. If a
+      // future refactor reverses this order the J2CL submit handler
+      // would issue a duplicate backend search.
+      const el = await fixture(html`<wavy-search-rail></wavy-search-rail>`);
+      await el.updateComplete;
+      const chip = el.renderRoot.querySelector('[data-filter-id="unread"]');
+      const order = [];
+      el.addEventListener("wavy-search-submit", () => order.push("submit"));
+      el.addEventListener("wavy-search-filter-toggled", () =>
+        order.push("toggled")
+      );
+      chip.click();
+      // Re-assert order independent of registration order — the rail's
+      // _toggleFilter must dispatch toggled first so the J2CL flag can
+      // pre-arm before submit checks it.
+      expect(order).to.deep.equal(["toggled", "submit"]);
+    });
   });
 
   // J-UI-1 (#1079): the rail must expose a `cards` slot so the J2CL
