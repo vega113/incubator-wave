@@ -73,13 +73,17 @@ export class WaveBlip extends LitElement {
     // V-4 (#1102): blip depth distinguishes the root blip from reply
     // blips so the avatar paints at the larger root size and the
     // header timestamp picks up the ` · root` suffix that the mockup
-    // shows on the top-of-thread blip.
-    blipDepth: { type: String, attribute: "data-blip-depth", reflect: true },
+    // shows on the top-of-thread blip. Set by the Java renderer on
+    // the host element directly — Lit reads it but does not reflect
+    // back, otherwise the constructor's empty default would clobber
+    // the renderer-set attribute on upgrade.
+    blipDepth: { type: String, attribute: "data-blip-depth", reflect: false },
     // V-4 (#1102): controls thread chevron glyph orientation. When the
-    // thread is collapsed the chevron flips from ▾ to ▸. The boolean
-    // is sourced from the `data-j2cl-thread-collapsed` attribute the
-    // toolbar surface controller maintains on the parent thread host.
-    threadCollapsed: { type: Boolean, attribute: "data-thread-collapsed", reflect: true },
+    // thread is collapsed the chevron flips from triangle-down to
+    // triangle-right. Set by the toolbar surface controller via the
+    // host attribute; Lit reads but does not reflect back for the
+    // same upgrade-clobber reason as data-blip-depth.
+    threadCollapsed: { type: Boolean, attribute: "data-thread-collapsed", reflect: false },
     // F-3.S2 (#1038, R-5.4): per-blip task state. Reflected to
     // data-task-completed so wave-blip[data-task-completed="true"] can
     // be targeted by external CSS hooks (mark-read pipeline, search
@@ -125,7 +129,6 @@ export class WaveBlip extends LitElement {
       text-align: center;
       font: var(--wavy-type-label, 0.75rem / 1.35 sans-serif);
       color: var(--wavy-text-quiet, rgba(232, 240, 255, 0.42));
-      cursor: pointer;
       user-select: none;
     }
     :host([focused]) .thread-chevron {
@@ -184,6 +187,15 @@ export class WaveBlip extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: var(--wavy-spacing-2, 8px);
+      margin-top: var(--wavy-spacing-2, 8px);
+      text-decoration: none;
+    }
+    /* Even when the parent body picks up line-through via the
+     * task-completed strikethrough rule, keep the toolbar action labels
+     * legible — strikethrough on action buttons looks broken. */
+    :host([data-task-completed]) .toolbar,
+    :host([data-task-completed]) .toolbar * {
+      text-decoration: none;
     }
     .inline-reply-chip {
       display: inline-block;
@@ -329,7 +341,11 @@ export class WaveBlip extends LitElement {
       hash ^= key.charCodeAt(i);
       hash = Math.imul(hash, 0x01000193);
     }
-    return Math.abs(hash) % 4;
+    // Unsigned right-shift coerces the signed Math.imul result into
+    // [0, 2^32) before the modulus, so the distribution across the
+    // 4-entry palette stays uniform (Math.abs on INT32_MIN would
+    // skew it).
+    return (hash >>> 0) % 4;
   }
 
   /**
@@ -512,31 +528,31 @@ export class WaveBlip extends LitElement {
             ${this.postedAt}${timestampSuffix}
           </time>
         </div>
-        <div class="toolbar" slot="metadata">
-          <wave-blip-toolbar
-            data-blip-id=${this.blipId}
-            data-wave-id=${this.waveId}
-            data-variant=${this.focused ? "focused" : "default"}
-            @wave-blip-toolbar-reply=${this._onReplyClick}
-            @wave-blip-toolbar-edit=${this._onEditClick}
-            @wave-blip-toolbar-link=${this._onLinkClick}
-            @wave-blip-toolbar-delete=${this._onDeleteClick}
-          ></wave-blip-toolbar>
-          <span class="task-affordance-slot" data-task-affordance-slot>
-            <wavy-task-affordance
-              data-blip-id=${this.blipId}
-              data-wave-id=${this.waveId}
-              ?data-task-completed=${this.taskCompleted}
-              data-task-assignee=${this.taskAssignee || ""}
-              data-task-due-date=${this.taskDueDate || ""}
-              .participants=${this._participants}
-              @wave-blip-task-toggled=${this._onTaskToggled}
-            ></wavy-task-affordance>
-          </span>
-        </div>
         <div class="body">
           <slot></slot>
           ${chip}
+          <div class="toolbar" data-blip-toolbar-row="true">
+            <wave-blip-toolbar
+              data-blip-id=${this.blipId}
+              data-wave-id=${this.waveId}
+              data-variant=${this.focused ? "focused" : "default"}
+              @wave-blip-toolbar-reply=${this._onReplyClick}
+              @wave-blip-toolbar-edit=${this._onEditClick}
+              @wave-blip-toolbar-link=${this._onLinkClick}
+              @wave-blip-toolbar-delete=${this._onDeleteClick}
+            ></wave-blip-toolbar>
+            <span class="task-affordance-slot" data-task-affordance-slot>
+              <wavy-task-affordance
+                data-blip-id=${this.blipId}
+                data-wave-id=${this.waveId}
+                ?data-task-completed=${this.taskCompleted}
+                data-task-assignee=${this.taskAssignee || ""}
+                data-task-due-date=${this.taskDueDate || ""}
+                .participants=${this._participants}
+                @wave-blip-task-toggled=${this._onTaskToggled}
+              ></wavy-task-affordance>
+            </span>
+          </div>
         </div>
         <slot name="blip-extension" slot="blip-extension"></slot>
         <slot name="reactions" slot="reactions"></slot>

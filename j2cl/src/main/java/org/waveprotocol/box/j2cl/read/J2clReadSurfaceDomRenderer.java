@@ -669,10 +669,20 @@ public final class J2clReadSurfaceDomRenderer {
       if (parentId == null || parentId.isEmpty()) {
         continue;
       }
-      NodeList<Element> threadBlips = threadHost.querySelectorAll(":scope > [data-blip-id]");
+      // Walk the immediate children rather than recursing — only
+      // direct wave-blip children of this thread host count toward
+      // the parent's reply tally. The Element.children HTMLCollection
+      // skips text/comment nodes, so we just filter by data-blip-id.
+      int direct = 0;
+      Element child = threadHost.firstElementChild;
+      while (child != null) {
+        if (child.hasAttribute("data-blip-id")) {
+          direct++;
+        }
+        child = child.nextElementSibling;
+      }
       Integer prior = winReplyCounts.get(parentId);
-      int rc = (prior == null ? 0 : prior) + threadBlips.length;
-      winReplyCounts.put(parentId, rc);
+      winReplyCounts.put(parentId, (prior == null ? 0 : prior) + direct);
     }
     for (Map.Entry<String, Integer> entry : winReplyCounts.entrySet()) {
       HTMLElement parentHost = winBlipHostsById.get(entry.getKey());
@@ -826,8 +836,11 @@ public final class J2clReadSurfaceDomRenderer {
     for (int i = 0; i < effective.size(); i++) {
       J2clReadBlip blip = effective.get(i);
       HTMLElement blipElement = renderBlip(blip, i);
-      // V-4 (#1102): advertise reply-count + depth on the wave-blip host
-      // so the V-4 visual chrome (chevron + larger root avatar) paints.
+      // V-4 (#1102): advertise reply-count on the wave-blip host so
+      // the chevron paints. data-blip-depth is set *after* the final
+      // parent-resolution decision below so an orphan blip reattached
+      // to rootThread paints with the correct root depth, not the
+      // pre-resolution "reply" guess.
       Integer rc = replyCounts.get(blip.getBlipId());
       if (rc != null && rc > 0) {
         blipElement.setAttribute("reply-count", String.valueOf(rc));
@@ -840,7 +853,6 @@ public final class J2clReadSurfaceDomRenderer {
         rootThread.appendChild(blipElement);
         continue;
       }
-      blipElement.setAttribute("data-blip-depth", "reply");
       HTMLElement parentBlipHost = blipHostsById.get(parentBlipId);
       if (parentBlipHost == null) {
         // Defense-in-depth for a malformed manifest. The projector's
@@ -850,10 +862,15 @@ public final class J2clReadSurfaceDomRenderer {
         // before its parent (or references a parent that does not
         // exist in the streamed snapshot). Fall back to root-thread
         // placement so the user still sees the blip's content
-        // instead of having it silently dropped.
+        // instead of having it silently dropped. V-4 (#1102): an
+        // orphan reattached to rootThread paints as a root-depth
+        // blip — the full-size avatar matches its visual placement
+        // alongside genuine root blips.
+        blipElement.setAttribute("data-blip-depth", "root");
         rootThread.appendChild(blipElement);
         continue;
       }
+      blipElement.setAttribute("data-blip-depth", "reply");
       String threadKey = parentBlipId + "::" + threadId;
       HTMLElement threadHost = threadHostsByThreadKey.get(threadKey);
       if (threadHost == null) {

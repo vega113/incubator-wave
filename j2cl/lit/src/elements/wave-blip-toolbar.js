@@ -125,7 +125,7 @@ export class WaveBlipToolbar extends LitElement {
         aria-label="Delete this blip"
         @click=${() => this._emit("wave-blip-toolbar-delete")}
       >
-        <span class="glyph" aria-hidden="true">🗑</span>Delete
+        <span class="glyph" aria-hidden="true">✕</span>Delete
       </button>
       <button
         type="button"
@@ -133,7 +133,7 @@ export class WaveBlipToolbar extends LitElement {
         aria-label="Copy permalink to this blip"
         @click=${() => this._emit("wave-blip-toolbar-link")}
       >
-        <span class="glyph" aria-hidden="true">🔗</span>Link
+        <span class="glyph" aria-hidden="true">§</span>Link
       </button>
       <button
         type="button"
