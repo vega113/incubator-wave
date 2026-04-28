@@ -7,6 +7,13 @@ body {
   color: #10233b;
 }
 
+/* V-2 (#1100): hide developer-facing strings on the J2CL root shell unless
+   the j2cl-debug-overlay flag is on. The body class is set by HtmlRenderer.
+   Elements in shadow roots (Lit composers) gate their own render() instead. */
+body.j2cl-root-shell-page:not(.j2cl-debug-overlay-on) [data-j2cl-debug-only] {
+  display: none !important;
+}
+
 .sidecar-shell {
   min-height: 100vh;
   display: flex;

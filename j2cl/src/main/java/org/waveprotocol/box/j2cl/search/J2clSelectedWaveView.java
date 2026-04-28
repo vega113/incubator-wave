@@ -79,6 +79,14 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       unread = queryRequired(existingCard, ".sidecar-selected-unread");
       status = queryRequired(existingCard, ".sidecar-selected-status");
       detail = queryRequired(existingCard, ".sidecar-selected-detail");
+      // V-2 (#1100): re-bound server-first DOM may pre-date the debug-only
+      // attribute; mark the dev-string elements so sidecar.css hides them.
+      markDebugOnly(status);
+      markDebugOnly(detail);
+      HTMLElement reboundEyebrow = (HTMLElement) existingCard.querySelector(".sidecar-eyebrow");
+      if (reboundEyebrow != null) {
+        markDebugOnly(reboundEyebrow);
+      }
       participantSummary = queryRequired(existingCard, ".sidecar-selected-participants");
       snippet = queryRequired(existingCard, ".sidecar-selected-snippet");
       composeHost = queryRequired(existingCard, ".sidecar-selected-compose");
@@ -117,6 +125,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     HTMLElement eyebrow = (HTMLElement) DomGlobal.document.createElement("p");
     eyebrow.className = "sidecar-eyebrow";
     eyebrow.textContent = "Opened wave";
+    markDebugOnly(eyebrow);
     coldCard.appendChild(eyebrow);
 
     // F-2 slice 2 (#1046, R-3.7-chrome): depth-nav bar (G.2 + G.3).
@@ -135,10 +144,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
     status = (HTMLElement) DomGlobal.document.createElement("p");
     status.className = "sidecar-selected-status";
+    markDebugOnly(status);
     coldCard.appendChild(status);
 
     detail = (HTMLElement) DomGlobal.document.createElement("p");
     detail.className = "sidecar-selected-detail";
+    markDebugOnly(detail);
     coldCard.appendChild(detail);
 
     // F-2 slice 5 (#1055, R-3.7 G.6): awareness pill — hidden by default
@@ -442,8 +453,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     }
 
     title.textContent = model.getTitleText();
-    unread.textContent = model.getUnreadText();
-    unread.hidden = model.getUnreadText().isEmpty();
+    String unreadText = effectiveUnreadText(model);
+    unread.textContent = unreadText;
+    unread.hidden = unreadText.isEmpty();
     unread.className =
         model.isReadStateStale()
             ? "sidecar-selected-unread sidecar-selected-unread-stale"
@@ -703,8 +715,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   }
 
   private void renderPreservedServerFirstState(J2clSelectedWaveModel model) {
-    unread.textContent = model.getUnreadText();
-    unread.hidden = model.getUnreadText().isEmpty();
+    String unreadText = effectiveUnreadText(model);
+    unread.textContent = unreadText;
+    unread.hidden = unreadText.isEmpty();
     unread.className =
         model.isReadStateStale()
             ? "sidecar-selected-unread sidecar-selected-unread-stale"
@@ -799,6 +812,33 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
   private static double now() {
     return DomGlobal.performance == null ? 0 : DomGlobal.performance.now();
+  }
+
+  // V-2 (#1100): mark dev-string elements so sidecar.css hides them when
+  // the j2cl-debug-overlay flag is off (default). The flag flips the
+  // .j2cl-debug-overlay-on class on <body>; the rule is in sidecar.css.
+  private static void markDebugOnly(HTMLElement element) {
+    if (element != null) {
+      element.setAttribute("data-j2cl-debug-only", "true");
+    }
+  }
+
+  // V-2 (#1100): the "Read." / "Selected digest is read." status words
+  // are dev-only; suppress them from the wave header. Visible product
+  // text ("X unread.", "X unread in the selected digest.") flows
+  // through unchanged. The model's getUnreadText() is itself unchanged
+  // so existing tests and controllers still see the full string. The
+  // sentinel strings live in J2clSelectedWaveModel.formatUnreadText and
+  // resolveUnreadText — keep this list in lockstep.
+  private static String effectiveUnreadText(J2clSelectedWaveModel model) {
+    String text = model.getUnreadText();
+    if (text == null || text.isEmpty()) {
+      return "";
+    }
+    if ("Read.".equals(text) || "Selected digest is read.".equals(text)) {
+      return "";
+    }
+    return text;
   }
 
   @SuppressWarnings("unchecked")
