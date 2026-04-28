@@ -29,7 +29,7 @@ function startServer(rootDir) {
       let urlPath = decodeURIComponent(req.url.split("?")[0]);
       if (urlPath === "/") urlPath = "/index.html";
       const filePath = path.join(rootDir, urlPath);
-      if (!filePath.startsWith(rootDir)) {
+      if (!filePath.startsWith(rootDir + path.sep)) {
         res.writeHead(403); res.end("forbidden"); return;
       }
       fs.readFile(filePath, (err, buf) => {

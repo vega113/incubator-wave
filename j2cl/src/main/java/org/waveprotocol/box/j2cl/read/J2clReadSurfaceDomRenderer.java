@@ -679,7 +679,7 @@ public final class J2clReadSurfaceDomRenderer {
       int direct = 0;
       Element child = threadHost.firstElementChild;
       while (child != null) {
-        if (child.hasAttribute("data-blip-id")) {
+        if (child.hasAttribute("data-blip-id") || child.hasAttribute("data-placeholder-blip-id")) {
           direct++;
         }
         child = child.nextElementSibling;
@@ -1676,6 +1676,19 @@ public final class J2clReadSurfaceDomRenderer {
       button.setAttribute("aria-expanded", "true");
       button.setAttribute("aria-label", "Collapse " + threadLabel(thread));
       button.textContent = "Collapse thread";
+    }
+    // V-4 (#1102): mirror collapse state onto the parent wave-blip so the
+    // chevron glyph (▾/▸) reflects the actual thread state.
+    String parentBlipId = thread.getAttribute("data-parent-blip-id");
+    if (parentBlipId != null && !parentBlipId.isEmpty()) {
+      Element parentBlip = host.querySelector("[data-blip-id='" + parentBlipId + "']");
+      if (parentBlip != null) {
+        if (collapsed) {
+          parentBlip.setAttribute("data-thread-collapsed", "true");
+        } else {
+          parentBlip.removeAttribute("data-thread-collapsed");
+        }
+      }
     }
     if (collapsed && isHiddenByCollapsedThread(focusedBlip)) {
       focusNearestVisibleFrom(focusedBlip);
