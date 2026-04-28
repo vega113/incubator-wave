@@ -7,7 +7,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
-import { chromium } from "../../j2cl/lit/node_modules/playwright/index.mjs";
+import { chromium } from "playwright";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..", "..");

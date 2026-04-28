@@ -16,11 +16,11 @@ import { LitElement, css, html } from "lit";
  * focused-blip variant repaints with a cyan-soft fill via
  * `data-variant="focused"` set on this element by the parent `<wave-blip>`.
  *
- * The toolbar is rendered inside `<wave-blip>`'s `.body` container so
- * that the F-0 `<wavy-blip-card>` recipe envelope stays in charge of
- * focus + unread + pulse. Visibility is driven by the parent's
- * :focus-within + :hover rules; the toolbar itself just renders the
- * buttons.
+ * The toolbar is rendered as a sibling to `<wave-blip>`'s `.body`
+ * container (not inside it), so the task-completed strikethrough that
+ * applies to `.body` does not propagate to the action buttons. Visibility
+ * is driven by the parent's :focus-within + :hover rules; the toolbar
+ * itself just renders the buttons.
  *
  * Each button emits its own event so the parent <wave-blip> can re-emit
  * the public `wave-blip-*-requested` events with the blip context.
