@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentComposerController;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentIdGenerator;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentUploadClient;
@@ -43,12 +45,36 @@ public final class J2clComposeSurfaceController {
     void openAttachmentPicker();
 
     void focusReplyComposer();
+
+    /**
+     * J-UI-3 (#1081, R-5.1): focus the title input on the create form so
+     * the rail's New Wave button gives the user an immediate place to type.
+     * Default no-op so existing test doubles compile unchanged.
+     */
+    default void focusCreateSurface() {}
   }
 
   public interface Listener {
     void onCreateDraftChanged(String draft);
 
+    /**
+     * J-UI-3 (#1081, R-5.1): the title input value changed.
+     * Default no-op so existing test doubles compile unchanged.
+     */
+    default void onCreateTitleChanged(String title) {}
+
     void onCreateSubmitted(String draft);
+
+    /**
+     * J-UI-3 (#1081, R-5.1): submit triggered from the create form with
+     * both title and body provided in a single event so the controller
+     * snapshots both at the same instant. Default delegates to
+     * {@link #onCreateSubmitted} so plain-text-only test doubles continue
+     * to work; production wires this directly.
+     */
+    default void onCreateSubmittedWithTitle(String title, String draft) {
+      onCreateSubmitted(draft);
+    }
 
     void onReplyDraftChanged(String draft);
 
@@ -138,9 +164,19 @@ public final class J2clComposeSurfaceController {
     default void onDeleteBlipRequested(String blipId, String expectedWaveId) {}
   }
 
-  @FunctionalInterface
   public interface CreateSuccessHandler {
     void onWaveCreated(String waveId);
+
+    /**
+     * J-UI-3 (#1081, R-5.1): called instead of {@link #onWaveCreated} on
+     * production paths that wire the optimistic-digest prepend in the
+     * search panel. {@code title} is the trimmed title-input value the
+     * user typed; the default delegates to {@link #onWaveCreated} so
+     * existing handlers continue to work.
+     */
+    default void onWaveCreated(String waveId, String title) {
+      onWaveCreated(waveId);
+    }
   }
 
   @FunctionalInterface
@@ -295,7 +331,34 @@ public final class J2clComposeSurfaceController {
   // chip aria-pressed state reflects "this is your own reaction." Null
   // means no listener installed.
   private CurrentUserAddressListener currentUserAddressListener;
+  // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: hook fired
+  // synchronously at the start of submitCreate so the search panel can
+  // stamp the active query for the upcoming optimistic stub before the
+  // bootstrap fetch and any user-driven query change. Null means no hook
+  // installed; legacy callers that did not register a hook continue to
+  // fall back to the success-time query inside onOptimisticDigest.
+  private Runnable preCreateSubmitHook;
+  // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DA7T: hook fired
+  // on every create-failure path (bootstrap error, submit error,
+  // stale-generation guard) so the search panel can drop the matching
+  // submit-query stamp it queued in preCreateSubmitHook. Without this
+  // pairing a failed attempt's stamp leaks forward and scopes the next
+  // successful create's optimistic stub to the wrong rail.
+  private Runnable createFailureHook;
+  // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DZqM: idempotency
+  // set tracking which create generations already had their submit-query
+  // stamp retired. Each preCreateSubmitHook fires under one generation;
+  // any one of {handleCreateFailure, bootstrap-mismatch, response-
+  // mismatch, onSignedOut} may retire it, but only the first such call
+  // for that generation should run createFailureHook. Without this, a
+  // late stale callback firing AFTER onSignedOut already dropped the
+  // stamp would dequeue a NEWER submit's stamp from the search panel.
+  private final Set<Integer> retiredCreateStampGenerations = new HashSet<>();
   private String createDraft = "";
+  // J-UI-3 (#1081, R-5.1): the title-input value separate from createDraft.
+  // Composed into the rich-content document on submit alongside the body so
+  // WaveDigester picks the conv/title annotation up server-side.
+  private String createTitleDraft = "";
 
   /**
    * F-3.S3 (#1038, R-5.5): callback fired after each successful
@@ -485,8 +548,18 @@ public final class J2clComposeSurfaceController {
           }
 
           @Override
+          public void onCreateTitleChanged(String title) {
+            J2clComposeSurfaceController.this.onCreateTitleChanged(title);
+          }
+
+          @Override
           public void onCreateSubmitted(String draft) {
             J2clComposeSurfaceController.this.onCreateSubmitted(draft);
+          }
+
+          @Override
+          public void onCreateSubmittedWithTitle(String title, String draft) {
+            J2clComposeSurfaceController.this.onCreateSubmittedWithTitle(title, draft);
           }
 
           @Override
@@ -563,6 +636,17 @@ public final class J2clComposeSurfaceController {
 
   public void onSignedOut() {
     signedOut = true;
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DQdB: a sign-out
+    // mid-create bumps createGeneration which gates the deferred
+    // success/failure callbacks out, so handleCreateFailure (and its
+    // failure hook) never run. The pre-submit hook already queued a
+    // submit-query stamp on the search panel; without explicit cleanup
+    // here that stamp would leak forward and scope the next successful
+    // create's stub to the wrong rail. Snapshot the in-flight bit
+    // BEFORE we clear createSubmitting, then run the failure hook to
+    // drop the orphaned stamp.
+    boolean abortedInFlightCreate = createSubmitting;
+    int abortedCreateGeneration = createGeneration;
     createGeneration++;
     replyGeneration++;
     createSubmitting = false;
@@ -586,6 +670,17 @@ public final class J2clComposeSurfaceController {
     createStatusText = "Sign in to create or reply in the J2CL root shell.";
     replyStatusText = createStatusText;
     render();
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DQdB +
+    // PRRT_kwDOBwxLXs5-DZqM: drop the submit-query stamp left behind
+    // by an in-flight create that the generation guard will now silently
+    // discard. retireCreateStampOnce records the aborted generation in
+    // retiredCreateStampGenerations so a stale bootstrap/submit
+    // callback firing later for the same generation cannot dequeue a
+    // newer submission's stamp. Run AFTER render so the view sees the
+    // signed-out chrome before any downstream effect.
+    if (abortedInFlightCreate) {
+      retireCreateStampOnce(abortedCreateGeneration);
+    }
   }
 
   public void onCreateDraftChanged(String draft) {
@@ -594,9 +689,45 @@ public final class J2clComposeSurfaceController {
     render();
   }
 
+  /**
+   * J-UI-3 (#1081, R-5.1): the title input's value changed. Live updates
+   * are kept lossless so users can type multi-word titles normally — we
+   * only neutralise embedded newlines (paste safety: a literal newline
+   * would break the conv/title annotation span). Leading and trailing
+   * whitespace is preserved here and trimmed on submit (codex P1 review
+   * thread on PR #1090).
+   */
+  public void onCreateTitleChanged(String title) {
+    createTitleDraft = sanitizeTitleLive(title);
+    createErrorText = "";
+    render();
+  }
+
   public void onCreateSubmitted(String draft) {
     createDraft = normalizeDraft(draft);
     submitCreate();
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): submit triggered from the title input (Enter key).
+   * Snapshots both title and body before submit so a stray draft-change after
+   * Enter does not race with submitCreate. The submit path is the only place
+   * that trims the title, so live edits keep every character the user typed.
+   */
+  public void onCreateSubmittedWithTitle(String title, String draft) {
+    createTitleDraft = normalizeTitleForSubmit(title);
+    createDraft = normalizeDraft(draft);
+    submitCreate();
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): focuses the title input on the create form.
+   * Public entrypoint for the rail's New Wave button via the root shell.
+   */
+  public void focusCreateSurface() {
+    if (started) {
+      view.focusCreateSurface();
+    }
   }
 
   public void onReplyDraftChanged(String draft) {
@@ -1065,6 +1196,53 @@ public final class J2clComposeSurfaceController {
   }
 
   /**
+   * J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: install a
+   * hook fired synchronously at the start of {@link #submitCreate}, BEFORE
+   * the gateway bootstrap fetch and the server round-trip. The root shell
+   * uses it to stamp the search panel's active query as the upcoming
+   * optimistic stub's submit-time scope so a query change between submit
+   * and success cannot bind the stub to the wrong rail. Idempotent —
+   * passing {@code null} disables the hook.
+   */
+  public void setPreCreateSubmitHook(Runnable hook) {
+    this.preCreateSubmitHook = hook;
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DA7T: install a
+   * hook fired on every create-failure path so the search panel can drop
+   * the submit-query stamp the pre-submit hook queued. The hook is
+   * invoked synchronously when {@link #handleCreateFailure} fires, so
+   * the matching pendingSubmitQueries entry is dequeued before any
+   * subsequent successful create can consume it. Idempotent — passing
+   * {@code null} disables the hook.
+   */
+  public void setCreateFailureHook(Runnable hook) {
+    this.createFailureHook = hook;
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DZqM: retire the
+   * submit-query stamp queued by preCreateSubmitHook for {@code
+   * generation}. Idempotent per generation: a second call for the same
+   * generation is a silent no-op so a stale bootstrap/submit callback
+   * cannot dequeue a newer submission's stamp after onSignedOut already
+   * dropped this one. Best-effort: a hook RuntimeException is swallowed.
+   */
+  private void retireCreateStampOnce(int generation) {
+    if (createFailureHook == null) {
+      return;
+    }
+    if (retiredCreateStampGenerations.add(generation)) {
+      try {
+        createFailureHook.run();
+      } catch (RuntimeException ignored) {
+        // Best-effort: never re-throw out of an integration callback.
+      }
+    }
+  }
+
+  /**
    * F-3.S3 (#1038, R-5.5): publish the latest per-blip reaction
    * snapshot from the model. The controller uses this on each toggle
    * click to decide whether the user is adding or removing their
@@ -1260,7 +1438,10 @@ public final class J2clComposeSurfaceController {
       render();
       return;
     }
-    if (createDraft.trim().isEmpty()) {
+    // J-UI-3 (#1081, R-5.1): allow submit when EITHER title or body has text.
+    // The user story is "type a title and a message" so a body-only or
+    // title-only submission is still a valid create.
+    if (createDraft.trim().isEmpty() && createTitleDraft.trim().isEmpty()) {
       createStatusText = "";
       createErrorText = "Enter some text before creating a wave.";
       render();
@@ -1270,11 +1451,31 @@ public final class J2clComposeSurfaceController {
     createStatusText = "Bootstrapping the root-shell submit session.";
     createErrorText = "";
     final String submittedDraft = createDraft;
+    final String submittedTitle = createTitleDraft;
     final int generation = ++createGeneration;
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-CyWx: stamp the
+    // pre-submit search query (via the root shell's hook) BEFORE the
+    // bootstrap fetch and server round-trip so the optimistic stub
+    // scoping is anchored to the rail visible when the user clicked
+    // submit, not the rail visible when the server responds.
+    if (preCreateSubmitHook != null) {
+      try {
+        preCreateSubmitHook.run();
+      } catch (RuntimeException ignored) {
+        // Hook side-effects are best-effort; never fail the submit because
+        // an integration callback misbehaved.
+      }
+    }
     render();
     gateway.fetchRootSessionBootstrap(
         bootstrap -> {
           if (generation != createGeneration) {
+            // J-UI-3 codex P2 PRRT_kwDOBwxLXs5-DZqM: superseded generation;
+            // retire this generation's stamp once. The idempotency set
+            // prevents a stale callback from dequeuing a newer
+            // submission's stamp after onSignedOut already retired this
+            // one.
+            retireCreateStampOnce(generation);
             return;
           }
           notifyCurrentUserAddress(bootstrap.getAddress());
@@ -1282,7 +1483,9 @@ public final class J2clComposeSurfaceController {
           try {
             request =
                 deltaFactory.createWaveRequest(
-                    bootstrap.getAddress(), submittedDraft, buildDocument(submittedDraft, false, ""));
+                    bootstrap.getAddress(),
+                    submittedDraft,
+                    buildDocument(submittedTitle, submittedDraft, false, ""));
           } catch (RuntimeException e) {
             handleCreateFailure(generation, messageOrDefault(e, "Unable to build the create request."));
             return;
@@ -1292,7 +1495,7 @@ public final class J2clComposeSurfaceController {
           gateway.submit(
               bootstrap,
               request.getSubmitRequest(),
-              response -> handleCreateResponse(generation, request, response),
+              response -> handleCreateResponse(generation, request, submittedTitle, submittedDraft, response),
               error -> handleCreateFailure(generation, error));
         },
         error -> handleCreateFailure(generation, error));
@@ -1301,8 +1504,13 @@ public final class J2clComposeSurfaceController {
   private void handleCreateResponse(
       int generation,
       CreateWaveRequest request,
+      String submittedTitle,
+      String submittedDraft,
       SidecarSubmitResponse response) {
     if (generation != createGeneration) {
+      // J-UI-3 codex P2 PRRT_kwDOBwxLXs5-DZqM: superseded; retire this
+      // generation's stamp idempotently.
+      retireCreateStampOnce(generation);
       return;
     }
     if (!response.getErrorMessage().isEmpty()) {
@@ -1310,7 +1518,13 @@ public final class J2clComposeSurfaceController {
       return;
     }
     createSubmitting = false;
+    // Use the immutable snapshots taken in submitCreate() so that a title
+    // edit that arrives during the server round-trip does not corrupt the
+    // stub title passed to the optimistic-digest handler.
+    String createdTitle = submittedTitle;
+    String createdBodyForStub = submittedDraft;
     createDraft = "";
+    createTitleDraft = "";
     activeCommandId = "";
     annotationCommandId = "";
     commandStatusText = "";
@@ -1319,18 +1533,31 @@ public final class J2clComposeSurfaceController {
     createErrorText = "";
     render();
     if (createSuccessHandler != null) {
-      createSuccessHandler.onWaveCreated(request.getCreatedWaveId());
+      String stubTitle = createdTitle.trim().isEmpty()
+          ? firstNonBlankLine(createdBodyForStub)
+          : createdTitle.trim();
+      createSuccessHandler.onWaveCreated(request.getCreatedWaveId(), stubTitle);
     }
   }
 
   private void handleCreateFailure(int generation, String error) {
     if (generation != createGeneration) {
+      // J-UI-3 codex P2 PRRT_kwDOBwxLXs5-DZqM: superseded; retire this
+      // generation's stamp idempotently.
+      retireCreateStampOnce(generation);
       return;
     }
     createSubmitting = false;
     createStatusText = "";
     createErrorText = error == null || error.isEmpty() ? "Create wave failed." : error;
     render();
+    // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DA7T + PRRT_kwDOBwxLXs5-DZqM:
+    // pair the pre-submit stamp with a failure-time drop, gated by
+    // generation so a later stale callback can't double-drop. retire-
+    // CreateStampOnce is idempotent per generation.
+    {
+      retireCreateStampOnce(generation);
+    }
   }
 
   private void submitReply() {
@@ -1459,6 +1686,7 @@ public final class J2clComposeSurfaceController {
         new J2clComposeSurfaceModel(
             !signedOut,
             createDraft,
+            createTitleDraft,
             createSubmitting,
             createStatusText,
             createErrorText,
@@ -1477,7 +1705,21 @@ public final class J2clComposeSurfaceController {
 
   private J2clComposerDocument buildDocument(
       String draftText, boolean includeAttachments, String submittedAnnotationCommandId) {
-    return buildDocument(draftText, includeAttachments, submittedAnnotationCommandId, false);
+    return buildDocument("", draftText, includeAttachments, submittedAnnotationCommandId, false);
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): create-flow overload that prepends the wave title
+   * as a {@code conv/title} annotated-text component. {@code titleText} is
+   * the trimmed title-input value; empty/null is a no-op so reply-paths that
+   * forward an empty title work unchanged.
+   */
+  private J2clComposerDocument buildDocument(
+      String titleText,
+      String draftText,
+      boolean includeAttachments,
+      String submittedAnnotationCommandId) {
+    return buildDocument(titleText, draftText, includeAttachments, submittedAnnotationCommandId, false);
   }
 
   private J2clComposerDocument buildDocument(
@@ -1485,7 +1727,25 @@ public final class J2clComposeSurfaceController {
       boolean includeAttachments,
       String submittedAnnotationCommandId,
       boolean includeMentions) {
+    return buildDocument("", draftText, includeAttachments, submittedAnnotationCommandId, includeMentions);
+  }
+
+  private J2clComposerDocument buildDocument(
+      String titleText,
+      String draftText,
+      boolean includeAttachments,
+      String submittedAnnotationCommandId,
+      boolean includeMentions) {
     J2clComposerDocument.Builder builder = J2clComposerDocument.builder();
+    // J-UI-3: prepend the title annotation when a non-blank title was typed.
+    // titleText() is a no-op on null/empty so reply-paths pass through cleanly.
+    builder.titleText(titleText);
+    // When a title and body text are both present, insert a newline between them so
+    // the two runs are not concatenated into a single character sequence in the blip.
+    if (titleText != null && !titleText.trim().isEmpty()
+        && draftText != null && !draftText.trim().isEmpty()) {
+      builder.text("\n");
+    }
     // Reply submits pass the snapshotted command id; create submits pass an empty id.
     J2clDailyToolbarAction action = J2clDailyToolbarAction.fromId(submittedAnnotationCommandId);
     String annotationKey = annotationKey(action);
@@ -2071,6 +2331,73 @@ public final class J2clComposeSurfaceController {
 
   private static String normalizeDraft(String draft) {
     return draft == null ? "" : draft;
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): live-edit sanitiser for the title input. Replaces
+   * any embedded line break (CR, LF, or any run of them) with a single
+   * space so the conv/title annotation never spans more than one line and
+   * Windows CRLF pastes do not introduce double spaces. Otherwise
+   * preserves the raw input — including trailing whitespace — so users
+   * can type multi-word titles normally without each space being eaten
+   * between keystrokes (CodeRabbit follow-up on PR #1090).
+   */
+  private static String sanitizeTitleLive(String title) {
+    if (title == null) {
+      return "";
+    }
+    StringBuilder out = new StringBuilder(title.length());
+    boolean inBreakRun = false;
+    for (int i = 0; i < title.length(); i++) {
+      char c = title.charAt(i);
+      if (c == '\n' || c == '\r') {
+        if (!inBreakRun) {
+          out.append(' ');
+          inBreakRun = true;
+        }
+      } else {
+        out.append(c);
+        inBreakRun = false;
+      }
+    }
+    return out.toString();
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): submit-time normaliser. Strips leading/trailing
+   * whitespace in addition to the live-edit newline sanitisation so the
+   * outgoing delta carries a clean single-line title. Called only from the
+   * submit path; live edits use {@link #sanitizeTitleLive}.
+   */
+  private static String normalizeTitleForSubmit(String title) {
+    return sanitizeTitleLive(title).trim();
+  }
+
+  /**
+   * J-UI-3 (#1081, R-5.1): pulls the first non-blank line out of {@code text}
+   * for use as an optimistic-stub title fallback when the user submitted a
+   * body-only create. Empty/null input yields an empty string so the
+   * optimistic-prepend path can fall through to its "(untitled wave)"
+   * placeholder.
+   */
+  private static String firstNonBlankLine(String text) {
+    if (text == null) {
+      return "";
+    }
+    int len = text.length();
+    int i = 0;
+    while (i < len) {
+      int lineEnd = i;
+      while (lineEnd < len && text.charAt(lineEnd) != '\n' && text.charAt(lineEnd) != '\r') {
+        lineEnd++;
+      }
+      String line = text.substring(i, lineEnd).trim();
+      if (!line.isEmpty()) {
+        return line;
+      }
+      i = lineEnd + 1;
+    }
+    return "";
   }
 
   private static String extractDomain(String waveId) {
