@@ -656,6 +656,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       card.removeAttribute("data-j2cl-server-first-selected-wave");
       card.removeAttribute("data-j2cl-server-first-mode");
       card.removeAttribute("data-j2cl-upgrade-placeholder");
+      // J-UI-8 (#1086, R-6.3): clear the AT busy signal once the live
+      // render has replaced the server-first state. Server-side the
+      // attribute is only set when hasSnapshot is true; removing it
+      // unconditionally is safe because removeAttribute is a no-op for
+      // missing attributes.
+      card.removeAttribute("aria-busy");
     }
     serverFirstActive = false;
     serverFirstWaveId = "";

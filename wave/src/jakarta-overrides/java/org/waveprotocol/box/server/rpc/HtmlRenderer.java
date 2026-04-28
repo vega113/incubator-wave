@@ -3361,10 +3361,40 @@ public final class HtmlRenderer {
       String rootShellReturnTarget, String websocketAddress,
       J2clSelectedWaveSnapshotRenderer.SnapshotResult snapshotResult,
       boolean railCardsEnabled) {
+    return renderJ2clRootShellPage(
+        sessionJson,
+        analyticsAccount,
+        buildCommit,
+        serverBuildTime,
+        currentReleaseId,
+        rootShellReturnTarget,
+        websocketAddress,
+        snapshotResult,
+        railCardsEnabled,
+        null,
+        false);
+  }
+
+  /**
+   * J-UI-8 (#1086): full overload that surfaces the viewer's account
+   * locale (R-6.1 "locale text respects user preference on the server
+   * HTML") plus the {@code j2cl-server-first-paint} flag value to the
+   * SSR. When the flag is on, a {@code <noscript>} info banner ships
+   * inside the body so visitors with JavaScript disabled understand the
+   * page is showing a static read-only snapshot.
+   */
+  public static String renderJ2clRootShellPage(JSONObject sessionJson, String analyticsAccount,
+      String buildCommit, long serverBuildTime, String currentReleaseId,
+      String rootShellReturnTarget, String websocketAddress,
+      J2clSelectedWaveSnapshotRenderer.SnapshotResult snapshotResult,
+      boolean railCardsEnabled,
+      String viewerLocale,
+      boolean serverFirstPaintEnabled) {
     J2clSelectedWaveSnapshotRenderer.SnapshotResult resolvedSnapshotResult =
         snapshotResult == null
             ? J2clSelectedWaveSnapshotRenderer.SnapshotResult.noWave()
             : snapshotResult;
+    String safeHtmlLang = sanitizeHtmlLang(viewerLocale);
     JSONObject resolvedSessionJson = sessionJson == null ? new JSONObject() : sessionJson;
     String address = resolvedSessionJson.optString(SessionConstants.ADDRESS, "");
     String role = resolvedSessionJson.optString(SessionConstants.ROLE, HumanAccountData.ROLE_USER);
@@ -3390,7 +3420,7 @@ public final class HtmlRenderer {
     String safeAddress = escapeHtml(address);
 
     StringBuilder sb = new StringBuilder(3072);
-    sb.append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n");
+    sb.append("<!DOCTYPE html>\n<html lang=\"").append(safeHtmlLang).append("\">\n<head>\n");
     sb.append("<meta charset=\"UTF-8\">\n");
     sb.append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=5.0\">\n");
     sb.append("<title>SupaWave J2CL Root Shell</title>\n");
@@ -3420,6 +3450,14 @@ public final class HtmlRenderer {
     appendJ2clRootShellStatsShim(sb);
     appendAnalyticsFragment(sb, analyticsAccount, null);
     sb.append("</head>\n<body class=\"j2cl-root-shell-page\">\n");
+    if (serverFirstPaintEnabled) {
+      // J-UI-8 (#1086, R-6.1): static info banner for visitors with
+      // JavaScript disabled. The <noscript> wrapper makes the entire
+      // block a no-op when JS is enabled, so flag-on with JS-on is
+      // identical to flag-off; we only ship the banner for the
+      // JS-disabled audience that R-6.1 explicitly addresses.
+      appendJ2clRootShellNoscriptBanner(sb, signedIn);
+    }
     if (signedIn) {
       sb.append("<shell-root data-j2cl-root-shell=\"true\" data-j2cl-root-return-target=\"")
           .append(safeResolvedReturnTarget)
@@ -3908,6 +3946,127 @@ public final class HtmlRenderer {
     sb.append("</section>\n");
   }
 
+  /**
+   * J-UI-8 (#1086, R-6.1): clamp a viewer-supplied locale string into a
+   * BCP-47-shaped value safe for the {@code <html lang>} attribute. We
+   * accept the standard 2–3 letter language subtag plus optional region
+   * subtags ({@code en-US}, {@code zh-Hans-CN}); anything outside that
+   * shape — including null, empty, or hostile payloads — falls back to
+   * {@code en} so the attribute can never be used as an HTML / script
+   * injection vector. This is defense-in-depth: account locales already
+   * round-trip through the registration UI's allowlist, but the renderer
+   * is a fan-in point for several callers and must not assume the
+   * upstream sanitisation.
+   */
+  static String sanitizeHtmlLang(String locale) {
+    if (locale == null || locale.isEmpty()) {
+      return "en";
+    }
+    int len = locale.length();
+    if (len > 35) {
+      // BCP-47 caps a single tag at 8-char subtags + separators; 35 is
+      // already generous. Reject anything longer rather than truncate so
+      // we never produce a half-tag.
+      return "en";
+    }
+    int dashCount = 0;
+    int subtagStart = 0;
+    for (int i = 0; i < len; i++) {
+      char c = locale.charAt(i);
+      if (c == '-' || c == '_') {
+        if (i == subtagStart) {
+          return "en"; // empty subtag / leading separator
+        }
+        int subtagLen = i - subtagStart;
+        if (subtagLen < 1 || subtagLen > 8) {
+          return "en";
+        }
+        // Primary subtag is letters only; secondary subtags can be
+        // alphanumeric (region codes like 419, script tags like Hans).
+        if (dashCount == 0) {
+          if (subtagLen < 2 || subtagLen > 3) {
+            return "en";
+          }
+          if (!isAsciiLetters(locale, subtagStart, i)) {
+            return "en";
+          }
+        } else if (!isAsciiAlnum(locale, subtagStart, i)) {
+          return "en";
+        }
+        subtagStart = i + 1;
+        dashCount++;
+        if (dashCount > 4) {
+          return "en";
+        }
+      }
+    }
+    int finalLen = len - subtagStart;
+    if (finalLen < 1 || finalLen > 8) {
+      return "en";
+    }
+    if (dashCount == 0) {
+      if (finalLen < 2 || finalLen > 3 || !isAsciiLetters(locale, subtagStart, len)) {
+        return "en";
+      }
+    } else if (!isAsciiAlnum(locale, subtagStart, len)) {
+      return "en";
+    }
+    // Normalize separators to '-' (BCP-47) — Java's java.util.Locale
+    // round-trips with '_' for older account rows; the HTML lang
+    // attribute is BCP-47.
+    return locale.replace('_', '-');
+  }
+
+  private static boolean isAsciiLetters(String s, int start, int end) {
+    for (int i = start; i < end; i++) {
+      char c = s.charAt(i);
+      if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static boolean isAsciiAlnum(String s, int start, int end) {
+    for (int i = start; i < end; i++) {
+      char c = s.charAt(i);
+      if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * J-UI-8 (#1086, R-6.1): emit a static {@code <noscript>} banner that
+   * explains the page is showing a read-only snapshot and that compose,
+   * reactions, and live updates require JavaScript. The block is a no-op
+   * when JS is enabled — browsers strip {@code <noscript>} content from
+   * the rendered DOM — so flag-on with JS-on is identical to flag-off.
+   * The banner styles are inlined inside the noscript block so they only
+   * apply when the banner itself renders.
+   */
+  private static void appendJ2clRootShellNoscriptBanner(StringBuilder sb, boolean signedIn) {
+    sb.append("<noscript>\n");
+    sb.append("<style>\n");
+    sb.append(".j2cl-noscript-banner {\n");
+    sb.append("  background: #fff8e1; border: 1px solid #f0c674; color: #5d4609;\n");
+    sb.append("  padding: 12px 16px; margin: 12px auto; max-width: 880px; border-radius: 12px;\n");
+    sb.append("  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n");
+    sb.append("}\n");
+    sb.append(".j2cl-noscript-banner strong { display: block; font-size: 15px; margin-bottom: 4px; }\n");
+    sb.append("</style>\n");
+    sb.append("<div class=\"j2cl-noscript-banner\" data-j2cl-noscript-banner=\"true\" role=\"note\">\n");
+    sb.append("<strong>JavaScript is disabled in this browser.</strong>\n");
+    if (signedIn) {
+      sb.append("This page is showing a static read-only snapshot of the selected wave. Compose, reactions, and live updates are unavailable until JavaScript is enabled.\n");
+    } else {
+      sb.append("Sign in to load waves; once signed in, JavaScript is required for compose, reactions, and live updates.\n");
+    }
+    sb.append("</div>\n");
+    sb.append("</noscript>\n");
+  }
+
   private static void appendJ2clRootShellStatsShim(StringBuilder sb) {
     sb.append("<script type=\"text/javascript\">\n");
     sb.append("var stats = window.__stats = window.__stats || [];\n");
@@ -4352,6 +4511,13 @@ public final class HtmlRenderer {
       sb.append(" data-j2cl-server-first-selected-wave=\"")
           .append(StringEscapeUtils.escapeHtml4(effectiveResult.getWaveId()))
           .append("\"");
+    }
+    if (hasSnapshot) {
+      // J-UI-8 (#1086, R-6.3): mark the card busy so AT clients know the
+      // pre-upgrade content is in flux. J2clSelectedWaveView clears the
+      // attribute in clearServerFirstMarkers() once the live render
+      // replaces the server-first state.
+      sb.append(" aria-busy=\"true\"");
     }
     sb.append(" data-j2cl-server-first-mode=\"")
         .append(effectiveResult.getModeValue())
