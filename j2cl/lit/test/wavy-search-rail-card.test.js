@@ -325,6 +325,34 @@ describe("<wavy-search-rail-card>", () => {
       expect(article.getAttribute("aria-label")).to.equal("Sprint review. Read.");
     });
 
+    it("rapid back-to-back unread changes keep the pulse marker until the last clear", async () => {
+      const el = await fixture(html`
+        <wavy-search-rail-card
+          msg-count="3"
+          unread-count="2"
+          style="--wavy-motion-pulse-duration: 80;"
+        ></wavy-search-rail-card>
+      `);
+      await el.updateComplete;
+      el.setAttribute("unread-count", "1");
+      await el.updateComplete;
+      // First pulse is in flight.
+      expect(el.dataset.pulse).to.equal("ring");
+      // Second pulse arrives well before the first 80ms timer would fire.
+      await aTimeout(20);
+      el.setAttribute("unread-count", "0");
+      await el.updateComplete;
+      expect(el.dataset.pulse).to.equal("ring");
+      // First pulse's original timer would have fired by now if it had not
+      // been cancelled. The marker must still be present because the second
+      // pulse rearmed the timer.
+      await aTimeout(70);
+      expect(el.dataset.pulse).to.equal("ring");
+      // Second pulse's full duration has now elapsed; marker clears.
+      await aTimeout(40);
+      expect(el.dataset.pulse).to.be.undefined;
+    });
+
     it("zero-titled card still produces a sensible aria-label", async () => {
       const el = await fixture(html`
         <wavy-search-rail-card unread-count="0"></wavy-search-rail-card>

@@ -213,8 +213,14 @@ export class WavySearchRailCard extends LitElement {
         getComputedStyle(this).getPropertyValue("--wavy-motion-pulse-duration") || "600",
         10
       ) || 600;
-    setTimeout(() => {
+    // Cancel any in-flight clear-timer so a rapid second pulse does not
+    // get truncated by the first pulse's timer firing mid-second-pulse.
+    if (this._pulseClearHandle) {
+      clearTimeout(this._pulseClearHandle);
+    }
+    this._pulseClearHandle = setTimeout(() => {
       delete this.dataset.pulse;
+      this._pulseClearHandle = 0;
     }, dur);
   }
 
