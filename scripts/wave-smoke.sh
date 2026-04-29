@@ -191,7 +191,7 @@ status() {
 }
 
 check() {
-  local root_body_file root_body j2cl_root_body_file j2cl_root_body legacy_status
+  local j2cl_root_body_file j2cl_root_body legacy_status
   local root_gwt_presence j2cl_root_shell_presence
   local gwt_view_body_file gwt_view_body gwt_view_status
 
@@ -205,14 +205,10 @@ check() {
   rm -f "$gwt_view_body_file"
   root_gwt_presence=$([[ "$gwt_view_body" == *'webclient/webclient.nocache.js'* ]] && echo present || echo missing)
 
-  root_body_file=$(mktemp)
-  root_status=$(curl -sS --max-time 10 -o "$root_body_file" -w "%{http_code}" "http://localhost:$PORT/" || true)
-  root_body=$(cat "$root_body_file" 2>/dev/null || true)
-  rm -f "$root_body_file"
+  root_status=$(curl -sS --max-time 10 -o /dev/null -w "%{http_code}" "http://localhost:$PORT/" || true)
   echo "ROOT_STATUS=${root_status:-000}"
   echo "GWT_VIEW_STATUS=${gwt_view_status:-000}"
   echo "ROOT_GWT=${root_gwt_presence}"
-  echo "ROOT_SHELL=${root_gwt_presence}"
 
   if [[ "${root_status}" -ne 200 ]]; then
     echo "Unexpected root status: ${root_status}" >&2
