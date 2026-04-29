@@ -364,7 +364,7 @@ public final class J2clSelectedWaveProjector {
     J2clSelectedWaveViewportState fragmentState =
         J2clSelectedWaveViewportState.fromFragments(update.getFragments());
     if (fragmentState.hasBlipEntries()) {
-      if (previousMatchesWave && previous != null && !previous.getViewportState().isEmpty()) {
+      if (canMergeAsLiveBlipFragments(update.getFragments(), fragmentState, previousMatchesWave, previous)) {
         return previous
             .getViewportState()
             .mergeFragments(update.getFragments(), J2clViewportGrowthDirection.FORWARD)
@@ -385,6 +385,47 @@ public final class J2clSelectedWaveProjector {
       return documentState;
     }
     return J2clSelectedWaveViewportState.empty();
+  }
+
+  /**
+   * Returns true when the incoming fragment payload is a pure incremental live-blip delta that
+   * should extend the previous viewport window via {@code mergeFragments}.
+   *
+   * <p>Two conditions must both hold:
+   * <ol>
+   *   <li>All entries in the incoming fragment state are blip entries (no index / manifest
+   *       ranges). Full-window snapshots include metadata ranges and are authoritative — they
+   *       must replace, not extend, the prior viewport.
+   *   <li>The fragment's {@code snapshotVersion} is {@code <= 0} (typically {@code -1}, the
+   *       default the transport codec injects when the server omits the field). A positive
+   *       snapshot version signals a bounded full-window snapshot (e.g. on open or reconnect);
+   *       even if it is blip-only, such a payload defines an authoritative new window and must
+   *       replace the old one so stale blips from the previous window do not remain visible.
+   * </ol>
+   */
+  private static boolean canMergeAsLiveBlipFragments(
+      SidecarSelectedWaveFragments fragments,
+      J2clSelectedWaveViewportState fragmentState,
+      boolean previousMatchesWave,
+      J2clSelectedWaveModel previous) {
+    if (!previousMatchesWave || previous == null || previous.getViewportState().isEmpty()) {
+      return false;
+    }
+    // Full-window snapshots carry a positive snapshotVersion; they are authoritative and must
+    // replace the previous viewport rather than merge into it.
+    if (fragments != null && fragments.getSnapshotVersion() > 0) {
+      return false;
+    }
+    // Full selected-wave viewport windows include metadata/index ranges and are authoritative.
+    // Pure blip payloads are incremental live fragments and should extend the prior window.
+    boolean sawBlip = false;
+    for (J2clSelectedWaveViewportState.Entry entry : fragmentState.getEntries()) {
+      if (!entry.isBlip()) {
+        return false;
+      }
+      sawBlip = true;
+    }
+    return sawBlip;
   }
 
   private static String resolveReplyTargetBlipId(SidecarSelectedWaveUpdate update) {

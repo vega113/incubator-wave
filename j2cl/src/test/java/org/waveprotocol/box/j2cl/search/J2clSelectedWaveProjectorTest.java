@@ -1436,7 +1436,25 @@ public class J2clSelectedWaveProjectorTest {
         J2clSelectedWaveProjector.project(
             WAVE_ID,
             digest("Wave A", "snippet", 0),
-            rootFragmentUpdate(1, 40L, "HASH", "Old root text"),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                40L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Collections.<SidecarSelectedWaveDocument>emptyList(),
+                new SidecarSelectedWaveFragments(
+                    40L,
+                    30L,
+                    40L,
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragmentRange("blip:b+root", 30L, 40L),
+                        new SidecarSelectedWaveFragmentRange("blip:b+stale", 30L, 40L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment("blip:b+root", "Old root text", 0, 0),
+                        new SidecarSelectedWaveFragment("blip:b+stale", "Stale text", 0, 0)))),
             null,
             0);
 
@@ -1468,6 +1486,7 @@ public class J2clSelectedWaveProjectorTest {
 
     Assert.assertEquals(50L, mixedFragments.getViewportState().getSnapshotVersion());
     Assert.assertEquals(2, mixedFragments.getViewportState().getEntries().size());
+    assertNoEntryBySegment(mixedFragments.getViewportState(), "blip:b+stale");
     Assert.assertEquals(
         "metadata",
         entryBySegment(mixedFragments.getViewportState(), MANIFEST_SEGMENT).getRawSnapshot());
@@ -1486,6 +1505,8 @@ public class J2clSelectedWaveProjectorTest {
             null,
             0);
 
+    // Live deltas from the server have snapshotVersion <= 0 (the codec defaults to -1 when the
+    // server omits the field). Using -1L here matches the wire semantics for a post-submit push.
     J2clSelectedWaveModel liveReply =
         J2clSelectedWaveProjector.project(
             WAVE_ID,
@@ -1500,7 +1521,7 @@ public class J2clSelectedWaveProjectorTest {
                 Arrays.asList("user@example.com"),
                 Collections.<SidecarSelectedWaveDocument>emptyList(),
                 new SidecarSelectedWaveFragments(
-                    50L,
+                    -1L,
                     45L,
                     50L,
                     Arrays.asList(
@@ -1518,10 +1539,143 @@ public class J2clSelectedWaveProjectorTest {
     Assert.assertEquals(
         "Reply submitted from composer",
         entryBySegment(liveReply.getViewportState(), "blip:b+reply").getRawSnapshot());
+    // The merged viewport retains the initial snapshot's version (max(-1, 40) = 40).
+    Assert.assertEquals(40L, liveReply.getViewportState().getSnapshotVersion());
     Assert.assertEquals(2, liveReply.getReadBlips().size());
     Assert.assertEquals("b+reply", liveReply.getReadBlips().get(1).getBlipId());
     Assert.assertEquals("Reply submitted from composer", liveReply.getReadBlips().get(1).getText());
     Assert.assertEquals(50L, liveReply.getWriteSession().getBaseVersion());
+  }
+
+  @Test
+  public void snapshotFragmentUpdateReplacesViewportInsteadOfMerging() {
+    // First update: blip-only snapshot (snapshotVersion > 0) establishes initial viewport.
+    J2clSelectedWaveModel first =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                40L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Collections.<SidecarSelectedWaveDocument>emptyList(),
+                new SidecarSelectedWaveFragments(
+                    1L,
+                    30L,
+                    40L,
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragmentRange("blip:b+root", 30L, 40L),
+                        new SidecarSelectedWaveFragmentRange("blip:b+old", 30L, 40L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment("blip:b+root", "Root text", 0, 0),
+                        new SidecarSelectedWaveFragment("blip:b+old", "Old blip text", 0, 0)))),
+            null,
+            0);
+
+    // Second update: another full-window blip snapshot (snapshotVersion > 0, e.g. on reconnect).
+    // Must REPLACE the previous viewport — stale "b+old" must not survive.
+    J2clSelectedWaveModel snapshot =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                2,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                60L,
+                "HASH2",
+                Arrays.asList("user@example.com"),
+                Collections.<SidecarSelectedWaveDocument>emptyList(),
+                new SidecarSelectedWaveFragments(
+                    2L,
+                    50L,
+                    60L,
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragmentRange("blip:b+root", 50L, 60L),
+                        new SidecarSelectedWaveFragmentRange("blip:b+new", 50L, 60L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment("blip:b+root", "Updated root", 0, 0),
+                        new SidecarSelectedWaveFragment("blip:b+new", "New blip text", 0, 0)))),
+            first,
+            0);
+
+    // Viewport must contain only the new snapshot entries — stale b+old must be gone.
+    Assert.assertEquals(2, snapshot.getViewportState().getEntries().size());
+    assertNoEntryBySegment(snapshot.getViewportState(), "blip:b+old");
+    Assert.assertEquals(
+        "Updated root",
+        entryBySegment(snapshot.getViewportState(), "blip:b+root").getRawSnapshot());
+    Assert.assertEquals(
+        "New blip text",
+        entryBySegment(snapshot.getViewportState(), "blip:b+new").getRawSnapshot());
+  }
+
+  @Test
+  public void liveFragmentDeltaMergesWithPreviousViewport() {
+    // First update: full-window snapshot (snapshotVersion > 0) establishes viewport.
+    J2clSelectedWaveModel first =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                40L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Collections.<SidecarSelectedWaveDocument>emptyList(),
+                new SidecarSelectedWaveFragments(
+                    1L,
+                    30L,
+                    40L,
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragmentRange("blip:b+root", 30L, 40L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment("blip:b+root", "Root text", 0, 0)))),
+            null,
+            0);
+
+    // Second update: live delta (snapshotVersion = -1, the codec default for server push).
+    // Must MERGE with the previous viewport — both old and new blips must be visible.
+    J2clSelectedWaveModel merged =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                2,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                50L,
+                "HASH2",
+                Arrays.asList("user@example.com"),
+                Collections.<SidecarSelectedWaveDocument>emptyList(),
+                new SidecarSelectedWaveFragments(
+                    -1L,
+                    45L,
+                    50L,
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragmentRange("blip:b+reply", 45L, 50L)),
+                    Arrays.asList(
+                        new SidecarSelectedWaveFragment("blip:b+reply", "Live reply", 0, 0)))),
+            first,
+            0);
+
+    // Both original and new blip must be present after a live-delta merge.
+    Assert.assertEquals(2, merged.getViewportState().getEntries().size());
+    Assert.assertEquals(
+        "Root text",
+        entryBySegment(merged.getViewportState(), "blip:b+root").getRawSnapshot());
+    Assert.assertEquals(
+        "Live reply",
+        entryBySegment(merged.getViewportState(), "blip:b+reply").getRawSnapshot());
   }
 
   @Test
@@ -3029,6 +3183,15 @@ public class J2clSelectedWaveProjectorTest {
       }
     }
     throw new AssertionError("Missing segment: " + segment);
+  }
+
+  private static void assertNoEntryBySegment(
+      J2clSelectedWaveViewportState viewport, String segment) {
+    for (J2clSelectedWaveViewportState.Entry entry : viewport.getEntries()) {
+      if (segment.equals(entry.getSegment())) {
+        throw new AssertionError("Unexpected segment: " + segment);
+      }
+    }
   }
 
   private static SidecarSelectedWaveUpdate updateWithVersionAndHash(

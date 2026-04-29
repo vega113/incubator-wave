@@ -2633,6 +2633,9 @@ public class J2clSelectedWaveControllerTest {
 
   private static SidecarSelectedWaveUpdate liveReplyFragmentUpdate(
       String replySnapshot, long resultingVersion, String historyHash, long fragmentVersion) {
+    // Live deltas pushed from the server carry snapshotVersion = -1 (the codec default when the
+    // server omits the field). Using -1L here ensures the projector treats this as an incremental
+    // live delta and merges it into the prior viewport rather than replacing it.
     return new SidecarSelectedWaveUpdate(
         2,
         "example.com!w+1/example.com!conv+root",
@@ -2643,7 +2646,7 @@ public class J2clSelectedWaveControllerTest {
         Arrays.asList("user@example.com", "teammate@example.com"),
         Collections.<SidecarSelectedWaveDocument>emptyList(),
         new SidecarSelectedWaveFragments(
-            fragmentVersion,
+            -1L,
             Math.max(0L, fragmentVersion - 1L),
             fragmentVersion,
             Arrays.asList(
