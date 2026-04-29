@@ -2359,11 +2359,12 @@ export class WavyComposer extends LitElement {
   }
 
   /**
-   * G-PORT-5 (#1114): true when `document.activeElement` is the
-   * composer host itself, the contenteditable body, or anywhere
-   * inside the mention popover host. Used to gate the blur-dismiss
-   * path in `_onSelectionChange` so a transient selection drop
-   * during the popover's first render does not collapse the popover.
+   * G-PORT-5 (#1114): true when the deepest focused element (across
+   * shadow-root boundaries) is the composer host itself, the
+   * contenteditable body, or anywhere inside the mention popover.
+   * Used to gate the blur-dismiss path in `_onSelectionChange` so a
+   * transient selection drop during the popover's first render does
+   * not collapse the popover.
    */
   _isFocusInsideComposerOrPopover() {
     if (typeof document === "undefined") return false;
@@ -2372,14 +2373,14 @@ export class WavyComposer extends LitElement {
     // outermost host. Keep descending via `shadowRoot.activeElement`
     // so we see the deepest currently-focused element. The check is
     // satisfied iff that deepest element is the composer host
-    // itself, the body, or anywhere inside the popover host.
+    // itself, the body (including reply chips inside it), or anywhere
+    // inside the popover host.
     let active = document.activeElement;
     while (active && active.shadowRoot && active.shadowRoot.activeElement) {
       active = active.shadowRoot.activeElement;
     }
     if (!active) return false;
     if (active === this) return true;
-    if (this.contains && this.contains(active)) return true;
     if (this._bodyElement && this._bodyElement.contains(active)) return true;
     if (this.renderRoot) {
       const host = this.renderRoot.querySelector(
