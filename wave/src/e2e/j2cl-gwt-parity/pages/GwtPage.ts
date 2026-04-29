@@ -152,10 +152,12 @@ export class GwtPage extends WavePage {
    * (e.g. focus already escaped).
    */
   async dismissTaskMetadataPopup(): Promise<void> {
-    const cancel = this.page.getByRole("button", { name: /^cancel$/i });
-    if (await cancel.count()) {
-      await cancel.first().click({ force: true });
-    } else {
+    const cancel = this.page.getByRole("button", { name: /^cancel$/i }).first();
+    try {
+      await cancel.waitFor({ state: "visible", timeout: 5_000 });
+      await cancel.click({ force: true });
+      await cancel.waitFor({ state: "hidden", timeout: 3_000 }).catch(() => {});
+    } catch {
       await this.page.keyboard.press("Escape");
     }
     await this.page.waitForTimeout(300);

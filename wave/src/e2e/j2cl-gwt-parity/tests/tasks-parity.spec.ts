@@ -85,6 +85,27 @@ async function waitForBlipCount(page: Page, n: number): Promise<void> {
     .toBeGreaterThanOrEqual(n);
 }
 
+/** Waits until at least n non-empty outer blip ids are populated. */
+async function waitForPopulatedBlipIds(
+  page: Page,
+  n: number
+): Promise<string[]> {
+  let latest: string[] = [];
+  await expect
+    .poll(
+      async () => {
+        latest = await blipIds(page);
+        return latest.length;
+      },
+      {
+        timeout: 30_000,
+        message: `expected at least ${n} populated blip ids`
+      }
+    )
+    .toBeGreaterThanOrEqual(n);
+  return latest;
+}
+
 /**
  * Authors a 3-blip wave on the GWT view (root + 2 replies) and
  * returns identifiers for the spec's two halves:
@@ -102,7 +123,6 @@ async function authorThreeBlipWave(
 ): Promise<{ waveId: string; blipG: string; blipJ: string }> {
   await gwt.goto("/");
   await gwt.assertInboxLoaded();
-  await page.waitForLoadState("networkidle", { timeout: 30_000 });
 
   await expect(gwt.newWaveAffordance()).toBeVisible({ timeout: 15_000 });
   await gwt.newWaveAffordance().click();
@@ -112,7 +132,7 @@ async function authorThreeBlipWave(
 
   await gwt.typeIntoBlipDocument("Root blip text");
 
-  const rootBlipId = (await blipIds(page))[0];
+  const rootBlipId = (await waitForPopulatedBlipIds(page, 1))[0];
   expect(rootBlipId, "root blip id must populate").toBeTruthy();
 
   await gwt.clickReplyOnBlip(rootBlipId);
@@ -123,7 +143,7 @@ async function authorThreeBlipWave(
   await waitForBlipCount(page, 3);
   await gwt.typeIntoBlipDocument("Third blip text");
 
-  const ids = await blipIds(page);
+  const ids = await waitForPopulatedBlipIds(page, 3);
   expect(
     ids.length,
     `wave should have at least 3 blips after authoring; saw ${ids.length}`
