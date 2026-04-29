@@ -174,20 +174,21 @@ async function sendInlineReplyJ2cl(
     .locator("button")
     .first();
   await sendBtn.scrollIntoViewIfNeeded();
-  // Use force:true to bypass hit-region checks that vary across CI
-  // viewport sizes (observed in run 25094771249). This still exercises
-  // the real button click path through J2clComposeSurfaceView.
-  await sendBtn.click({ timeout: 10_000, force: true });
+  await expect(sendBtn).toBeVisible({ timeout: 5_000 });
+  await sendBtn.click({ timeout: 10_000 });
 
-  // The new reply blip threads under the originating blip; its
-  // position in the DOM depends on the existing thread shape. Assert
-  // ANY <wave-blip> contains the typed text, rather than relying on
-  // a count delta (the read-renderer can rebuild the list during the
-  // optimistic update, which makes count comparisons racy).
+  // Wait for the inline composer to unmount — this confirms the reply
+  // was accepted. Once the composer is gone any wave-blip carrying
+  // the draft text is the newly created reply blip, not the composer
+  // itself (which also lived inside a wave-blip subtree).
+  await expect(
+    composerLocator,
+    "inline composer must unmount after send"
+  ).toHaveCount(0, { timeout: 15_000 });
   await expect(
     page.locator("wave-blip", { hasText: draftText }).first(),
     `the newly sent reply must appear as a wave-blip carrying '${draftText}'`
-  ).toBeVisible({ timeout: 30_000 });
+  ).toBeVisible({ timeout: 20_000 });
 }
 
 // Each test registers a fresh user and operates on its own
@@ -269,9 +270,8 @@ test.describe("G-PORT-4 inline reply + working compose toolbar parity", () => {
     // deferred relayout has settled — direct .first() can target a
     // hidden pre-render scratch node otherwise.
     await page.waitForTimeout(2_500);
-    const digest = page
-      .locator("text=Welcome to SupaWave >> visible=true")
-      .first();
+    const digest = page.locator("text=Welcome to SupaWave").first();
+    await expect(digest).toBeVisible({ timeout: 10_000 });
     await digest.click({ timeout: 15_000 });
     await page.waitForTimeout(6_000);
 
