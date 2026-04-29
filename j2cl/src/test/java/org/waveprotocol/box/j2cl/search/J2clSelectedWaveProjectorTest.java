@@ -2610,8 +2610,66 @@ public class J2clSelectedWaveProjectorTest {
     Assert.assertNotNull(writeSession);
     Assert.assertEquals(44L, writeSession.getBaseVersion());
     Assert.assertEquals("ABCD", writeSession.getHistoryHash());
+    Assert.assertEquals("b+root", writeSession.getReplyTargetBlipId());
     Assert.assertEquals(6, writeSession.getReplyManifestInsertPosition());
     Assert.assertEquals(8, writeSession.getReplyManifestItemCount());
+  }
+
+  @Test
+  public void writeSessionDropsPreviousManifestOffsetsWhenReplyTargetChanges() {
+    J2clSidecarWriteSession previousWriteSession =
+        new J2clSidecarWriteSession(
+            WAVE_ID,
+            CHANNEL_ID,
+            44L,
+            "ABCD",
+            "b+root",
+            Arrays.asList("user@example.com"),
+            6,
+            8);
+    J2clSelectedWaveModel previous =
+        new J2clSelectedWaveModel(
+            true,
+            false,
+            false,
+            WAVE_ID,
+            "title",
+            "snippet",
+            "",
+            "",
+            "",
+            0,
+            Arrays.asList("user@example.com"),
+            Arrays.asList("old content"),
+            previousWriteSession,
+            J2clSelectedWaveModel.UNKNOWN_UNREAD_COUNT,
+            false,
+            false,
+            false);
+    SidecarSelectedWaveUpdate retargetedWithoutBasis =
+        new SidecarSelectedWaveUpdate(
+            2,
+            WAVELET_NAME,
+            true,
+            CHANNEL_ID,
+            -1L,
+            null,
+            Arrays.asList("user@example.com"),
+            Arrays.asList(
+                new SidecarSelectedWaveDocument(
+                    "b+other", "user@example.com", 45L, 45L, "other content")),
+            null);
+
+    J2clSidecarWriteSession writeSession =
+        J2clSelectedWaveProjector.project(WAVE_ID, null, retargetedWithoutBasis, previous, 0)
+            .getWriteSession();
+
+    Assert.assertNotNull(writeSession);
+    Assert.assertEquals(44L, writeSession.getBaseVersion());
+    Assert.assertEquals("ABCD", writeSession.getHistoryHash());
+    Assert.assertEquals("b+other", writeSession.getReplyTargetBlipId());
+    Assert.assertEquals(-1, writeSession.getReplyManifestInsertPosition());
+    Assert.assertEquals(-1, writeSession.getReplyManifestItemCount());
   }
 
   // -- F-2 (#1037) per-blip metadata enrichment --------------------------------

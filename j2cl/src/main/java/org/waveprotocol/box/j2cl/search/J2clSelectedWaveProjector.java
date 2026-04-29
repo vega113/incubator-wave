@@ -347,7 +347,7 @@ public final class J2clSelectedWaveProjector {
         updateHasCoupledPair && manifestFromUpdate != null && !manifestFromUpdate.isEmpty()
             ? manifestFromUpdate
             : SidecarConversationManifest.empty();
-    if (writeManifest != null && !writeManifest.isEmpty()) {
+    if (!writeManifest.isEmpty()) {
       SidecarConversationManifest.Entry replyTarget = writeManifest.findByBlipId(replyTargetBlipId);
       if (replyTarget != null) {
         replyManifestInsertPosition = replyTarget.getReplyInsertPosition();
