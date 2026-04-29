@@ -197,10 +197,11 @@ public final class J2clSearchRailParityTest {
   }
 
   /**
-   * J-UI-1 (#1079): when the {@code j2cl-search-rail-cards} flag is OFF
-   * (default for prod) the rail SSR must NOT carry
-   * {@code data-rail-cards-enabled="true"}. The legacy plain-DOM digest
-   * path stays in place for OFF viewers.
+   * G-PORT-4 (#1113): the {@code j2cl-search-rail-cards} flag now defaults
+   * to ON, so the rail SSR carries {@code data-rail-cards-enabled="true"} for
+   * every freshly registered user without any explicit flag override. The
+   * legacy plain-DOM digest path remains available as the per-participant
+   * opt-out path (flag OFF).
    */
   @Test
   public void j2clRootShellEmitsRailCardsAttributeByDefault() throws Exception {

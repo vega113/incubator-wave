@@ -284,8 +284,7 @@ test.describe("G-PORT-4 inline reply + working compose toolbar parity", () => {
     // hidden pre-render scratch node otherwise.
     await page.waitForTimeout(2_500);
     const digest = page
-      .locator("text=Welcome to SupaWave")
-      .filter({ visible: true })
+      .locator("text=Welcome to SupaWave >> visible=true")
       .first();
     await digest.click({ timeout: 15_000 });
     await page.waitForTimeout(6_000);
