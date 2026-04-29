@@ -34,13 +34,25 @@ public final class SidecarConversationManifest {
     private final String threadId;
     private final int depth;
     private final int siblingIndex;
+    private final int replyInsertPosition;
 
     public Entry(String blipId, String parentBlipId, String threadId, int depth, int siblingIndex) {
+      this(blipId, parentBlipId, threadId, depth, siblingIndex, -1);
+    }
+
+    public Entry(
+        String blipId,
+        String parentBlipId,
+        String threadId,
+        int depth,
+        int siblingIndex,
+        int replyInsertPosition) {
       this.blipId = blipId == null ? "" : blipId;
       this.parentBlipId = parentBlipId == null ? "" : parentBlipId;
       this.threadId = threadId == null ? "" : threadId;
       this.depth = depth;
       this.siblingIndex = siblingIndex;
+      this.replyInsertPosition = Math.max(-1, replyInsertPosition);
     }
 
     public String getBlipId() {
@@ -66,21 +78,32 @@ public final class SidecarConversationManifest {
     public int getSiblingIndex() {
       return siblingIndex;
     }
+
+    /**
+     * Item position immediately before this blip's closing element in the
+     * conversation manifest. Reply submit deltas retain to this position and
+     * insert a new {@code <thread><blip/></thread>} child there.
+     */
+    public int getReplyInsertPosition() {
+      return replyInsertPosition;
+    }
   }
 
   private static final SidecarConversationManifest EMPTY =
       new SidecarConversationManifest(
-          Collections.<Entry>emptyList(), Collections.<String, Entry>emptyMap());
+          Collections.<Entry>emptyList(), Collections.<String, Entry>emptyMap(), 0);
 
   private final List<Entry> orderedEntries;
   private final Map<String, Entry> entriesByBlipId;
   private final Map<String, List<String>> childBlipIdsByParentBlipId;
+  private final int itemCount;
 
   private SidecarConversationManifest(
-      List<Entry> orderedEntries, Map<String, Entry> entriesByBlipId) {
+      List<Entry> orderedEntries, Map<String, Entry> entriesByBlipId, int itemCount) {
     this.orderedEntries = Collections.unmodifiableList(new ArrayList<Entry>(orderedEntries));
     this.entriesByBlipId =
         Collections.unmodifiableMap(new LinkedHashMap<String, Entry>(entriesByBlipId));
+    this.itemCount = Math.max(0, itemCount);
     Map<String, List<String>> children = new LinkedHashMap<String, List<String>>();
     for (Entry entry : this.orderedEntries) {
       String parent = entry.getParentBlipId();
@@ -109,6 +132,10 @@ public final class SidecarConversationManifest {
    * have already validated the parent chain.
    */
   public static SidecarConversationManifest of(List<Entry> entriesInDfsOrder) {
+    return of(entriesInDfsOrder, -1);
+  }
+
+  public static SidecarConversationManifest of(List<Entry> entriesInDfsOrder, int itemCount) {
     if (entriesInDfsOrder == null || entriesInDfsOrder.isEmpty()) {
       return EMPTY;
     }
@@ -133,7 +160,7 @@ public final class SidecarConversationManifest {
     if (filtered.isEmpty()) {
       return EMPTY;
     }
-    return new SidecarConversationManifest(filtered, byId);
+    return new SidecarConversationManifest(filtered, byId, resolveItemCount(filtered, itemCount));
   }
 
   /**
@@ -176,7 +203,10 @@ public final class SidecarConversationManifest {
     List<String> threadParentBlipStack = new ArrayList<String>();
     List<Integer> siblingCounterStack = new ArrayList<Integer>();
     List<String> openBlipStack = new ArrayList<String>();
+    List<Integer> openBlipEntryIndexStack = new ArrayList<Integer>();
     int rootSiblingCounter = 0;
+    int conversationDepth = 0;
+    int itemPosition = 0;
     int cursor = 0;
     while (cursor < rawXml.length()) {
       int tagStart = rawXml.indexOf('<', cursor);
@@ -196,11 +226,24 @@ public final class SidecarConversationManifest {
       if (closing) {
         String name = tagName(tag.substring(1).trim());
         if ("thread".equals(name)) {
-          popLast(threadStack);
-          popLast(threadParentBlipStack);
-          popLast(siblingCounterStack);
+          String threadId = removeLast(threadStack);
+          if (threadId != null) {
+            removeLast(threadParentBlipStack);
+            removeLast(siblingCounterStack);
+            itemPosition++;
+          }
         } else if ("blip".equals(name)) {
-          popLast(openBlipStack);
+          String openBlipId = removeLast(openBlipStack);
+          if (openBlipId != null) {
+            Integer entryIndex = removeLast(openBlipEntryIndexStack);
+            if (entryIndex != null && entryIndex.intValue() >= 0) {
+              setReplyInsertPosition(entries, entryIndex.intValue(), itemPosition);
+            }
+            itemPosition++;
+          }
+        } else if ("conversation".equals(name) && conversationDepth > 0) {
+          conversationDepth--;
+          itemPosition++;
         }
         continue;
       }
@@ -210,6 +253,7 @@ public final class SidecarConversationManifest {
       }
       String name = tagName(tag);
       if ("thread".equals(name)) {
+        itemPosition++;
         String threadId = attributeValue(tag, "id");
         threadStack.add(threadId == null ? "" : threadId);
         String parentBlipId =
@@ -217,13 +261,21 @@ public final class SidecarConversationManifest {
         threadParentBlipStack.add(parentBlipId);
         siblingCounterStack.add(Integer.valueOf(0));
         if (selfClosing) {
-          popLast(threadStack);
-          popLast(threadParentBlipStack);
-          popLast(siblingCounterStack);
+          removeLast(threadStack);
+          removeLast(threadParentBlipStack);
+          removeLast(siblingCounterStack);
+          itemPosition++;
         }
       } else if ("blip".equals(name)) {
+        itemPosition++;
         String blipId = attributeValue(tag, "id");
         if (blipId == null || blipId.isEmpty()) {
+          if (selfClosing) {
+            itemPosition++;
+          } else {
+            openBlipStack.add("");
+            openBlipEntryIndexStack.add(Integer.valueOf(-1));
+          }
           continue;
         }
         String parentBlipId =
@@ -240,6 +292,7 @@ public final class SidecarConversationManifest {
           siblingIndex = siblingCounterStack.get(last).intValue();
           siblingCounterStack.set(last, Integer.valueOf(siblingIndex + 1));
         }
+        int entryIndex = entries.size();
         entries.add(
             new Entry(
                 blipId,
@@ -247,12 +300,23 @@ public final class SidecarConversationManifest {
                 threadId,
                 depthFor(threadParentBlipStack),
                 siblingIndex));
-        if (!selfClosing) {
+        if (selfClosing) {
+          setReplyInsertPosition(entries, entryIndex, itemPosition);
+          itemPosition++;
+        } else {
           openBlipStack.add(blipId);
+          openBlipEntryIndexStack.add(Integer.valueOf(entryIndex));
+        }
+      } else if ("conversation".equals(name)) {
+        itemPosition++;
+        if (selfClosing) {
+          itemPosition++;
+        } else {
+          conversationDepth++;
         }
       }
     }
-    return of(entries);
+    return of(entries, itemPosition);
   }
 
   public boolean isEmpty() {
@@ -277,6 +341,11 @@ public final class SidecarConversationManifest {
     String key = parentBlipId == null ? "" : parentBlipId;
     List<String> bucket = childBlipIdsByParentBlipId.get(key);
     return bucket == null ? Collections.<String>emptyList() : bucket;
+  }
+
+  /** Total manifest document item count, used to build complete insert DocOps. */
+  public int getItemCount() {
+    return itemCount;
   }
 
   private static String tagName(String tag) {
@@ -376,9 +445,39 @@ public final class SidecarConversationManifest {
     return depth;
   }
 
-  private static <T> void popLast(List<T> values) {
-    if (values != null && !values.isEmpty()) {
-      values.remove(values.size() - 1);
+  private static <T> T removeLast(List<T> values) {
+    if (values == null || values.isEmpty()) {
+      return null;
     }
+    return values.remove(values.size() - 1);
+  }
+
+  private static int resolveItemCount(List<Entry> entries, int explicitItemCount) {
+    int inferredMin = 0;
+    for (Entry entry : entries) {
+      if (entry != null) {
+        inferredMin = Math.max(inferredMin, entry.getReplyInsertPosition() + 1);
+      }
+    }
+    if (explicitItemCount >= 0) {
+      return Math.max(explicitItemCount, inferredMin);
+    }
+    return inferredMin;
+  }
+
+  private static void setReplyInsertPosition(List<Entry> entries, int index, int position) {
+    if (entries == null || index < 0 || index >= entries.size()) {
+      return;
+    }
+    Entry entry = entries.get(index);
+    entries.set(
+        index,
+        new Entry(
+            entry.getBlipId(),
+            entry.getParentBlipId(),
+            entry.getThreadId(),
+            entry.getDepth(),
+            entry.getSiblingIndex(),
+            position));
   }
 }

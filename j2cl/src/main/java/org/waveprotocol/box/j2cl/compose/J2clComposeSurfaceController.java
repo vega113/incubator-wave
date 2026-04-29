@@ -311,6 +311,15 @@ public final class J2clComposeSurfaceController {
   @FunctionalInterface
   public interface ReplySuccessHandler {
     void onReplySubmitted(String waveId);
+
+    default void onReplySubmitted(String waveId, long resultingVersion) {
+      onReplySubmitted(waveId);
+    }
+
+    default void onReplySubmitted(
+        String waveId, long resultingVersion, String submittedBlipId) {
+      onReplySubmitted(waveId, resultingVersion);
+    }
   }
 
   public interface DeltaFactory {
@@ -444,6 +453,8 @@ public final class J2clComposeSurfaceController {
       "Wait for attachment uploads to finish before replying.";
   static final String EMPTY_REPLY_VALIDATION_MESSAGE =
       "Enter text or attach a file before replying.";
+  static final String WAITING_FOR_WRITE_SESSION_REPLY_MESSAGE =
+      "Wait for the selected wave to finish opening before sending a reply.";
   // Legacy constructors are not used by the root shell; production passes the root session seed.
   private static final String LEGACY_ATTACHMENT_SESSION_SEED = "j2cl";
 
@@ -504,6 +515,8 @@ public final class J2clComposeSurfaceController {
   private String createErrorText = "";
   private J2clSidecarWriteSession writeSession;
   private String lastSelectedWaveId;
+  private String selectedWaveParticipantContextId;
+  private List<String> selectedWaveParticipantIds = Collections.emptyList();
   private String replyDraft = "";
   private boolean replySubmitting;
   private boolean replyStaleBasis;
@@ -793,6 +806,8 @@ public final class J2clComposeSurfaceController {
     replySubmitting = false;
     writeSession = null;
     lastSelectedWaveId = null;
+    selectedWaveParticipantContextId = null;
+    selectedWaveParticipantIds = Collections.emptyList();
     replyStaleBasis = false;
     replyStaleWaveId = null;
     replyErrorText = "";
@@ -1599,6 +1614,55 @@ public final class J2clComposeSurfaceController {
     render();
   }
 
+  public void onSelectedWaveComposeContextChanged(
+      String selectedWaveId,
+      J2clSidecarWriteSession nextWriteSession,
+      List<String> participantIds) {
+    if (signedOut) {
+      return;
+    }
+    String nextContextId = selectedWaveId == null ? "" : selectedWaveId;
+    List<String> nextParticipantIds =
+        participantIds == null
+            ? Collections.<String>emptyList()
+            : Collections.unmodifiableList(new ArrayList<String>(participantIds));
+    boolean sameContext = nextContextId.equals(selectedWaveParticipantContextId);
+    if (nextContextId.isEmpty()) {
+      selectedWaveParticipantContextId = null;
+      selectedWaveParticipantIds = Collections.emptyList();
+    } else {
+      boolean contextChanged =
+          selectedWaveParticipantContextId != null
+              ? !nextContextId.equals(selectedWaveParticipantContextId)
+              : lastSelectedWaveId != null;
+      selectedWaveParticipantContextId = nextContextId;
+      lastSelectedWaveId = nextContextId;
+      if (contextChanged) {
+        replyDraft = "";
+        replyErrorText = "";
+        replyStaleBasis = false;
+        replyStaleWaveId = null;
+        resetAttachmentState();
+      }
+      if (!sameContext || !nextParticipantIds.isEmpty() || selectedWaveParticipantIds.isEmpty()) {
+        selectedWaveParticipantIds = nextParticipantIds;
+      }
+    }
+    J2clSidecarWriteSession effectiveWriteSession = nextWriteSession;
+    if (nextContextId.isEmpty()) {
+      effectiveWriteSession = null;
+    } else if (effectiveWriteSession != null
+        && !nextContextId.equals(effectiveWriteSession.getSelectedWaveId())) {
+      effectiveWriteSession = null;
+      replySubmitting = false;
+      replyErrorText = "";
+      replyStaleBasis = false;
+      replyStaleWaveId = null;
+      resetAttachmentState();
+    }
+    onWriteSessionChanged(effectiveWriteSession);
+  }
+
   private void submitCreate() {
     if (signedOut || createSubmitting) {
       render();
@@ -1733,7 +1797,10 @@ public final class J2clComposeSurfaceController {
     }
     if (writeSession == null || isEmpty(writeSession.getSelectedWaveId())) {
       replyStatusText = "";
-      replyErrorText = "Open a wave before sending a reply.";
+      replyErrorText =
+          hasSelectedWaveContext()
+              ? WAITING_FOR_WRITE_SESSION_REPLY_MESSAGE
+              : "Open a wave before sending a reply.";
       render();
       return;
     }
@@ -1782,14 +1849,17 @@ public final class J2clComposeSurfaceController {
           gateway.submit(
               bootstrap,
               request,
-              response -> handleReplyResponse(generation, submitSession, response),
+              response -> handleReplyResponse(generation, submitSession, request, response),
               error -> handleReplyFailure(generation, error));
         },
         error -> handleReplyFailure(generation, error));
   }
 
   private void handleReplyResponse(
-      int generation, J2clSidecarWriteSession submitSession, SidecarSubmitResponse response) {
+      int generation,
+      J2clSidecarWriteSession submitSession,
+      SidecarSubmitRequest request,
+      SidecarSubmitResponse response) {
     if (generation != replyGeneration) {
       return;
     }
@@ -1827,7 +1897,10 @@ public final class J2clComposeSurfaceController {
         && submitSession != null
         && submitSession.getSelectedWaveId() != null
         && !submitSession.getSelectedWaveId().isEmpty()) {
-      replySuccessHandler.onReplySubmitted(submitSession.getSelectedWaveId());
+      replySuccessHandler.onReplySubmitted(
+          submitSession.getSelectedWaveId(),
+          response.getResultingVersion(),
+          request == null ? "" : request.getClientCreatedBlipId());
     }
   }
 
@@ -1851,7 +1924,12 @@ public final class J2clComposeSurfaceController {
     if (!started) {
       return;
     }
-    boolean replyAvailable = !signedOut && hasSelectedWave(writeSession);
+    boolean hasWriteSession = hasSelectedWave(writeSession);
+    boolean replyAvailable = !signedOut && (hasWriteSession || hasSelectedWaveContext());
+    String renderedReplyStatusText =
+        replyAvailable && !hasWriteSession && "Open a wave before replying.".equals(replyStatusText)
+            ? ""
+            : replyStatusText;
     view.render(
         new J2clComposeSurfaceModel(
             !signedOut,
@@ -1861,16 +1939,16 @@ public final class J2clComposeSurfaceController {
             createStatusText,
             createErrorText,
             replyAvailable,
-            replyAvailable ? writeSession.getReplyTargetBlipId() : "",
+            hasSelectedWave(writeSession) ? writeSession.getReplyTargetBlipId() : "",
             replyDraft,
             replySubmitting,
             replyStaleBasis,
-            replyStatusText,
+            renderedReplyStatusText,
             replyErrorText,
             activeCommandId,
             commandStatusText,
             commandErrorText,
-            replyAvailable ? writeSession.getParticipantIds() : Collections.emptyList()));
+            replyAvailable ? participantsForCurrentSelection() : Collections.emptyList()));
   }
 
   private J2clComposerDocument buildDocument(
@@ -2553,6 +2631,22 @@ public final class J2clComposeSurfaceController {
 
   private static boolean hasSelectedWave(J2clSidecarWriteSession session) {
     return session != null && !isEmpty(session.getSelectedWaveId());
+  }
+
+  private boolean hasSelectedWaveContext() {
+    return selectedWaveParticipantContextId != null && !selectedWaveParticipantContextId.isEmpty();
+  }
+
+  private List<String> participantsForCurrentSelection() {
+    if (!selectedWaveParticipantIds.isEmpty() && hasSelectedWaveContext()) {
+      if (writeSession == null
+          || selectedWaveParticipantContextId.equals(writeSession.getSelectedWaveId())) {
+        return selectedWaveParticipantIds;
+      }
+    }
+    return writeSession == null
+        ? Collections.<String>emptyList()
+        : writeSession.getParticipantIds();
   }
 
   /**

@@ -20,6 +20,7 @@ import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragment;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveFragments;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveUpdate;
+import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
 
 public final class J2clSelectedWaveProjector {
   private J2clSelectedWaveProjector() {
@@ -110,12 +111,15 @@ public final class J2clSelectedWaveProjector {
     // directly from the stored conversationManifest rather than from
     // model.getReadBlips(), so allocating full-conversation placeholder
     // blips here is wasted work that grows linearly with wave size.
+    SidecarConversationManifest manifestFromUpdate = updateManifest(update);
     SidecarConversationManifest effectiveManifest =
-        chooseManifest(updateManifest(update), previousMatchesWave, previous);
+        chooseManifest(manifestFromUpdate, previousMatchesWave, previous);
     if (!hasViewportWindow) {
       readBlips = applyConversationManifest(readBlips, effectiveManifest);
     }
-    J2clSidecarWriteSession writeSession = buildWriteSession(selectedWaveId, update, previous, participantIds);
+    J2clSidecarWriteSession writeSession =
+        buildWriteSession(
+            selectedWaveId, update, previous, participantIds, manifestFromUpdate);
     boolean interactionEditable = writeSession != null;
     List<J2clInteractionBlipModel> interactionBlips =
         extractInteractionBlips(update.getDocuments(), participantIds, interactionEditable);
@@ -300,21 +304,22 @@ public final class J2clSelectedWaveProjector {
       String selectedWaveId,
       SidecarSelectedWaveUpdate update,
       J2clSelectedWaveModel previous,
-      List<String> participantIds) {
+      List<String> participantIds,
+      SidecarConversationManifest manifestFromUpdate) {
     if (selectedWaveId == null || selectedWaveId.isEmpty()) {
       return null;
     }
+    J2clSidecarWriteSession previousWriteSession =
+        previous == null ? null : previous.getWriteSession();
     String channelId = update.getChannelId();
     if ((channelId == null || channelId.isEmpty())
-        && previous != null
-        && previous.getWriteSession() != null) {
-      channelId = previous.getWriteSession().getChannelId();
+        && previousWriteSession != null) {
+      channelId = previousWriteSession.getChannelId();
     }
     String replyTargetBlipId = resolveReplyTargetBlipId(update);
     if ((replyTargetBlipId == null || replyTargetBlipId.isEmpty())
-        && previous != null
-        && previous.getWriteSession() != null) {
-      replyTargetBlipId = previous.getWriteSession().getReplyTargetBlipId();
+        && previousWriteSession != null) {
+      replyTargetBlipId = previousWriteSession.getReplyTargetBlipId();
     }
     long baseVersion;
     String historyHash;
@@ -325,17 +330,44 @@ public final class J2clSelectedWaveProjector {
     if (updateHasCoupledPair) {
       baseVersion = updateVersion;
       historyHash = updateHash;
-    } else if (previous != null && previous.getWriteSession() != null) {
-      baseVersion = previous.getWriteSession().getBaseVersion();
-      historyHash = previous.getWriteSession().getHistoryHash();
+    } else if (previousWriteSession != null) {
+      baseVersion = previousWriteSession.getBaseVersion();
+      historyHash = previousWriteSession.getHistoryHash();
     } else {
       return null;
     }
     if (channelId == null || channelId.isEmpty() || replyTargetBlipId == null || replyTargetBlipId.isEmpty()) {
       return null;
     }
+    int replyManifestInsertPosition = -1;
+    int replyManifestItemCount = -1;
+    // Rendering may reuse a cached manifest on live blip-only updates, but submit offsets must
+    // only come from a manifest coupled to the same base version/hash as the write session.
+    SidecarConversationManifest writeManifest =
+        updateHasCoupledPair && manifestFromUpdate != null && !manifestFromUpdate.isEmpty()
+            ? manifestFromUpdate
+            : SidecarConversationManifest.empty();
+    if (!writeManifest.isEmpty()) {
+      SidecarConversationManifest.Entry replyTarget = writeManifest.findByBlipId(replyTargetBlipId);
+      if (replyTarget != null) {
+        replyManifestInsertPosition = replyTarget.getReplyInsertPosition();
+        replyManifestItemCount = writeManifest.getItemCount();
+      }
+    } else if (!updateHasCoupledPair
+        && previousWriteSession != null
+        && replyTargetBlipId.equals(previousWriteSession.getReplyTargetBlipId())) {
+      replyManifestInsertPosition = previousWriteSession.getReplyManifestInsertPosition();
+      replyManifestItemCount = previousWriteSession.getReplyManifestItemCount();
+    }
     return new J2clSidecarWriteSession(
-        selectedWaveId, channelId, baseVersion, historyHash, replyTargetBlipId, participantIds);
+        selectedWaveId,
+        channelId,
+        baseVersion,
+        historyHash,
+        replyTargetBlipId,
+        participantIds,
+        replyManifestInsertPosition,
+        replyManifestItemCount);
   }
 
   private static J2clSelectedWaveViewportState projectViewportState(
@@ -345,6 +377,12 @@ public final class J2clSelectedWaveProjector {
     J2clSelectedWaveViewportState fragmentState =
         J2clSelectedWaveViewportState.fromFragments(update.getFragments());
     if (fragmentState.hasBlipEntries()) {
+      if (canMergeAsLiveBlipFragments(update.getFragments(), fragmentState, previousMatchesWave, previous)) {
+        return previous
+            .getViewportState()
+            .mergeFragments(update.getFragments(), J2clViewportGrowthDirection.FORWARD)
+            .appendMissingDocuments(update.getDocuments());
+      }
       return fragmentState.appendMissingDocuments(update.getDocuments());
     }
     if (previousMatchesWave && previous != null && !previous.getViewportState().isEmpty()) {
@@ -360,6 +398,47 @@ public final class J2clSelectedWaveProjector {
       return documentState;
     }
     return J2clSelectedWaveViewportState.empty();
+  }
+
+  /**
+   * Returns true when the incoming fragment payload is a pure incremental live-blip delta that
+   * should extend the previous viewport window via {@code mergeFragments}.
+   *
+   * <p>Two conditions must both hold:
+   * <ol>
+   *   <li>All entries in the incoming fragment state are blip entries (no index / manifest
+   *       ranges). Full-window snapshots include metadata ranges and are authoritative — they
+   *       must replace, not extend, the prior viewport.
+   *   <li>The fragment's {@code snapshotVersion} is negative (typically {@code -1}, the default
+   *       the transport codec injects when the server omits the field). A non-negative snapshot
+   *       version signals a bounded full-window snapshot (e.g. on open or reconnect);
+   *       even if it is blip-only, such a payload defines an authoritative new window and must
+   *       replace the old one so stale blips from the previous window do not remain visible.
+   * </ol>
+   */
+  private static boolean canMergeAsLiveBlipFragments(
+      SidecarSelectedWaveFragments fragments,
+      J2clSelectedWaveViewportState fragmentState,
+      boolean previousMatchesWave,
+      J2clSelectedWaveModel previous) {
+    if (!previousMatchesWave || previous == null || previous.getViewportState().isEmpty()) {
+      return false;
+    }
+    // Full-window snapshots carry a non-negative snapshotVersion; they are authoritative and must
+    // replace the previous viewport rather than merge into it.
+    if (fragments != null && fragments.getSnapshotVersion() >= 0) {
+      return false;
+    }
+    // Full selected-wave viewport windows include metadata/index ranges and are authoritative.
+    // Pure blip payloads are incremental live fragments and should extend the prior window.
+    boolean sawBlip = false;
+    for (J2clSelectedWaveViewportState.Entry entry : fragmentState.getEntries()) {
+      if (!entry.isBlip()) {
+        return false;
+      }
+      sawBlip = true;
+    }
+    return sawBlip;
   }
 
   private static String resolveReplyTargetBlipId(SidecarSelectedWaveUpdate update) {

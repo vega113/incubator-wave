@@ -1,6 +1,7 @@
 package org.waveprotocol.box.j2cl.transport;
 
 import com.google.j2cl.junit.apt.J2clTestInput;
+import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -63,6 +64,103 @@ public class SidecarFragmentsResponseTest {
     Assert.assertEquals("b+root", manifest.findByBlipId("b+second").getParentBlipId());
     Assert.assertEquals("b+second", manifest.findByBlipId("b+nested").getParentBlipId());
     Assert.assertEquals("b+root", manifest.findByBlipId("b+third").getParentBlipId());
+  }
+
+  @Test
+  public void rawManifestTracksReplyThreadInsertPositions() {
+    SidecarFragmentsResponse response =
+        SidecarFragmentsResponse.fromJson(
+            "{\"status\":\"ok\",\"waveRef\":\"example.com/w+abc/~/conv+root\","
+                + "\"version\":{\"snapshot\":71,\"start\":71,\"end\":71},"
+                + "\"ranges\":[{\"segment\":\"manifest\",\"from\":71,\"to\":71}],"
+                + "\"fragments\":[{\"segment\":\"manifest\","
+                + "\"rawSnapshot\":\"<conversation><blip id=\\\"b+root\\\">"
+                + "<thread id=\\\"t+first\\\"><blip id=\\\"b+child\\\"/>"
+                + "</thread></blip></conversation>\","
+                + "\"adjust\":[],\"diff\":[]}]}");
+
+    SidecarConversationManifest manifest =
+        SidecarConversationManifest.fromFragments(response.getFragments());
+
+    Assert.assertEquals(6, manifest.findByBlipId("b+root").getReplyInsertPosition());
+    Assert.assertEquals(4, manifest.findByBlipId("b+child").getReplyInsertPosition());
+    Assert.assertEquals(8, manifest.getItemCount());
+  }
+
+  @Test
+  public void rawManifestTracksSelfClosingRootBlipInsertPositionAndItemCount() {
+    SidecarFragmentsResponse response =
+        SidecarFragmentsResponse.fromJson(
+            "{\"status\":\"ok\",\"waveRef\":\"example.com/w+abc/~/conv+root\","
+                + "\"version\":{\"snapshot\":71,\"start\":71,\"end\":71},"
+                + "\"ranges\":[{\"segment\":\"manifest\",\"from\":71,\"to\":71}],"
+                + "\"fragments\":[{\"segment\":\"manifest\","
+                + "\"rawSnapshot\":\"<conversation><blip id=\\\"b+root\\\"/></conversation>\","
+                + "\"adjust\":[],\"diff\":[]}]}");
+
+    SidecarConversationManifest manifest =
+        SidecarConversationManifest.fromFragments(response.getFragments());
+
+    Assert.assertEquals(1, manifest.getOrderedEntries().size());
+    Assert.assertEquals(2, manifest.findByBlipId("b+root").getReplyInsertPosition());
+    Assert.assertEquals(4, manifest.getItemCount());
+  }
+
+  @Test
+  public void explicitManifestItemCountIsClampedToEntryInsertPositions() {
+    SidecarConversationManifest manifest =
+        SidecarConversationManifest.of(
+            Arrays.asList(
+                new SidecarConversationManifest.Entry(
+                    "b+root", "", "root", 0, 0, 6)),
+            3);
+
+    Assert.assertEquals(7, manifest.getItemCount());
+  }
+
+  @Test
+  public void rawManifestIgnoresInvalidBlipWithoutDesyncingStacks() {
+    SidecarFragmentsResponse response =
+        SidecarFragmentsResponse.fromJson(
+            "{\"status\":\"ok\",\"waveRef\":\"example.com/w+abc/~/conv+root\","
+                + "\"version\":{\"snapshot\":71,\"start\":71,\"end\":71},"
+                + "\"ranges\":[{\"segment\":\"manifest\",\"from\":71,\"to\":71}],"
+                + "\"fragments\":[{\"segment\":\"manifest\","
+                + "\"rawSnapshot\":\"<conversation><blip id=\\\"b+root\\\">"
+                + "<blip></blip><thread id=\\\"t+reply\\\">"
+                + "<blip id=\\\"b+child\\\"/></thread></blip></conversation>\","
+                + "\"adjust\":[],\"diff\":[]}]}");
+
+    SidecarConversationManifest manifest =
+        SidecarConversationManifest.fromFragments(response.getFragments());
+
+    Assert.assertEquals(2, manifest.getOrderedEntries().size());
+    Assert.assertEquals(8, manifest.findByBlipId("b+root").getReplyInsertPosition());
+    Assert.assertEquals(6, manifest.findByBlipId("b+child").getReplyInsertPosition());
+    Assert.assertEquals(10, manifest.getItemCount());
+  }
+
+  @Test
+  public void rawManifestIgnoresStrayCloseTagsWithoutOffsetDrift() {
+    SidecarFragmentsResponse response =
+        SidecarFragmentsResponse.fromJson(
+            "{\"status\":\"ok\",\"waveRef\":\"example.com/w+abc/~/conv+root\","
+                + "\"version\":{\"snapshot\":71,\"start\":71,\"end\":71},"
+                + "\"ranges\":[{\"segment\":\"manifest\",\"from\":71,\"to\":71}],"
+                + "\"fragments\":[{\"segment\":\"manifest\","
+                + "\"rawSnapshot\":\"<conversation></blip></thread>"
+                + "<blip id=\\\"b+root\\\"><thread id=\\\"t+reply\\\">"
+                + "<blip id=\\\"b+child\\\"/></thread></blip></conversation>"
+                + "</blip></thread></conversation>\","
+                + "\"adjust\":[],\"diff\":[]}]}");
+
+    SidecarConversationManifest manifest =
+        SidecarConversationManifest.fromFragments(response.getFragments());
+
+    Assert.assertEquals(2, manifest.getOrderedEntries().size());
+    Assert.assertEquals(6, manifest.findByBlipId("b+root").getReplyInsertPosition());
+    Assert.assertEquals(4, manifest.findByBlipId("b+child").getReplyInsertPosition());
+    Assert.assertEquals(8, manifest.getItemCount());
   }
 
   @Test
