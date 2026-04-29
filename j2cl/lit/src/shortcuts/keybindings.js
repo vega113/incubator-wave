@@ -50,10 +50,12 @@ export function isEditableTarget(evt) {
       return true;
     }
     // contenteditable; also catches the wavy-composer body which sets
-    // contenteditable="true" via a Lit attribute binding.
+    // contenteditable="true" via a Lit attribute binding. Use hasAttribute
+    // so bare `contenteditable` / `contenteditable=""` (empty-string value,
+    // which is falsy) is also detected correctly.
     if (
-      typeof el.getAttribute === "function" &&
-      el.getAttribute("contenteditable") &&
+      typeof el.hasAttribute === "function" &&
+      el.hasAttribute("contenteditable") &&
       el.getAttribute("contenteditable").toLowerCase() !== "false"
     ) {
       return true;
@@ -99,15 +101,13 @@ export function isMacPlatform(nav = typeof navigator !== "undefined" ? navigator
  */
 export function matchShortcut(evt, opts = {}) {
   if (!evt || typeof evt.key !== "string") return null;
-  // Never match auto-repeating keys for the modal/global combos —
-  // holding j or Esc should not slam the dialog stack.
-  if (evt.repeat) return null;
   const isMac = "isMac" in opts ? !!opts.isMac : isMacPlatform();
 
   // Esc — close topmost dialog or deselect focused blip. Global so it
   // fires even when an input is focused (matches native dialog
-  // semantics: Esc dismisses).
+  // semantics: Esc dismisses). Block repeats to avoid slamming the stack.
   if (evt.key === "Escape" || evt.key === "Esc") {
+    if (evt.repeat) return null;
     if (evt.shiftKey || evt.ctrlKey || evt.metaKey || evt.altKey) {
       // Bare Esc only — modified Esc combinations are reserved for
       // browser / a11y conventions and may be claimed by other tools.
@@ -117,7 +117,7 @@ export function matchShortcut(evt, opts = {}) {
   }
 
   // Shift+Cmd+O on Mac, Shift+Ctrl+O elsewhere. Global so it fires
-  // even from the search input.
+  // even from the search input. Block repeats (no benefit to auto-fire).
   if (
     (evt.key === "O" || evt.key === "o") &&
     evt.shiftKey &&
@@ -125,11 +125,13 @@ export function matchShortcut(evt, opts = {}) {
     ((isMac && evt.metaKey && !evt.ctrlKey) ||
       (!isMac && evt.ctrlKey && !evt.metaKey))
   ) {
+    if (evt.repeat) return null;
     return { action: KEY_ACTION.OPEN_NEW_WAVE, global: true };
   }
 
   // j / k — blip navigation. Bare key only; not global. Modifiers
   // disqualify because Cmd+J / Ctrl+K etc. are claimed by browsers.
+  // Allow repeat so holding j/k continuously moves focus (GWT parity).
   if (
     !evt.shiftKey &&
     !evt.ctrlKey &&

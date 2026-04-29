@@ -139,6 +139,7 @@ export function setFocusedBlip(target, list = snapshotBlips()) {
     if (blip !== target) {
       blip.removeAttribute("focused");
       blip.removeAttribute("data-blip-focused");
+      blip.removeAttribute("aria-current");
       if ("focused" in blip) blip.focused = false;
       blip.classList.remove(RENDERER_FOCUS_CLASS);
     }
@@ -180,6 +181,7 @@ export function clearBlipFocus(root = document) {
     if (blip.hasAttribute("focused") || blip.classList.contains(RENDERER_FOCUS_CLASS)) {
       blip.removeAttribute("focused");
       blip.removeAttribute("data-blip-focused");
+      blip.removeAttribute("aria-current");
       if ("focused" in blip) blip.focused = false;
       blip.classList.remove(RENDERER_FOCUS_CLASS);
       if (!surface) surface = findReadSurface(blip, root);

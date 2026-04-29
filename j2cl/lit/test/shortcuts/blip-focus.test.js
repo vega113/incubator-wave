@@ -131,4 +131,25 @@ describe("clearBlipFocus", () => {
     expect(clearBlipFocus(root)).to.equal(true);
     expect(blips[0].classList.contains("j2cl-read-blip-focused")).to.equal(false);
   });
+
+  it("clears aria-current from previously renderer-focused blip on Esc", async () => {
+    const root = await threeBlips();
+    const blips = Array.from(root.querySelectorAll("wave-blip"));
+    blips[1].setAttribute("aria-current", "true");
+    blips[1].classList.add("j2cl-read-blip-focused");
+    clearBlipFocus(root);
+    expect(blips[1].hasAttribute("aria-current")).to.equal(false);
+  });
+});
+
+describe("setFocusedBlip aria-current cleanup", () => {
+  it("removes aria-current from blips that lose focus via j/k", async () => {
+    const root = await threeBlips();
+    const blips = Array.from(root.querySelectorAll("wave-blip"));
+    blips[0].setAttribute("aria-current", "true");
+    blips[0].classList.add("j2cl-read-blip-focused");
+    setFocusedBlip(blips[1], blips);
+    expect(blips[0].hasAttribute("aria-current")).to.equal(false);
+    expect(blips[1].hasAttribute("focused")).to.equal(true);
+  });
 });

@@ -107,13 +107,22 @@ describe("matchShortcut", () => {
     ).to.equal(null);
   });
 
-  it("does not match repeated key events", () => {
-    expect(
-      matchShortcut(fakeEvent("j", { repeat: true }), { isMac: true })
-    ).to.equal(null);
+  it("does not match repeated Escape or Shift+Cmd+O", () => {
     expect(
       matchShortcut(fakeEvent("Escape", { repeat: true }), { isMac: true })
     ).to.equal(null);
+    expect(
+      matchShortcut(fakeEvent("o", { shiftKey: true, metaKey: true, repeat: true }), { isMac: true })
+    ).to.equal(null);
+  });
+
+  it("matches repeated j/k for continuous blip navigation", () => {
+    expect(
+      matchShortcut(fakeEvent("j", { repeat: true }), { isMac: true })
+    ).to.deep.equal({ action: "BLIP_FOCUS_NEXT", global: false });
+    expect(
+      matchShortcut(fakeEvent("k", { repeat: true }), { isMac: true })
+    ).to.deep.equal({ action: "BLIP_FOCUS_PREV", global: false });
   });
 });
 
@@ -136,6 +145,12 @@ describe("isEditableTarget", () => {
   it("returns true for contenteditable=true", () => {
     const div = document.createElement("div");
     div.setAttribute("contenteditable", "true");
+    expect(isEditableTarget({ target: div, composedPath: () => [div] })).to.equal(true);
+  });
+
+  it("returns true for bare contenteditable (empty-string value)", () => {
+    const div = document.createElement("div");
+    div.setAttribute("contenteditable", "");
     expect(isEditableTarget({ target: div, composedPath: () => [div] })).to.equal(true);
   });
 
