@@ -203,10 +203,13 @@ public final class J2clSearchRailParityTest {
    * path stays in place for OFF viewers.
    */
   @Test
-  public void j2clRootShellOmitsRailCardsAttributeWhenFlagOff() throws Exception {
+  public void j2clRootShellEmitsRailCardsAttributeByDefault() throws Exception {
+    // G-PORT-4 (#1113): rail-cards is now default-on, so the rail
+    // SSR carries data-rail-cards-enabled="true" out of the box. See
+    // sibling assertion j2clRootShellEmitsShellRootRailCardsMarkerByDefault.
     String html = renderJ2clRootShell();
-    assertFalse(
-        "Default flag-OFF render must not advertise rail-cards-enabled",
+    assertTrue(
+        "Default render (G-PORT-4) must advertise rail-cards-enabled",
         html.contains("data-rail-cards-enabled=\"true\""));
   }
 
@@ -246,10 +249,15 @@ public final class J2clSearchRailParityTest {
   }
 
   @Test
-  public void j2clRootShellOmitsShellRootRailCardsMarkerWhenFlagOff() throws Exception {
+  public void j2clRootShellEmitsShellRootRailCardsMarkerByDefault() throws Exception {
+    // G-PORT-4 (#1113): the j2cl-search-rail-cards flag defaults to ON
+    // alongside j2cl-inline-rich-composer so a freshly registered user
+    // can reach their inbox waves on /?view=j2cl-root. Without it, the
+    // rail mounts the legacy digest list which is hidden via the
+    // wavy-thread-collapse `.sidecar-search-card` CSS rule.
     String html = renderJ2clRootShell();
-    assertFalse(
-        "Default flag-OFF render must not advertise data-j2cl-search-rail-cards on <shell-root>",
+    assertTrue(
+        "Default render (G-PORT-4) must advertise data-j2cl-search-rail-cards on <shell-root>",
         html.contains("data-j2cl-search-rail-cards=\"true\""));
   }
 

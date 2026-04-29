@@ -44,7 +44,15 @@ public final class KnownFeatureFlags {
     defaults.add(new FeatureFlag("compact-inline-blips", "Compact inline blip layout at nesting depth", false, Collections.emptyMap()));
     defaults.add(new FeatureFlag("ime-debug-tracer", "Enable IME diagnostic trace overlay and remote log upload", false, Collections.emptyMap()));
     defaults.add(new FeatureFlag("j2cl-root-bootstrap", "Bootstrap the J2CL root shell on / while keeping /webclient rollback ready", false, Collections.emptyMap()));
-    defaults.add(new FeatureFlag("j2cl-search-rail-cards", "Render J2CL search digests as <wavy-search-rail-card> elements inside <wavy-search-rail> instead of the legacy plain-DOM digest list", false, Collections.emptyMap()));
+    // G-PORT-4 (#1113): default-on so the J2CL search rail renders
+    // digests as <wavy-search-rail-card> elements at /?view=j2cl-root.
+    // Without this default, the rail mounts the legacy digest list
+    // inside `.sidecar-search-card`, which a sister CSS rule
+    // (wavy-thread-collapse.css line 89) hides via display:none — net
+    // effect: a freshly registered user signing in sees an empty rail
+    // and cannot reach any wave. That co-blocks the inline-reply
+    // acceptance for issue #1113.
+    defaults.add(new FeatureFlag("j2cl-search-rail-cards", "Render J2CL search digests as <wavy-search-rail-card> elements inside <wavy-search-rail> instead of the legacy plain-DOM digest list. Default on; opt out per participant if needed.", true, Collections.emptyMap()));
     defaults.add(new FeatureFlag("j-ui-3-new-wave", "J-UI-3 new-wave create flow: title input + optimistic rail prepend (#1081)", false, Collections.emptyMap()));
     // G-PORT-4 (#1113): default-on so every J2CL-root visitor gets the
     // inline contenteditable composer + selection-driven format toolbar.
