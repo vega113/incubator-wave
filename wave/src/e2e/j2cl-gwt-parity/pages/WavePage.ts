@@ -4,7 +4,19 @@
 // openWave, clickReply, typeAndSend, mentionsList, ...). G-PORT-1 keeps
 // the surface narrow on purpose: only goto() + assertInboxLoaded(),
 // because the smoke test only needs to prove both views bootstrap.
-import { Page } from "@playwright/test";
+//
+// G-PORT-3 (#1112) extends the base with the surface needed by
+// `wave-reading-parity.spec.ts`:
+//   - gotoWave(waveId) — switches the same browser session to a wave URL
+//     while preserving the view query.
+//   - newWaveAffordance(), composerBody(), composerSubmit(label) — the
+//     "create / send" surface, only meaningfully implemented on the
+//     J2CL page object. The GWT subclass throws a clear diagnostic
+//     because the GWT compose flow is not safely selector-driven yet
+//     (Copilot review of G-PORT-3 plan, 2026-04-29). The parity test
+//     authors content via J2CL only, then asserts the rendered chrome
+//     on both views.
+import { Locator, Page } from "@playwright/test";
 
 export abstract class WavePage {
   constructor(readonly page: Page, readonly baseURL: string) {}
@@ -25,6 +37,45 @@ export abstract class WavePage {
     const sep = path.includes("?") ? "&" : "?";
     const target = `${this.baseURL}${path}${sep}${this.viewQuery()}`;
     await this.page.goto(target, { waitUntil: "domcontentloaded" });
+  }
+
+  /**
+   * G-PORT-3 (#1112): navigate to the wave-detail URL while preserving
+   * the active view. The server reads the {@code wave} query param
+   * (see WaveServlet); the {@code view} query is the J2CL/GWT switch.
+   */
+  async gotoWave(waveId: string): Promise<void> {
+    await this.goto(`/?wave=${encodeURIComponent(waveId)}`);
+  }
+
+  /**
+   * G-PORT-3 (#1112): the inbox "New Wave" affordance. Implemented by
+   * the J2CL page; the GWT page throws a not-implemented diagnostic
+   * because the parity test only authors content on the J2CL view.
+   */
+  newWaveAffordance(): Locator {
+    throw new Error(
+      `${this.constructor.name}.newWaveAffordance() is not implemented. ` +
+        `The G-PORT-3 parity test authors waves on J2CL only; if you need ` +
+        `GWT compose support, extend this class first.`
+    );
+  }
+
+  /** G-PORT-3 (#1112): the composer's contenteditable body. */
+  composerBody(): Locator {
+    throw new Error(
+      `${this.constructor.name}.composerBody() is not implemented.`
+    );
+  }
+
+  /**
+   * G-PORT-3 (#1112): the composer submit button for the given mode
+   * label ("Create wave", "Send reply", "Save").
+   */
+  composerSubmit(_label: string): Locator {
+    throw new Error(
+      `${this.constructor.name}.composerSubmit() is not implemented.`
+    );
   }
 
   /** Convenience: returns the rendered HTML for source-text assertions. */
