@@ -563,6 +563,30 @@ public class J2clSelectedWaveControllerTest {
   }
 
   @Test
+  public void replySubmitHandoffFetchesForwardViewportWhenUnrelatedBlipArrivesFirst()
+      throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithPlaceholder("Root already loaded", 44L, "ABCD"));
+
+    harness.replySubmitted(controller, "example.com/w+1", 45L, "b+created");
+    // An unrelated live blip (b+reply, not b+created) arrives at the target version.
+    // Generic count increase must not suppress the fetch for the actually-submitted blip.
+    harness.deliverRawUpdate(
+        0, liveReplyFragmentUpdate("Unrelated blip from live stream", -1L, null, 45L));
+    harness.runScheduledRetry(0);
+
+    Assert.assertEquals(
+        "unrelated blip advancing version must not suppress fetch for the submitted blip",
+        1,
+        harness.fragmentFetchAttempts.size());
+    Assert.assertEquals("b+created", harness.fragmentFetchAttempts.get(0).startBlipId);
+  }
+
+  @Test
   public void channelEstablishmentUpdateIsIgnoredUntilRealWaveletArrives() throws Exception {
     Harness harness = new Harness();
     Object controller = harness.createController(false);

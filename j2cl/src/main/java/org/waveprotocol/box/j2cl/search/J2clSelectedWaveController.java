@@ -408,7 +408,6 @@ public final class J2clSelectedWaveController
       return;
     }
     final long visibleVersionAtSubmit = currentVisibleViewportVersion();
-    final int loadedBlipsAtSubmit = currentLoadedViewportBlipCount();
     retryScheduler.scheduleRetry(
         POST_SUBMIT_LIVE_UPDATE_GRACE_MS,
         () -> {
@@ -417,8 +416,7 @@ public final class J2clSelectedWaveController
               submittedWaveId,
               targetVersion,
               createdBlipId,
-              visibleVersionAtSubmit,
-              loadedBlipsAtSubmit)) {
+              visibleVersionAtSubmit)) {
             return;
           }
           if (requestPostSubmitForwardFetch(generation, submittedWaveId, createdBlipId)) {
@@ -433,22 +431,19 @@ public final class J2clSelectedWaveController
       String submittedWaveId,
       long targetVersion,
       String createdBlipId,
-      long visibleVersionAtSubmit,
-      int loadedBlipsAtSubmit) {
+      long visibleVersionAtSubmit) {
     if (!isCurrentGeneration(generation)
         || selectedWaveId == null
         || !submittedWaveId.equals(selectedWaveId)) {
       return true;
     }
     long currentVisibleVersion = currentVisibleViewportVersion();
-    int currentLoadedBlips = currentLoadedViewportBlipCount();
     return (targetVersion >= 0
             && currentVisibleVersion >= targetVersion
             && currentViewportHasLoadedBlip(createdBlipId))
         || (targetVersion < 0
             && visibleVersionAtSubmit >= 0
-            && currentVisibleVersion > visibleVersionAtSubmit)
-        || currentLoadedBlips > loadedBlipsAtSubmit;
+            && currentVisibleVersion > visibleVersionAtSubmit);
   }
 
   @Override
@@ -979,13 +974,6 @@ public final class J2clSelectedWaveController
     }
     J2clSelectedWaveViewportState viewportState = currentModel.getViewportState();
     return Math.max(viewportState.getSnapshotVersion(), viewportState.getEndVersion());
-  }
-
-  private int currentLoadedViewportBlipCount() {
-    if (currentModel == null || currentModel.getViewportState() == null) {
-      return 0;
-    }
-    return currentModel.getViewportState().getLoadedReadBlips().size();
   }
 
   private boolean currentViewportHasLoadedBlip(String blipId) {
