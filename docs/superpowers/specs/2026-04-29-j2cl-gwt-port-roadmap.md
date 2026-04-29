@@ -56,11 +56,9 @@ user's flow as described. "Test passes" is necessary but not sufficient.
 ### G-PORT-1. E2E foundation
 - Playwright harness under `wave/src/e2e/j2cl-gwt-parity/` that runs against
   a local server at both `?view=j2cl-root` and `?view=gwt`.
-- Single shared fixture: signs in as a test user, opens an existing wave
-  with at least 1 reply, 1 task, 1 mention, 1 attachment.
-- Helpers: `j2cl()` / `gwt()` page objects exposing `findWave(title)`,
-  `openWave(idx)`, `clickReply(blipIdx)`, `typeAndSend(text)`, etc. — same
-  API both sides.
+- Single shared fixture: registers/signs in a fresh test user for each run.
+- Helpers: shared `j2cl()` / `gwt()` page objects focused on bootstrap/load
+  assertions in this slice; richer interaction helpers land in later slices.
 - Wires CI: a new check `J2CL ↔ GWT Parity E2E` that runs the suite.
 - No UI changes in this slice — only the test harness.
 
