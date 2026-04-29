@@ -194,6 +194,18 @@ test.describe("G-PORT-2 search panel parity", () => {
       refreshButton(page),
       "GWT: refresh affordance reachable via title='Refresh search results'"
     ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.locator("[data-digest-action-row]:visible").first(),
+      "GWT: at least one action-row must be visible"
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.locator('[data-digest-action="sort"]:visible').first(),
+      "GWT: sort action button"
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.locator('[data-digest-action="filter"]:visible').first(),
+      "GWT: filter action button"
+    ).toBeVisible({ timeout: 30_000 });
 
     // GWT search is also async (XHR /search). Wait until either at
     // least one digest card appears, or the wave-count info bar

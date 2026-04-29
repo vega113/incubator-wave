@@ -107,6 +107,7 @@ export class WavySearchRailCard extends LitElement {
     /* GWT: .avatars — float left, width 108px (3 * (32+4)). */
     .avatars {
       float: left;
+      width: 108px;
       margin-right: 1em;
       display: inline-flex;
     }
