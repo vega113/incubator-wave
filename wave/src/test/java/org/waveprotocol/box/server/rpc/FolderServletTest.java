@@ -80,6 +80,39 @@ public class FolderServletTest extends TestCase {
     verify(waveletProvider, never()).submitRequest(eq(USER_DATA_WAVELET_NAME), any(), any());
   }
 
+  // G-PORT-8 (#1117): when the persisted wavelet store has not yet
+  // recorded any wavelets for a freshly-created wave, fall back to
+  // probing the conv+root wavelet name directly so the access check
+  // still runs. Mirrors the search service's in-memory fallback in
+  // SimpleSearchProviderImpl.expandConversationalWavelets and prevents
+  // every pin/archive on a brand-new Welcome wave from returning 500
+  // "Access rejected".
+  public void testSetPinStateAllowsFreshlyCreatedWaveNotYetPersisted() throws Exception {
+    when(waveletProvider.getWaveletIds(WAVE_ID)).thenReturn(ImmutableSet.<WaveletId>of());
+    when(waveletProvider.checkAccessPermission(CONVERSATION_ROOT_WAVELET_NAME, PARTICIPANT))
+        .thenReturn(true);
+    when(waveletProvider.getSnapshot(USER_DATA_WAVELET_NAME)).thenReturn(null);
+
+    servlet.setPinState(WAVE_ID, true, PARTICIPANT);
+
+    verify(waveletProvider).submitRequest(eq(USER_DATA_WAVELET_NAME), any(), any());
+  }
+
+  public void testSetPinStateRejectsFreshlyCreatedWaveWithNoAccess() throws Exception {
+    when(waveletProvider.getWaveletIds(WAVE_ID)).thenReturn(ImmutableSet.<WaveletId>of());
+    when(waveletProvider.checkAccessPermission(CONVERSATION_ROOT_WAVELET_NAME, PARTICIPANT))
+        .thenReturn(false);
+
+    try {
+      servlet.setPinState(WAVE_ID, true, PARTICIPANT);
+      fail("Expected InvalidRequestException for inaccessible fresh wave");
+    } catch (InvalidRequestException expected) {
+      assertEquals("Access rejected", expected.getMessage());
+    }
+
+    verify(waveletProvider, never()).submitRequest(eq(USER_DATA_WAVELET_NAME), any(), any());
+  }
+
   // --- stripVersionSuffix tests ---
 
   public void testStripVersionSuffix_noSuffix() {
