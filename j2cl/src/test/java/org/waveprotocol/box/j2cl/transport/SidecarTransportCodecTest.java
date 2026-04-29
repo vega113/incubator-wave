@@ -759,6 +759,34 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void decodeSelectedWaveUpdateIgnoresInvalidBlipWithoutDesyncingManifestStacks() {
+    String json =
+        "{\"sequenceNumber\":13,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"a@example.com\"],"
+            + "\"3\":[{\"1\":\"conversation\",\"2\":{\"1\":["
+            + "{\"3\":{\"1\":\"conversation\",\"2\":[]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+root\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"thread\",\"2\":[{\"1\":\"id\",\"2\":\"t+reply\"}]}},"
+            + "{\"3\":{\"1\":\"blip\",\"2\":[{\"1\":\"id\",\"2\":\"b+child\"}]}},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"4\":true},"
+            + "{\"4\":true}]}}]},"
+            + "\"6\":true,\"7\":\"ch3\"}}";
+
+    SidecarConversationManifest manifest =
+        SidecarTransportCodec.decodeSelectedWaveUpdate(json).getConversationManifest();
+
+    Assert.assertEquals(2, manifest.getOrderedEntries().size());
+    Assert.assertEquals(8, manifest.findByBlipId("b+root").getReplyInsertPosition());
+    Assert.assertEquals(6, manifest.findByBlipId("b+child").getReplyInsertPosition());
+    Assert.assertEquals(10, manifest.getItemCount());
+  }
+
+  @Test
   public void decodeSelectedWaveUpdateExtractsThreeLevelDeepReplyChain() {
     // <conversation>
     //   <thread id="root">

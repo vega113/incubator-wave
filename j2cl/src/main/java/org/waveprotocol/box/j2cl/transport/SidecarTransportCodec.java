@@ -232,6 +232,8 @@ public final class SidecarTransportCodec {
         } else if ("blip".equals(safeType)) {
           String blipId = getAttribute(elementStart, "id");
           if (blipId == null || blipId.isEmpty()) {
+            elementStack.set(elementStack.size() - 1, "ignored-blip");
+            itemPosition++;
             continue;
           }
           String threadId = threadStack.isEmpty() ? "" : threadStack.get(threadStack.size() - 1);

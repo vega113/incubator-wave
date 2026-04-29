@@ -68,7 +68,9 @@ public class J2clComposeSurfaceControllerTest {
         Arrays.asList("alice@example.com", "bob@example.com"),
         view.model.getParticipantAddresses());
     controller.onReplySubmitted("Draft");
-    Assert.assertEquals("Open a wave before sending a reply.", view.model.getReplyErrorText());
+    Assert.assertEquals(
+        J2clComposeSurfaceController.WAITING_FOR_WRITE_SESSION_REPLY_MESSAGE,
+        view.model.getReplyErrorText());
     Assert.assertEquals(0, gateway.fetchBootstrapCalls);
   }
 

@@ -231,7 +231,7 @@ public final class SidecarConversationManifest {
         } else if ("blip".equals(name)) {
           popLast(openBlipStack);
           Integer entryIndex = removeLast(openBlipEntryIndexStack);
-          if (entryIndex != null) {
+          if (entryIndex != null && entryIndex.intValue() >= 0) {
             setReplyInsertPosition(entries, entryIndex.intValue(), itemPosition);
           }
         }
@@ -265,6 +265,9 @@ public final class SidecarConversationManifest {
         if (blipId == null || blipId.isEmpty()) {
           if (selfClosing) {
             itemPosition++;
+          } else {
+            openBlipStack.add("");
+            openBlipEntryIndexStack.add(Integer.valueOf(-1));
           }
           continue;
         }

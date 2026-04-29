@@ -453,6 +453,8 @@ public final class J2clComposeSurfaceController {
       "Wait for attachment uploads to finish before replying.";
   static final String EMPTY_REPLY_VALIDATION_MESSAGE =
       "Enter text or attach a file before replying.";
+  static final String WAITING_FOR_WRITE_SESSION_REPLY_MESSAGE =
+      "Wait for the selected wave to finish opening before sending a reply.";
   // Legacy constructors are not used by the root shell; production passes the root session seed.
   private static final String LEGACY_ATTACHMENT_SESSION_SEED = "j2cl";
 
@@ -1782,7 +1784,10 @@ public final class J2clComposeSurfaceController {
     }
     if (writeSession == null || isEmpty(writeSession.getSelectedWaveId())) {
       replyStatusText = "";
-      replyErrorText = "Open a wave before sending a reply.";
+      replyErrorText =
+          hasSelectedWaveContext()
+              ? WAITING_FOR_WRITE_SESSION_REPLY_MESSAGE
+              : "Open a wave before sending a reply.";
       render();
       return;
     }
