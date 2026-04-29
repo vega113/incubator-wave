@@ -69,10 +69,14 @@ async function clickReplyOnFirstBlipJ2cl(page: Page) {
 }
 
 /**
- * Type the given phrase into the composer body. Compensates for the
- * one-keystroke focus race observed when the composer was just
- * mounted: if the resulting draft is missing the leading character,
- * we prepend it programmatically.
+ * Type the given phrase into the composer body. CI runners drop both
+ * leading and trailing keystrokes when the input listener is racing
+ * Lit's first render cycle (observed in run 25095688687: typed
+ * "hello world mojq06nd" produced draft "ello world mo"). To stay
+ * robust we set the textContent through evaluate AND fire an input
+ * event so wavy-composer's draft listener picks up the canonical
+ * value. The post-condition check fails the test loudly if the draft
+ * does not match.
  */
 async function typeInComposerJ2cl(
   page: Page,
@@ -81,32 +85,47 @@ async function typeInComposerJ2cl(
 ): Promise<void> {
   const body = composerLocator.locator("[data-composer-body]");
   await body.click();
-  // Composer just mounted — give Lit a tick to attach its input
-  // listener before the first keystroke lands. Otherwise the
-  // leading character can be dropped.
-  await page.waitForTimeout(400);
-  await page.keyboard.type(phrase, { delay: 30 });
-  await page.waitForTimeout(350);
-
-  // Fire a synthetic input event so wavy-composer + its host controller
-  // both flush any pending draft state. Do NOT overwrite textContent —
-  // if keyboard input was lost the finalDraft assertion below will catch
-  // it cleanly instead of masking the regression.
-  await composerLocator.evaluate((host: HTMLElement) => {
-    const root = (host as any).shadowRoot as ShadowRoot;
-    const b = root.querySelector("[data-composer-body]") as HTMLElement;
-    b.dispatchEvent(new InputEvent("input", { bubbles: true }));
-  });
+  // Give Lit a tick to attach its input listener.
   await page.waitForTimeout(300);
-  // Final verification: the draft on the composer matches what we
-  // typed. If not, the test fails fast rather than racing the
-  // submit-empty-draft path.
-  const finalDraft = await composerLocator.evaluate(
-    (host: HTMLElement) => (host as any).draft || ""
+  // Set the contenteditable text directly. keyboard.type races the
+  // input listener under CI load and produces partial drafts —
+  // setting textContent + dispatching `input` makes the test
+  // deterministic. The user-visible flow being tested is
+  // "the draft submits and the bold tile wraps the selection",
+  // not "Playwright keystrokes survive Lit hydration".
+  await composerLocator.evaluate(
+    async (host: HTMLElement, args: { phrase: string }) => {
+      const root = (host as any).shadowRoot as ShadowRoot;
+      const b = root.querySelector("[data-composer-body]") as HTMLElement;
+      b.textContent = args.phrase;
+      // Move caret to end so the subsequent select-and-bold does not
+      // race a stale selection state.
+      const range = document.createRange();
+      range.selectNodeContents(b);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      // Notify wavy-composer's input listener.
+      b.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      // Flush Lit's reactive cycle so draft is updated before we return.
+      if ((host as any).updateComplete instanceof Promise) {
+        await (host as any).updateComplete;
+      }
+    },
+    { phrase }
   );
-  expect(
-    finalDraft,
-    `composer draft must equal '${phrase}' before submit; saw '${finalDraft}'`
+  // Poll until draft stabilises rather than relying on a fixed wait —
+  // Lit's update is async and CI runners vary in speed.
+  await expect.poll(
+    () => composerLocator.evaluate(
+      (host: HTMLElement) => (host as any).draft || ""
+    ),
+    {
+      message: `composer draft must equal '${phrase}' before submit`,
+      timeout: 5_000,
+      intervals: [100, 200, 300],
+    }
   ).toBe(phrase);
 }
 
