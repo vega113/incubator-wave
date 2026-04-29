@@ -18,14 +18,17 @@
 //   POST /folder/?operation=move&folder=archive|inbox&waveId=<id>
 //   POST /folder/?operation=pin|unpin&waveId=<id>
 //
-// Events emitted on document (bubbles + composed):
+// Folder result events emitted on document (bubbles + composed):
 //   - wavy-folder-action-completed { waveId, operation, folder }
 //   - wavy-folder-action-failed    { waveId, operation, folder, status }
+// Search refresh is emitted on <wavy-search-rail> when present because
+// J2clSearchPanelView owns that listener on the rail element.
 
 const NAV_ROW_TAG = "WAVY-WAVE-NAV-ROW";
 const VERSION_HISTORY_TAG = "WAVY-VERSION-HISTORY";
 
 const ATTR_BOUND = "data-action-bar-bound";
+const ATTR_FOLDER_STATE_WAVE_ID = "data-folder-state-wave-id";
 
 let installed = false;
 let observer = null;
@@ -124,6 +127,19 @@ function setBusy(host, busy) {
   }
 }
 
+function resetFolderStateIfWaveChanged(host, waveId) {
+  if (!host || typeof host.getAttribute !== "function") return;
+  const current = host.getAttribute(ATTR_FOLDER_STATE_WAVE_ID);
+  if (current === waveId) return;
+  host.setAttribute(ATTR_FOLDER_STATE_WAVE_ID, waveId);
+  if (current == null) return;
+  // The same nav-row host can be reused while switching waves. Until
+  // server folder state is wired into the model (#1055/S5), optimistic
+  // toggle attributes must not bleed from the previous wave.
+  host.removeAttribute("pinned");
+  host.removeAttribute("archived");
+}
+
 function buildFolderUrl(params) {
   const search = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -147,8 +163,8 @@ function fetchFolderOp(url) {
 }
 
 function dispatchCompleted(host, payload) {
-  const target = (host && host.ownerDocument) || document;
-  target.dispatchEvent(
+  const doc = (host && host.ownerDocument) || document;
+  doc.dispatchEvent(
     new CustomEvent("wavy-folder-action-completed", {
       bubbles: true,
       composed: true,
@@ -163,7 +179,9 @@ function dispatchCompleted(host, payload) {
   // re-fetches the active query). Mirrors the GWT
   // FolderActionListener behavior of repainting the digest list
   // after a folder write.
-  target.dispatchEvent(
+  const rail = doc.querySelector("wavy-search-rail");
+  const refreshTarget = rail || doc;
+  refreshTarget.dispatchEvent(
     new CustomEvent("wavy-search-refresh-requested", {
       bubbles: true,
       composed: true,
@@ -188,6 +206,7 @@ function onArchiveToggle(event) {
   if (host && host.hasAttribute("data-folder-busy")) return;
   const waveId = readWaveId(event);
   if (!waveId) return;
+  resetFolderStateIfWaveChanged(host, waveId);
   const wasArchived = readBoolAttr(host, "archived");
   const folder = wasArchived ? "inbox" : "archive";
   // Optimistic flip immediately — matches GWT setDown(true) feel.
@@ -236,6 +255,7 @@ function onPinToggle(event) {
   if (host && host.hasAttribute("data-folder-busy")) return;
   const waveId = readWaveId(event);
   if (!waveId) return;
+  resetFolderStateIfWaveChanged(host, waveId);
   const wasPinned = readBoolAttr(host, "pinned");
   const operation = wasPinned ? "unpin" : "pin";
   setBoolAttr(host, "pinned", !wasPinned);

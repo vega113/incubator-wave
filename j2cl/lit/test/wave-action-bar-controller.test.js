@@ -56,13 +56,18 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
 
   it("dispatches wavy-search-refresh-requested alongside completed so the rail re-queries", async () => {
     stub = installFetchStub(async () => okResponse());
-    const row = await fixture(
-      html`<wavy-wave-nav-row source-wave-id="w+r"></wavy-wave-nav-row>`
+    const wrapper = await fixture(
+      html`<div>
+        <wavy-search-rail></wavy-search-rail>
+        <wavy-wave-nav-row source-wave-id="w+r"></wavy-wave-nav-row>
+      </div>`
     );
+    const rail = wrapper.querySelector("wavy-search-rail");
+    const row = wrapper.querySelector("wavy-wave-nav-row");
     controllerModule.start();
     await Promise.resolve();
     let refreshSeen = null;
-    document.addEventListener(
+    rail.addEventListener(
       "wavy-search-refresh-requested",
       (e) => (refreshSeen = e.detail),
       { once: true }
@@ -85,6 +90,52 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     expect(refreshSeen).to.exist;
     expect(refreshSeen.reason).to.equal("folder-action");
     expect(refreshSeen.operation).to.equal("pin");
+  });
+
+  it("resets optimistic folder state when the same nav row switches waves", async () => {
+    stub = installFetchStub(async () => okResponse());
+    const row = await fixture(
+      html`<wavy-wave-nav-row source-wave-id="w+a"></wavy-wave-nav-row>`
+    );
+    controllerModule.start();
+    await Promise.resolve();
+
+    let completed = new Promise((resolve) =>
+      document.addEventListener(
+        "wavy-folder-action-completed",
+        (e) => resolve(e.detail),
+        { once: true }
+      )
+    );
+    row.dispatchEvent(
+      new CustomEvent("wave-nav-pin-toggle-requested", {
+        bubbles: true,
+        composed: true,
+        detail: { sourceWaveId: "w+a" }
+      })
+    );
+    await completed;
+    expect(row.hasAttribute("pinned")).to.be.true;
+
+    row.setAttribute("source-wave-id", "w+b");
+    completed = new Promise((resolve) =>
+      document.addEventListener(
+        "wavy-folder-action-completed",
+        (e) => resolve(e.detail),
+        { once: true }
+      )
+    );
+    row.dispatchEvent(
+      new CustomEvent("wave-nav-pin-toggle-requested", {
+        bubbles: true,
+        composed: true,
+        detail: { sourceWaveId: "w+b" }
+      })
+    );
+    const detail = await completed;
+    expect(detail.operation).to.equal("pin");
+    const url = new URL(stub.calls[1].url, window.location.origin);
+    expect(url.searchParams.get("operation")).to.equal("pin");
   });
 
   it("archive click POSTs /folder?operation=move&folder=archive&waveId=…", async () => {

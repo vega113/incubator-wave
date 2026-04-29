@@ -59,28 +59,29 @@ async function waitForFolderCompletedJ2cl(page: Page, expectedOp?: string) {
   await page.evaluate(
     (op) =>
       new Promise<void>((resolve, reject) => {
-        const t = setTimeout(
-          () =>
-            reject(
-              new Error(
-                "Timed out waiting for wavy-folder-action-completed " +
-                  (op ? `(operation=${op})` : "")
-              )
-            ),
-          15_000
-        );
-        document.addEventListener(
-          "wavy-folder-action-completed",
-          (e: Event) => {
-            const detail = (e as CustomEvent).detail || {};
-            if (op && detail.operation !== op && detail.folder !== op) {
-              return;
-            }
-            clearTimeout(t);
-            resolve();
-          },
-          { once: !op }
-        );
+        let t: ReturnType<typeof setTimeout>;
+        const cleanup = () => {
+          clearTimeout(t);
+          document.removeEventListener("wavy-folder-action-completed", onDone);
+        };
+        const onDone = (e: Event) => {
+          const detail = (e as CustomEvent).detail || {};
+          if (op && detail.operation !== op && detail.folder !== op) {
+            return;
+          }
+          cleanup();
+          resolve();
+        };
+        t = setTimeout(() => {
+          cleanup();
+          reject(
+            new Error(
+              "Timed out waiting for wavy-folder-action-completed " +
+                (op ? `(operation=${op})` : "")
+            )
+          );
+        }, 15_000);
+        document.addEventListener("wavy-folder-action-completed", onDone);
       }),
     expectedOp || ""
   );
