@@ -184,4 +184,23 @@ describe("setFocusedBlip aria-current cleanup", () => {
     expect(blips[0].hasAttribute("aria-current")).to.equal(false);
     expect(blips[1].hasAttribute("focused")).to.equal(true);
   });
+
+  it("sets aria-current on the newly focused blip", async () => {
+    const root = await threeBlips();
+    const blips = Array.from(root.querySelectorAll("wave-blip"));
+    setFocusedBlip(blips[1]);
+    expect(blips[1].getAttribute("aria-current")).to.equal("true");
+    expect(blips[0].hasAttribute("aria-current")).to.equal(false);
+    expect(blips[2].hasAttribute("aria-current")).to.equal(false);
+  });
+
+  it("moves aria-current to next blip on successive j/k presses", async () => {
+    const root = await threeBlips();
+    const blips = Array.from(root.querySelectorAll("wave-blip"));
+    setFocusedBlip(blips[0]);
+    expect(blips[0].getAttribute("aria-current")).to.equal("true");
+    setFocusedBlip(blips[1]);
+    expect(blips[0].hasAttribute("aria-current")).to.equal(false);
+    expect(blips[1].getAttribute("aria-current")).to.equal("true");
+  });
 });

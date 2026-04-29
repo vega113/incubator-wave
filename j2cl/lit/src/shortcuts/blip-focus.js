@@ -62,14 +62,17 @@ function findFocusedIndex(list) {
  * element (where J2clReadSurfaceDomRenderer fires `wavy-focus-changed`).
  * Falls back to a root-level query so the dispatcher still works when
  * only one panel is open.
+ *
+ * Matches any truthy value of the attribute (e.g. "true" or "preview")
+ * so the preview read-surface route is also reachable.
  */
 function findReadSurface(blip, root = document) {
   let el = blip && blip.parentElement;
   while (el) {
-    if (el.getAttribute(READ_SURFACE_ATTR) === "true") return el;
+    if (typeof el.hasAttribute === "function" && el.hasAttribute(READ_SURFACE_ATTR)) return el;
     el = el.parentElement;
   }
-  return root && root.querySelector ? root.querySelector(`[${READ_SURFACE_ATTR}="true"]`) : null;
+  return root && root.querySelector ? root.querySelector(`[${READ_SURFACE_ATTR}]`) : null;
 }
 
 /**
@@ -167,10 +170,17 @@ export function setFocusedBlip(target, root = document) {
   }
   target.setAttribute("focused", "");
   target.setAttribute("data-blip-focused", "true");
+  target.setAttribute("aria-current", "true");
   if ("focused" in target) target.focused = true;
   target.classList.add(RENDERER_FOCUS_CLASS);
   if (typeof target.scrollIntoView === "function") {
     target.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  // Move browser active element so renderer keydown handlers that
+  // reseed focus from event.currentTarget start from the right blip.
+  if (typeof target.focus === "function") {
+    if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+    target.focus({ preventScroll: true });
   }
   target.dispatchEvent(
     new CustomEvent(FOCUS_CHANGED_EVENT, {
