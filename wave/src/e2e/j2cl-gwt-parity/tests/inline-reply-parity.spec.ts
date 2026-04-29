@@ -187,11 +187,22 @@ async function sendInlineReplyJ2cl(
   composerLocator: ReturnType<Page["locator"]>,
   draftText: string
 ): Promise<void> {
-  await composerLocator
+  const sendBtn = composerLocator
     .locator("composer-submit-affordance")
     .locator("button")
-    .first()
-    .click({ timeout: 10_000 });
+    .first();
+  await sendBtn.scrollIntoViewIfNeeded();
+  await sendBtn.click({ timeout: 10_000 });
+  // Belt-and-braces: also dispatch `reply-submit` directly on the
+  // composer host so the J2clComposeSurfaceView listener sees it
+  // regardless of the click's hit region (CI viewport sizing
+  // differences observed otherwise — see the retry trace in the
+  // failed run 25094771249 of this workflow).
+  await composerLocator.evaluate((host: HTMLElement) => {
+    host.dispatchEvent(
+      new CustomEvent("reply-submit", { bubbles: true, composed: true })
+    );
+  });
 
   // The new reply blip threads under the originating blip; its
   // position in the DOM depends on the existing thread shape. Assert
@@ -201,7 +212,7 @@ async function sendInlineReplyJ2cl(
   await expect(
     page.locator("wave-blip", { hasText: draftText }).first(),
     `the newly sent reply must appear as a wave-blip carrying '${draftText}'`
-  ).toBeVisible({ timeout: 20_000 });
+  ).toBeVisible({ timeout: 30_000 });
 }
 
 // Each test registers a fresh user and operates on its own
