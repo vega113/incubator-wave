@@ -405,6 +405,8 @@ public final class J2clSelectedWaveController
     final int generation = requestGeneration;
     final long targetVersion = Math.max(-1L, resultingVersion);
     final String createdBlipId = submittedBlipId == null ? "" : submittedBlipId;
+    // Legacy callers do not supply a blip id, so they intentionally miss this fast path and run
+    // one fallback fetch; version equality alone cannot prove the submitted reply is visible.
     if (targetVersion >= 0
         && currentVisibleViewportVersion() >= targetVersion
         && submittedBlipConfirmedInViewport(createdBlipId)) {
@@ -762,8 +764,16 @@ public final class J2clSelectedWaveController
           if (!isCurrentGeneration(generation) || !waveId.equals(selectedWaveId)) {
             return;
           }
-          if (!allowSameWaveWriteSessionAdvance
-              && isStaleFragmentResponse(hadWriteSession, baseVersion, historyHash)) {
+          // For post-submit fetches (allowSameWaveWriteSessionAdvance=true) the write
+          // session's version legitimately advances when the reply ACK arrives, so we
+          // skip the version/hash staleness check.  However we still reject the response
+          // if the write session disappeared entirely — that indicates the wave was
+          // closed or reset rather than a normal submit acknowledgement, and merging
+          // those fragments could overwrite content brought in by a live-stream update.
+          boolean sessionDisappeared = hadWriteSession && currentModel.getWriteSession() == null;
+          if (sessionDisappeared
+              || (!allowSameWaveWriteSessionAdvance
+                  && isStaleFragmentResponse(hadWriteSession, baseVersion, historyHash))) {
             emitExtensionOutcome(normalizedDirection, "stale");
             fragmentFetchesInFlight.remove(edgeKey);
             if (refreshSelectedWaveOnFailure) {

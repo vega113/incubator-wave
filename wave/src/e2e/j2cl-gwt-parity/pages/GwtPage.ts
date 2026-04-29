@@ -30,16 +30,13 @@ import { WavePage } from "./WavePage";
 export const GWT_ACTIVE_EDITOR_SIGNAL_SELECTOR = [
   ".wave-editor-on",
   '[contenteditable="true"]',
+  // Intentionally matches read-write and read-write-plaintext-only; both are active editors.
   '[style*="user-modify: read-write"]'
 ].join(", ");
 
 const GWT_ACTIVE_DOCUMENT_SELECTOR = [
-  '[kind="document"] .wave-editor-on',
-  '[kind="document"].wave-editor-on',
-  '[kind="document"][contenteditable="true"]',
-  '[kind="document"] [contenteditable="true"]',
-  '[kind="document"][style*="user-modify: read-write"]',
-  '[kind="document"] [style*="user-modify: read-write"]'
+  `[kind="document"]:is(${GWT_ACTIVE_EDITOR_SIGNAL_SELECTOR})`,
+  `[kind="document"] :is(${GWT_ACTIVE_EDITOR_SIGNAL_SELECTOR})`
 ].join(", ");
 
 export class GwtPage extends WavePage {
