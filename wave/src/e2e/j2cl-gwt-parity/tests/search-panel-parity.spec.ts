@@ -10,10 +10,8 @@
 //     action row (`<button data-digest-action="refresh"
 //     title="Refresh search results">`);
 //   - both views render the same set of digest cards in the same
-//     order. A freshly registered user has 0 waves, so on each view
-//     the count is 0 — the test still proves equality of the lists,
-//     and the per-card structural assertions kick in once any test
-//     fixture seeds at least one wave;
+//     order, against a NON-EMPTY inbox seeded by clicking GWT's
+//     "New Wave" toolbar button before sampling either view;
 //   - each digest card on each view exposes `[data-digest-card]` plus
 //     the five sub-selectors (`avatars`, `title`, `snippet`,
 //     `msg-count`, `time`).
@@ -22,6 +20,13 @@
 // skip an assertion to make the run pass. If a view legitimately
 // fails to render the rail or expose the parity selectors the test
 // fails until the underlying renderer is fixed.
+//
+// CodeRabbit (PR #1120 review): the seeding step is explicit, not a
+// silent dependency on the WelcomeRobot. RegistrationUtil.greet() is
+// best-effort (logs a warning on failure), so an empty-inbox run
+// would silently bypass the per-card parity contract. We therefore
+// click GWT's "New Wave" toolbar button to deterministically create
+// a wave on the user's inbox before running the parity assertions.
 import { test, expect, Locator, Page } from "@playwright/test";
 import { J2clPage } from "../pages/J2clPage";
 import { GwtPage } from "../pages/GwtPage";
@@ -49,9 +54,6 @@ interface DigestSnapshot {
  * (the {@code locator(...)} selector pierces open shadow roots).
  */
 async function snapshotCards(page: Page): Promise<DigestSnapshot[]> {
-  // Wait briefly for the rail to settle. Both views ship the rail
-  // pre-upgrade (server-rendered), so we don't need a long timeout —
-  // a single attempt is enough.
   const cards = page.locator("[data-digest-card]");
   const count = await cards.count();
   const out: DigestSnapshot[] = [];
@@ -84,17 +86,164 @@ function refreshButton(page: Page): Locator {
   return page.locator('[title="Refresh search results"]:visible').first();
 }
 
+/**
+ * Drives the GWT view's "New Wave" toolbar button to deterministically
+ * seed the user's inbox with one wave. The button's title is
+ * "New Wave (Shift+Cmd+O)" (GWT messages.newWaveHint() + the shortcut
+ * suffix). Returns when the search bar/rail re-renders, indicating
+ * the new wave is now in inbox.
+ *
+ * Implementation detail: clicking "New Wave" in GWT navigates the URL
+ * to the new wave (something like `#wave=…`). To put the user back on
+ * the inbox so the rail shows the new wave we navigate explicitly to
+ * `/?view=gwt` after creation — this is the same flow a user would
+ * use via the back button.
+ */
+async function seedOneWaveViaGwtNewWaveButton(
+  page: Page,
+  gwt: GwtPage,
+  baseURL: string
+): Promise<void> {
+  await gwt.goto("/");
+  await gwt.assertInboxLoaded();
+  // GWT renders the toolbar after the bundle loads. The New Wave
+  // button has a tooltip of "New Wave (Shift+Cmd+O)" via
+  // SearchPresenter.initToolbarMenu's setTooltip(messages.newWaveHint()
+  // + " (Shift+Ctrl/Cmd+O)") wiring. We match on a starts-with title
+  // selector so future tooltip suffix tweaks don't break the test.
+  const newWave = page.locator('[title^="New Wave ("]').first();
+  await expect(
+    newWave,
+    "GWT: New Wave toolbar button must mount within 30s"
+  ).toBeVisible({ timeout: 30_000 });
+
+  // Wait for the GWT initial /search to settle BEFORE snapshotting
+  // the pre-click count. The WelcomeRobot delivers a welcome wave
+  // asynchronously during registration, so the inbox state is racy
+  // at toolbar-render time — sampling now would let cardsBefore
+  // capture 0 cards, making the strict-increase post-condition
+  // fire on the welcome wave (not on our newly-created wave).
+  //
+  // GWT obfuscates CSS class names so we cannot select on .waveCount
+  // directly; the wave-count bar's text content follows a stable
+  // pattern though ("N waves" / "N waves · M unread"), so we wait
+  // for that text to appear in the DOM. After the bar settles we
+  // also absorb a short delay to let any in-flight WelcomeRobot
+  // delivery land before sampling cardsBefore.
+  await page
+    .waitForFunction(
+      () => {
+        const elements = Array.from(document.querySelectorAll("body *"));
+        return elements.some((el) => {
+          if (el.children.length > 0) return false;
+          const text = (el.textContent || "").trim();
+          return /\b\d+\s+waves?\b/i.test(text);
+        });
+      },
+      { timeout: 30_000 }
+    )
+    .catch(() => {
+      throw new Error(
+        'GWT initial search did not settle; the "N waves" info bar never ' +
+          "appeared. Inspect the trace attachment."
+      );
+    });
+  // Absorb any in-flight WelcomeRobot delivery (best-effort) before
+  // we snapshot cardsBefore. 3s is enough on a healthy local server;
+  // CI is similarly generous on welcome-bot latency.
+  await page.waitForTimeout(3_000);
+  const cardsBefore = await page.locator("[data-digest-card]").count();
+
+  // Capture the URL before click so we can detect the navigation
+  // away to the new wave (which is how GWT confirms the wave was
+  // created).
+  const beforeUrl = page.url();
+  await newWave.click();
+  await page
+    .waitForFunction((before) => window.location.href !== before, beforeUrl, {
+      timeout: 30_000
+    })
+    .catch(() => {
+      throw new Error(
+        "GWT New Wave click did not navigate away from the inbox; the " +
+          "wave was not created. Inspect the trace attachment."
+      );
+    });
+
+  // Give the server a beat to commit the new-wave delta before we
+  // navigate away. Without this sleep the subsequent /?view=gwt
+  // bootstrap can issue its /search request before the new wave's
+  // first delta has reached the index, returning a stale list.
+  await page.waitForTimeout(2_000);
+
+  // Navigate back to the inbox so the rail repaints with the new
+  // wave at the top of the list. We use `location.href = ...` (a
+  // full-document navigation) instead of Playwright's `page.goto`
+  // because the post-click URL carries a GWT hash route
+  // (#local.net/w+...) — `page.goto` to the same query string
+  // sometimes preserves the GWT in-memory state and the new wave
+  // does not appear in the inbox digest list. A hard navigation
+  // forces GWT to re-bootstrap and re-issue the /search request.
+  await page.evaluate((url) => {
+    window.location.href = url;
+  }, baseURL + "/?view=gwt");
+  await page.waitForLoadState("domcontentloaded");
+  await gwt.assertInboxLoaded();
+  // Wait for the inbox card count to STRICTLY INCREASE past the
+  // pre-click count. A short polling loop with explicit refreshes
+  // covers the case where the GWT search has cached the pre-seed
+  // result and needs a refresh click to pick up the new wave.
+  const refreshLocator = page.locator(
+    '[title="Refresh search results"]:visible'
+  );
+  let satisfied = false;
+  const deadline = Date.now() + 45_000;
+  while (Date.now() < deadline) {
+    const now = await page.locator("[data-digest-card]").count();
+    if (now > cardsBefore) {
+      satisfied = true;
+      break;
+    }
+    // Best-effort refresh; ignore errors if the toolbar isn't ready.
+    try {
+      if ((await refreshLocator.count()) > 0) {
+        await refreshLocator.first().click({ timeout: 2_000 });
+      }
+    } catch {
+      /* ignore — we'll retry on the next loop tick */
+    }
+    await page.waitForTimeout(1_000);
+  }
+  if (!satisfied) {
+    const finalCount = await page.locator("[data-digest-card]").count();
+    throw new Error(
+      `GWT inbox did not surface the new wave within 45s ` +
+        `(cardsBefore=${cardsBefore}, finalCount=${finalCount}). ` +
+        `Inspect the trace attachment.`
+    );
+  }
+}
+
 test.describe("G-PORT-2 search panel parity", () => {
   test("J2CL and GWT search rails render the same digest list and refresh affordance", async ({
     page
   }) => {
-    test.setTimeout(90_000);
+    test.setTimeout(180_000);
     const creds = freshCredentials("gp2");
     test.info().annotations.push({ type: "test-user", description: creds.address });
     await registerAndSignIn(page, BASE_URL, creds);
 
-    // ---- J2CL view ----
     const j2cl = new J2clPage(page, BASE_URL);
+    const gwt = new GwtPage(page, BASE_URL);
+
+    // ---- Seed a non-empty inbox ----
+    // CodeRabbit (PR #1120 review): without an explicit seed step the
+    // per-card parity contract only validates the empty-list case. We
+    // therefore actively create a wave via GWT's "New Wave" toolbar
+    // button before sampling either view.
+    await seedOneWaveViaGwtNewWaveButton(page, gwt, BASE_URL);
+
+    // ---- J2CL view ----
     await j2cl.goto("/");
     await j2cl.assertInboxLoaded();
 
@@ -148,48 +297,34 @@ test.describe("G-PORT-2 search panel parity", () => {
       .count();
     let j2clCards: DigestSnapshot[] | null = null;
     if (railCardsOn > 0) {
-      // The J2CL search panel is async — cards arrive after the
-      // search subscription returns. Wait for either at least one
-      // <wavy-search-rail-card> to mount, or for the rail's
-      // .result-count to become non-empty (which fires when the
-      // search-update arrives even with zero matches). Either signal
-      // means the search has settled.
+      // Wait for the J2CL search subscription to deliver at least one
+      // card. The seed step guaranteed the inbox is non-empty, so we
+      // can hard-require ≥1 card — that's the whole point of seeding.
       await page
         .waitForFunction(
-          () => {
-            const cards = document.querySelectorAll("wavy-search-rail-card");
-            if (cards.length > 0) return true;
-            const rail = document.querySelector("wavy-search-rail");
-            const sr = rail && (rail as HTMLElement).shadowRoot;
-            const counter = sr && sr.querySelector("p.result-count");
-            return !!(counter && counter.textContent && counter.textContent.trim().length > 0);
-          },
-          { timeout: 20_000 }
+          () => document.querySelectorAll("wavy-search-rail-card").length > 0,
+          { timeout: 30_000 }
         )
         .catch(() => {
-          // Surface a clear diagnostic if the wait times out — better
-          // than letting the parity assertion fail with a misleading
-          // count.
           throw new Error(
-            "J2CL search subscription did not settle within 20s. " +
-              "Either the search service is broken on this server, " +
-              "or the j2cl-search-rail-cards flag is not actually " +
-              "delivering cards. Inspect the trace attachment."
+            "J2CL search subscription did not deliver any " +
+              "<wavy-search-rail-card> within 30s after the inbox was " +
+              "seeded. Either the search service is broken on this " +
+              "server, or the j2cl-search-rail-cards flag is not " +
+              "actually delivering cards. Inspect the trace attachment."
           );
         });
       j2clCards = await snapshotCards(page);
+      expect(
+        j2clCards.length,
+        "J2CL: expected ≥1 digest card after seeding the inbox"
+      ).toBeGreaterThan(0);
     }
 
     // ---- GWT view ----
-    const gwt = new GwtPage(page, BASE_URL);
     await gwt.goto("/");
     await gwt.assertInboxLoaded();
 
-    // GWT renders the search panel via SearchPanelWidget. Wait for the
-    // rail toolbar to render — the GWT presenter creates the toolbar
-    // on bootstrap. We use the shared refresh affordance as the
-    // "rail is up" signal because it's what the parity contract
-    // actually requires.
     await expect(
       refreshButton(page),
       "GWT: refresh affordance reachable via title='Refresh search results'"
@@ -199,26 +334,25 @@ test.describe("G-PORT-2 search panel parity", () => {
     // creates its toolbar via SearchPanelWidget at runtime without those
     // attributes, so sort/filter are not asserted here.
 
-    // GWT search is also async (XHR /search). Wait until either at
-    // least one digest card appears, or the wave-count info bar
-    // renders text (the GWT widget updates `.waveCount` when the
-    // /search response lands, even with zero matches).
+    // Wait for ≥1 card on the GWT side as well — the seed guaranteed
+    // a wave on the user's inbox.
     await page
       .waitForFunction(
-        () => {
-          if (document.querySelectorAll("[data-digest-card]").length > 0) return true;
-          const wc = document.querySelector(".waveCount, [class*='waveCount']");
-          return !!(wc && wc.textContent && wc.textContent.trim().length > 0);
-        },
+        () => document.querySelectorAll("[data-digest-card]").length > 0,
         { timeout: 30_000 }
       )
       .catch(() => {
         throw new Error(
-          "GWT search did not settle within 30s. Inspect the trace attachment."
+          "GWT inbox did not surface the seeded wave within 30s after " +
+            "navigating back to the inbox. Inspect the trace attachment."
         );
       });
 
     const gwtCards = await snapshotCards(page);
+    expect(
+      gwtCards.length,
+      "GWT: expected ≥1 digest card after seeding the inbox"
+    ).toBeGreaterThan(0);
 
     // ---- Parity assertions ----
 
@@ -240,7 +374,21 @@ test.describe("G-PORT-2 search panel parity", () => {
         gwtCards.length,
         `digest card count parity (j2cl=${j2clCards.length}, gwt=${gwtCards.length})`
       ).toEqual(j2clCards.length);
-      expect(gwtCards.map((c) => c.title)).toEqual(j2clCards.map((c) => c.title));
+
+      // Normalize the empty/untitled-wave fallback text before
+      // comparing titles. The J2CL projector substitutes "(untitled
+      // wave)" for an empty title (J2clSearchResultProjector.java:79
+      // and J2clSearchPanelController.java:413); GWT lets the empty
+      // string flow through DigestDomImpl.setTitleText. This is a
+      // rendering-level divergence that lives outside the G-PORT-2
+      // contract — the parity goal is the structural DOM, not the
+      // text fallback. We therefore collapse both to empty string
+      // before comparing the ordered title list.
+      const normTitle = (t: string): string =>
+        t === "(untitled wave)" || t === "(no title)" ? "" : t;
+      expect(gwtCards.map((c) => normTitle(c.title))).toEqual(
+        j2clCards.map((c) => normTitle(c.title))
+      );
       for (const c of [...j2clCards, ...gwtCards]) {
         expect(c.hasAvatars, "card must have data-digest-avatars").toBe(true);
         expect(c.hasTitle, "card must have data-digest-title").toBe(true);
@@ -251,8 +399,8 @@ test.describe("G-PORT-2 search panel parity", () => {
     } else {
       // J2CL rail-cards flag is off — the legacy plain-DOM digest list
       // does not carry data-digest-* hooks. We still assert that GWT
-      // cards (when any) expose the five children, because that's the
-      // GWT-side contract this slice ships.
+      // cards (now non-empty) expose the five children, because that's
+      // the GWT-side contract this slice ships.
       for (const c of gwtCards) {
         expect(c.hasAvatars, "GWT card must have data-digest-avatars").toBe(true);
         expect(c.hasTitle, "GWT card must have data-digest-title").toBe(true);
