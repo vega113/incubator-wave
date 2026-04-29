@@ -45,6 +45,7 @@ function bindNavRow(row) {
   if (!row || boundRows.has(row)) return;
   boundRows.add(row);
   row.setAttribute(ATTR_BOUND, "");
+  syncFolderStateForWave(row, readWaveIdFromHost(row));
   row.addEventListener(
     "wave-nav-archive-toggle-requested",
     onArchiveToggle
@@ -59,6 +60,15 @@ function bindNavRow(row) {
   );
 }
 
+function unbindNavRow(row) {
+  if (!row || !boundRows.has(row)) return;
+  row.removeAttribute(ATTR_BOUND);
+  row.removeEventListener("wave-nav-archive-toggle-requested", onArchiveToggle);
+  row.removeEventListener("wave-nav-pin-toggle-requested", onPinToggle);
+  row.removeEventListener("wave-nav-version-history-requested", onVersionHistoryRequest);
+  boundRows.delete(row);
+}
+
 function scanFor(root) {
   if (!root) return;
   if (isNavRow(root)) {
@@ -69,6 +79,23 @@ function scanFor(root) {
     const rows = root.querySelectorAll(NAV_ROW_TAG.toLowerCase());
     for (const row of rows) bindNavRow(row);
   }
+}
+
+function unbindFrom(root) {
+  if (!root) return;
+  if (isNavRow(root)) {
+    unbindNavRow(root);
+    return;
+  }
+  if (typeof root.querySelectorAll === "function") {
+    const rows = root.querySelectorAll(NAV_ROW_TAG.toLowerCase());
+    for (const row of rows) unbindNavRow(row);
+  }
+}
+
+function readWaveIdFromHost(host) {
+  if (!host || typeof host.getAttribute !== "function") return "";
+  return host.getAttribute("source-wave-id") || "";
 }
 
 function readWaveId(event) {
@@ -145,17 +172,23 @@ function setBusy(host, busy, waveId) {
   }
 }
 
-function resetFolderStateIfWaveChanged(host, waveId) {
+function syncFolderStateForWave(host, waveId) {
   if (!host || typeof host.getAttribute !== "function") return;
   const current = host.getAttribute(ATTR_FOLDER_STATE_WAVE_ID);
   if (current === waveId) return;
+  if (current != null) {
+    setBusy(host, false, current);
+    // The same nav-row host can be reused while switching waves. Until
+    // server folder state is wired into the model (#1055/S5), optimistic
+    // toggle attributes must not bleed from the previous wave.
+    host.removeAttribute("pinned");
+    host.removeAttribute("archived");
+  }
+  if (!waveId) {
+    host.removeAttribute(ATTR_FOLDER_STATE_WAVE_ID);
+    return;
+  }
   host.setAttribute(ATTR_FOLDER_STATE_WAVE_ID, waveId);
-  if (current == null) return;
-  // The same nav-row host can be reused while switching waves. Until
-  // server folder state is wired into the model (#1055/S5), optimistic
-  // toggle attributes must not bleed from the previous wave.
-  host.removeAttribute("pinned");
-  host.removeAttribute("archived");
 }
 
 function buildFolderUrl(params) {
@@ -166,17 +199,32 @@ function buildFolderUrl(params) {
   return "/folder/?" + search.toString();
 }
 
-function fetchFolderOp(url) {
+function folderFetchTimeoutMs() {
+  if (typeof window === "undefined") return 15_000;
+  const override = window.__G_PORT_8_FOLDER_TIMEOUT_MS;
+  return Number.isFinite(override) && override > 0 ? override : 15_000;
+}
+
+function fetchFolderOp(url, timeoutMs = folderFetchTimeoutMs()) {
+  const supportsAbort = typeof AbortController !== "undefined";
+  const controller = supportsAbort ? new AbortController() : null;
+  const timer =
+    supportsAbort && timeoutMs > 0
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
   // Use fetch with method POST + same-origin credentials so the
   // session cookie ships. The servlet reads parameters via
   // request.getParameter (works for query string params on a POST).
   return fetch(url, {
     method: "POST",
     credentials: "same-origin",
+    ...(controller ? { signal: controller.signal } : {}),
     // Empty body is fine — params live on the query string. Provide
     // a content-type so misconfigured intermediaries don't reject.
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: ""
+  }).finally(() => {
+    if (timer) clearTimeout(timer);
   });
 }
 
@@ -223,7 +271,7 @@ function onArchiveToggle(event) {
   const host = event.currentTarget;
   const waveId = readWaveId(event);
   if (!waveId) return;
-  resetFolderStateIfWaveChanged(host, waveId);
+  syncFolderStateForWave(host, waveId);
   if (isBusyForWave(host, waveId)) return;
   const wasArchived = readBoolAttr(host, "archived");
   const folder = wasArchived ? "inbox" : "archive";
@@ -274,7 +322,7 @@ function onPinToggle(event) {
   const host = event.currentTarget;
   const waveId = readWaveId(event);
   if (!waveId) return;
-  resetFolderStateIfWaveChanged(host, waveId);
+  syncFolderStateForWave(host, waveId);
   if (isBusyForWave(host, waveId)) return;
   const wasPinned = readBoolAttr(host, "pinned");
   const operation = wasPinned ? "unpin" : "pin";
@@ -336,12 +384,25 @@ export function start() {
   // Watch for nav-rows added or removed as the J2CL renderer cycles.
   observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
-      if (!mutation.addedNodes) continue;
-      mutation.addedNodes.forEach((node) => scanFor(node));
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName === "source-wave-id" &&
+        isNavRow(mutation.target)
+      ) {
+        syncFolderStateForWave(mutation.target, readWaveIdFromHost(mutation.target));
+      }
+      if (mutation.addedNodes) {
+        mutation.addedNodes.forEach((node) => scanFor(node));
+      }
+      if (mutation.removedNodes) {
+        mutation.removedNodes.forEach((node) => unbindFrom(node));
+      }
     }
   });
   try {
     observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["source-wave-id"],
       childList: true,
       subtree: true
     });
@@ -357,13 +418,7 @@ export function stop() {
     observer.disconnect();
     observer = null;
   }
-  for (const row of boundRows) {
-    row.removeAttribute(ATTR_BOUND);
-    row.removeEventListener("wave-nav-archive-toggle-requested", onArchiveToggle);
-    row.removeEventListener("wave-nav-pin-toggle-requested", onPinToggle);
-    row.removeEventListener("wave-nav-version-history-requested", onVersionHistoryRequest);
-  }
-  boundRows.clear();
+  for (const row of Array.from(boundRows)) unbindNavRow(row);
 }
 
 // Auto-start on import in real browsers. Tests that want to control

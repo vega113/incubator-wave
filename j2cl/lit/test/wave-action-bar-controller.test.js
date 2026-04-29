@@ -41,6 +41,7 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
   afterEach(() => {
     if (stub) stub.restore();
     stub = null;
+    delete window.__G_PORT_8_FOLDER_TIMEOUT_MS;
     controllerModule.stop();
   });
 
@@ -118,6 +119,8 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     expect(row.hasAttribute("pinned")).to.be.true;
 
     row.setAttribute("source-wave-id", "w+b");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(row.hasAttribute("pinned")).to.be.false;
     completed = new Promise((resolve) =>
       document.addEventListener(
         "wavy-folder-action-completed",
@@ -136,6 +139,42 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     expect(detail.operation).to.equal("pin");
     const url = new URL(stub.calls[1].url, window.location.origin);
     expect(url.searchParams.get("operation")).to.equal("pin");
+  });
+
+  it("times out hung folder requests so busy state clears", async () => {
+    window.__G_PORT_8_FOLDER_TIMEOUT_MS = 20;
+    stub = installFetchStub(
+      async (_url, init) =>
+        await new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError"))
+          );
+        })
+    );
+    const row = await fixture(
+      html`<wavy-wave-nav-row source-wave-id="w+hang"></wavy-wave-nav-row>`
+    );
+    controllerModule.start();
+    await Promise.resolve();
+
+    const failed = new Promise((resolve) =>
+      document.addEventListener(
+        "wavy-folder-action-failed",
+        (e) => resolve(e.detail),
+        { once: true }
+      )
+    );
+    row.dispatchEvent(
+      new CustomEvent("wave-nav-pin-toggle-requested", {
+        bubbles: true,
+        composed: true,
+        detail: { sourceWaveId: "w+hang" }
+      })
+    );
+    const detail = await failed;
+    expect(detail.waveId).to.equal("w+hang");
+    expect(detail.error).to.be.a("string");
+    expect(row.hasAttribute("data-folder-busy")).to.be.false;
   });
 
   it("does not let an in-flight request for one wave block a new wave", async () => {
@@ -415,6 +454,30 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     } finally {
       row.remove();
     }
+  });
+
+  it("MutationObserver unbinds nav-rows removed from the DOM", async () => {
+    stub = installFetchStub(async () => okResponse());
+    controllerModule.start();
+    const row = document.createElement("wavy-wave-nav-row");
+    row.setAttribute("source-wave-id", "w+gone");
+    document.body.appendChild(row);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(row.hasAttribute("data-action-bar-bound")).to.be.true;
+
+    row.remove();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(row.hasAttribute("data-action-bar-bound")).to.be.false;
+
+    row.dispatchEvent(
+      new CustomEvent("wave-nav-pin-toggle-requested", {
+        bubbles: true,
+        composed: true,
+        detail: { sourceWaveId: "w+gone" }
+      })
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(stub.calls).to.have.lengthOf(0);
   });
 
   it("binding is idempotent — repeated scans do not double-fire", async () => {
