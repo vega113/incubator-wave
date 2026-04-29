@@ -219,6 +219,15 @@ function hydrateFromDigest(host, waveId) {
 function syncFolderStateForWave(host, waveId) {
   if (!host || typeof host.getAttribute !== "function") return;
   const current = host.getAttribute(ATTR_FOLDER_STATE_WAVE_ID);
+  if (!waveId) {
+    // No selected wave owns the row anymore, so clear any pending optimistic
+    // affordance regardless of the previous busy-wave-id owner.
+    setBusy(host, false);
+    host.removeAttribute("pinned");
+    host.removeAttribute("archived");
+    host.removeAttribute(ATTR_FOLDER_STATE_WAVE_ID);
+    return;
+  }
   if (current === waveId) return;
   if (current != null) {
     setBusy(host, false, current);
@@ -230,10 +239,6 @@ function syncFolderStateForWave(host, waveId) {
     // from rail digest as the only available pre-publish hint.
     host.removeAttribute("pinned");
     host.removeAttribute("archived");
-  }
-  if (!waveId) {
-    host.removeAttribute(ATTR_FOLDER_STATE_WAVE_ID);
-    return;
   }
   host.setAttribute(ATTR_FOLDER_STATE_WAVE_ID, waveId);
   // Seed initial folder state from a matching search-rail digest card.

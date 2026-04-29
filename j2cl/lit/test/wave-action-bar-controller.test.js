@@ -898,6 +898,52 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     expect(row.hasAttribute("data-folder-state-wave-id")).to.be.false;
   });
 
+  it("clears in-flight busy state when source wave id is removed after marker cleanup", async () => {
+    const row = await fixture(
+      html`<wavy-wave-nav-row
+        source-wave-id="w+old"
+        data-folder-state-wave-id="w+old"
+        data-folder-busy
+        data-folder-busy-wave-id="w+old"
+        pinned
+        archived
+      ></wavy-wave-nav-row>`
+    );
+    controllerModule.start();
+    await Promise.resolve();
+
+    // Java clears the ownership marker synchronously with deselect before the
+    // source-wave-id MutationObserver callback runs. The controller still owns
+    // the pending optimistic busy affordance and must clear it on no-source.
+    row.removeAttribute("data-folder-state-wave-id");
+    row.removeAttribute("source-wave-id");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(row.hasAttribute("data-folder-busy")).to.be.false;
+    expect(row.hasAttribute("data-folder-busy-wave-id")).to.be.false;
+    expect(row.hasAttribute("pinned")).to.be.false;
+    expect(row.hasAttribute("archived")).to.be.false;
+    expect(row.hasAttribute("data-folder-state-wave-id")).to.be.false;
+  });
+
+  it("clears busy state for any previous owner when source wave id is removed", async () => {
+    const row = await fixture(
+      html`<wavy-wave-nav-row
+        source-wave-id="w+old"
+        data-folder-busy
+        data-folder-busy-wave-id="w+other"
+      ></wavy-wave-nav-row>`
+    );
+    controllerModule.start();
+    await Promise.resolve();
+
+    row.removeAttribute("source-wave-id");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(row.hasAttribute("data-folder-busy")).to.be.false;
+    expect(row.hasAttribute("data-folder-busy-wave-id")).to.be.false;
+  });
+
   it("clears stale optimistic folder state when ownership marker does not match source wave", async () => {
     const row = await fixture(
       html`<wavy-wave-nav-row
