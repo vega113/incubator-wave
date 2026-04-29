@@ -494,11 +494,11 @@ test.describe("G-PORT-4 inline reply + working compose toolbar parity", () => {
     // pane; click its visible entry. Wait briefly first so GWT's
     // deferred relayout has settled — direct .first() can target a
     // hidden pre-render scratch node otherwise.
-    await page.waitForTimeout(2_500);
+    await page.waitForTimeout(2_500); // empirically calibrated: GWT deferred relayout before digest list renders
     const digest = page.locator("text=Welcome to SupaWave").first();
     await expect(digest).toBeVisible({ timeout: 10_000 });
     await digest.click({ timeout: 15_000 });
-    await page.waitForTimeout(6_000);
+    await page.waitForTimeout(6_000); // empirically calibrated: GWT deferred wave-open and blip render after click
 
     // GWT renders blip text inside multiple nested containers; assert
     // the body's text content carries a stable welcome-wave phrase
