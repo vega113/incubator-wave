@@ -205,6 +205,7 @@ public final class SidecarConversationManifest {
     List<String> openBlipStack = new ArrayList<String>();
     List<Integer> openBlipEntryIndexStack = new ArrayList<Integer>();
     int rootSiblingCounter = 0;
+    int conversationDepth = 0;
     int itemPosition = 0;
     int cursor = 0;
     while (cursor < rawXml.length()) {
@@ -225,17 +226,23 @@ public final class SidecarConversationManifest {
       if (closing) {
         String name = tagName(tag.substring(1).trim());
         if ("thread".equals(name)) {
-          popLast(threadStack);
-          popLast(threadParentBlipStack);
-          popLast(siblingCounterStack);
-        } else if ("blip".equals(name)) {
-          popLast(openBlipStack);
-          Integer entryIndex = removeLast(openBlipEntryIndexStack);
-          if (entryIndex != null && entryIndex.intValue() >= 0) {
-            setReplyInsertPosition(entries, entryIndex.intValue(), itemPosition);
+          String threadId = removeLast(threadStack);
+          if (threadId != null) {
+            removeLast(threadParentBlipStack);
+            removeLast(siblingCounterStack);
+            itemPosition++;
           }
-        }
-        if ("conversation".equals(name) || "thread".equals(name) || "blip".equals(name)) {
+        } else if ("blip".equals(name)) {
+          String openBlipId = removeLast(openBlipStack);
+          if (openBlipId != null) {
+            Integer entryIndex = removeLast(openBlipEntryIndexStack);
+            if (entryIndex != null && entryIndex.intValue() >= 0) {
+              setReplyInsertPosition(entries, entryIndex.intValue(), itemPosition);
+            }
+            itemPosition++;
+          }
+        } else if ("conversation".equals(name) && conversationDepth > 0) {
+          conversationDepth--;
           itemPosition++;
         }
         continue;
@@ -254,9 +261,9 @@ public final class SidecarConversationManifest {
         threadParentBlipStack.add(parentBlipId);
         siblingCounterStack.add(Integer.valueOf(0));
         if (selfClosing) {
-          popLast(threadStack);
-          popLast(threadParentBlipStack);
-          popLast(siblingCounterStack);
+          removeLast(threadStack);
+          removeLast(threadParentBlipStack);
+          removeLast(siblingCounterStack);
           itemPosition++;
         }
       } else if ("blip".equals(name)) {
@@ -304,6 +311,8 @@ public final class SidecarConversationManifest {
         itemPosition++;
         if (selfClosing) {
           itemPosition++;
+        } else {
+          conversationDepth++;
         }
       }
     }
@@ -434,12 +443,6 @@ public final class SidecarConversationManifest {
       }
     }
     return depth;
-  }
-
-  private static <T> void popLast(List<T> values) {
-    if (values != null && !values.isEmpty()) {
-      values.remove(values.size() - 1);
-    }
   }
 
   private static <T> T removeLast(List<T> values) {

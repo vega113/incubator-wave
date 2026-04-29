@@ -120,6 +120,7 @@ public class J2clComposeSurfaceControllerTest {
     Assert.assertEquals(
         Arrays.asList("alice@example.com", "bob@example.com"),
         view.model.getParticipantAddresses());
+    Assert.assertTrue(view.model.isReplyAvailable());
   }
 
   @Test
@@ -187,6 +188,10 @@ public class J2clComposeSurfaceControllerTest {
     controller.onReplyDraftChanged("Draft from first wave");
     controller.onSelectedWaveComposeContextChanged(
         null, null, Collections.<String>emptyList());
+
+    Assert.assertTrue(view.model.getParticipantAddresses().isEmpty());
+    Assert.assertFalse(view.model.isReplyAvailable());
+
     controller.onSelectedWaveComposeContextChanged(
         "example.com/w+2", null, Arrays.asList("alice@example.com"));
 

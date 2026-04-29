@@ -412,20 +412,13 @@ public final class J2clSelectedWaveController
     retryScheduler.scheduleRetry(
         POST_SUBMIT_LIVE_UPDATE_GRACE_MS,
         () -> {
-          if (!isCurrentGeneration(generation)
-              || selectedWaveId == null
-              || !submittedWaveId.equals(selectedWaveId)) {
-            return;
-          }
-          long currentVisibleVersion = currentVisibleViewportVersion();
-          int currentLoadedBlips = currentLoadedViewportBlipCount();
-          if ((targetVersion >= 0
-                  && currentVisibleVersion >= targetVersion
-                  && currentViewportHasLoadedBlip(createdBlipId))
-              || (targetVersion < 0
-                  && visibleVersionAtSubmit >= 0
-                  && currentVisibleVersion > visibleVersionAtSubmit)
-              || currentLoadedBlips > loadedBlipsAtSubmit) {
+          if (shouldSkipPostSubmitFallback(
+              generation,
+              submittedWaveId,
+              targetVersion,
+              createdBlipId,
+              visibleVersionAtSubmit,
+              loadedBlipsAtSubmit)) {
             return;
           }
           if (requestPostSubmitForwardFetch(generation, submittedWaveId, createdBlipId)) {
@@ -433,6 +426,29 @@ public final class J2clSelectedWaveController
           }
           refreshSelectedWave();
         });
+  }
+
+  private boolean shouldSkipPostSubmitFallback(
+      int generation,
+      String submittedWaveId,
+      long targetVersion,
+      String createdBlipId,
+      long visibleVersionAtSubmit,
+      int loadedBlipsAtSubmit) {
+    if (!isCurrentGeneration(generation)
+        || selectedWaveId == null
+        || !submittedWaveId.equals(selectedWaveId)) {
+      return true;
+    }
+    long currentVisibleVersion = currentVisibleViewportVersion();
+    int currentLoadedBlips = currentLoadedViewportBlipCount();
+    return (targetVersion >= 0
+            && currentVisibleVersion >= targetVersion
+            && currentViewportHasLoadedBlip(createdBlipId))
+        || (targetVersion < 0
+            && visibleVersionAtSubmit >= 0
+            && currentVisibleVersion > visibleVersionAtSubmit)
+        || currentLoadedBlips > loadedBlipsAtSubmit;
   }
 
   @Override
