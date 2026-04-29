@@ -1,7 +1,7 @@
 // G-PORT-7 (#1116): tests for the dialog-stack Esc helper.
 import { fixture, expect, html } from "@open-wc/testing";
 import { closeTopmostDialog, _internalForTesting } from "../../src/shortcuts/dialog-stack.js";
-const { collectShadowRoots, composedTreeCompare } = _internalForTesting;
+const { collectShadowRoots, composedTreeCompare, findInnerNativeDialog } = _internalForTesting;
 
 // Minimal mock surfaces — the real surfaces all expose either an
 // `open` boolean property (set by Lit reflection) or the host `open`
@@ -118,6 +118,43 @@ describe("closeTopmostDialog", () => {
     expect(collectShadowRoots(root)).to.have.lengthOf(1);
     expect(closeTopmostDialog(root)).to.equal(true);
     expect(popover.open).to.equal(false);
+  });
+
+  it("closes inner native <dialog> before host overlay (restore-confirm pattern)", async () => {
+    // wavy-version-history is a tier-1 element. We attach a native
+    // <dialog class="confirm"> as a light-DOM child (simulating the
+    // inline restore-confirm inside the real component's shadow tree).
+    // The first Esc must close the inner dialog; the host stays open.
+    const root = await fixture(html`
+      <div>
+        <wavy-version-history>
+          <dialog class="confirm"></dialog>
+        </wavy-version-history>
+      </div>
+    `);
+    const host = root.querySelector("wavy-version-history");
+    const innerDlg = root.querySelector("dialog.confirm");
+    host.open = true;
+    innerDlg.setAttribute("open", ""); // native dialog: open IDL attr is true
+    expect(innerDlg.open).to.equal(true);
+    expect(host.open).to.equal(true);
+
+    // First Esc: inner dialog closes; host remains open.
+    expect(closeTopmostDialog(root)).to.equal(true);
+    expect(innerDlg.open).to.equal(false);
+    expect(host.open).to.equal(true);
+
+    // Second Esc: host closes.
+    expect(closeTopmostDialog(root)).to.equal(true);
+    expect(host.open).to.equal(false);
+    expect(host._closeCalls).to.equal(1);
+  });
+
+  it("findInnerNativeDialog returns null when host has no open native dialog", async () => {
+    const root = await fixture(html`<div><wavy-confirm-dialog></wavy-confirm-dialog></div>`);
+    const host = root.querySelector("wavy-confirm-dialog");
+    host.open = true;
+    expect(findInnerNativeDialog(host)).to.equal(null);
   });
 
   it("prefers later light-DOM popover over earlier shadow-root popover (composed-tree order)", async () => {

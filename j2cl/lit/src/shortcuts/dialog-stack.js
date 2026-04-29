@@ -170,13 +170,50 @@ function findTopmostOpen(root = document) {
 }
 
 /**
+ * Find the innermost open native <dialog> element inside `host`'s own
+ * subtree (light DOM children + shadow roots). Returns it when found,
+ * null otherwise.
+ *
+ * Used to prioritize closing a sub-confirmation dialog (e.g. the
+ * restore-confirm <dialog class="confirm"> inside wavy-version-history)
+ * before closing the surrounding overlay host. This preserves the
+ * "one action per Esc" contract when a component renders secondary
+ * native dialogs that are not represented in the TIERS list.
+ */
+function findInnerNativeDialog(host) {
+  const open = [];
+  // Light-DOM children of host (slot content / direct children).
+  if (typeof host.querySelectorAll === "function") {
+    open.push(...Array.from(host.querySelectorAll("dialog")).filter((d) => d.open === true));
+  }
+  // Shadow DOM: immediate shadow root + nested shadow roots within it.
+  if (host.shadowRoot) {
+    const shadowRoots = [host.shadowRoot, ...collectShadowRoots(host.shadowRoot)];
+    for (const r of shadowRoots) {
+      open.push(...Array.from(r.querySelectorAll("dialog")).filter((d) => d.open === true));
+    }
+  }
+  if (open.length === 0) return null;
+  open.sort(composedTreeCompare);
+  return open[open.length - 1];
+}
+
+/**
  * Close the topmost open dialog/popover. Returns true when something
  * closed so the Esc dispatcher can STOP (one action per keypress).
+ *
+ * Before closing the found host, checks whether its subtree contains an
+ * open native <dialog> element. If so, closes that inner dialog first
+ * (leaving the host open) so that a secondary confirmation prompt (e.g.
+ * wavy-version-history's restore-confirm) dismisses before the host
+ * overlay does.
  */
 export function closeTopmostDialog(root = document) {
   const target = findTopmostOpen(root);
   if (!target) return false;
+  const inner = findInnerNativeDialog(target);
+  if (inner && inner !== target) return closeHost(inner);
   return closeHost(target);
 }
 
-export const _internalForTesting = { TIERS, isOpen, closeHost, findTopmostOpen, collectShadowRoots, composedTreeCompare, topLevelAncestor };
+export const _internalForTesting = { TIERS, isOpen, closeHost, findTopmostOpen, collectShadowRoots, composedTreeCompare, topLevelAncestor, findInnerNativeDialog };

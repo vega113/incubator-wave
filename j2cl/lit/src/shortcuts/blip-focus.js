@@ -72,6 +72,9 @@ function findReadSurface(blip, root = document) {
     if (typeof el.hasAttribute === "function" && el.hasAttribute(READ_SURFACE_ATTR)) return el;
     el = el.parentElement;
   }
+  // `root` itself may be the read-surface element (e.g. when scoped to
+  // a shadow root or a fixture element for testing).
+  if (root && typeof root.hasAttribute === "function" && root.hasAttribute(READ_SURFACE_ATTR)) return root;
   return root && root.querySelector ? root.querySelector(`[${READ_SURFACE_ATTR}]`) : null;
 }
 
@@ -192,7 +195,7 @@ export function setFocusedBlip(target, root = document) {
       }
     })
   );
-  dispatchRendererFocusChanged(findReadSurface(target), target);
+  dispatchRendererFocusChanged(findReadSurface(target, root), target);
 }
 
 /**
