@@ -453,8 +453,10 @@ public final class J2clSelectedWaveController
   }
 
   private boolean submittedBlipConfirmedInViewport(String createdBlipId) {
-    // Empty/null means the caller did not track the submitted blip's ID; we cannot confirm
-    // presence, so always proceed to the forward-fetch rather than treating unknown as "done".
+    // Returns true only when the callback supplied a concrete blip id and the current viewport
+    // has loaded that exact blip. Empty/null means the caller did not track the submitted blip's
+    // ID; we cannot confirm presence, so always proceed to the forward-fetch rather than treating
+    // unknown as "done".
     return createdBlipId != null
         && !createdBlipId.isEmpty()
         && currentViewportHasLoadedBlip(createdBlipId);

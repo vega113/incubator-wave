@@ -21,7 +21,10 @@
 // seeding is needed.
 import { test, expect, Page } from "@playwright/test";
 import { J2clPage } from "../pages/J2clPage";
-import { GwtPage } from "../pages/GwtPage";
+import {
+  GWT_ACTIVE_EDITOR_SIGNAL_SELECTOR,
+  GwtPage
+} from "../pages/GwtPage";
 import { freshCredentials, registerAndSignIn } from "../fixtures/testUser";
 
 const BASE_URL = process.env.WAVE_E2E_BASE_URL ?? "http://127.0.0.1:9900";
@@ -412,6 +415,10 @@ async function finishInlineReplyGwt(
   initialBlipCount: number,
   draftText: string
 ): Promise<void> {
+  await expect(
+    gwt.gwtActiveEditableDocument(),
+    "GWT draft must expose an active editor before submit"
+  ).toBeVisible({ timeout: 5_000 });
   const done = page.locator("[data-e2e-action='edit-done']").last();
   await expect(done, "GWT edit-done action must be stable").toBeVisible({
     timeout: 10_000
@@ -439,9 +446,7 @@ async function finishInlineReplyGwt(
   ).toBeVisible({ timeout: 20_000 });
   await expect(
     // GWT keeps editabledocmarker on read-only documents, so only active editability signals count.
-    persistedBlip.locator(
-      '.wave-editor-on, [contenteditable="true"], [style*="read-write"]'
-    ),
+    persistedBlip.locator(GWT_ACTIVE_EDITOR_SIGNAL_SELECTOR),
     "the submitted GWT reply blip must not contain an open editor (must be persisted, not a draft)"
   ).toHaveCount(0, { timeout: 5_000 });
 }

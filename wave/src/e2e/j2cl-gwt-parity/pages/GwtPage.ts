@@ -27,6 +27,21 @@
 import { expect, Locator, Page } from "@playwright/test";
 import { WavePage } from "./WavePage";
 
+export const GWT_ACTIVE_EDITOR_SIGNAL_SELECTOR = [
+  ".wave-editor-on",
+  '[contenteditable="true"]',
+  '[style*="user-modify: read-write"]'
+].join(", ");
+
+const GWT_ACTIVE_DOCUMENT_SELECTOR = [
+  '[kind="document"] .wave-editor-on',
+  '[kind="document"].wave-editor-on',
+  '[kind="document"][contenteditable="true"]',
+  '[kind="document"] [contenteditable="true"]',
+  '[kind="document"][style*="user-modify: read-write"]',
+  '[kind="document"] [style*="user-modify: read-write"]'
+].join(", ");
+
 export class GwtPage extends WavePage {
   viewQuery(): string {
     return "view=gwt";
@@ -73,7 +88,7 @@ export class GwtPage extends WavePage {
   }
 
   gwtActiveEditableDocument(): Locator {
-    return this.gwtEditableDocuments().last();
+    return this.page.locator(GWT_ACTIVE_DOCUMENT_SELECTOR).last();
   }
 
   /**
