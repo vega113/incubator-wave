@@ -1505,7 +1505,7 @@ public class J2clSelectedWaveProjectorTest {
             null,
             0);
 
-    // Live deltas from the server have snapshotVersion <= 0 (the codec defaults to -1 when the
+    // Live deltas from the server have snapshotVersion < 0 (the codec defaults to -1 when the
     // server omits the field). Using -1L here matches the wire semantics for a post-submit push.
     J2clSelectedWaveModel liveReply =
         J2clSelectedWaveProjector.project(
@@ -1549,7 +1549,7 @@ public class J2clSelectedWaveProjectorTest {
 
   @Test
   public void snapshotFragmentUpdateReplacesViewportInsteadOfMerging() {
-    // First update: blip-only snapshot (snapshotVersion > 0) establishes initial viewport.
+    // First update: blip-only snapshot (snapshotVersion >= 0) establishes initial viewport.
     J2clSelectedWaveModel first =
         J2clSelectedWaveProjector.project(
             WAVE_ID,
@@ -1576,7 +1576,7 @@ public class J2clSelectedWaveProjectorTest {
             null,
             0);
 
-    // Second update: another full-window blip snapshot (snapshotVersion > 0, e.g. on reconnect).
+    // Second update: another full-window blip snapshot (snapshotVersion >= 0, e.g. on reconnect).
     // Must REPLACE the previous viewport — stale "b+old" must not survive.
     J2clSelectedWaveModel snapshot =
         J2clSelectedWaveProjector.project(
@@ -1592,7 +1592,7 @@ public class J2clSelectedWaveProjectorTest {
                 Arrays.asList("user@example.com"),
                 Collections.<SidecarSelectedWaveDocument>emptyList(),
                 new SidecarSelectedWaveFragments(
-                    2L,
+                    0L,
                     50L,
                     60L,
                     Arrays.asList(
@@ -1605,6 +1605,7 @@ public class J2clSelectedWaveProjectorTest {
             0);
 
     // Viewport must contain only the new snapshot entries — stale b+old must be gone.
+    Assert.assertEquals(0L, snapshot.getViewportState().getSnapshotVersion());
     Assert.assertEquals(2, snapshot.getViewportState().getEntries().size());
     assertNoEntryBySegment(snapshot.getViewportState(), "blip:b+old");
     Assert.assertEquals(
@@ -1617,7 +1618,7 @@ public class J2clSelectedWaveProjectorTest {
 
   @Test
   public void liveFragmentDeltaMergesWithPreviousViewport() {
-    // First update: full-window snapshot (snapshotVersion > 0) establishes viewport.
+    // First update: full-window snapshot (snapshotVersion >= 0) establishes viewport.
     J2clSelectedWaveModel first =
         J2clSelectedWaveProjector.project(
             WAVE_ID,

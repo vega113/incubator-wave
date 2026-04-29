@@ -396,9 +396,9 @@ public final class J2clSelectedWaveProjector {
    *   <li>All entries in the incoming fragment state are blip entries (no index / manifest
    *       ranges). Full-window snapshots include metadata ranges and are authoritative — they
    *       must replace, not extend, the prior viewport.
-   *   <li>The fragment's {@code snapshotVersion} is {@code <= 0} (typically {@code -1}, the
-   *       default the transport codec injects when the server omits the field). A positive
-   *       snapshot version signals a bounded full-window snapshot (e.g. on open or reconnect);
+   *   <li>The fragment's {@code snapshotVersion} is negative (typically {@code -1}, the default
+   *       the transport codec injects when the server omits the field). A non-negative snapshot
+   *       version signals a bounded full-window snapshot (e.g. on open or reconnect);
    *       even if it is blip-only, such a payload defines an authoritative new window and must
    *       replace the old one so stale blips from the previous window do not remain visible.
    * </ol>
@@ -411,9 +411,9 @@ public final class J2clSelectedWaveProjector {
     if (!previousMatchesWave || previous == null || previous.getViewportState().isEmpty()) {
       return false;
     }
-    // Full-window snapshots carry a positive snapshotVersion; they are authoritative and must
+    // Full-window snapshots carry a non-negative snapshotVersion; they are authoritative and must
     // replace the previous viewport rather than merge into it.
-    if (fragments != null && fragments.getSnapshotVersion() > 0) {
+    if (fragments != null && fragments.getSnapshotVersion() >= 0) {
       return false;
     }
     // Full selected-wave viewport windows include metadata/index ranges and are authoritative.
