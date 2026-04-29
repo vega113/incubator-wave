@@ -64,6 +64,7 @@ public class J2clComposeSurfaceControllerTest {
         "example.com/w+1", null, Arrays.asList("alice@example.com", "bob@example.com"));
 
     Assert.assertTrue(view.model.isReplyAvailable());
+    Assert.assertEquals("", view.model.getReplyStatusText());
     Assert.assertEquals(
         Arrays.asList("alice@example.com", "bob@example.com"),
         view.model.getParticipantAddresses());
@@ -188,6 +189,24 @@ public class J2clComposeSurfaceControllerTest {
         null, null, Collections.<String>emptyList());
     controller.onSelectedWaveComposeContextChanged(
         "example.com/w+2", null, Arrays.asList("alice@example.com"));
+
+    Assert.assertEquals("", view.model.getReplyDraft());
+  }
+
+  @Test
+  public void selectedWaveContextReselectionAfterClearClearsPreviousDraft() {
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(new FakeGateway(), view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onSelectedWaveComposeContextChanged(
+        "example.com/w+1", null, Arrays.asList("alice@example.com"));
+    controller.onReplyDraftChanged("Draft from cleared selection");
+    controller.onSelectedWaveComposeContextChanged(
+        null, null, Collections.<String>emptyList());
+    controller.onSelectedWaveComposeContextChanged(
+        "example.com/w+1", null, Arrays.asList("alice@example.com"));
 
     Assert.assertEquals("", view.model.getReplyDraft());
   }

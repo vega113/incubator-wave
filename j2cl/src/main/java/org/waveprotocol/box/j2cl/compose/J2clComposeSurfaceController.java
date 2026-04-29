@@ -1631,12 +1631,10 @@ public final class J2clComposeSurfaceController {
       selectedWaveParticipantContextId = null;
       selectedWaveParticipantIds = Collections.emptyList();
     } else {
-      String previousContextId =
-          selectedWaveParticipantContextId != null
-              ? selectedWaveParticipantContextId
-              : lastSelectedWaveId;
       boolean contextChanged =
-          previousContextId != null && !nextContextId.equals(previousContextId);
+          selectedWaveParticipantContextId != null
+              ? !nextContextId.equals(selectedWaveParticipantContextId)
+              : lastSelectedWaveId != null;
       selectedWaveParticipantContextId = nextContextId;
       lastSelectedWaveId = nextContextId;
       if (contextChanged) {
@@ -1926,7 +1924,12 @@ public final class J2clComposeSurfaceController {
     if (!started) {
       return;
     }
-    boolean replyAvailable = !signedOut && (hasSelectedWave(writeSession) || hasSelectedWaveContext());
+    boolean hasWriteSession = hasSelectedWave(writeSession);
+    boolean replyAvailable = !signedOut && (hasWriteSession || hasSelectedWaveContext());
+    String renderedReplyStatusText =
+        replyAvailable && !hasWriteSession && "Open a wave before replying.".equals(replyStatusText)
+            ? ""
+            : replyStatusText;
     view.render(
         new J2clComposeSurfaceModel(
             !signedOut,
@@ -1940,7 +1943,7 @@ public final class J2clComposeSurfaceController {
             replyDraft,
             replySubmitting,
             replyStaleBasis,
-            replyStatusText,
+            renderedReplyStatusText,
             replyErrorText,
             activeCommandId,
             commandStatusText,
