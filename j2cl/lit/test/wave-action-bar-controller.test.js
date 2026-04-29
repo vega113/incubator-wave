@@ -54,6 +54,39 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     expect(row.hasAttribute("data-action-bar-bound")).to.be.true;
   });
 
+  it("dispatches wavy-search-refresh-requested alongside completed so the rail re-queries", async () => {
+    stub = installFetchStub(async () => okResponse());
+    const row = await fixture(
+      html`<wavy-wave-nav-row source-wave-id="w+r"></wavy-wave-nav-row>`
+    );
+    controllerModule.start();
+    await Promise.resolve();
+    let refreshSeen = null;
+    document.addEventListener(
+      "wavy-search-refresh-requested",
+      (e) => (refreshSeen = e.detail),
+      { once: true }
+    );
+    const completed = new Promise((resolve) =>
+      document.addEventListener(
+        "wavy-folder-action-completed",
+        () => resolve(true),
+        { once: true }
+      )
+    );
+    row.dispatchEvent(
+      new CustomEvent("wave-nav-pin-toggle-requested", {
+        bubbles: true,
+        composed: true,
+        detail: { sourceWaveId: "w+r" }
+      })
+    );
+    await completed;
+    expect(refreshSeen).to.exist;
+    expect(refreshSeen.reason).to.equal("folder-action");
+    expect(refreshSeen.operation).to.equal("pin");
+  });
+
   it("archive click POSTs /folder?operation=move&folder=archive&waveId=…", async () => {
     stub = installFetchStub(async () => okResponse());
     const row = await fixture(

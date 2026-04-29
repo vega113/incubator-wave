@@ -305,8 +305,10 @@ test.describe("G-PORT-8 top-of-wave action bar parity", () => {
     // `force:true` — Playwright's actionability check otherwise
     // refuses the click because the inner image div sits on top.
     // ToolbarMessages.properties drives the canonical English titles:
-    // "Pin", "To Archive" / "From Archive", "Version History (H)".
-    const historyButton = page.locator("[title*='Version History']").first();
+    // "Pin"/"Unpin", "To Archive"/"To Inbox", "Version History (H)".
+    // Version-history button is resolved fresh after restore below
+    // because the toolbar unmounts on archive and remounts on
+    // restore.
 
     async function clickGwt(button: ReturnType<Page["locator"]>) {
       await button.scrollIntoViewIfNeeded();
@@ -315,10 +317,12 @@ test.describe("G-PORT-8 top-of-wave action bar parity", () => {
 
     // Pin — assert the GWT click fires the same /folder POST as J2CL.
     // GWT's `setDown(true)` flips the tooltip title between Pin/Unpin
-    // and To Archive/From Archive, so we resolve a fresh locator on
+    // and To Archive/To Inbox, so we resolve a fresh locator on
     // each click using the union of both title forms.
     const pinSelectors = "[title='Pin'], [title='Unpin']";
-    const archiveSelectors = "[title='To Archive'], [title='From Archive']";
+    // GWT's ToolbarMessages flips between "To Archive" and "To Inbox"
+    // (not "From Archive") based on archived state. Match both.
+    const archiveSelectors = "[title='To Archive'], [title='To Inbox']";
 
     let folderRequestPromise = nextFolderRequest();
     await clickGwt(page.locator(pinSelectors).first());
@@ -336,38 +340,66 @@ test.describe("G-PORT-8 top-of-wave action bar parity", () => {
     await page.waitForTimeout(1_500);
 
     // Archive: the GWT toolbar's "To Archive" button moves the wave
-    // out of the inbox. After the click, GWT's FolderActionListener
-    // navigates the panel back to the inbox view, so the toolbar
-    // unmounts and a follow-up restore click would be racing against
-    // GWT's relayout. We assert the wire shape of archive only — the
-    // J2CL half above already exercises the full archive → restore
-    // round-trip with the same /folder POST contract on a stable
-    // toolbar.
+    // out of the inbox. After the click GWT's FolderActionListener
+    // re-navigates the panel; we then drive `?q=in:archive` to
+    // surface the just-archived wave and exercise the restore path
+    // (operation=move&folder=inbox) on a fresh toolbar mount.
     folderRequestPromise = nextFolderRequest();
     await clickGwt(page.locator(archiveSelectors).first());
     folderRequest = await folderRequestPromise;
     expect(folderRequest.url()).toMatch(/operation=move\b/);
     expect(folderRequest.url()).toMatch(/folder=archive\b/);
 
-    // Reopen the welcome wave from the GWT inbox so the version-history
-    // toolbar remounts. After archive the wave is in archive; navigate
-    // there to get back to it.
     await page.waitForTimeout(2_000);
-    // The wave is now archived; navigate to in:archive to surface it.
+
+    // Navigate to in:archive in GWT and reopen the wave so the
+    // toolbar (which was unmounted by the archive listener) is back.
+    await page.goto(`${BASE_URL}/?view=gwt#search?in:archive`, {
+      waitUntil: "domcontentloaded"
+    });
+    await page.waitForTimeout(4_000);
     const archiveDigest = page.locator("text=Welcome to SupaWave").first();
-    if (await archiveDigest.count()) {
-      // Already visible — open it to remount the toolbar.
-      await archiveDigest.click({ timeout: 10_000 });
-      await page.waitForTimeout(3_000);
-    }
+    await expect(
+      archiveDigest,
+      "the archived welcome wave must be reachable via in:archive on GWT"
+    ).toBeVisible({ timeout: 15_000 });
+    await archiveDigest.click({ timeout: 10_000 });
+    await page.waitForTimeout(4_000);
+
+    // Restore — clicking the same archive button now sends folder=inbox.
+    folderRequestPromise = nextFolderRequest();
+    await clickGwt(page.locator(archiveSelectors).first());
+    folderRequest = await folderRequestPromise;
+    expect(folderRequest.url()).toMatch(/folder=inbox\b/);
+
+    await page.waitForTimeout(2_000);
+
+    // Reopen the wave once more from the inbox so the toolbar
+    // remounts for the version-history click. (Restore re-triggers
+    // GWT's relayout the same way archive did.)
+    await page.goto(`${BASE_URL}/?view=gwt`, {
+      waitUntil: "domcontentloaded"
+    });
+    await page.waitForTimeout(4_000);
+    const inboxDigest = page.locator("text=Welcome to SupaWave").first();
+    await expect(
+      inboxDigest,
+      "the restored welcome wave must be reachable in the inbox on GWT"
+    ).toBeVisible({ timeout: 15_000 });
+    await inboxDigest.click({ timeout: 10_000 });
+    await page.waitForTimeout(4_000);
 
     // Version history — clicking History must register without
-    // crashing the shell. Full overlay parity is tracked separately
-    // (depends on F-2 follow-up #1054 wiring).
-    if (await historyButton.count()) {
-      await clickGwt(historyButton);
-      await page.waitForTimeout(1_000);
-    }
+    // crashing the shell. Full overlay parity (the diff timeline +
+    // restore flow) is tracked separately and depends on the F-2
+    // follow-up #1054 wiring.
+    const histAfterRestore = page.locator("[title*='Version History']").first();
+    await expect(
+      histAfterRestore,
+      "GWT toolbar must surface the Version History button after restore"
+    ).toBeVisible({ timeout: 15_000 });
+    await clickGwt(histAfterRestore);
+    await page.waitForTimeout(1_000);
     expect(
       await page.evaluate(() => document.querySelector("#app") !== null),
       "GWT shell must remain mounted after version-history click"

@@ -113,6 +113,30 @@ public class FolderServletTest extends TestCase {
     verify(waveletProvider, never()).submitRequest(eq(USER_DATA_WAVELET_NAME), any(), any());
   }
 
+  // The fallback path also covers the "unknown waveId" case (typo,
+  // attacker probing): persisted-store empty AND access denied on
+  // the synthetic conv+root wavelet name. Same Access-rejected
+  // surface — no information leak about whether the wave exists.
+  public void testSetPinStateRejectsUnknownWaveSameSurfaceAsNoAccess() throws Exception {
+    WaveId unknown = WaveId.of("example.com", "no-such-wave");
+    WaveletName unknownConvRoot = WaveletName.of(
+        unknown, WaveletId.of(unknown.getDomain(), "conv+root"));
+    when(waveletProvider.getWaveletIds(unknown)).thenReturn(ImmutableSet.<WaveletId>of());
+    when(waveletProvider.checkAccessPermission(unknownConvRoot, PARTICIPANT))
+        .thenReturn(false);
+
+    try {
+      servlet.setPinState(unknown, true, PARTICIPANT);
+      fail("Expected InvalidRequestException for unknown wave id");
+    } catch (InvalidRequestException expected) {
+      assertEquals("Access rejected", expected.getMessage());
+    }
+
+    verify(waveletProvider, never())
+        .submitRequest(eq(WaveletName.of(unknown, IdUtil.buildUserDataWaveletId(PARTICIPANT))),
+            any(), any());
+  }
+
   // --- stripVersionSuffix tests ---
 
   public void testStripVersionSuffix_noSuffix() {

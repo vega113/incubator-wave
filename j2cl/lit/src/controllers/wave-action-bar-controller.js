@@ -3,10 +3,11 @@
 // existing <wavy-version-history> overlay.
 //
 // Bound to each <wavy-wave-nav-row> host individually (via a
-// MutationObserver on document.body) instead of `document`, so the
-// optimistic flip cannot race the eventual S5 wiring of
-// J2clSelectedWaveView.setNavRowFolderState (#1055/S5) which owns
-// the same attributes once the model exposes pin/archive state.
+// MutationObserver on document.documentElement) instead of attaching
+// listeners on `document`, so the optimistic flip cannot race the
+// eventual S5 wiring of J2clSelectedWaveView.setNavRowFolderState
+// (#1055/S5) which owns the same attributes once the model exposes
+// pin/archive state.
 //
 // Public API: import this module for its side effect. The controller
 // installs itself on first import and is idempotent. `start()` runs
@@ -28,7 +29,7 @@ const ATTR_BOUND = "data-action-bar-bound";
 
 let installed = false;
 let observer = null;
-const boundRows = new WeakSet();
+const boundRows = new Set();
 
 function isNavRow(node) {
   return (
@@ -154,6 +155,21 @@ function dispatchCompleted(host, payload) {
       detail: payload
     })
   );
+  // Also fire `wavy-search-refresh-requested` so the search rail
+  // re-runs the active query and the digest list reflects the new
+  // pinned/archived state immediately. The J2CL search panel view
+  // already subscribes to this event (see
+  // J2clSearchPanelView.java:545 — "wavy-search-refresh-requested"
+  // re-fetches the active query). Mirrors the GWT
+  // FolderActionListener behavior of repainting the digest list
+  // after a folder write.
+  target.dispatchEvent(
+    new CustomEvent("wavy-search-refresh-requested", {
+      bubbles: true,
+      composed: true,
+      detail: { reason: "folder-action", ...payload }
+    })
+  );
 }
 
 function dispatchFailed(host, payload) {
@@ -169,6 +185,7 @@ function dispatchFailed(host, payload) {
 
 function onArchiveToggle(event) {
   const host = event.currentTarget;
+  if (host && host.hasAttribute("data-folder-busy")) return;
   const waveId = readWaveId(event);
   if (!waveId) return;
   const wasArchived = readBoolAttr(host, "archived");
@@ -216,6 +233,7 @@ function onArchiveToggle(event) {
 
 function onPinToggle(event) {
   const host = event.currentTarget;
+  if (host && host.hasAttribute("data-folder-busy")) return;
   const waveId = readWaveId(event);
   if (!waveId) return;
   const wasPinned = readBoolAttr(host, "pinned");
@@ -297,6 +315,13 @@ export function stop() {
     observer.disconnect();
     observer = null;
   }
+  for (const row of boundRows) {
+    row.removeAttribute(ATTR_BOUND);
+    row.removeEventListener("wave-nav-archive-toggle-requested", onArchiveToggle);
+    row.removeEventListener("wave-nav-pin-toggle-requested", onPinToggle);
+    row.removeEventListener("wave-nav-version-history-requested", onVersionHistoryRequest);
+  }
+  boundRows.clear();
 }
 
 // Auto-start on import in real browsers. Tests that want to control
