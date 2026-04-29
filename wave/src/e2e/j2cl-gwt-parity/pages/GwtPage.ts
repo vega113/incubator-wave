@@ -66,14 +66,43 @@ export class GwtPage extends WavePage {
     // The GWT document container has kind="document" and the
     // .SWCAW class (compiled CSS class).
     const editable = this.page.locator(".SWCAW [contenteditable]").last();
+    await this.ensureEditableDocumentVisible(editable);
     await editable.click({ force: true });
-    await expect(editable).toBeVisible({ timeout: 5_000 });
     await this.page.keyboard.type(text, { delay: 10 });
     await this.page.keyboard.press("Escape");
     // Wait for edit mode to exit: contenteditable elements disappear.
     await expect(this.page.locator(".SWCAW [contenteditable]")).toHaveCount(0, {
       timeout: 5_000
     });
+  }
+
+  private async ensureEditableDocumentVisible(editable: Locator): Promise<void> {
+    try {
+      await expect(editable).toBeVisible({ timeout: 5_000 });
+      return;
+    } catch {
+      await this.reopenLastBlipForEditing();
+      await expect(
+        editable,
+        "GWT blip editor should be visible after reopening the last blip"
+      ).toBeVisible({ timeout: 15_000 });
+    }
+  }
+
+  private async reopenLastBlipForEditing(): Promise<void> {
+    const blip = this.page.locator("[kind='b'][data-blip-id]").last();
+    await expect(
+      blip,
+      "GWT should have a visible blip to reopen for editing"
+    ).toBeVisible({ timeout: 10_000 });
+    await blip.hover();
+
+    const edit = blip.locator('[data-option="edit"]').first();
+    await expect(
+      edit,
+      "GWT blip Edit menu item should be visible when reopening edit mode"
+    ).toBeVisible({ timeout: 10_000 });
+    await edit.click();
   }
 
   /**
