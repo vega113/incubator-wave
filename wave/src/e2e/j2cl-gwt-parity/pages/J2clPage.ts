@@ -15,6 +15,11 @@
 //   - composer-submit-affordance >> button[aria-label="<label>"] —
 //     <wavy-composer> renders this with label "Create wave" /
 //     "Send reply" / "Save" depending on mode.
+//
+// G-PORT-6 (#1115): adds task-affordance helpers for the tasks parity test.
+//   - blipTaskToggle(blipId)        — locates the per-blip task button
+//   - blipHasTaskCompleted(blipId)  — presence check (Lit reflects
+//     `taskCompleted: true` as the bare attribute, never `="true"`).
 import { expect, Locator } from "@playwright/test";
 import { WavePage } from "./WavePage";
 
@@ -100,5 +105,34 @@ export class J2clPage extends WavePage {
     return this.page.locator(
       `wave-blip[data-blip-id="${blipId}"] wave-blip-toolbar button[data-toolbar-action="reply"]`
     );
+  }
+
+  /**
+   * G-PORT-6 (#1115): per-blip task toggle button inside the
+   * <wavy-task-affordance> custom element. Playwright pierces shadow
+   * DOM automatically so the descendant selector lands on the actual
+   * <button data-task-toggle-trigger="true"> rendered in the
+   * affordance's renderRoot.
+   */
+  blipTaskToggle(blipId: string): Locator {
+    return this.page.locator(
+      `wave-blip[data-blip-id="${blipId}"] wavy-task-affordance ` +
+        `button[data-task-toggle-trigger="true"]`
+    );
+  }
+
+  /**
+   * G-PORT-6 (#1115): returns whether the outer <wave-blip> host
+   * carries the `data-task-completed` attribute. Lit's Boolean
+   * reflection emits the attribute as presence-only (no `="true"`
+   * value), so all assertions go through `hasAttribute(...)`.
+   */
+  async blipHasTaskCompleted(blipId: string): Promise<boolean> {
+    return await this.page.evaluate((id: string) => {
+      const el = document.querySelector(
+        `wave-blip[data-blip-id="${(window as any).CSS.escape(id)}"]`
+      );
+      return el ? el.hasAttribute("data-task-completed") : false;
+    }, blipId);
   }
 }
