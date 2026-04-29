@@ -83,6 +83,29 @@ describe("moveBlipFocus", () => {
     setFocusedBlip(target, Array.from(root.querySelectorAll("wave-blip")));
     expect(fired).to.deep.equal({ blipId: "b2", waveId: "w" });
   });
+
+  it("setFocusedBlip adds j2cl-read-blip-focused class and removes from others", async () => {
+    const root = await threeBlips();
+    const blips = Array.from(root.querySelectorAll("wave-blip"));
+    setFocusedBlip(blips[1], blips);
+    expect(blips[1].classList.contains("j2cl-read-blip-focused")).to.equal(true);
+    expect(blips[0].classList.contains("j2cl-read-blip-focused")).to.equal(false);
+    expect(blips[2].classList.contains("j2cl-read-blip-focused")).to.equal(false);
+    // Moving focus removes the class from the previous target.
+    setFocusedBlip(blips[2], blips);
+    expect(blips[2].classList.contains("j2cl-read-blip-focused")).to.equal(true);
+    expect(blips[1].classList.contains("j2cl-read-blip-focused")).to.equal(false);
+  });
+
+  it("j continues from renderer-established focus (j2cl-read-blip-focused class)", async () => {
+    const root = await threeBlips();
+    const blips = Array.from(root.querySelectorAll("wave-blip"));
+    // Simulate the Java renderer setting focus on b2 without the Lit attribute.
+    blips[1].classList.add("j2cl-read-blip-focused");
+    moveBlipFocus(1, root); // should continue from b2 -> b3
+    const focused = root.querySelector("wave-blip[focused]");
+    expect(focused.getAttribute("data-blip-id")).to.equal("b3");
+  });
 });
 
 describe("clearBlipFocus", () => {
@@ -97,5 +120,15 @@ describe("clearBlipFocus", () => {
     expect(clearBlipFocus(root)).to.equal(true);
     expect(root.querySelectorAll("wave-blip[focused]").length).to.equal(0);
     expect(root.querySelectorAll("wave-blip[data-blip-focused]").length).to.equal(0);
+    expect(root.querySelectorAll("wave-blip.j2cl-read-blip-focused").length).to.equal(0);
+  });
+
+  it("clears renderer-established focus (j2cl-read-blip-focused only)", async () => {
+    const root = await threeBlips();
+    const blips = Array.from(root.querySelectorAll("wave-blip"));
+    // Simulate Java renderer setting focus without the Lit `focused` attribute.
+    blips[0].classList.add("j2cl-read-blip-focused");
+    expect(clearBlipFocus(root)).to.equal(true);
+    expect(blips[0].classList.contains("j2cl-read-blip-focused")).to.equal(false);
   });
 });
