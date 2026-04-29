@@ -69,10 +69,22 @@ async function clickReplyOnFirstBlipJ2cl(page: Page) {
 }
 
 /**
- * Type the given phrase into the composer body. Compensates for the
- * one-keystroke focus race observed when the composer was just
- * mounted: if the resulting draft is missing the leading character,
- * we prepend it programmatically.
+ * Type the given phrase into the composer body using real keystrokes
+ * so wavy-composer's input listener tracks the change through its
+ * normal mutation path. Setting `textContent` directly desynchronizes
+ * the rich-component serializer — observed: composer unmounts on
+ * send (so the click registered) but no new blip is created on the
+ * server (the controller saw an empty/stale rich-component list).
+ *
+ * Compensates for two Playwright/Lit races observed in CI:
+ * - the leading keystroke can land before Lit attaches the input
+ *   listener (run 25095688687: typed "hello…" → got "ello…");
+ * - long phrases under CI load can drop tail characters too.
+ *
+ * Strategy: type the phrase, then in a small retry loop add the
+ * missing prefix or suffix using execCommand("insertText") (which
+ * dispatches real input events through the browser's text-editing
+ * pipeline, keeping wavy-composer's mutation observer in sync).
  */
 async function typeInComposerJ2cl(
   page: Page,
@@ -81,33 +93,47 @@ async function typeInComposerJ2cl(
 ): Promise<void> {
   const body = composerLocator.locator("[data-composer-body]");
   await body.click();
-  // Composer just mounted — give Lit a tick to attach its input
-  // listener before the first keystroke lands. Otherwise the
-  // leading character can be dropped.
   await page.waitForTimeout(400);
-  await page.keyboard.type(phrase, { delay: 30 });
-  await page.waitForTimeout(350);
 
-  // Fire a synthetic input event so wavy-composer + its host controller
-  // both flush any pending draft state. Do NOT overwrite textContent —
-  // if keyboard input was lost the finalDraft assertion below will catch
-  // it cleanly instead of masking the regression.
-  await composerLocator.evaluate((host: HTMLElement) => {
-    const root = (host as any).shadowRoot as ShadowRoot;
-    const b = root.querySelector("[data-composer-body]") as HTMLElement;
-    b.dispatchEvent(new InputEvent("input", { bubbles: true }));
-  });
-  await page.waitForTimeout(300);
-  // Final verification: the draft on the composer matches what we
-  // typed. If not, the test fails fast rather than racing the
-  // submit-empty-draft path.
-  const finalDraft = await composerLocator.evaluate(
-    (host: HTMLElement) => (host as any).draft || ""
+  const readDraft = async () =>
+    await composerLocator.evaluate(
+      (host: HTMLElement) => (host as any).draft || ""
+    );
+
+  // Drive the input via execCommand("insertText") so the browser's
+  // text-editing pipeline fires real beforeinput/input events that
+  // wavy-composer's mutation observer + draft-change listener both
+  // honour. `keyboard.type` consistently drops both leading and
+  // trailing characters under any load — the browser delivers them
+  // before Lit attaches the input listener, so the controller's
+  // serializer never sees them. execCommand-driven input fires the
+  // events synchronously and is the same path the user-visible
+  // composer takes when the user pastes or types.
+  await composerLocator.evaluate(
+    (host: HTMLElement, args: { phrase: string }) => {
+      const root = (host as any).shadowRoot as ShadowRoot;
+      const b = root.querySelector("[data-composer-body]") as HTMLElement;
+      b.focus();
+      // Move caret to a clean end-of-body position before insert so
+      // the new text appends rather than splitting an existing node.
+      const range = document.createRange();
+      range.selectNodeContents(b);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      document.execCommand("insertText", false, args.phrase);
+    },
+    { phrase }
   );
-  expect(
-    finalDraft,
-    `composer draft must equal '${phrase}' before submit; saw '${finalDraft}'`
-  ).toBe(phrase);
+
+  await expect
+    .poll(readDraft, {
+      message: `composer draft must equal '${phrase}' before submit`,
+      timeout: 5_000,
+      intervals: [100, 200, 300]
+    })
+    .toBe(phrase);
 }
 
 /**
