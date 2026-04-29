@@ -202,21 +202,27 @@ test.describe("G-PORT-5 mention autocomplete parity", () => {
     // `defineProperty` ensures subsequent re-renders cannot clobber
     // the test fixture back to empty between mount and the first
     // `@` keystroke.
-    await composer.evaluate((host: any, address: string) => {
+    // Pin TWO addresses whose displayNames both start with the same
+    // letter as the test user's address so the typed `@<letter>`
+    // query filters down to >=2 candidates — the only way to assert
+    // ArrowDown actually advances `_mentionActiveIndex` end-to-end.
+    await composer.evaluate((host: any, args: { address: string; first: string }) => {
+      const second = `${args.first}-bot-second@local.net`;
       const fixed = [
-        { address, displayName: "Test User" },
-        { address: "welcome-bot@local.net", displayName: "Welcome Bot" }
+        { address: args.address, displayName: `${args.first.toUpperCase()} Test User` },
+        { address: second, displayName: `${args.first.toUpperCase()} Robot Bot` }
       ];
       Object.defineProperty(host, "participants", {
         configurable: true,
         get() { return fixed; },
         set() {
           // Ignore controller-driven resets so the test exercises
-          // the popover behaviour deterministically.
+          // the popover behaviour deterministically. The mirror
+          // path is covered by the J2CL Java unit tests.
         }
       });
       host.requestUpdate?.();
-    }, creds.address);
+    }, { address: creds.address, first: firstLetter });
 
     // Type "@<letter>" and assert the popover opened with at least
     // one candidate.
@@ -257,10 +263,12 @@ test.describe("G-PORT-5 mention autocomplete parity", () => {
       mention.open,
       `popover must be open after typing @${firstLetter}; mention=${JSON.stringify(mention)} body=${JSON.stringify(bodyState)}`
     ).toBe(true);
+    // Both pinned candidates must survive the query filter so the
+    // ArrowDown / ActiveIndex advance assertion below is meaningful.
     expect(
       mention.candidateCount,
-      `popover must have >=1 suggestion for @${firstLetter}; saw ${JSON.stringify(mention)}`
-    ).toBeGreaterThanOrEqual(1);
+      `popover must have >=2 suggestions for @${firstLetter}; saw ${JSON.stringify(mention)}`
+    ).toBeGreaterThanOrEqual(2);
     const initialIndex = mention.activeIndex;
 
     // The popover element must be in the DOM with [open] reflected.
@@ -311,12 +319,12 @@ test.describe("G-PORT-5 mention autocomplete parity", () => {
     });
     await page.waitForTimeout(120);
     mention = await readMentionStateJ2cl(composer);
-    if (mention.candidateCount > 1) {
-      expect(
-        mention.activeIndex,
-        `ArrowDown must advance the active index from ${initialIndex}; saw ${mention.activeIndex}`
-      ).not.toBe(initialIndex);
-    }
+    // With 2+ candidates the active index MUST move on ArrowDown —
+    // the parity contract being enforced.
+    expect(
+      mention.activeIndex,
+      `ArrowDown must advance the active index from ${initialIndex}; saw ${JSON.stringify(mention)}`
+    ).not.toBe(initialIndex);
 
     // Snapshot whichever candidate is currently active so we can
     // assert the chip carries its address after Enter.
@@ -366,6 +374,24 @@ test.describe("G-PORT-5 mention autocomplete parity", () => {
       chipInfo!.text.startsWith("@"),
       `chip text must start with @; saw '${chipInfo!.text}'`
     ).toBe(true);
+
+    // The popover MUST close after Enter — without this assertion a
+    // regression where the popover stays open after commit would
+    // pass the chip-insertion check.
+    await expect
+      .poll(
+        async () =>
+          await composer.evaluate((host: any) => Boolean(host._mentionOpen)),
+        {
+          message: "popover must close after Enter selects a candidate",
+          timeout: 5_000
+        }
+      )
+      .toBe(false);
+    await expect(
+      composer.locator("mention-suggestion-popover[open]"),
+      "mention-suggestion-popover[open] must unmount after Enter"
+    ).toHaveCount(0, { timeout: 5_000 });
 
     // Verify the rich-component serializer would emit a link/manual
     // annotation for the mention chip. The full reply round-trip

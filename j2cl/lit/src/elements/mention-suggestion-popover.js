@@ -52,9 +52,16 @@ export class MentionSuggestionPopover extends LitElement {
       font: inherit;
       cursor: pointer;
       /* G-PORT-5: options must NOT take focus from the composer body.
-       * outline:none ensures even programmatic focus does not paint a
-       * ring (the visual highlight comes from aria-selected styling). */
+       * Suppress the default focus ring on the option div itself —
+       * the visual highlight comes from aria-selected styling. We
+       * keep :focus-visible as a "revert" so a future change that
+       * does intentionally focus an option still paints a ring
+       * (regression alarm: it would also still trip the composer
+       * blur-dismiss path, which the unit-tests cover). */
       outline: none;
+    }
+    [role="option"]:focus-visible {
+      outline: revert;
     }
 
     [aria-selected="true"] {

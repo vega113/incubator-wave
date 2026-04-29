@@ -1924,16 +1924,24 @@ export class WavyComposer extends LitElement {
     //   - empty candidate list lets Tab / Enter fall through so the
     //     focus order is not trapped while the popover is showing
     //     a "no matches" placeholder.
-    if (this._mentionOpen && !event.isComposing && event.keyCode !== 229) {
+    if (this._mentionOpen && !(event.isComposing || event.keyCode === 229)) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
         const candidates = this._filteredMentionCandidates();
-        if (candidates.length === 0) return;
-        const offset = event.key === "ArrowDown" ? 1 : -1;
-        this._mentionActiveIndex =
-          ((this._mentionActiveIndex + offset) % candidates.length + candidates.length) %
-          candidates.length;
-        return;
+        // Empty candidate list lets arrows fall through so the
+        // browser's own caret navigation keeps working — the
+        // popover is showing a "no matches" placeholder, not a
+        // selectable list, so swallowing the event would trap
+        // the user's caret.
+        if (candidates.length === 0) {
+          // fall through to default keydown handling below
+        } else {
+          event.preventDefault();
+          const offset = event.key === "ArrowDown" ? 1 : -1;
+          this._mentionActiveIndex =
+            ((this._mentionActiveIndex + offset) % candidates.length + candidates.length) %
+            candidates.length;
+          return;
+        }
       }
       if (event.key === "Enter" || event.key === "Tab") {
         const candidates = this._filteredMentionCandidates();
@@ -1953,8 +1961,13 @@ export class WavyComposer extends LitElement {
       }
     }
     // Shift+Enter submits per H.22 hint and the issue body's
-    // Reply-composer contract.
-    if (event.key === "Enter" && event.shiftKey) {
+    // Reply-composer contract. Bail out on IME composition so an
+    // IME commit Enter does not also submit the blip.
+    if (
+      event.key === "Enter"
+      && event.shiftKey
+      && !(event.isComposing || event.keyCode === 229)
+    ) {
       event.preventDefault();
       this._submit();
       return;
@@ -2354,7 +2367,16 @@ export class WavyComposer extends LitElement {
    */
   _isFocusInsideComposerOrPopover() {
     if (typeof document === "undefined") return false;
-    const active = document.activeElement;
+    // Walk through shadow-root boundaries: when focus is inside a
+    // nested shadow tree, document.activeElement returns the
+    // outermost host. Keep descending via `shadowRoot.activeElement`
+    // so we see the deepest currently-focused element. The check is
+    // satisfied iff that deepest element is the composer host
+    // itself, the body, or anywhere inside the popover host.
+    let active = document.activeElement;
+    while (active && active.shadowRoot && active.shadowRoot.activeElement) {
+      active = active.shadowRoot.activeElement;
+    }
     if (!active) return false;
     if (active === this) return true;
     if (this.contains && this.contains(active)) return true;
@@ -2364,12 +2386,10 @@ export class WavyComposer extends LitElement {
         "[data-mention-popover-host]"
       );
       if (host && host.contains(active)) return true;
-      // Walk shadow roots: the popover element itself can be the
-      // active focus root if a future polish change ever focuses it.
       const popover = this.renderRoot.querySelector(
         "mention-suggestion-popover"
       );
-      if (popover && popover === active) return true;
+      if (popover && (popover === active || popover.contains(active))) return true;
     }
     return false;
   }
