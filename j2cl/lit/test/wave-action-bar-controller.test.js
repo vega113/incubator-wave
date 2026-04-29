@@ -204,6 +204,11 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     await Promise.resolve();
     expect(row.getAttribute("data-folder-busy-wave-id")).to.equal("w+slow");
 
+    const completedSlow = new Promise((resolve) =>
+      document.addEventListener("wavy-folder-action-completed", (e) => {
+        if (e.detail.waveId === "w+slow") resolve(e.detail);
+      })
+    );
     const completedFast = new Promise((resolve) =>
       document.addEventListener(
         "wavy-folder-action-completed",
@@ -225,8 +230,48 @@ describe("wave-action-bar-controller (G-PORT-8)", () => {
     expect(stub.calls).to.have.lengthOf(2);
 
     resolveFirst();
-    await new Promise((r) => setTimeout(r, 0));
+    const slowDetail = await completedSlow;
+    expect(slowDetail.operation).to.equal("pin");
     expect(row.hasAttribute("data-folder-busy")).to.be.false;
+  });
+
+  it("emits failure for the original wave after a row is reused", async () => {
+    let resolveFirst;
+    stub = installFetchStub(
+      async () =>
+        await new Promise((resolve) => {
+          resolveFirst = () => resolve(new Response("nope", { status: 500 }));
+        })
+    );
+    const row = await fixture(
+      html`<wavy-wave-nav-row source-wave-id="w+old"></wavy-wave-nav-row>`
+    );
+    controllerModule.start();
+    await Promise.resolve();
+
+    const failed = new Promise((resolve) =>
+      document.addEventListener("wavy-folder-action-failed", (e) => {
+        if (e.detail.waveId === "w+old") resolve(e.detail);
+      })
+    );
+    row.dispatchEvent(
+      new CustomEvent("wave-nav-archive-toggle-requested", {
+        bubbles: true,
+        composed: true,
+        detail: { sourceWaveId: "w+old" }
+      })
+    );
+    await Promise.resolve();
+    expect(row.hasAttribute("archived")).to.be.true;
+
+    row.setAttribute("source-wave-id", "w+new");
+    await new Promise((r) => setTimeout(r, 0));
+    row.setAttribute("archived", "");
+
+    resolveFirst();
+    const detail = await failed;
+    expect(detail.status).to.equal(500);
+    expect(row.hasAttribute("archived")).to.be.true;
   });
 
   it("archive click POSTs /folder?operation=move&folder=archive&waveId=…", async () => {

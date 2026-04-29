@@ -286,7 +286,7 @@ function onArchiveToggle(event) {
   fetchFolderOp(url).then(
     (response) => {
       setBusy(host, false, waveId);
-      if (!isCurrentWave(host, waveId)) return;
+      const currentWave = isCurrentWave(host, waveId);
       if (response.ok) {
         dispatchCompleted(host, {
           waveId,
@@ -294,8 +294,9 @@ function onArchiveToggle(event) {
           folder
         });
       } else {
-        // Rollback on non-200.
-        setBoolAttr(host, "archived", wasArchived);
+        // Rollback row-local optimistic state only if this row still
+        // represents the wave that initiated the request.
+        if (currentWave) setBoolAttr(host, "archived", wasArchived);
         dispatchFailed(host, {
           waveId,
           operation: "move",
@@ -306,8 +307,9 @@ function onArchiveToggle(event) {
     },
     (err) => {
       setBusy(host, false, waveId);
-      if (!isCurrentWave(host, waveId)) return;
-      setBoolAttr(host, "archived", wasArchived);
+      if (isCurrentWave(host, waveId)) {
+        setBoolAttr(host, "archived", wasArchived);
+      }
       dispatchFailed(host, {
         waveId,
         operation: "move",
@@ -333,11 +335,11 @@ function onPinToggle(event) {
   fetchFolderOp(url).then(
     (response) => {
       setBusy(host, false, waveId);
-      if (!isCurrentWave(host, waveId)) return;
+      const currentWave = isCurrentWave(host, waveId);
       if (response.ok) {
         dispatchCompleted(host, { waveId, operation, folder: null });
       } else {
-        setBoolAttr(host, "pinned", wasPinned);
+        if (currentWave) setBoolAttr(host, "pinned", wasPinned);
         dispatchFailed(host, {
           waveId,
           operation,
@@ -348,8 +350,9 @@ function onPinToggle(event) {
     },
     (err) => {
       setBusy(host, false, waveId);
-      if (!isCurrentWave(host, waveId)) return;
-      setBoolAttr(host, "pinned", wasPinned);
+      if (isCurrentWave(host, waveId)) {
+        setBoolAttr(host, "pinned", wasPinned);
+      }
       dispatchFailed(host, {
         waveId,
         operation,
