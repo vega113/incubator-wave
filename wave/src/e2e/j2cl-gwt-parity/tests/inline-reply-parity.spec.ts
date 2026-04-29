@@ -88,33 +88,15 @@ async function typeInComposerJ2cl(
   await page.keyboard.type(phrase, { delay: 30 });
   await page.waitForTimeout(350);
 
-  // Patch up any dropped leading character so the rest of the test
-  // can rely on the exact phrase. Fires a synthetic input event AND
-  // a draft-change so wavy-composer + its host controller both see
-  // the canonical text — otherwise the submit path can race and
-  // ship an empty draft.
-  await composerLocator.evaluate(
-    (host: HTMLElement, args: { phrase: string }) => {
-      const root = (host as any).shadowRoot as ShadowRoot;
-      const b = root.querySelector("[data-composer-body]") as HTMLElement;
-      if (b.textContent !== args.phrase) {
-        b.textContent = args.phrase;
-      }
-      b.dispatchEvent(new InputEvent("input", { bubbles: true }));
-      // Belt-and-braces: also push the draft property directly so the
-      // host's serialization sees the value even if its input listener
-      // races the click.
-      (host as any).draft = args.phrase;
-      host.dispatchEvent(
-        new CustomEvent("draft-change", {
-          detail: { value: args.phrase },
-          bubbles: true,
-          composed: true
-        })
-      );
-    },
-    { phrase }
-  );
+  // Fire a synthetic input event so wavy-composer + its host controller
+  // both flush any pending draft state. Do NOT overwrite textContent —
+  // if keyboard input was lost the finalDraft assertion below will catch
+  // it cleanly instead of masking the regression.
+  await composerLocator.evaluate((host: HTMLElement) => {
+    const root = (host as any).shadowRoot as ShadowRoot;
+    const b = root.querySelector("[data-composer-body]") as HTMLElement;
+    b.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  });
   await page.waitForTimeout(300);
   // Final verification: the draft on the composer matches what we
   // typed. If not, the test fails fast rather than racing the
@@ -192,17 +174,10 @@ async function sendInlineReplyJ2cl(
     .locator("button")
     .first();
   await sendBtn.scrollIntoViewIfNeeded();
-  await sendBtn.click({ timeout: 10_000 });
-  // Belt-and-braces: also dispatch `reply-submit` directly on the
-  // composer host so the J2clComposeSurfaceView listener sees it
-  // regardless of the click's hit region (CI viewport sizing
-  // differences observed otherwise — see the retry trace in the
-  // failed run 25094771249 of this workflow).
-  await composerLocator.evaluate((host: HTMLElement) => {
-    host.dispatchEvent(
-      new CustomEvent("reply-submit", { bubbles: true, composed: true })
-    );
-  });
+  // Use force:true to bypass hit-region checks that vary across CI
+  // viewport sizes (observed in run 25094771249). This still exercises
+  // the real button click path through J2clComposeSurfaceView.
+  await sendBtn.click({ timeout: 10_000, force: true });
 
   // The new reply blip threads under the originating blip; its
   // position in the DOM depends on the existing thread shape. Assert
