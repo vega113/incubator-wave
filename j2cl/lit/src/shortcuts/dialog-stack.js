@@ -82,17 +82,42 @@ function closeHost(host) {
 }
 
 /**
+ * Collect all shadow roots reachable from `root`, depth-first. Tier-2
+ * popovers (task-metadata-popover, mention-suggestion-popover) are
+ * rendered inside Lit component shadow trees, so plain querySelectorAll
+ * on the document misses them.
+ */
+function collectShadowRoots(root, result = []) {
+  for (const el of root.querySelectorAll("*")) {
+    if (el.shadowRoot) {
+      result.push(el.shadowRoot);
+      collectShadowRoots(el.shadowRoot, result);
+    }
+  }
+  return result;
+}
+
+/**
  * Find every open closeable surface in tier order. Returns the first
  * tier that has at least one open surface, preserving document order
  * across all selectors in the tier so the most recently mounted
  * surface closes first.
+ *
+ * Queries both light DOM and shadow roots so tier-2 popovers rendered
+ * inside component shadow trees (e.g. task-metadata-popover inside
+ * wavy-task-affordance) are reachable.
  */
 function findTopmostOpen(root = document) {
+  const roots = [root, ...collectShadowRoots(root)];
   for (const tier of TIERS) {
-    const nodes = Array.from(root.querySelectorAll(tier.join(", ")));
-    const open = nodes.filter((n) => isOpen(n));
+    const selector = tier.join(", ");
+    const open = [];
+    for (const r of roots) {
+      const nodes = Array.from(r.querySelectorAll(selector));
+      open.push(...nodes.filter((n) => isOpen(n)));
+    }
     if (open.length > 0) {
-      // Last in document order = topmost.
+      // Last collected = topmost within the winning tier.
       return open[open.length - 1];
     }
   }
@@ -109,4 +134,4 @@ export function closeTopmostDialog(root = document) {
   return closeHost(target);
 }
 
-export const _internalForTesting = { TIERS, isOpen, closeHost, findTopmostOpen };
+export const _internalForTesting = { TIERS, isOpen, closeHost, findTopmostOpen, collectShadowRoots };

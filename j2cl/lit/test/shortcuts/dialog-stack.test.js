@@ -1,6 +1,7 @@
 // G-PORT-7 (#1116): tests for the dialog-stack Esc helper.
 import { fixture, expect, html } from "@open-wc/testing";
-import { closeTopmostDialog } from "../../src/shortcuts/dialog-stack.js";
+import { closeTopmostDialog, _internalForTesting } from "../../src/shortcuts/dialog-stack.js";
+const { collectShadowRoots } = _internalForTesting;
 
 // Minimal mock surfaces — the real surfaces all expose either an
 // `open` boolean property (set by Lit reflection) or the host `open`
@@ -92,5 +93,30 @@ describe("closeTopmostDialog", () => {
     dlg.open = true;
     closeTopmostDialog(root);
     expect(dlg._closeCalls).to.equal(1);
+  });
+
+  it("closes a tier-2 popover rendered inside a shadow root", async () => {
+    // Simulates task-metadata-popover inside wavy-task-affordance's shadow root.
+    const hostTag = "x-shadow-host-for-test";
+    if (!customElements.get(hostTag)) {
+      class ShadowHost extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" });
+        }
+        connectedCallback() {
+          const el = document.createElement("task-metadata-popover");
+          this.shadowRoot.appendChild(el);
+        }
+      }
+      customElements.define(hostTag, ShadowHost);
+    }
+    const root = await fixture(html`<div><x-shadow-host-for-test></x-shadow-host-for-test></div>`);
+    const host = root.querySelector(hostTag);
+    const popover = host.shadowRoot.querySelector("task-metadata-popover");
+    popover.open = true;
+    expect(collectShadowRoots(root)).to.have.lengthOf(1);
+    expect(closeTopmostDialog(root)).to.equal(true);
+    expect(popover.open).to.equal(false);
   });
 });
