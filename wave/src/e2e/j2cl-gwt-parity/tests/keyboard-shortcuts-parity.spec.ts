@@ -164,8 +164,10 @@ test.describe("G-PORT-7 keyboard shortcuts parity", () => {
     // Drop blip focus first via Esc so the next Esc doesn't snowball.
     await page.keyboard.press("Escape");
 
-    const newWaveDispatched = page.evaluate(() => {
-      return new Promise<boolean>((resolve) => {
+    // Install listener first, then fire keypresses, to avoid a race where
+    // the keypress arrives before the event handler is attached.
+    const newWaveDispatched = page.evaluate((): Promise<boolean> =>
+      new Promise((resolve) => {
         const handler = () => {
           document.body.removeEventListener("wavy-new-wave-requested", handler);
           resolve(true);
@@ -175,8 +177,11 @@ test.describe("G-PORT-7 keyboard shortcuts parity", () => {
           document.body.removeEventListener("wavy-new-wave-requested", handler);
           resolve(false);
         }, 3_000);
-      });
-    });
+      })
+    );
+    // Await a noop evaluate to ensure the listener above is installed in the
+    // browser before we fire keypresses (Playwright CDP calls are ordered).
+    await page.evaluate(() => {});
     // Cross-platform drive: Playwright maps Meta on Mac to Cmd and on
     // Linux/Win to the Windows key. The shell-root matcher only treats
     // metaKey as primary on Mac and ctrlKey elsewhere, so we send both
@@ -226,8 +231,9 @@ test.describe("G-PORT-7 keyboard shortcuts parity", () => {
     // "text" and press Enter. The J2CL rail emits
     // wavy-search-submit; we listen via window event capture.
     // ------------------------------------------------------------------
-    const searchPromise = page.evaluate(() => {
-      return new Promise<string>((resolve) => {
+    // Install listener first to avoid a race with the Enter keypress below.
+    const searchPromise = page.evaluate((): Promise<string> =>
+      new Promise((resolve) => {
         const handler = (e: Event) => {
           window.removeEventListener("wavy-search-submit", handler, true);
           resolve((e as CustomEvent).detail?.query ?? "");
@@ -239,8 +245,11 @@ test.describe("G-PORT-7 keyboard shortcuts parity", () => {
           window.removeEventListener("wavy-search-submit", handler, true);
           resolve("__TIMEOUT__");
         }, 3000);
-      });
-    });
+      })
+    );
+    // Await a noop evaluate to ensure the listener above is installed before
+    // we type and press Enter.
+    await page.evaluate(() => {});
     // Pierce shadow DOM and pick the visible search box. The rail
     // emits a pre-upgrade copy in light DOM (kept hidden by sister
     // CSS) plus the Lit-rendered visible one in shadow DOM. The :visible

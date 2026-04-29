@@ -88,28 +88,22 @@ describe("<shell-root> shell-level keydown dispatcher", () => {
   });
 
   it("Shift+Cmd+O dispatches wavy-new-wave-requested on document.body", () => {
-    let saw = null;
-    const handler = (e) => { saw = e.detail; };
+    let sawCount = 0;
+    const handler = () => { sawCount += 1; };
     document.body.addEventListener("wavy-new-wave-requested", handler);
     try {
       fireKey("o", { shiftKey: true, metaKey: true });
+      // The matcher only fires this on Mac when metaKey is set. Some
+      // headless test browsers report a non-Mac platform; in that case
+      // re-fire with ctrlKey while the listener is still attached so
+      // this test can observe the event on either platform.
+      if (sawCount === 0) {
+        fireKey("o", { shiftKey: true, ctrlKey: true });
+      }
     } finally {
       document.body.removeEventListener("wavy-new-wave-requested", handler);
     }
-    // The matcher only fires this on Mac when metaKey is set. Some
-    // headless test browsers report a non-Mac platform; in that case
-    // we re-fire with ctrlKey so the assertion still proves the
-    // dispatch path works.
-    if (!saw) {
-      fireKey("o", { shiftKey: true, ctrlKey: true });
-      // We can't re-attach the listener (it just fired before being
-      // removed). Just check the dispatcher path is reachable: it is
-      // — the matcher returned a hit on at least one of the two
-      // calls and dispatched the bubble event.
-    }
-    // No raw assertion on saw because the test runner platform is
-    // not deterministic; but the keybindings.test.js suite already
-    // covers cross-platform matcher correctness.
+    expect(sawCount).to.equal(1);
   });
 
   it("Esc closes an open dialog before dropping blip focus", () => {

@@ -83,18 +83,14 @@ function closeHost(host) {
 
 /**
  * Find every open closeable surface in tier order. Returns the first
- * tier that has at least one open surface, sorted last-in-document
- * first so the most recently mounted surface closes first.
+ * tier that has at least one open surface, preserving document order
+ * across all selectors in the tier so the most recently mounted
+ * surface closes first.
  */
 function findTopmostOpen(root = document) {
   for (const tier of TIERS) {
-    const open = [];
-    for (const sel of tier) {
-      const nodes = Array.from(root.querySelectorAll(sel));
-      for (const n of nodes) {
-        if (isOpen(n)) open.push(n);
-      }
-    }
+    const nodes = Array.from(root.querySelectorAll(tier.join(", ")));
+    const open = nodes.filter((n) => isOpen(n));
     if (open.length > 0) {
       // Last in document order = topmost.
       return open[open.length - 1];
