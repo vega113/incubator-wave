@@ -75,6 +75,39 @@ async function blipIds(page: Page): Promise<string[]> {
     );
 }
 
+/**
+ * Returns only outer blip ids whose chrome and body are populated.
+ * GWT can insert placeholder blips that have data-blip-id before
+ * author/time metadata and visible body text are ready; those must not
+ * be indexed as B-G/B-J targets.
+ */
+async function populatedBlipIds(page: Page): Promise<string[]> {
+  return await page
+    .locator("wave-blip[data-blip-id], [kind='b'][data-blip-id]")
+    .evaluateAll((els) => {
+      const out: string[] = [];
+      for (const el of els) {
+        const id = el.getAttribute("data-blip-id");
+        if (!id) continue;
+        const author =
+          el.getAttribute("data-blip-author") ||
+          el
+            .querySelector("[data-blip-author]")
+            ?.getAttribute("data-blip-author") ||
+          "";
+        const time =
+          el.getAttribute("data-blip-time") ||
+          el
+            .querySelector("[data-blip-time]")
+            ?.getAttribute("data-blip-time") ||
+          "";
+        const bodyText = (el.textContent || "").trim();
+        if (author && time && bodyText) out.push(id);
+      }
+      return out;
+    });
+}
+
 /** Waits until the count of outer blips >= n. */
 async function waitForBlipCount(page: Page, n: number): Promise<void> {
   await expect
@@ -94,7 +127,7 @@ async function waitForPopulatedBlipIds(
   await expect
     .poll(
       async () => {
-        latest = await blipIds(page);
+        latest = await populatedBlipIds(page);
         return latest.length;
       },
       {

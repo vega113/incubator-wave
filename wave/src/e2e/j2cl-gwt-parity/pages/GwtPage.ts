@@ -183,13 +183,12 @@ export class GwtPage extends WavePage {
   async dismissTaskMetadataPopup(): Promise<void> {
     const cancel = this.page.getByRole("button", { name: /^cancel$/i }).first();
     try {
-      await cancel.waitFor({ state: "visible", timeout: 5_000 });
-      await cancel.click({ force: true });
-      await cancel.waitFor({ state: "hidden", timeout: 3_000 }).catch(() => {});
+      await expect(cancel).toBeVisible({ timeout: 5_000 });
+      await cancel.click();
     } catch {
       await this.page.keyboard.press("Escape");
     }
-    await this.page.waitForTimeout(300);
+    await expect(cancel).toBeHidden({ timeout: 5_000 });
   }
 
   /**
@@ -204,8 +203,8 @@ export class GwtPage extends WavePage {
       .locator(`[data-blip-id="${blipId}"] input[type="checkbox"]`)
       .first();
     await cb.scrollIntoViewIfNeeded();
-    await cb.click({ force: true });
-    await this.page.waitForTimeout(300);
+    await expect(cb).toBeVisible({ timeout: 5_000 });
+    await cb.click();
   }
 
   /**
