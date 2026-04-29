@@ -316,7 +316,7 @@ async function selectTrailingWordWithKeyboard(
     )
     .toBe(true);
   await page.keyboard.press(
-    process.platform === "darwin" ? "Meta+ArrowRight" : "Control+ArrowRight"
+    process.platform === "darwin" ? "Meta+ArrowRight" : "End"
   );
   for (let i = 0; i < word.length; i += 1) {
     await page.keyboard.press("Shift+ArrowLeft");
