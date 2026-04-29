@@ -577,6 +577,8 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (sourceWaveId == null || sourceWaveId.isEmpty()) {
       waveNavRow.removeAttribute("pinned");
       waveNavRow.removeAttribute("archived");
+      // Lit's no-source sync clears any busy affordance without consulting
+      // this marker, so Java can drop stale ownership synchronously.
       waveNavRow.removeAttribute(ATTR_NAV_ROW_FOLDER_STATE_WAVE_ID);
       return;
     }
