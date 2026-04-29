@@ -513,6 +513,37 @@ public class J2clSelectedWaveControllerTest {
   }
 
   @Test
+  public void replySubmitHandoffRejectsOlderForwardFetchOverFreshLiveBlip()
+      throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(false);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverRawUpdate(0, updateWithPlaceholder("Root already loaded", 44L, "ABCD"));
+
+    harness.replySubmitted(controller, "example.com/w+1", 45L, "b+created");
+    harness.runScheduledRetry(0);
+    Assert.assertEquals(1, harness.fragmentFetchAttempts.size());
+
+    harness.deliverRawUpdate(
+        0,
+        liveBlipFragmentUpdate(
+            "b+created", "Fresh reply from live stream", 50L, "IJKL", 50L));
+    harness.resolveFragmentFetch(
+        0,
+        fragmentsResponseForBlips(
+            "b+created", "Stale reply should not overwrite live content", null, null));
+
+    Assert.assertFalse(
+        String.valueOf(harness.modelValue("getContentEntries"))
+            .contains("Stale reply should not overwrite live content"));
+    Assert.assertEquals(1, harness.closedCount);
+    Assert.assertEquals(2, harness.bootstrapAttempts.size());
+    Assert.assertTrue((Boolean) harness.modelValue("isLoading"));
+  }
+
+  @Test
   public void replySubmitHandoffRetriesForwardFetchWhenSnapshotLagsSubmittedBlip()
       throws Exception {
     Harness harness = new Harness();
@@ -2881,9 +2912,20 @@ public class J2clSelectedWaveControllerTest {
 
   private static SidecarSelectedWaveUpdate liveReplyFragmentUpdate(
       String replySnapshot, long resultingVersion, String historyHash, long fragmentVersion) {
+    return liveBlipFragmentUpdate(
+        "b+reply", replySnapshot, resultingVersion, historyHash, fragmentVersion);
+  }
+
+  private static SidecarSelectedWaveUpdate liveBlipFragmentUpdate(
+      String blipId,
+      String rawSnapshot,
+      long resultingVersion,
+      String historyHash,
+      long fragmentVersion) {
     // Live deltas pushed from the server carry snapshotVersion = -1 (the codec default when the
     // server omits the field). Using -1L here ensures the projector treats this as an incremental
     // live delta and merges it into the prior viewport rather than replacing it.
+    String segment = "blip:" + blipId;
     return new SidecarSelectedWaveUpdate(
         2,
         "example.com!w+1/example.com!conv+root",
@@ -2899,9 +2941,9 @@ public class J2clSelectedWaveControllerTest {
             fragmentVersion,
             Arrays.asList(
                 new SidecarSelectedWaveFragmentRange(
-                    "blip:b+reply", Math.max(0L, fragmentVersion - 1L), fragmentVersion)),
+                    segment, Math.max(0L, fragmentVersion - 1L), fragmentVersion)),
             Arrays.asList(
-                new SidecarSelectedWaveFragment("blip:b+reply", replySnapshot, 0, 0))));
+                new SidecarSelectedWaveFragment(segment, rawSnapshot, 0, 0))));
   }
 
   private static SidecarSelectedWaveUpdate metadataOnlyLiveUpdate(

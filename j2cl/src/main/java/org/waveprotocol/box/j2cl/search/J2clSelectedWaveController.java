@@ -771,7 +771,10 @@ public final class J2clSelectedWaveController
           // closed or reset rather than a normal submit acknowledgement, and merging
           // those fragments could overwrite content brought in by a live-stream update.
           boolean sessionDisappeared = hadWriteSession && currentModel.getWriteSession() == null;
+          boolean staleLoadedFragmentOverlap =
+              hasStaleLoadedFragmentOverlap(response.getFragments());
           if (sessionDisappeared
+              || staleLoadedFragmentOverlap
               || (!allowSameWaveWriteSessionAdvance
                   && isStaleFragmentResponse(hadWriteSession, baseVersion, historyHash))) {
             emitExtensionOutcome(normalizedDirection, "stale");
@@ -861,6 +864,30 @@ public final class J2clSelectedWaveController
           }
         });
     return true;
+  }
+
+  private boolean hasStaleLoadedFragmentOverlap(SidecarSelectedWaveFragments fragments) {
+    if (currentModel == null || currentModel.getViewportState() == null || fragments == null) {
+      return false;
+    }
+    J2clSelectedWaveViewportState incoming = J2clSelectedWaveViewportState.fromFragments(fragments);
+    if (incoming.isEmpty()) {
+      return false;
+    }
+    for (J2clSelectedWaveViewportState.Entry incomingEntry : incoming.getEntries()) {
+      if (!incomingEntry.isLoaded()) {
+        continue;
+      }
+      for (J2clSelectedWaveViewportState.Entry currentEntry :
+          currentModel.getViewportState().getEntries()) {
+        if (currentEntry.isLoaded()
+            && incomingEntry.getSegment().equals(currentEntry.getSegment())
+            && currentEntry.getToVersion() > incomingEntry.getToVersion()) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private boolean requestPostSubmitForwardFetch(
