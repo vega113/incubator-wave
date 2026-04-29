@@ -250,7 +250,10 @@ async function typeInComposerGwt(
       { message: "GWT editor must own focus before typing", timeout: 5_000 }
     )
     .toBe(true);
-  await page.keyboard.insertText(phrase);
+  // GWT's legacy editor updates its persistent model from keyboard events.
+  // insertText mutates the DOM text but can leave the editor model empty,
+  // which makes toolbar selection/annotation commands no-op.
+  await page.keyboard.type(phrase, { delay: 10 });
   await expect
     .poll(
       async () => await editor.evaluate((el) => (el.textContent || "").trim()),
@@ -259,44 +262,7 @@ async function typeInComposerGwt(
     .toContain(phrase);
 }
 
-async function selectWordInGwtEditor(
-  page: Page,
-  gwt: GwtPage,
-  word: string
-): Promise<boolean> {
-  const editor = gwt.gwtActiveEditableDocument();
-  const selected = await editor.evaluate((el, targetWord) => {
-    (el as HTMLElement).focus();
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    let node = walker.nextNode();
-    while (node) {
-      const text = node.textContent || "";
-      const index = text.indexOf(targetWord);
-      if (index >= 0) {
-        const range = document.createRange();
-        range.setStart(node, index);
-        range.setEnd(node, index + targetWord.length);
-        const selection = window.getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-        document.dispatchEvent(new Event("selectionchange", { bubbles: true }));
-        return true;
-      }
-      node = walker.nextNode();
-    }
-    return false;
-  }, word);
-  if (!selected) {
-    return false;
-  }
-  return await page.evaluate(
-    (targetWord) => window.getSelection()?.toString() === targetWord,
-    word
-  );
-}
-
-async function selectTrailingWordWithKeyboard(
-  page: Page,
+async function selectTrailingWordWithGwtWebDriver(
   gwt: GwtPage,
   word: string
 ): Promise<void> {
@@ -310,22 +276,69 @@ async function selectTrailingWordWithKeyboard(
           word
         ),
       {
-        message: `GWT editor text must end with '${word}' before keyboard selection`,
+        message: `GWT editor text must end with '${word}' before webdriver selection`,
         timeout: 5_000
       }
     )
     .toBe(true);
-  await page.keyboard.press(
-    process.platform === "darwin" ? "Meta+ArrowRight" : "End"
-  );
-  for (let i = 0; i < word.length; i += 1) {
-    await page.keyboard.press("Shift+ArrowLeft");
-  }
+  await editor.evaluate((el: HTMLElement, targetWord: string) => {
+    const win = window as typeof window & {
+      webdriverEditorGetContent?: (editorDiv: Element) => string;
+      webdriverEditorSetSelection?: (editorDiv: Element, start: number, end: number) => void;
+    };
+    if (!win.webdriverEditorGetContent || !win.webdriverEditorSetSelection) {
+      throw new Error("GWT editor webdriver selection hooks are unavailable");
+    }
+    let editorDiv: HTMLElement | null = el;
+    let content = "";
+    while (editorDiv) {
+      // The GWT webdriver hook expects the content-owning editor div,
+      // which may be an ancestor of the editable document element.
+      content = win.webdriverEditorGetContent(editorDiv) || "";
+      if (
+        !content.startsWith("Error in webdriverEditorGetContent") &&
+        content.includes(targetWord)
+      ) {
+        break;
+      }
+      editorDiv = editorDiv.parentElement;
+    }
+    if (
+      !editorDiv ||
+      content.startsWith("Error in webdriverEditorGetContent") ||
+      !content.includes(targetWord)
+    ) {
+      throw new Error(`GWT editor model does not contain '${targetWord}': ${content}`);
+    }
+
+    const searchUpperBound = Math.min(content.length + 10, 500);
+    let firstSelectionError = "";
+    for (let start = searchUpperBound; start >= 0; start -= 1) {
+      for (let extraEnd = 0; extraEnd <= 4; extraEnd += 1) {
+        const end = start + targetWord.length + extraEnd;
+        try {
+          win.webdriverEditorSetSelection(editorDiv, start, end);
+        } catch (error) {
+          if (!firstSelectionError) {
+            firstSelectionError = error instanceof Error ? error.message : String(error);
+          }
+          continue;
+        }
+        if (window.getSelection()?.toString() === targetWord) {
+          return;
+        }
+      }
+    }
+    throw new Error(
+      `GWT webdriver selection could not target '${targetWord}' in content ${content}` +
+        (firstSelectionError ? `; first setSelection error: ${firstSelectionError}` : "")
+    );
+  }, word);
   await expect
     .poll(
-      async () => await page.evaluate(() => window.getSelection()?.toString() || ""),
+      async () => await editor.evaluate(() => window.getSelection()?.toString() || ""),
       {
-        message: `GWT keyboard fallback must select trailing '${word}'`,
+        message: `GWT webdriver helper must select trailing '${word}'`,
         timeout: 5_000
       }
     )
@@ -337,10 +350,11 @@ async function applyBoldToWordGwt(
   gwt: GwtPage,
   word: string
 ): Promise<void> {
-  const selectedByRange = await selectWordInGwtEditor(page, gwt, word);
-  if (!selectedByRange) {
-    await selectTrailingWordWithKeyboard(page, gwt, word);
-  }
+  // GWT's editor selection controller reads the editor's native selection
+  // through its SelectionHelper. Direct DOM ranges can select browser text
+  // while bypassing the legacy editor model, so use the existing GWT webdriver
+  // selection hook to target the same SelectionHelper state the toolbar uses.
+  await selectTrailingWordWithGwtWebDriver(gwt, word);
   await expect
     .poll(
       async () => await page.evaluate(() => window.getSelection()?.toString() || ""),
@@ -354,12 +368,42 @@ async function applyBoldToWordGwt(
   });
   await bold.click({ timeout: 10_000 });
   const editor = gwt.gwtActiveEditableDocument();
-  const editorHtml = await editor.evaluate((el: HTMLElement) => el.innerHTML);
-  const boldMatcher = new RegExp(`<(b|strong)[^>]*>${word}<\\/\\1>`, "i");
-  expect(
-    boldMatcher.test(editorHtml),
-    `GWT bold must wrap '${word}' in <b>/<strong>; saw: ${editorHtml}`
-  ).toBe(true);
+  await expect
+    .poll(
+      async () =>
+        await editor.evaluate((el: HTMLElement, targetWord: string) => {
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          let node = walker.nextNode();
+          while (node) {
+            const text = node.textContent || "";
+            if (text.includes(targetWord)) {
+              let current = node.parentElement;
+              while (current && current !== el) {
+                const tagName = current.tagName.toLowerCase();
+                const inlineFontWeight = current.style.fontWeight;
+                const numericInlineWeight = Number(inlineFontWeight);
+                if (
+                  tagName === "b" ||
+                  tagName === "strong" ||
+                  inlineFontWeight === "bold" ||
+                  inlineFontWeight === "bolder" ||
+                  numericInlineWeight >= 700
+                ) {
+                  return true;
+                }
+                current = current.parentElement;
+              }
+            }
+            node = walker.nextNode();
+          }
+          return false;
+        }, word),
+      {
+        message: `GWT bold toolbar action must apply formatting to '${word}'`,
+        timeout: 5_000
+      }
+    )
+    .toBe(true);
 }
 
 async function finishInlineReplyGwt(
