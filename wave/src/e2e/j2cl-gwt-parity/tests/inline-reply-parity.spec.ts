@@ -417,16 +417,32 @@ async function finishInlineReplyGwt(
     timeout: 10_000
   });
   await done.click({ timeout: 10_000 });
+  // Wait for the editor chrome to close — edit-done disappearing confirms
+  // the submit handler ran (not just that a draft blip existed beforehand).
+  await expect(
+    page.locator("[data-e2e-action='edit-done']"),
+    "GWT edit-done chrome must close after submit"
+  ).toHaveCount(0, { timeout: 15_000 });
+  // Confirm a new, non-editable blip was added.
   await expect
     .poll(
       async () => await gwt.gwtBlips().count(),
       { message: "GWT reply submit must add a new blip", timeout: 25_000 }
     )
     .toBeGreaterThan(initialBlipCount);
+  // The persisted blip must be visible and must not contain an open editor,
+  // distinguishing it from a pre-submit draft.
+  const persistedBlip = gwt.gwtBlips().filter({ hasText: draftText }).last();
   await expect(
-    gwt.gwtBlips().filter({ hasText: draftText }).last(),
+    persistedBlip,
     "the newly submitted GWT reply blip must carry the draft text"
   ).toBeVisible({ timeout: 20_000 });
+  await expect(
+    persistedBlip.locator(
+      '[editabledocmarker="true"], .wave-editor-on, [contenteditable="true"]'
+    ),
+    "the submitted GWT reply blip must not contain an open editor (must be persisted, not a draft)"
+  ).toHaveCount(0, { timeout: 5_000 });
 }
 
 // Each test registers a fresh user and operates on its own
