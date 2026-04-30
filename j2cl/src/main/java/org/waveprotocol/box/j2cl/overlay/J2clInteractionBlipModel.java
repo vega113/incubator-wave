@@ -173,12 +173,22 @@ public final class J2clInteractionBlipModel {
     if (!"link/manual".equals(range.getKey())) {
       return false;
     }
-    String value = safe(range.getValue());
-    if (value.indexOf('@') < 0) {
+    if (!isMentionAddressValue(range.getValue())) {
       return false;
     }
     String displayText = sliceText(text, range.getStartOffset(), range.getEndOffset());
     return displayText.startsWith("@");
+  }
+
+  private static boolean isMentionAddressValue(String value) {
+    String address = safe(value).trim();
+    if (address.startsWith("@")) {
+      address = address.substring(1);
+    }
+    return address.indexOf('@') > 0
+        && address.indexOf(':') < 0
+        && address.indexOf('/') < 0
+        && address.indexOf(' ') < 0;
   }
 
   private static List<J2clTaskItemModel> refineTaskItems(

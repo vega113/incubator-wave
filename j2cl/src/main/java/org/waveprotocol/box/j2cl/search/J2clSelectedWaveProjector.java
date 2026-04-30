@@ -976,11 +976,21 @@ public final class J2clSelectedWaveProjector {
     if (!"link/manual".equals(range.getKey())) {
       return false;
     }
-    String value = range.getValue() == null ? "" : range.getValue();
-    if (value.indexOf('@') < 0) {
+    if (!isMentionAddressValue(range.getValue())) {
       return false;
     }
     return sliceText(text, range.getStartOffset(), range.getEndOffset()).startsWith("@");
+  }
+
+  private static boolean isMentionAddressValue(String value) {
+    String address = value == null ? "" : value.trim();
+    if (address.startsWith("@")) {
+      address = address.substring(1);
+    }
+    return address.indexOf('@') > 0
+        && address.indexOf(':') < 0
+        && address.indexOf('/') < 0
+        && address.indexOf(' ') < 0;
   }
 
   private static String sliceText(String text, int startOffset, int endOffset) {
