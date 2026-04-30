@@ -7,8 +7,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
@@ -843,11 +845,13 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       J2clSelectedWaveModel model, List<J2clInteractionBlipModel> interactionBlips) {
     final Map<String, List<J2clMentionRange>> mentionsByBlip =
         new LinkedHashMap<String, List<J2clMentionRange>>();
+    final Set<String> mentionMetadataBlipIds = new LinkedHashSet<String>();
     if (interactionBlips != null) {
       for (J2clInteractionBlipModel blip : interactionBlips) {
         if (blip == null) continue;
         String blipId = blip.getBlipId();
         if (blipId == null || blipId.isEmpty()) continue;
+        mentionMetadataBlipIds.add(blipId);
         List<J2clMentionRange> ranges = sortedMentionRanges(blip.getMentionRanges());
         if (!ranges.isEmpty()) {
           mentionsByBlip.put(blipId, ranges);
@@ -858,7 +862,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       return mentionsByBlip;
     }
     for (J2clReadBlip readBlip : model.getReadBlips()) {
-      if (readBlip == null || mentionsByBlip.containsKey(readBlip.getBlipId())) {
+      if (readBlip == null
+          || mentionsByBlip.containsKey(readBlip.getBlipId())
+          || mentionMetadataBlipIds.contains(readBlip.getBlipId())) {
         continue;
       }
       List<J2clMentionRange> fallback =
@@ -870,7 +876,8 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     for (J2clReadWindowEntry entry : model.getViewportState().getReadWindowEntries()) {
       if (entry == null
           || !entry.isLoaded()
-          || mentionsByBlip.containsKey(entry.getBlipId())) {
+          || mentionsByBlip.containsKey(entry.getBlipId())
+          || mentionMetadataBlipIds.contains(entry.getBlipId())) {
         continue;
       }
       List<J2clMentionRange> fallback =

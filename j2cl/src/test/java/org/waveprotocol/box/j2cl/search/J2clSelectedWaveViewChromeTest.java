@@ -9,9 +9,11 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
+import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
 import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.telemetry.RecordingTelemetrySink;
+import org.waveprotocol.box.j2cl.transport.SidecarAnnotationRange;
 
 /**
  * F-2 slice 2 (#1046) — coverage for the chrome elements
@@ -170,6 +172,46 @@ public class J2clSelectedWaveViewChromeTest {
         mention);
     Assert.assertEquals("alice@example.com", mention.getAttribute("data-mention-address"));
     Assert.assertEquals("@alice@example.com", mention.textContent);
+  }
+
+  @Test
+  public void renderDoesNotDeriveMentionChipWhenBlipMetadataExplicitlyHasNoMentions() {
+    assumeBrowserDom();
+    HTMLElement host = createHost();
+    J2clSelectedWaveView view = new J2clSelectedWaveView(host);
+    J2clSelectedWaveModel model =
+        new J2clSelectedWaveModel(
+            true,
+            false,
+            false,
+            "example.com/w+plain-email",
+            "Selected wave",
+            "",
+            "Read.",
+            "",
+            "",
+            0,
+            Arrays.asList("alice@example.com"),
+            Collections.<String>emptyList(),
+            Arrays.asList(new J2clReadBlip("b+root", "Email @alice@example.com for support")),
+            J2clSelectedWaveViewportState.empty(),
+            Arrays.asList(
+                new J2clInteractionBlipModel(
+                    "b+root",
+                    "Email @alice@example.com for support",
+                    Collections.<SidecarAnnotationRange>emptyList(),
+                    null)),
+            null,
+            0,
+            true,
+            true,
+            false);
+
+    view.render(model);
+
+    Assert.assertNull(
+        "Plain @participant text must not become a mention chip when metadata explicitly has none",
+        host.querySelector("[data-j2cl-read-mention='true']"));
   }
 
   @Test
