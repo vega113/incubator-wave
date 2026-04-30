@@ -912,11 +912,48 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
           break;
         }
         int end = start + token.length();
-        ranges.add(new J2clMentionRange(start, end, address, token));
+        if (hasLiteralMentionBoundaries(safeText, start, end)) {
+          ranges.add(new J2clMentionRange(start, end, address, token));
+        }
         from = end;
       }
     }
     return nonOverlappingMentions(ranges);
+  }
+
+  private static boolean hasLiteralMentionBoundaries(String text, int start, int end) {
+    return hasLiteralMentionLeadingBoundary(text, start)
+        && hasLiteralMentionTrailingBoundary(text, end);
+  }
+
+  private static boolean hasLiteralMentionLeadingBoundary(String text, int start) {
+    if (start <= 0) {
+      return true;
+    }
+    char previous = text.charAt(start - 1);
+    return !isAddressContinuation(previous);
+  }
+
+  private static boolean hasLiteralMentionTrailingBoundary(String text, int end) {
+    if (text == null || end >= text.length()) {
+      return true;
+    }
+    char next = text.charAt(end);
+    if (next == '.' && end + 1 < text.length() && Character.isLetterOrDigit(text.charAt(end + 1))) {
+      return false;
+    }
+    return !isAddressContinuation(next);
+  }
+
+  private static boolean isAddressContinuation(char value) {
+    return Character.isLetterOrDigit(value)
+        || value == '@'
+        || value == '_'
+        || value == '-'
+        || value == '+'
+        || value == '%'
+        || value == ':'
+        || value == '/';
   }
 
   private static List<J2clMentionRange> sortedMentionRanges(List<J2clMentionRange> mentions) {

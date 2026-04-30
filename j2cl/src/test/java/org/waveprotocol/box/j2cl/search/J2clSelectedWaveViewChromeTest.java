@@ -175,6 +175,72 @@ public class J2clSelectedWaveViewChromeTest {
   }
 
   @Test
+  public void renderDoesNotDeriveMentionChipFromEmbeddedLiteralParticipantAddress() {
+    assumeBrowserDom();
+    HTMLElement host = createHost();
+    J2clSelectedWaveView view = new J2clSelectedWaveView(host);
+    J2clSelectedWaveModel model =
+        new J2clSelectedWaveModel(
+            true,
+            false,
+            false,
+            "example.com/w+embedded-email",
+            "Selected wave",
+            "",
+            "Read.",
+            "",
+            "",
+            0,
+            Arrays.asList("alice@example.com"),
+            Collections.<String>emptyList(),
+            Arrays.asList(new J2clReadBlip("b+root", "Forward foo@alice@example.com now")),
+            null,
+            0,
+            true,
+            true,
+            false);
+
+    view.render(model);
+
+    Assert.assertNull(
+        "Embedded address substrings must not become mention chips",
+        host.querySelector("[data-j2cl-read-mention='true']"));
+  }
+
+  @Test
+  public void renderDoesNotDeriveMentionChipFromParticipantAddressPrefix() {
+    assumeBrowserDom();
+    HTMLElement host = createHost();
+    J2clSelectedWaveView view = new J2clSelectedWaveView(host);
+    J2clSelectedWaveModel model =
+        new J2clSelectedWaveModel(
+            true,
+            false,
+            false,
+            "example.com/w+address-prefix",
+            "Selected wave",
+            "",
+            "Read.",
+            "",
+            "",
+            0,
+            Arrays.asList("alice@example.com"),
+            Collections.<String>emptyList(),
+            Arrays.asList(new J2clReadBlip("b+root", "Ping @alice@example.com.uk")),
+            null,
+            0,
+            true,
+            true,
+            false);
+
+    view.render(model);
+
+    Assert.assertNull(
+        "Longer address prefixes must not be chipped as the shorter participant address",
+        host.querySelector("[data-j2cl-read-mention='true']"));
+  }
+
+  @Test
   public void renderDoesNotDeriveMentionChipWhenBlipMetadataExplicitlyHasNoMentions() {
     assumeBrowserDom();
     HTMLElement host = createHost();
