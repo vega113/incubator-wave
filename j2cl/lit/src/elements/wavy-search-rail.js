@@ -98,7 +98,7 @@ export class WavySearchRail extends LitElement {
       width: 100%;
       height: 31px;
       padding: 2px 14px;
-      background: #f7fafc;
+      background: var(--wavy-bg-surface, #f7fafc);
       color: var(--wavy-text-body, #1a202c);
       border: 1.5px solid var(--wavy-border-hairline, #e2e8f0);
       border-radius: 20px;
@@ -108,7 +108,7 @@ export class WavySearchRail extends LitElement {
       outline: none;
       box-shadow: 0 0 0 3px rgba(0, 119, 182, 0.10);
       border-color: var(--wavy-signal-cyan, #0077b6);
-      background: #ffffff;
+      background: var(--wavy-bg-base, #ffffff);
     }
     .waveform {
       display: none;

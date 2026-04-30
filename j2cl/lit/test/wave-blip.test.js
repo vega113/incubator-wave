@@ -326,7 +326,7 @@ describe("<wave-blip>", () => {
     expect(card.hasAttribute("live-pulse")).to.be.true;
   });
 
-  it("violet mention rail attribute toggles via has-mention reflection", async () => {
+  it("cyan mention rail attribute toggles via has-mention reflection", async () => {
     const el = await fixture(html`
       <wave-blip data-blip-id="b13" data-wave-id="w13" author-name="A"></wave-blip>
     `);
@@ -350,6 +350,19 @@ describe("<wave-blip>", () => {
     expect(affordance).to.exist;
     expect(affordance.getAttribute("data-blip-id")).to.equal("b20");
     expect(affordance.getAttribute("data-wave-id")).to.equal("w20");
+  });
+
+  it("keeps task affordances out of visible focus flow until the blip is active", async () => {
+    const el = await fixture(html`
+      <wave-blip data-blip-id="b20a" data-wave-id="w20a" author-name="A"></wave-blip>
+    `);
+    await el.updateComplete;
+    const slot = el.renderRoot.querySelector('[data-task-affordance-slot]');
+    expect(getComputedStyle(slot).visibility).to.equal("hidden");
+
+    el.setAttribute("focused", "");
+    await el.updateComplete;
+    expect(getComputedStyle(slot).visibility).to.equal("visible");
   });
 
   it("reflects taskCompleted as data-task-completed on the host", async () => {

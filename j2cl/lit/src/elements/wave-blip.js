@@ -233,15 +233,14 @@ export class WaveBlip extends LitElement {
       color: #718096;
       font: italic 13px / 1.35 Arial, sans-serif;
       cursor: pointer;
-      border: 0;
     }
     .inline-reply-chip:focus-visible {
       outline: none;
       box-shadow: var(--wavy-focus-ring, 0 0 0 2px rgba(0, 119, 182, 0.16));
     }
-    /* When the wrapper carries the has-mention attr, paint a violet
+    /* When the wrapper carries the has-mention attr, paint a cyan
      * accent rail down the left so the mention navigation (E.6 / E.7)
-     * has a visual cue without clashing with unread cyan. */
+     * has a visual cue without reusing the unread-dot geometry. */
     :host([has-mention])::before {
       content: "";
       position: absolute;
@@ -297,6 +296,7 @@ export class WaveBlip extends LitElement {
       right: 8px;
       opacity: 0;
       pointer-events: none;
+      visibility: hidden;
     }
     :host([focused]) .task-affordance-slot,
     :host(:focus-within) .task-affordance-slot,
@@ -304,6 +304,7 @@ export class WaveBlip extends LitElement {
     .task-affordance-slot:focus-within {
       opacity: 1;
       pointer-events: auto;
+      visibility: visible;
     }
   `;
 

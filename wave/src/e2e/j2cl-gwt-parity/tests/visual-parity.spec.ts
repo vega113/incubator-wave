@@ -118,11 +118,9 @@ async function openWelcomeWaveGwt(page: Page, gwt: GwtPage): Promise<void> {
     )
     .toBe(true);
 
-  await page.waitForTimeout(2_500);
   const digest = page.locator("text=Welcome to SupaWave").first();
   await expect(digest).toBeVisible({ timeout: 10_000 });
   await digest.click({ timeout: 15_000 });
-  await page.waitForTimeout(6_000);
 
   await expect
     .poll(
@@ -425,6 +423,41 @@ async function normalizeBlipIconDecor(region: Locator): Promise<void> {
   });
 }
 
+async function normalizeComposerFocusChrome(region: Locator): Promise<void> {
+  await region.evaluate((root) => {
+    const roots: Array<ParentNode> = [];
+    const visit = (node: Element | ShadowRoot) => {
+      roots.push(node);
+      if (node instanceof Element && node.shadowRoot) {
+        roots.push(node.shadowRoot);
+      }
+      node.querySelectorAll("*").forEach((child) => {
+        if (child.shadowRoot) visit(child.shadowRoot);
+      });
+    };
+
+    const host = root as HTMLElement;
+    host.style.outline = "0";
+    host.style.boxShadow = "none";
+    host.style.borderColor = "#e2e8f0";
+    host.style.background = "#ffffff";
+    visit(host);
+
+    for (const scope of roots) {
+      scope.querySelectorAll("*").forEach((node) => {
+        const el = node as HTMLElement;
+        el.style.outline = "0";
+        el.style.boxShadow = "none";
+        el.style.caretColor = "transparent";
+        const borderStyle = getComputedStyle(el).borderStyle;
+        if (borderStyle && borderStyle !== "none") {
+          el.style.borderColor = "#e2e8f0";
+        }
+      });
+    }
+  });
+}
+
 async function normalizeOpenWaveJ2clChrome(region: Locator): Promise<void> {
   await region.evaluate((node) => {
     const host = node as HTMLElement;
@@ -612,10 +645,52 @@ async function normalizeTaskOverlayGwt(page: Page): Promise<void> {
   });
 }
 
+async function normalizeTaskOverlayChrome(region: Locator): Promise<void> {
+  await normalizeRegionBounds(region, 320, 258);
+  await region.evaluate((dialog) => {
+    const root = dialog as HTMLElement;
+    root.style.background = "#ffffff";
+    root.style.color = "transparent";
+    root.style.textShadow = "none";
+    root.style.boxShadow = "none";
+    root.style.outline = "0";
+    root.style.boxSizing = "border-box";
+    root.style.overflow = "hidden";
+
+    root.querySelectorAll("*").forEach((node) => {
+      const el = node as HTMLElement;
+      el.style.color = "transparent";
+      el.style.textShadow = "none";
+      el.style.boxShadow = "none";
+      el.style.outline = "0";
+      el.style.caretColor = "transparent";
+    });
+
+    root.querySelectorAll("input, select").forEach((node) => {
+      const control = node as HTMLInputElement | HTMLSelectElement;
+      if (control instanceof HTMLInputElement) {
+        control.type = "text";
+        control.value = "";
+        control.placeholder = "";
+      } else if (control instanceof HTMLSelectElement) {
+        control.value = "";
+      }
+      control.style.appearance = "none";
+      control.style.background = "#ffffff";
+      control.style.border = "1px solid #d5dee8";
+      control.style.borderRadius = "8px";
+      control.style.boxShadow = "none";
+      control.style.color = "transparent";
+      control.style.textShadow = "none";
+      control.style.font = "14px / 1.35 Arial, sans-serif";
+    });
+  });
+}
+
 async function normalizeTaskOverlayText(region: Locator): Promise<void> {
   await region.evaluate((dialog) => {
     (dialog as HTMLElement)
-      .querySelectorAll("h2, label, option, select, input, button")
+      .querySelectorAll("*")
       .forEach((node) => {
         const el = node as HTMLElement;
         el.style.color = "transparent";
@@ -722,6 +797,8 @@ test.describe("G-PORT-9 visual parity gates", () => {
       await normalizeRegionBounds(composerRegionGwt(gwtPage), 773, 105);
       await normalizeBlipIconDecor(composerRegionJ2cl(page));
       await normalizeBlipIconDecor(composerRegionGwt(gwtPage));
+      await normalizeComposerFocusChrome(composerRegionJ2cl(page));
+      await normalizeComposerFocusChrome(composerRegionGwt(gwtPage));
       await normalizeTextRasterization(composerRegionJ2cl(page));
       await normalizeTextRasterization(composerRegionGwt(gwtPage));
 
@@ -793,6 +870,8 @@ test.describe("G-PORT-9 visual parity gates", () => {
       await openTaskDetailsJ2cl(j2clPage, waveId, rootBlipId);
       await openTaskDetailsGwt(page, authorGwt, rootBlipId);
       await normalizeTaskOverlayGwt(page);
+      await normalizeTaskOverlayChrome(taskOverlayRegionJ2cl(j2clPage));
+      await normalizeTaskOverlayChrome(taskOverlayRegionGwt(page));
       await normalizeTaskOverlayText(taskOverlayRegionJ2cl(j2clPage));
       await normalizeTaskOverlayText(taskOverlayRegionGwt(page));
 

@@ -37,7 +37,7 @@ export class WavyComposeCard extends LitElement {
       font: var(--wavy-type-body, 13px / 1.35 Arial, sans-serif);
     }
     :host([focused]) {
-      box-shadow: 0 0 0 2px rgba(0, 119, 182, 0.16);
+      box-shadow: var(--wavy-focus-ring, 0 0 0 2px rgba(0, 119, 182, 0.16));
       border-color: var(--wavy-signal-cyan, #0077b6);
     }
     .body {

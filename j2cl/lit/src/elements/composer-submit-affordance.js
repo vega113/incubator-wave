@@ -47,6 +47,7 @@ export class ComposerSubmitAffordance extends LitElement {
       background: rgba(0, 119, 182, 0.08);
       color: #0077b6;
       outline: none;
+      box-shadow: var(--wavy-focus-ring, 0 0 0 2px rgba(0, 119, 182, 0.16));
     }
 
     .message {

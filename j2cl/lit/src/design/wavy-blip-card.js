@@ -42,8 +42,8 @@ export class WavyBlipCard extends LitElement {
       font: var(--wavy-type-body, 13px / 1.35 Arial, sans-serif);
     }
     :host([focused]) {
-      box-shadow: inset 0 0 0 2px var(--wavy-signal-cyan, #0077b6),
-        0 0 0 1px rgba(0, 119, 182, 0.10);
+      box-shadow: inset 0 0 0 1px var(--wavy-signal-cyan, #0077b6),
+        var(--wavy-focus-ring, 0 0 0 2px rgba(0, 119, 182, 0.16));
       border-radius: 8px;
     }
     :host([unread])::before {

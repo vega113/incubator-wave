@@ -64,8 +64,12 @@ export async function compareLocatorScreenshots(
 function writeDebugShot(name: string, side: string, buffer: Buffer): void {
   const dir = process.env.WAVE_E2E_VISUAL_DEBUG_DIR;
   if (!dir) return;
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${name}-${side}.png`), buffer);
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${name}-${side}.png`), buffer);
+  } catch {
+    // Debug artifacts are optional diagnostics; comparison results must still report.
+  }
 }
 
 function normalizeToCanvas(source: PNG, width = source.width, height = source.height): PNG {

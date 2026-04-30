@@ -484,7 +484,7 @@ export class WavyComposer extends LitElement {
     this.activeCommand = "";
     this.commandStatus = "";
     this.commandError = "";
-    this.keymapHint = "Shift+Enter to finish, Esc to exit";
+    this.keymapHint = "Shift+Enter to submit, Esc to cancel";
     this.saveIndicator = "";
     this.debugOverlay = false;
     this.participants = [];
