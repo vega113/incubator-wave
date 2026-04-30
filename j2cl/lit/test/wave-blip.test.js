@@ -523,6 +523,17 @@ describe("<wave-blip>", () => {
       expect(toolbar.getAttribute("data-variant")).to.equal("focused");
     });
 
+    it("tabindex=0 blip paints as visually focused for GWT parity", async () => {
+      const el = await fixture(html`
+        <wave-blip data-blip-id="b48" data-wave-id="w48" tabindex="0"></wave-blip>
+      `);
+      await el.updateComplete;
+      const card = el.renderRoot.querySelector("wavy-blip-card");
+      const toolbar = el.renderRoot.querySelector("wave-blip-toolbar");
+      expect(card.hasAttribute("focused")).to.equal(true);
+      expect(toolbar.getAttribute("data-variant")).to.equal("focused");
+    });
+
     it("unfocused blip stamps data-variant='default' on the inner toolbar", async () => {
       const el = await fixture(html`
         <wave-blip data-blip-id="b47" data-wave-id="w47"></wave-blip>
