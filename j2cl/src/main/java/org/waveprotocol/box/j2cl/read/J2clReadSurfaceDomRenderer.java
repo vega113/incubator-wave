@@ -1151,11 +1151,9 @@ public final class J2clReadSurfaceDomRenderer {
       chip.className = "j2cl-read-mention-chip";
       chip.setAttribute("data-j2cl-read-mention", "true");
       chip.setAttribute("data-mention-address", mention.getUserAddress());
-      String displayText = mention.getDisplayText();
-      chip.textContent =
-          displayText == null || displayText.isEmpty()
-              ? safeText.substring(start, end)
-              : displayText;
+      chip.setAttribute("data-mention-start", Integer.toString(start));
+      chip.setAttribute("data-mention-end", Integer.toString(end));
+      chip.textContent = mentionDisplayText(safeText, mention, start, end);
       content.appendChild(chip);
       cursor = end;
       renderedMention = true;
@@ -1168,6 +1166,14 @@ public final class J2clReadSurfaceDomRenderer {
     } else {
       content.setAttribute("data-has-rendered-mentions", "true");
     }
+  }
+
+  private static String mentionDisplayText(
+      String safeText, J2clMentionRange mention, int start, int end) {
+    String displayText = mention.getDisplayText();
+    return displayText == null || displayText.isEmpty()
+        ? safeText.substring(start, end)
+        : displayText;
   }
 
   private List<J2clMentionRange> buildMentionArray(String blipId) {
@@ -2405,6 +2411,9 @@ public final class J2clReadSurfaceDomRenderer {
       if (!expected.getText().equals(renderedBlipText(actual))) {
         return false;
       }
+      if (!renderedMentionRangesMatch(expected.getBlipId(), expected.getText(), actual)) {
+        return false;
+      }
     }
     return true;
   }
@@ -2438,11 +2447,52 @@ public final class J2clReadSurfaceDomRenderer {
       return false;
     }
     for (int i = 0; i < entries.size(); i++) {
-      if (!sameWindowEntry(renderedWindowEntries.get(i), entries.get(i))) {
+      J2clReadWindowEntry entry = entries.get(i);
+      if (!sameWindowEntry(renderedWindowEntries.get(i), entry)) {
+        return false;
+      }
+      if (entry.isLoaded()
+          && !renderedMentionRangesMatch(
+              entry.getBlipId(), entry.getText(), renderedBlipById(entry.getBlipId()))) {
         return false;
       }
     }
     return true;
+  }
+
+  private boolean renderedMentionRangesMatch(String blipId, String text, HTMLElement actual) {
+    if (actual == null) {
+      return false;
+    }
+    List<J2clMentionRange> expectedMentions = buildMentionArray(blipId);
+    NodeList<Element> actualMentions = actual.querySelectorAll("[data-j2cl-read-mention='true']");
+    if (actualMentions.length != expectedMentions.size()) {
+      return false;
+    }
+    String safeText = text == null ? "" : text;
+    for (int i = 0; i < expectedMentions.size(); i++) {
+      J2clMentionRange expected = expectedMentions.get(i);
+      if (expected == null) {
+        return false;
+      }
+      int start = Math.max(0, Math.min(safeText.length(), expected.getStartOffset()));
+      int end = Math.max(start, Math.min(safeText.length(), expected.getEndOffset()));
+      if (end <= start) {
+        return false;
+      }
+      Element actualMention = actualMentions.getAt(i);
+      if (!Integer.toString(start).equals(actualMention.getAttribute("data-mention-start"))
+          || !Integer.toString(end).equals(actualMention.getAttribute("data-mention-end"))
+          || !safeString(expected.getUserAddress()).equals(actualMention.getAttribute("data-mention-address"))
+          || !mentionDisplayText(safeText, expected, start, end).equals(actualMention.textContent)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static String safeString(String value) {
+    return value == null ? "" : value;
   }
 
   private static boolean sameWindowEntry(

@@ -893,10 +893,61 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertNotNull(mention);
     Assert.assertEquals("@Al", mention.textContent);
     Assert.assertEquals("alice@example.com", mention.getAttribute("data-mention-address"));
+    Assert.assertEquals("6", mention.getAttribute("data-mention-start"));
+    Assert.assertEquals("9", mention.getAttribute("data-mention-end"));
     Assert.assertNull("Read mention chips are not interactive until navigation is wired", mention.getAttribute("role"));
     Assert.assertNull(
         "Read mention chips are not keyboard-focusable until navigation is wired",
         mention.getAttribute("tabindex"));
+  }
+
+  @Test
+  public void renderRepaintsWhenMentionBinderChangesWithoutBlipContentChange() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    List<J2clReadBlip> blips = Arrays.asList(new J2clReadBlip("b+root", "Hello @Al"));
+
+    renderer.setMentionBinder(null);
+    renderer.render(blips, Collections.<String>emptyList());
+    Assert.assertEquals(0, host.querySelectorAll("[data-j2cl-read-mention='true']").length);
+
+    renderer.setMentionBinder(
+        blipId ->
+            "b+root".equals(blipId)
+                ? Arrays.asList(new J2clMentionRange(6, 9, "alice@example.com", "@Al"))
+                : Collections.<J2clMentionRange>emptyList());
+    renderer.render(blips, Collections.<String>emptyList());
+
+    HTMLElement mention = (HTMLElement) host.querySelector("[data-j2cl-read-mention='true']");
+    Assert.assertNotNull(
+        "Mention binder changes must invalidate the same-blip fast path", mention);
+    Assert.assertEquals("alice@example.com", mention.getAttribute("data-mention-address"));
+  }
+
+  @Test
+  public void renderWindowRepaintsWhenMentionBinderChangesWithoutEntryChange() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    List<J2clReadWindowEntry> entries =
+        Arrays.asList(J2clReadWindowEntry.loaded("blip:b+root", 0L, 1L, "b+root", "Hello @Al"));
+
+    renderer.setMentionBinder(null);
+    renderer.renderWindow(entries);
+    Assert.assertEquals(0, host.querySelectorAll("[data-j2cl-read-mention='true']").length);
+
+    renderer.setMentionBinder(
+        blipId ->
+            "b+root".equals(blipId)
+                ? Arrays.asList(new J2clMentionRange(6, 9, "alice@example.com", "@Al"))
+                : Collections.<J2clMentionRange>emptyList());
+    renderer.renderWindow(entries);
+
+    HTMLElement mention = (HTMLElement) host.querySelector("[data-j2cl-read-mention='true']");
+    Assert.assertNotNull(
+        "Mention binder changes must invalidate the same-window fast path", mention);
+    Assert.assertEquals("alice@example.com", mention.getAttribute("data-mention-address"));
   }
 
   @Test

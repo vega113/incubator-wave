@@ -174,7 +174,7 @@ public final class J2clInteractionBlipModel {
       return false;
     }
     String value = safe(range.getValue());
-    if (value.indexOf('@') <= 0) {
+    if (value.indexOf('@') < 0) {
       return false;
     }
     String displayText = sliceText(text, range.getStartOffset(), range.getEndOffset());

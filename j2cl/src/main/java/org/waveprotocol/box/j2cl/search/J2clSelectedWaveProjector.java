@@ -977,7 +977,7 @@ public final class J2clSelectedWaveProjector {
       return false;
     }
     String value = range.getValue() == null ? "" : range.getValue();
-    if (value.indexOf('@') <= 0) {
+    if (value.indexOf('@') < 0) {
       return false;
     }
     return sliceText(text, range.getStartOffset(), range.getEndOffset()).startsWith("@");

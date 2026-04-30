@@ -160,6 +160,24 @@ public class J2clOverlayModelTest {
   }
 
   @Test
+  public void interactionBlipAcceptsManualLinkValueStartingWithAt() {
+    J2clInteractionBlipModel blip =
+        new J2clInteractionBlipModel(
+            "b+root",
+            "b+root",
+            "author@example.com",
+            "Hi @Al",
+            Arrays.asList("author@example.com"),
+            true,
+            Arrays.asList(new SidecarAnnotationRange("link/manual", "@alice@example.com", 3, 6)),
+            Collections.<SidecarReactionEntry>emptyList());
+
+    Assert.assertEquals(1, blip.getMentionRanges().size());
+    Assert.assertEquals("@alice@example.com", blip.getMentionRanges().get(0).getUserAddress());
+    Assert.assertEquals("@Al", blip.getMentionRanges().get(0).getDisplayText());
+  }
+
+  @Test
   public void interactionBlipTaskItemsFollowBlipEditability() {
     J2clInteractionBlipModel blip =
         new J2clInteractionBlipModel(

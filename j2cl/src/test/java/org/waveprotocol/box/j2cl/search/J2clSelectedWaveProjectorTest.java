@@ -701,6 +701,40 @@ public class J2clSelectedWaveProjectorTest {
   }
 
   @Test
+  public void projectTreatsManualLinkValueStartingWithAtAsMentionMetadata() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            new SidecarSelectedWaveUpdate(
+                1,
+                WAVELET_NAME,
+                true,
+                CHANNEL_ID,
+                9L,
+                "HASH",
+                Arrays.asList("user@example.com"),
+                Arrays.asList(
+                    new SidecarSelectedWaveDocument(
+                        "b+root",
+                        "user@example.com",
+                        7L,
+                        8L,
+                        "Hi @Teammate",
+                        Arrays.asList(
+                            new SidecarAnnotationRange(
+                                "link/manual", "@teammate@example.com", 3, 12)),
+                        Collections.<SidecarReactionEntry>emptyList())),
+                null),
+            null,
+            0);
+
+    J2clInteractionBlipModel interactionBlip = projected.getInteractionBlips().get(0);
+    Assert.assertEquals(1, interactionBlip.getMentionRanges().size());
+    Assert.assertTrue(projected.getReadBlips().get(0).hasMention());
+  }
+
+  @Test
   public void projectRefinesTaskItemsFromTaskAnnotationsWithSharedRange() {
     J2clSelectedWaveModel projected =
         J2clSelectedWaveProjector.project(
