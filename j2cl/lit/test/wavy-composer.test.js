@@ -57,6 +57,12 @@ describe("<wavy-composer>", () => {
     expect(body.getAttribute("aria-multiline")).to.equal("true");
   });
 
+  it("describes the actual submit/cancel keyboard behavior in the hint strip", async () => {
+    const el = await fixture(html`<wavy-composer available></wavy-composer>`);
+    const hint = el.renderRoot.querySelector("[data-hint-strip]");
+    expect(hint.textContent.trim()).to.equal("Shift+Enter to submit, Esc to cancel");
+  });
+
   // V-2 (#1100): "Reply target: <id>" paragraph is dev-only.
   it("hides the reply-target paragraph when debugOverlay is off (V-2)", async () => {
     const hadDebugClass = document.body.classList.contains("j2cl-debug-overlay-on");
