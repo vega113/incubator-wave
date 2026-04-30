@@ -892,7 +892,10 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   private static List<J2clMentionRange> literalParticipantMentions(
       String text, List<String> participantIds) {
     String safeText = text == null ? "" : text;
-    if (safeText.isEmpty() || participantIds == null || participantIds.isEmpty()) {
+    if (safeText.isEmpty()
+        || safeText.indexOf('@') < 0
+        || participantIds == null
+        || participantIds.isEmpty()) {
       return Collections.emptyList();
     }
     List<J2clMentionRange> ranges = new ArrayList<J2clMentionRange>();

@@ -893,8 +893,10 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertNotNull(mention);
     Assert.assertEquals("@Al", mention.textContent);
     Assert.assertEquals("alice@example.com", mention.getAttribute("data-mention-address"));
-    Assert.assertEquals("link", mention.getAttribute("role"));
-    Assert.assertEquals("0", mention.getAttribute("tabindex"));
+    Assert.assertNull("Read mention chips are not interactive until navigation is wired", mention.getAttribute("role"));
+    Assert.assertNull(
+        "Read mention chips are not keyboard-focusable until navigation is wired",
+        mention.getAttribute("tabindex"));
   }
 
   @Test

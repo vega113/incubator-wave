@@ -1151,8 +1151,6 @@ public final class J2clReadSurfaceDomRenderer {
       chip.className = "j2cl-read-mention-chip";
       chip.setAttribute("data-j2cl-read-mention", "true");
       chip.setAttribute("data-mention-address", mention.getUserAddress());
-      chip.setAttribute("role", "link");
-      chip.setAttribute("tabindex", "0");
       String displayText = mention.getDisplayText();
       chip.textContent =
           displayText == null || displayText.isEmpty()

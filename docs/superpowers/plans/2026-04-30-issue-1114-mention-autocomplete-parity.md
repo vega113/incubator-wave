@@ -9,11 +9,9 @@ reply E2E driver. That blocker is gone: #1121 was merged via #1137, and the
 GWT parity harness can now open an inline reply composer, type through the
 real editor, finish the edit, and verify the new blip.
 
-The current branch is:
-
-- Worktree: `/Users/vega/devroot/worktrees/g-port-5-mention-autocomplete-20260430`
-- Branch: `codex/g-port-5-mention-autocomplete-20260430`
-- Base: `origin/main` at `ac033b14d`
+Implementation should run from a dedicated issue #1114 worktree and branch, with
+the live worktree path, branch name, and base commit recorded in GitHub issue
+comments rather than baked into this repo-tracked plan.
 
 The existing `mention-autocomplete-parity.spec.ts` still has a stale GWT
 baseline: it verifies GWT bootstrapping and participant controls, but it does
