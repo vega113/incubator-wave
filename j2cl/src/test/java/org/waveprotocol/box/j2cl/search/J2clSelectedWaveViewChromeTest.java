@@ -136,6 +136,43 @@ public class J2clSelectedWaveViewChromeTest {
   }
 
   @Test
+  public void renderDerivesReadMentionChipFromLiteralParticipantAddressWhenRangesAreAbsent() {
+    assumeBrowserDom();
+    HTMLElement host = createHost();
+    J2clSelectedWaveView view = new J2clSelectedWaveView(host);
+    J2clSelectedWaveModel model =
+        new J2clSelectedWaveModel(
+            true,
+            false,
+            false,
+            "example.com/w+mentions",
+            "Selected wave",
+            "",
+            "Read.",
+            "",
+            "",
+            0,
+            Arrays.asList("alice@example.com"),
+            Collections.<String>emptyList(),
+            Arrays.asList(new J2clReadBlip("b+root", "Hello @alice@example.com")),
+            null,
+            0,
+            true,
+            true,
+            false);
+
+    view.render(model);
+
+    HTMLElement mention =
+        (HTMLElement) host.querySelector("[data-j2cl-read-mention='true']");
+    Assert.assertNotNull(
+        "Reloaded read-surface text must recover a stable mention chip from the participant address",
+        mention);
+    Assert.assertEquals("alice@example.com", mention.getAttribute("data-mention-address"));
+    Assert.assertEquals("@alice@example.com", mention.textContent);
+  }
+
+  @Test
   public void setNavRowFolderStateStampsCurrentSourceWaveOwnership() {
     assumeBrowserDom();
     HTMLElement host = createHost();

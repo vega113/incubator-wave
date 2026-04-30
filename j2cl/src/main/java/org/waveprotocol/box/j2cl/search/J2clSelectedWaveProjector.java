@@ -951,22 +951,43 @@ public final class J2clSelectedWaveProjector {
   }
 
   /**
-   * F-2 (#1037, R-3.4 E.6 / E.7) — a blip "has a mention" when any annotation
-   * carries the {@code mention/} key prefix. The annotation ranges are already
-   * shipped on the wire today via {@link SidecarSelectedWaveDocument} for the
-   * interaction-blip projection; reading them here keeps the read-surface
-   * mention navigation in lockstep with the interaction surface.
+   * F-2 (#1037, R-3.4 E.6 / E.7) plus G-PORT-5 (#1114): a blip "has a mention"
+   * when any annotation carries the {@code mention/} key prefix, or when the
+   * J2CL composer round-tripped a picked mention as {@code link/manual} over
+   * visible {@code @...} text. Reading the same ranges here keeps mention
+   * navigation in lockstep with the interaction surface.
    */
   static boolean documentHasMention(SidecarSelectedWaveDocument document) {
     if (document == null || document.getAnnotationRanges() == null) {
       return false;
     }
     for (SidecarAnnotationRange range : document.getAnnotationRanges()) {
-      if (range != null && range.isMention()) {
+      if (range != null && isMentionRange(document.getTextContent(), range)) {
         return true;
       }
     }
     return false;
+  }
+
+  private static boolean isMentionRange(String text, SidecarAnnotationRange range) {
+    if (range.isMention()) {
+      return true;
+    }
+    if (!"link/manual".equals(range.getKey())) {
+      return false;
+    }
+    String value = range.getValue() == null ? "" : range.getValue();
+    if (value.indexOf('@') <= 0) {
+      return false;
+    }
+    return sliceText(text, range.getStartOffset(), range.getEndOffset()).startsWith("@");
+  }
+
+  private static String sliceText(String text, int startOffset, int endOffset) {
+    String value = text == null ? "" : text;
+    int start = Math.max(0, Math.min(startOffset, value.length()));
+    int end = Math.max(start, Math.min(endOffset, value.length()));
+    return value.substring(start, end);
   }
 
   /**

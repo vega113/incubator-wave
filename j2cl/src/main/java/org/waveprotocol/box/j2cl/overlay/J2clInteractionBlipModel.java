@@ -153,7 +153,7 @@ public final class J2clInteractionBlipModel {
     }
     List<J2clMentionRange> mentions = new ArrayList<J2clMentionRange>();
     for (SidecarAnnotationRange range : annotationRanges) {
-      if (range == null || !range.isMention()) {
+      if (range == null || !isMentionAnnotation(text, range)) {
         continue;
       }
       mentions.add(
@@ -164,6 +164,21 @@ public final class J2clInteractionBlipModel {
               sliceText(text, range.getStartOffset(), range.getEndOffset())));
     }
     return Collections.unmodifiableList(mentions);
+  }
+
+  private static boolean isMentionAnnotation(String text, SidecarAnnotationRange range) {
+    if (range.isMention()) {
+      return true;
+    }
+    if (!"link/manual".equals(range.getKey())) {
+      return false;
+    }
+    String value = safe(range.getValue());
+    if (value.indexOf('@') <= 0) {
+      return false;
+    }
+    String displayText = sliceText(text, range.getStartOffset(), range.getEndOffset());
+    return displayText.startsWith("@");
   }
 
   private static List<J2clTaskItemModel> refineTaskItems(

@@ -3,13 +3,18 @@ package org.waveprotocol.box.j2cl.search;
 import elemental2.dom.DomGlobal;
 import elemental2.dom.HTMLDivElement;
 import elemental2.dom.HTMLElement;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
+import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
+import org.waveprotocol.box.j2cl.read.J2clReadBlip;
 import org.waveprotocol.box.j2cl.read.J2clReadSurfaceDomRenderer;
 import org.waveprotocol.box.j2cl.read.J2clReadWindowEntry;
 import org.waveprotocol.box.j2cl.root.J2clServerFirstRootShellDom;
@@ -809,31 +814,147 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   private void publishReactionState(J2clSelectedWaveModel model) {
     final List<J2clInteractionBlipModel> interactionBlips =
         model == null ? null : model.getInteractionBlips();
-    if (interactionBlips == null || interactionBlips.isEmpty()) {
-      readSurface.setReactionBinder(blipId -> null);
-      if (reactionSnapshotPublisher != null) {
-        reactionSnapshotPublisher.publish(java.util.Collections.<String, List<SidecarReactionEntry>>emptyMap());
-      }
-      return;
-    }
     final Map<String, List<J2clReactionSummary>> summariesByBlip =
         new LinkedHashMap<String, List<J2clReactionSummary>>();
     final Map<String, List<SidecarReactionEntry>> entriesByBlip =
         new LinkedHashMap<String, List<SidecarReactionEntry>>();
-    for (J2clInteractionBlipModel blip : interactionBlips) {
-      if (blip == null) continue;
-      String blipId = blip.getBlipId();
-      if (blipId == null || blipId.isEmpty()) continue;
-      // Reactions are user-aware on the chip side; rebuild active
-      // flags against the signed-in user before publishing to the
-      // renderer.
-      summariesByBlip.put(blipId, blip.reactionSummariesForUser(currentUserAddress));
-      entriesByBlip.put(blipId, blip.getReactionEntries());
+    if (interactionBlips != null) {
+      for (J2clInteractionBlipModel blip : interactionBlips) {
+        if (blip == null) continue;
+        String blipId = blip.getBlipId();
+        if (blipId == null || blipId.isEmpty()) continue;
+        // Reactions are user-aware on the chip side; rebuild active
+        // flags against the signed-in user before publishing to the
+        // renderer.
+        summariesByBlip.put(blipId, blip.reactionSummariesForUser(currentUserAddress));
+        entriesByBlip.put(blipId, blip.getReactionEntries());
+      }
     }
-    readSurface.setReactionBinder(summariesByBlip::get);
+    readSurface.setReactionBinder(summariesByBlip.isEmpty() ? null : summariesByBlip::get);
+    final Map<String, List<J2clMentionRange>> mentionsByBlip =
+        buildMentionRangesByBlip(model, interactionBlips);
+    readSurface.setMentionBinder(mentionsByBlip.isEmpty() ? null : mentionsByBlip::get);
     if (reactionSnapshotPublisher != null) {
       reactionSnapshotPublisher.publish(entriesByBlip);
     }
+  }
+
+  private static Map<String, List<J2clMentionRange>> buildMentionRangesByBlip(
+      J2clSelectedWaveModel model, List<J2clInteractionBlipModel> interactionBlips) {
+    final Map<String, List<J2clMentionRange>> mentionsByBlip =
+        new LinkedHashMap<String, List<J2clMentionRange>>();
+    if (interactionBlips != null) {
+      for (J2clInteractionBlipModel blip : interactionBlips) {
+        if (blip == null) continue;
+        String blipId = blip.getBlipId();
+        if (blipId == null || blipId.isEmpty()) continue;
+        List<J2clMentionRange> ranges = sortedMentionRanges(blip.getMentionRanges());
+        if (!ranges.isEmpty()) {
+          mentionsByBlip.put(blipId, ranges);
+        }
+      }
+    }
+    if (model == null || model.getParticipantIds().isEmpty()) {
+      return mentionsByBlip;
+    }
+    for (J2clReadBlip readBlip : model.getReadBlips()) {
+      if (readBlip == null || mentionsByBlip.containsKey(readBlip.getBlipId())) {
+        continue;
+      }
+      List<J2clMentionRange> fallback =
+          literalParticipantMentions(readBlip.getText(), model.getParticipantIds());
+      if (!fallback.isEmpty()) {
+        mentionsByBlip.put(readBlip.getBlipId(), fallback);
+      }
+    }
+    for (J2clReadWindowEntry entry : model.getViewportState().getReadWindowEntries()) {
+      if (entry == null
+          || !entry.isLoaded()
+          || mentionsByBlip.containsKey(entry.getBlipId())) {
+        continue;
+      }
+      List<J2clMentionRange> fallback =
+          literalParticipantMentions(entry.getText(), model.getParticipantIds());
+      if (!fallback.isEmpty()) {
+        mentionsByBlip.put(entry.getBlipId(), fallback);
+      }
+    }
+    return mentionsByBlip;
+  }
+
+  private static List<J2clMentionRange> literalParticipantMentions(
+      String text, List<String> participantIds) {
+    String safeText = text == null ? "" : text;
+    if (safeText.isEmpty() || participantIds == null || participantIds.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<J2clMentionRange> ranges = new ArrayList<J2clMentionRange>();
+    for (String participantId : participantIds) {
+      String address = participantId == null ? "" : participantId.trim();
+      if (address.isEmpty()) {
+        continue;
+      }
+      String token = "@" + address;
+      int from = 0;
+      while (from < safeText.length()) {
+        int start = safeText.indexOf(token, from);
+        if (start < 0) {
+          break;
+        }
+        int end = start + token.length();
+        ranges.add(new J2clMentionRange(start, end, address, token));
+        from = end;
+      }
+    }
+    return nonOverlappingMentions(ranges);
+  }
+
+  private static List<J2clMentionRange> sortedMentionRanges(List<J2clMentionRange> mentions) {
+    if (mentions == null || mentions.isEmpty()) {
+      return Collections.emptyList();
+    }
+    return nonOverlappingMentions(new ArrayList<J2clMentionRange>(mentions));
+  }
+
+  private static List<J2clMentionRange> nonOverlappingMentions(
+      List<J2clMentionRange> mentions) {
+    if (mentions == null || mentions.isEmpty()) {
+      return Collections.emptyList();
+    }
+    Collections.sort(
+        mentions,
+        new Comparator<J2clMentionRange>() {
+          @Override
+          public int compare(J2clMentionRange left, J2clMentionRange right) {
+            if (left == right) {
+              return 0;
+            }
+            if (left == null) {
+              return 1;
+            }
+            if (right == null) {
+              return -1;
+            }
+            int startCompare = left.getStartOffset() - right.getStartOffset();
+            if (startCompare != 0) {
+              return startCompare;
+            }
+            return right.getEndOffset() - left.getEndOffset();
+          }
+        });
+    List<J2clMentionRange> filtered = new ArrayList<J2clMentionRange>();
+    int cursor = 0;
+    for (J2clMentionRange mention : mentions) {
+      if (mention == null) {
+        continue;
+      }
+      if (mention.getEndOffset() <= mention.getStartOffset() || mention.getStartOffset() < cursor) {
+        continue;
+      }
+      filtered.add(mention);
+      cursor = mention.getEndOffset();
+    }
+    return filtered;
   }
 
   private static double now() {

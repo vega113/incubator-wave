@@ -21,6 +21,7 @@ import org.junit.Assume;
 import org.junit.Test;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadata;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
 import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.telemetry.RecordingTelemetrySink;
 import org.waveprotocol.box.j2cl.transport.SidecarConversationManifest;
@@ -854,6 +855,70 @@ public class J2clReadSurfaceDomRendererTest {
     Assert.assertNotNull(root.getAttribute("posted-at-iso"));
     Assert.assertTrue(root.hasAttribute("unread"));
     Assert.assertTrue(root.hasAttribute("has-mention"));
+  }
+
+  @Test
+  public void renderBlipTextPaintsMentionRangesAsStableReadChips() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    renderer.setMentionBinder(
+        blipId ->
+            "b+root".equals(blipId)
+                ? Arrays.asList(new J2clMentionRange(6, 9, "alice@example.com", "@Al"))
+                : Collections.<J2clMentionRange>emptyList());
+
+    renderer.render(
+        Arrays.asList(
+            new J2clReadBlip(
+                "b+root",
+                "Hello @Al",
+                Collections.<J2clAttachmentRenderModel>emptyList(),
+                "alice@example.com",
+                "Alice",
+                1700000000000L,
+                "",
+                "t+root",
+                false,
+                true)),
+        Collections.<String>emptyList());
+
+    HTMLElement blip = blip(host, "b+root");
+    HTMLElement content = (HTMLElement) blip.querySelector(".j2cl-read-blip-content");
+    HTMLElement mention = (HTMLElement) blip.querySelector("[data-j2cl-read-mention='true']");
+
+    Assert.assertNotNull(content);
+    Assert.assertEquals("Hello @Al", content.textContent);
+    Assert.assertEquals("true", content.getAttribute("data-has-rendered-mentions"));
+    Assert.assertNotNull(mention);
+    Assert.assertEquals("@Al", mention.textContent);
+    Assert.assertEquals("alice@example.com", mention.getAttribute("data-mention-address"));
+    Assert.assertEquals("link", mention.getAttribute("role"));
+    Assert.assertEquals("0", mention.getAttribute("tabindex"));
+  }
+
+  @Test
+  public void renderBlipTextSortsMentionRangesBeforePaintingReadChips() {
+    assumeBrowserDom();
+    HTMLDivElement host = createHost();
+    J2clReadSurfaceDomRenderer renderer = new J2clReadSurfaceDomRenderer(host);
+    renderer.setMentionBinder(
+        blipId ->
+            "b+root".equals(blipId)
+                ? Arrays.asList(
+                    new J2clMentionRange(14, 18, "bob@example.com", "@Bob"),
+                    new J2clMentionRange(3, 9, "alice@example.com", "@Alice"))
+                : Collections.<J2clMentionRange>emptyList());
+
+    renderer.render(
+        Arrays.asList(new J2clReadBlip("b+root", "Hi @Alice and @Bob")),
+        Collections.<String>emptyList());
+
+    NodeList<Element> mentions = host.querySelectorAll("[data-j2cl-read-mention='true']");
+    Assert.assertEquals(
+        "Both mentions must render even when binder ranges are unordered", 2, mentions.length);
+    Assert.assertEquals("@Alice", mentions.getAt(0).textContent);
+    Assert.assertEquals("@Bob", mentions.getAt(1).textContent);
   }
 
   @Test

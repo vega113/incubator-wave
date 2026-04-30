@@ -12,6 +12,7 @@ import elemental2.dom.KeyboardEvent;
 import elemental2.dom.NodeList;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.Set;
 import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
 import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
 import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
@@ -77,6 +79,16 @@ public final class J2clReadSurfaceDomRenderer {
     List<J2clReactionSummary> reactionsFor(String blipId);
   }
 
+  /**
+   * G-PORT-5 (#1114): seam used by the selected-wave view to project
+   * persisted mention annotation ranges onto read-surface text. Returning
+   * an empty list leaves the blip as plain text.
+   */
+  @FunctionalInterface
+  public interface MentionBinder {
+    List<J2clMentionRange> mentionsFor(String blipId);
+  }
+
   /** Test seam for the dwell-timer scheduler so unit tests can swap a fake clock. */
   public interface DwellTimerScheduler {
     /**
@@ -110,6 +122,7 @@ public final class J2clReadSurfaceDomRenderer {
   // view layer (J2clSelectedWaveView). Null binder means "no reactions
   // wiring yet" — the row is still mounted as an empty add-only state.
   private ReactionBinder reactionBinder;
+  private MentionBinder mentionBinder;
   // J-UI-4 (#1082, R-3.1): conversation manifest for the current wave.
   // Set by the view layer before each render call. The renderer uses
   // this to graft parent-blip-id / thread-id onto each blip in the
@@ -205,6 +218,10 @@ public final class J2clReadSurfaceDomRenderer {
    */
   public void setReactionBinder(ReactionBinder binder) {
     this.reactionBinder = binder;
+  }
+
+  public void setMentionBinder(MentionBinder binder) {
+    this.mentionBinder = binder;
   }
 
   /**
@@ -1077,7 +1094,7 @@ public final class J2clReadSurfaceDomRenderer {
 
     HTMLElement content = (HTMLElement) DomGlobal.document.createElement("div");
     content.className = "blip-content j2cl-read-blip-content";
-    content.textContent = blip.getText();
+    renderBlipText(content, blip.getText(), buildMentionArray(blip.getBlipId()));
     element.appendChild(content);
 
     if (!blip.getAttachments().isEmpty()) {
@@ -1106,6 +1123,86 @@ public final class J2clReadSurfaceDomRenderer {
 
   private static void setProperty(HTMLElement element, String name, Object value) {
     Js.asPropertyMap(element).set(name, value);
+  }
+
+  private void renderBlipText(
+      HTMLElement content, String text, List<J2clMentionRange> mentions) {
+    String safeText = text == null ? "" : text;
+    if (mentions == null || mentions.isEmpty()) {
+      content.textContent = safeText;
+      return;
+    }
+
+    int cursor = 0;
+    boolean renderedMention = false;
+    for (J2clMentionRange mention : mentions) {
+      if (mention == null) {
+        continue;
+      }
+      int start = Math.max(0, Math.min(safeText.length(), mention.getStartOffset()));
+      int end = Math.max(start, Math.min(safeText.length(), mention.getEndOffset()));
+      if (start < cursor || end <= start) {
+        continue;
+      }
+      if (start > cursor) {
+        content.appendChild(DomGlobal.document.createTextNode(safeText.substring(cursor, start)));
+      }
+      HTMLElement chip = (HTMLElement) DomGlobal.document.createElement("span");
+      chip.className = "j2cl-read-mention-chip";
+      chip.setAttribute("data-j2cl-read-mention", "true");
+      chip.setAttribute("data-mention-address", mention.getUserAddress());
+      chip.setAttribute("role", "link");
+      chip.setAttribute("tabindex", "0");
+      String displayText = mention.getDisplayText();
+      chip.textContent =
+          displayText == null || displayText.isEmpty()
+              ? safeText.substring(start, end)
+              : displayText;
+      content.appendChild(chip);
+      cursor = end;
+      renderedMention = true;
+    }
+    if (cursor < safeText.length()) {
+      content.appendChild(DomGlobal.document.createTextNode(safeText.substring(cursor)));
+    }
+    if (!renderedMention) {
+      content.textContent = safeText;
+    } else {
+      content.setAttribute("data-has-rendered-mentions", "true");
+    }
+  }
+
+  private List<J2clMentionRange> buildMentionArray(String blipId) {
+    if (mentionBinder == null || blipId == null || blipId.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<J2clMentionRange> mentions = mentionBinder.mentionsFor(blipId);
+    if (mentions == null || mentions.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<J2clMentionRange> sorted = new ArrayList<J2clMentionRange>(mentions);
+    Collections.sort(
+        sorted,
+        new Comparator<J2clMentionRange>() {
+          @Override
+          public int compare(J2clMentionRange left, J2clMentionRange right) {
+            if (left == right) {
+              return 0;
+            }
+            if (left == null) {
+              return 1;
+            }
+            if (right == null) {
+              return -1;
+            }
+            int startCompare = left.getStartOffset() - right.getStartOffset();
+            if (startCompare != 0) {
+              return startCompare;
+            }
+            return right.getEndOffset() - left.getEndOffset();
+          }
+        });
+    return sorted;
   }
 
   /**
