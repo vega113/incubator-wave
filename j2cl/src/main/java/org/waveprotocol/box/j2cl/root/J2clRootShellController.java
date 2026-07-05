@@ -441,13 +441,16 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
    * the read-surface attribute (kept in sync by setDepthFocus); and for
    * {@code wavy-depth-root} we clear the depth.
    */
-  private static void bindDepthEventsToRoute(
+  // #1268: instance so the depth listeners bind through the shell's dispose
+  // registry and are removed on destroy().
+  private void bindDepthEventsToRoute(
       J2clSelectedWaveView view, J2clSidecarRouteController routeController) {
     HTMLElement card = view.getCardElement();
     if (card == null || routeController == null) {
       return;
     }
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-drill-in",
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
@@ -464,7 +467,8 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
             view.setDepthFocus(resolved, "", "");
           }
         });
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-up",
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
@@ -480,13 +484,15 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
           routeController.onDepthChanged(parentId.isEmpty() ? null : parentId);
           view.setDepthFocus(parentId.isEmpty() ? "" : parentId, "", "");
         });
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-root",
         (Event evt) -> {
           routeController.onDepthChanged(null);
           view.setDepthFocus("", "", "");
         });
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-jump-to-crumb",
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
