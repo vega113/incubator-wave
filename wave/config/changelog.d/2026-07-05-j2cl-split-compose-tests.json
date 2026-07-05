@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-split-compose-tests",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "Internal: split the monster compose test class",
+  "summary": "Developer-facing cleanup: the ~5k-line J2clComposeSurfaceControllerTest was broken up into 15 focused per-flow test classes (each under 800 lines) sharing a common base, and the reusable test doubles moved into a dedicated testsupport package. No production code or user-visible behavior changed; the same 182 tests still run and pass.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI (internal): split J2clComposeSurfaceControllerTest (~5 kLOC) into 15 focused per-flow test classes — reply/edit, selected-wave context, stale-generation retry, rich toolbar, attachments (guards/upload/cancel), create, mentions, task/reaction, wave-header actions, drop/delete-blip, rich-component — each under 800 LOC and extending a shared J2clComposeControllerTestSupport base. The stateless doubles (FakeGateway/FakeView/CapturingDeltaFactory/etc.) now live as public classes in a new org.waveprotocol.box.j2cl.testsupport package. Same 182 tests, faster to navigate and safer to extend."
+      ]
+    }
+  ]
+}
