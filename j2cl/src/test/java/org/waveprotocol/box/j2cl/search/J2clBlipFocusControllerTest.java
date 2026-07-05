@@ -5,6 +5,7 @@ import elemental2.dom.DomGlobal;
 import elemental2.dom.Element;
 import elemental2.dom.HTMLElement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.After;
 import org.junit.Assert;
@@ -68,6 +69,50 @@ public class J2clBlipFocusControllerTest {
     focus.focusNextMatching("unread", 1);
 
     Assert.assertEquals("b3", activeBlipId());
+  }
+
+  @Test
+  public void focusNextMatchingReportsWhetherMatchWasFound() {
+    assumeBrowserDom();
+    J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1", "b2:2");
+    blip("b2").setAttribute("unread", "");
+
+    focus.focusBlip(blip("b1"));
+    Assert.assertTrue(focus.focusNextMatching("unread", 1));
+
+    blip("b2").removeAttribute("unread");
+    Assert.assertFalse(focus.focusNextMatching("unread", 1));
+  }
+
+  @Test
+  public void scrollToUnloadedUnreadReturnsPlaceholderBlipId() {
+    assumeBrowserDom();
+    J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1", "b2:2");
+    appendPlaceholder("b9");
+
+    Assert.assertEquals("b9", focus.scrollToUnloadedUnread(Arrays.asList("b9")));
+  }
+
+  @Test
+  public void scrollToUnloadedUnreadSkipsRenderedAndUnknownBlips() {
+    assumeBrowserDom();
+    J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1");
+
+    // b1 is already rendered (jump handles it); b7 has no placeholder at all.
+    Assert.assertEquals("", focus.scrollToUnloadedUnread(Arrays.asList("b1", "b7")));
+  }
+
+  @Test
+  public void focusBlipByIdFocusesAndMarksRead() {
+    assumeBrowserDom();
+    List<String> read = new ArrayList<String>();
+    J2clBlipFocusController focus = controllerWithBlips(read, "b1:1", "b2:2");
+
+    Assert.assertTrue(focus.focusBlipById("b2"));
+    Assert.assertEquals("b2", activeBlipId());
+    Assert.assertEquals(Arrays.asList("b2"), read);
+
+    Assert.assertFalse(focus.focusBlipById("missing"));
   }
 
   @Test
@@ -151,6 +196,15 @@ public class J2clBlipFocusControllerTest {
 
   private HTMLElement blip(String id) {
     return (HTMLElement) contentList.querySelector("wave-blip[data-blip-id='" + id + "']");
+  }
+
+  /** Mirrors the renderer's unloaded viewport-window placeholder markup. */
+  private void appendPlaceholder(String blipId) {
+    HTMLElement placeholder = (HTMLElement) DomGlobal.document.createElement("div");
+    placeholder.className = "j2cl-read-viewport-placeholder";
+    placeholder.setAttribute("data-j2cl-viewport-placeholder", "true");
+    placeholder.setAttribute("data-placeholder-blip-id", blipId);
+    contentList.appendChild(placeholder);
   }
 
   private static String activeBlipId() {

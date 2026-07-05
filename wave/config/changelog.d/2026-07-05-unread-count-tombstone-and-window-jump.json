@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-07-05-unread-count-tombstone-and-window-jump",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "Fix phantom unread counts and \"jump to next unread\" in the new UI",
+  "summary": "Waves could show an unread badge (for example \"1 unread\") even though every visible message was read, and the \"jump to next unread\" toolbar button silently did nothing. Two causes were fixed: deleted messages no longer count as unread, and the jump action can now reach unread messages that sit in a not-yet-loaded part of a long wave.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Unread counts: messages deleted in the new UI leave a hidden tombstone in the conversation, and the server kept counting those tombstones as unread even though no client renders them — producing a permanent phantom unread badge that could never be cleared. The search digest unread count and the read-state endpoint's unread blip list now skip tombstoned blips.",
+        "New UI: \"jump to next unread\" only scanned the blips already rendered in the viewport window, so in long waves it did nothing when the next unread blip lived in a not-yet-loaded placeholder region. The jump now falls back to scrolling that placeholder into view, loads its content, and focuses (and marks read) the blip once it renders — matching the legacy client's model-based navigation."
+      ]
+    }
+  ]
+}

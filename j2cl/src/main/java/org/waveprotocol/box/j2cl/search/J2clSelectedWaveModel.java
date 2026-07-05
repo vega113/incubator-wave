@@ -38,6 +38,11 @@ public final class J2clSelectedWaveModel {
   // SidecarSelectedWaveUpdate.getConversationManifest().
   private SidecarConversationManifest conversationManifest = SidecarConversationManifest.empty();
   private String lockState = SidecarSelectedWaveDocument.LOCK_STATE_UNLOCKED;
+  // Unread blip ids from the server read-state endpoint. Unlike the per-blip
+  // unread flags on readBlips (loaded blips only), this list also names unread
+  // blips whose viewport-window regions are still unloaded placeholders, so
+  // "jump to next unread" can navigate to them.
+  private List<String> unreadBlipIds = Collections.emptyList();
 
   J2clSelectedWaveModel(
       boolean hasSelection,
@@ -439,6 +444,20 @@ public final class J2clSelectedWaveModel {
     return this;
   }
 
+  /** Server-reported unread blip ids; may include blips not yet loaded into the viewport. */
+  public List<String> getUnreadBlipIds() {
+    return unreadBlipIds;
+  }
+
+  /** Package-private setter used by the projector. */
+  J2clSelectedWaveModel withUnreadBlipIds(List<String> nextUnreadBlipIds) {
+    this.unreadBlipIds =
+        nextUnreadBlipIds == null || nextUnreadBlipIds.isEmpty()
+            ? Collections.<String>emptyList()
+            : Collections.unmodifiableList(new ArrayList<String>(nextUnreadBlipIds));
+    return this;
+  }
+
   public J2clSelectedWaveViewportState getViewportState() {
     return viewportState;
   }
@@ -480,7 +499,8 @@ public final class J2clSelectedWaveModel {
         // J-UI-4 (#1082, R-3.1): preserve manifest across clones so
         // viewport-windowed renders keep nesting after fragment growth.
         .withConversationManifest(conversationManifest)
-        .withLockState(lockState);
+        .withLockState(lockState)
+        .withUnreadBlipIds(unreadBlipIds);
   }
 
   J2clSelectedWaveModel withReadBlips(List<J2clReadBlip> newReadBlips) {
@@ -506,7 +526,8 @@ public final class J2clSelectedWaveModel {
         readStateKnown,
         readStateStale)
         .withConversationManifest(conversationManifest)
-        .withLockState(lockState);
+        .withLockState(lockState)
+        .withUnreadBlipIds(unreadBlipIds);
   }
 
   J2clSelectedWaveModel withStatus(String nextStatusText, String nextDetailText) {
@@ -534,7 +555,8 @@ public final class J2clSelectedWaveModel {
         readStateKnown,
         readStateStale)
         .withConversationManifest(conversationManifest)
-        .withLockState(lockState);
+        .withLockState(lockState)
+        .withUnreadBlipIds(unreadBlipIds);
   }
 
   public int getUnreadCount() {
