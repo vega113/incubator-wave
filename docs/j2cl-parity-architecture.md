@@ -425,6 +425,53 @@ This keeps the current rollback contract intact while moving the architecture to
 - React `hydrateRoot`: https://react.dev/reference/react-dom/client/hydrateRoot
 - React `renderToPipeableStream`: https://react.dev/reference/react-dom/server/renderToPipeableStream
 
+## 13a. J2CL ↔ JS Defensive Interop (#1272)
+
+`org.waveprotocol.box.j2cl.common.J2clJsInteropUtils` is the **blessed seam for
+every JS ↔ Java boundary** — property-map reads, DOM lookups, and JSON parsing.
+Direct interop (`Js.asPropertyMap(payload).get(...)`, `host.querySelector(...)`,
+`parseJsonObject(...)`) turns a single bad server response or missing DOM node
+into a Java NPE that only surfaces as a cryptic minified JS console error after
+the J2CL optimiser runs. All **new** interop sites (including Lit ↔ Java bridges)
+MUST go through these helpers; existing sites migrate incrementally.
+
+| Method | Behavior on bad input |
+| --- | --- |
+| `safeGetString/Boolean/Int/Long(source, key, fallback)` | returns `fallback` (accepts both parsed-JSON `Map`s and live JS objects) |
+| `safeParseJsonObject(text)` | returns `null` on malformed/empty (graceful degradation for bad bootstrap/fragment envelopes) |
+| `queryOptionalElement(host, selector)` | returns `null` when absent |
+| `requireNonNull(value, what)` | throws `J2clInteropException` preserving `what` |
+| `requireElement(host, selector, context)` | throws `J2clInteropException` preserving `selector` + `context` |
+
+`J2clInteropException` carries the human context string so a failure is
+diagnosable post-minification. The `require*` helpers **fail loudly** (the caller
+catches and reports via `J2clClientTelemetry` / the notification service #1271
+rather than crashing the whole surface); the `safe*` helpers **degrade
+gracefully**. A deliberately malformed bootstrap/fragment envelope therefore
+resolves to `null` and lets the caller fall back instead of NPE-ing the
+selected-wave surface.
+
+**Observability:** the `safe*` helpers degrade gracefully but are **not** silent
+— `J2clJsInteropUtils.setFailureListener(...)` receives every swallowed failure
+(malformed JSON, thrown/typed-wrong DOM lookup, bad property read) and should be
+wired to `J2clClientTelemetry` + the notification service.
+
+**Initial adoption:** `J2clSelectedWaveView.queryRequired` now delegates to
+`requireElement`.
+
+**Migration audit (highest-risk interop sites → util method):**
+
+| Site (file:line) | Risk | Migrate to |
+| --- | --- | --- |
+| `J2clSelectedWaveView.queryRequired` | required DOM lookup NPE | `requireElement` ✅ done |
+| `J2clSearchGateway.java:~51` (bootstrap/text decode) | bad response → NPE | `safeParseJsonObject` + `safeGet*` |
+| `SidecarTransportCodec` envelope decodes | malformed frame → NPE | `safeParseJsonObject` |
+| `J2clSelectedWaveProjector.java:~166` (update coercion) | race/shape mismatch on `onUpdate` | `safeGet*` |
+| `SidecarSessionBootstrap.java:~121-150` (field reads) | missing session fields | `safeGetString` + `requireNonNull` |
+| `J2clAttachmentMetadataClient` (metadata decode) | attachment shape mismatch | `safeParseJsonObject` + `safeGet*` |
+| `J2clReadSurfaceDomRenderer` `ensureFocusFrame` querySelector paths | missing DOM node | `queryOptionalElement` / `requireElement` |
+| `J2clRootShellController` event-detail reads | missing CustomEvent detail | `safeGetString/Boolean` |
+
 ## 14. Bottom Line
 
 The repo should not choose between:

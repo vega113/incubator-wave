@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-interop-guards",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "New UI: hardened against malformed server responses and missing DOM",
+  "summary": "Added a defensive JS-interop utility layer for the new UI so a single malformed server response or unexpected missing DOM node degrades gracefully (or fails with a diagnosable, context-preserving error) instead of throwing a cryptic minified crash that could take down the whole wave view.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: introduced a defensive JS-interop utility layer (safe property/JSON reads that fall back, required-element/non-null checks that fail with a readable, minification-safe error) as the standard seam for JS↔Java boundaries, so malformed bootstrap/fragment responses and missing DOM nodes no longer surface as cryptic browser-console crashes."
+      ]
+    }
+  ]
+}
