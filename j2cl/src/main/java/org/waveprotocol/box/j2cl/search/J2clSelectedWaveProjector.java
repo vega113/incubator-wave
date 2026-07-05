@@ -203,7 +203,16 @@ public final class J2clSelectedWaveProjector {
         // previous wave's manifest so the next renderWindow() does not
         // fall back to flat threading until a full snapshot resends.
         .withConversationManifest(effectiveManifest)
-        .withLockState(lockState);
+        .withLockState(lockState)
+        // Unread blip ids may name blips in unloaded placeholder regions;
+        // the view uses them so "jump to next unread" can navigate beyond
+        // the loaded viewport window.
+        .withUnreadBlipIds(
+            readStateMatchesWave
+                ? readState.getUnreadBlipIds()
+                : (previousMatchesWave && previous.isReadStateKnown()
+                    ? previous.getUnreadBlipIds()
+                    : Collections.<String>emptyList()));
   }
 
   private static String chooseLockState(
@@ -328,7 +337,11 @@ public final class J2clSelectedWaveProjector {
         // re-projections — read-state updates carry no conversation
         // document and must not flatten threading.
         .withConversationManifest(previous.getConversationManifest())
-        .withLockState(previous.getLockState());
+        .withLockState(previous.getLockState())
+        .withUnreadBlipIds(
+            readStateMatchesWave
+                ? readState.getUnreadBlipIds()
+                : previous.getUnreadBlipIds());
   }
 
   public static List<J2clReadBlip> applyReadStateToReadBlips(

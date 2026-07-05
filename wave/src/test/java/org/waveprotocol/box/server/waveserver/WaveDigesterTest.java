@@ -35,6 +35,7 @@ import org.waveprotocol.box.server.robots.operations.TestingWaveletData;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversationView;
+import org.waveprotocol.wave.model.document.Document;
 import org.waveprotocol.wave.model.document.util.EmptyDocument;
 import org.waveprotocol.wave.model.id.IdGenerator;
 import org.waveprotocol.wave.model.id.WaveletId;
@@ -276,6 +277,59 @@ public class WaveDigesterTest extends TestCase {
     Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters = new IdentityHashMap<>();
     int unreadCount = digester.countUnread(CROSS_DOMAIN_VIEWER, context, waveletAdapters);
     assertEquals(0, unreadCount);
+  }
+
+  /**
+   * J2CL blip deletion (F.6) writes a {@code tombstone/deleted=true}
+   * annotation across the blip body and leaves the blip in the conversation
+   * manifest. Clients never render tombstoned blips, so counting them as
+   * unread produces a phantom unread badge that can never be cleared.
+   */
+  public void testTombstonedBlipIsExcludedFromUnreadCount() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    data.appendBlipWithText("blip number 1");
+    ConversationBlip deletedBlip = data.appendBlipWithTextAndReturn("deleted blip");
+    Document deletedContent = deletedBlip.getContent();
+    deletedContent.setAnnotation(
+        0, deletedContent.size(), "tombstone/deleted", "true");
+    ObservableWaveletData observableWaveletData = data.copyWaveletData().get(0);
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(observableWaveletData);
+    ObservableConversationView conversation = conversationUtil.buildConversation(wavelet);
+
+    SupplementedWave supplement = mock(SupplementedWave.class);
+    when(supplement.isUnread(any(ConversationBlip.class))).thenReturn(true);
+
+    Digest digest =
+        digester.generateDigest(
+            conversation,
+            supplement,
+            observableWaveletData,
+            Collections.singletonList(observableWaveletData));
+
+    assertEquals(1, digest.getUnreadCount());
+  }
+
+  /**
+   * The read-state endpoint's unread blip ids must skip tombstoned blips for
+   * the same reason as the digest unread count: the J2CL read surface never
+   * renders them, so "jump to next unread" could never reach them.
+   */
+  public void testTombstonedBlipIsExcludedFromUnreadBlipIds() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    ConversationBlip liveBlip = data.appendBlipWithTextAndReturn("live blip");
+    ConversationBlip deletedBlip = data.appendBlipWithTextAndReturn("deleted blip");
+    Document deletedContent = deletedBlip.getContent();
+    deletedContent.setAnnotation(
+        0, deletedContent.size(), "tombstone/deleted", "true");
+
+    WaveDigester.UnreadBlipState unreadState =
+        digester.getUnreadBlipState(PARTICIPANT, data.copyViewData());
+
+    assertEquals(Collections.singletonList(liveBlip.getId()),
+        unreadState.getUnreadBlipIds());
+    assertEquals(1, unreadState.getUnreadCount());
   }
 
   /**
