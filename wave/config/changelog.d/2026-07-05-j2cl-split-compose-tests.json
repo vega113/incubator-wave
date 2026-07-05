@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-split-compose-tests",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "Internal: split the monster compose test class",
+  "summary": "Developer-facing cleanup: the ~5k-line J2clComposeSurfaceControllerTest is being broken up. Its shared test doubles now live in one reusable file, and the rich-text/annotation reply-submit tests moved into a focused per-flow test class. No production code or user-visible behavior changed; the same 182 tests still run and pass.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI (internal): extracted the shared compose test doubles (FakeGateway/FakeView/CapturingDeltaFactory/etc.) into ComposeTestDoubles so focused split test classes can reuse them, and moved the rich-text component reply-submit tests into a new J2clComposeRichComponentTest. Same coverage (182 tests), smaller, more navigable files."
+      ]
+    }
+  ]
+}
