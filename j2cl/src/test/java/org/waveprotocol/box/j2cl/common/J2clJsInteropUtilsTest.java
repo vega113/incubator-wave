@@ -21,6 +21,28 @@ public class J2clJsInteropUtilsTest {
       host.parentElement.removeChild(host);
     }
     host = null;
+    J2clJsInteropUtils.setFailureListener(null);
+  }
+
+  @Test
+  public void failureListenerObservesSwallowedParseFailure() {
+    final String[] captured = new String[1];
+    J2clJsInteropUtils.setFailureListener((context, cause) -> captured[0] = context);
+
+    Assert.assertNull(J2clJsInteropUtils.safeParseJsonObject("{not json"));
+
+    Assert.assertNotNull("listener should have observed the swallowed failure", captured[0]);
+    Assert.assertTrue(captured[0].contains("safeParseJsonObject"));
+  }
+
+  @Test
+  public void validParseDoesNotNotifyFailureListener() {
+    final int[] count = new int[1];
+    J2clJsInteropUtils.setFailureListener((context, cause) -> count[0]++);
+
+    J2clJsInteropUtils.safeParseJsonObject("{\"a\":1}");
+
+    Assert.assertEquals(0, count[0]);
   }
 
   // ---- property-map reads (JVM + browser) ----

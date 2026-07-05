@@ -24,6 +24,36 @@ public final class J2clJsInteropUtils {
 
   private J2clJsInteropUtils() {}
 
+  /**
+   * Observer for interop failures that {@code safe*} helpers degrade past
+   * (malformed JSON, a thrown/typed-wrong DOM lookup, a bad property read).
+   * Wire this to {@code J2clClientTelemetry} / the notification service so
+   * graceful degradation is still observable rather than silent.
+   */
+  @FunctionalInterface
+  public interface InteropFailureListener {
+    void onInteropFailure(String context, Throwable cause);
+  }
+
+  private static InteropFailureListener failureListener;
+
+  /** Install the process-wide interop-failure observer (null to clear). */
+  public static void setFailureListener(InteropFailureListener listener) {
+    failureListener = listener;
+  }
+
+  private static void reportFailure(String context, Throwable cause) {
+    InteropFailureListener listener = failureListener;
+    if (listener == null) {
+      return;
+    }
+    try {
+      listener.onInteropFailure(context, cause);
+    } catch (RuntimeException | Error ignored) {
+      // The observer must never turn graceful degradation back into a crash.
+    }
+  }
+
   /** Reads a string at {@code key} from a parsed-JSON map or a JS object, else {@code fallback}. */
   public static String safeGetString(Object source, String key, String fallback) {
     Object value = rawGet(source, key);
@@ -94,21 +124,42 @@ public final class J2clJsInteropUtils {
       throw new J2clInteropException(
           "null host resolving '" + selector + "'" + contextSuffix(context));
     }
-    Element found = host.querySelector(selector);
+    HTMLElement found = queryOptionalElement(host, selector, context);
     if (found == null) {
       throw new J2clInteropException(
           "missing required element '" + selector + "'" + contextSuffix(context));
     }
-    return (HTMLElement) found;
+    return found;
   }
 
   /** Resolves an optional descendant element, returning {@code null} when absent. */
   public static HTMLElement queryOptionalElement(Element host, String selector) {
+    return queryOptionalElement(host, selector, null);
+  }
+
+  private static HTMLElement queryOptionalElement(Element host, String selector, String context) {
     if (host == null) {
       return null;
     }
-    Element found = host.querySelector(selector);
-    return found == null ? null : (HTMLElement) found;
+    Element found;
+    try {
+      // querySelector throws on an invalid selector; never let that escape.
+      found = host.querySelector(selector);
+    } catch (RuntimeException | Error e) {
+      reportFailure("querySelector '" + selector + "'" + contextSuffix(context), e);
+      return null;
+    }
+    if (found == null) {
+      return null;
+    }
+    if (found instanceof HTMLElement) {
+      return (HTMLElement) found;
+    }
+    // A match that is not an HTMLElement (e.g. an SVG element) — treat as absent
+    // rather than blindly cast.
+    reportFailure(
+        "element '" + selector + "' is not an HTMLElement" + contextSuffix(context), null);
+    return null;
   }
 
   /**
@@ -124,6 +175,7 @@ public final class J2clJsInteropUtils {
     try {
       return SidecarTransportCodec.parseJsonObject(text);
     } catch (RuntimeException | Error e) {
+      reportFailure("safeParseJsonObject", e);
       return null;
     }
   }
@@ -139,6 +191,7 @@ public final class J2clJsInteropUtils {
     try {
       return Js.asPropertyMap(source).get(key);
     } catch (RuntimeException | Error e) {
+      reportFailure("propertyRead '" + key + "'", e);
       return null;
     }
   }
