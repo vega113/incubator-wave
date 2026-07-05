@@ -1,5 +1,9 @@
 package org.waveprotocol.box.j2cl.common;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * #1269: the single source of truth for the DOM contract between the J2CL Java
  * surfaces and the host page / Lit layer — custom-event names and the
@@ -30,19 +34,20 @@ public final class J2clUiTokens {
   public static final String EVENT_NAV_PIN_TOGGLE = "wave-nav-pin-toggle-requested";
   public static final String EVENT_NAV_VERSION_HISTORY = "wave-nav-version-history-requested";
 
-  /** All nav-row event names, in nav-row order. Useful for bulk binding / audit. */
-  public static final String[] EVENTS_NAV = {
-    EVENT_NAV_RECENT,
-    EVENT_NAV_NEXT_UNREAD,
-    EVENT_NAV_PREVIOUS,
-    EVENT_NAV_NEXT,
-    EVENT_NAV_END,
-    EVENT_NAV_PREV_MENTION,
-    EVENT_NAV_NEXT_MENTION,
-    EVENT_NAV_ARCHIVE_TOGGLE,
-    EVENT_NAV_PIN_TOGGLE,
-    EVENT_NAV_VERSION_HISTORY
-  };
+  /** All nav-row event names, in nav-row order (immutable). For bulk binding / audit. */
+  public static final List<String> EVENTS_NAV =
+      Collections.unmodifiableList(
+          Arrays.asList(
+              EVENT_NAV_RECENT,
+              EVENT_NAV_NEXT_UNREAD,
+              EVENT_NAV_PREVIOUS,
+              EVENT_NAV_NEXT,
+              EVENT_NAV_END,
+              EVENT_NAV_PREV_MENTION,
+              EVENT_NAV_NEXT_MENTION,
+              EVENT_NAV_ARCHIVE_TOGGLE,
+              EVENT_NAV_PIN_TOGGLE,
+              EVENT_NAV_VERSION_HISTORY));
 
   // ---- Depth navigation events (from <wavy-depth-nav-bar>) ----
   public static final String EVENT_DEPTH_DRILL_IN = "wavy-depth-drill-in";
@@ -50,10 +55,10 @@ public final class J2clUiTokens {
   public static final String EVENT_DEPTH_ROOT = "wavy-depth-root";
   public static final String EVENT_DEPTH_JUMP_TO_CRUMB = "wavy-depth-jump-to-crumb";
 
-  /** Depth-nav telemetry event set (the up/root/jump-to-crumb chrome clicks). */
-  public static final String[] EVENTS_DEPTH_CHROME = {
-    EVENT_DEPTH_UP, EVENT_DEPTH_ROOT, EVENT_DEPTH_JUMP_TO_CRUMB
-  };
+  /** Depth-nav telemetry event set (the up/root/jump-to-crumb chrome clicks; immutable). */
+  public static final List<String> EVENTS_DEPTH_CHROME =
+      Collections.unmodifiableList(
+          Arrays.asList(EVENT_DEPTH_UP, EVENT_DEPTH_ROOT, EVENT_DEPTH_JUMP_TO_CRUMB));
 
   // ---- Shell / compose body-level events ----
   public static final String EVENT_NEW_WAVE_REQUESTED = "wavy-new-wave-requested";
@@ -80,4 +85,13 @@ public final class J2clUiTokens {
   public static final String DATA_ATTR_ROOT_RETURN_TARGET = "data-j2cl-root-return-target";
   public static final String DATA_ATTR_ROOT_SIGNIN = "data-j2cl-root-signin";
   public static final String DATA_ATTR_ROOT_SIGNOUT = "data-j2cl-root-signout";
+
+  // ---- Root-shell host classes (created by the shell controller) ----
+  public static final String CSS_CLASS_ROOT_CREATE_HOST = "j2cl-root-create-host";
+  public static final String CSS_CLASS_ROOT_TOOLBAR_HOST = "j2cl-root-toolbar-host";
+  public static final String CSS_CLASS_ROOT_REPLY_HOST = "j2cl-root-reply-host";
+
+  // ---- Root-shell element ids ----
+  public static final String HOST_ID_LIVE_STATUS = "j2cl-root-live-status-text";
+  public static final String HOST_ID_LIVE_STATUS_SEPARATOR = "j2cl-root-live-status-separator";
 }

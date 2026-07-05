@@ -47,22 +47,43 @@ public class J2clUiTokensTest {
   }
 
   @Test
-  public void dataAttrAndElementValuesAreStable() {
-    Assert.assertEquals("data-j2cl-inline-rich-composer", J2clUiTokens.DATA_ATTR_INLINE_RICH_COMPOSER);
-    Assert.assertEquals("data-j2cl-read-surface-preview", J2clUiTokens.DATA_ATTR_READ_SURFACE_PREVIEW);
-    Assert.assertEquals("wavy-depth-nav-bar", J2clUiTokens.CUSTOM_ELEMENT_DEPTH_NAV_BAR);
+  public void lifecycleEventValuesAreStable() {
+    Assert.assertEquals("pagehide", J2clUiTokens.EVENT_PAGE_HIDE);
+    Assert.assertEquals("scroll", J2clUiTokens.EVENT_SCROLL);
   }
 
   @Test
-  public void navEventArrayIsCompleteAndUnique() {
-    Assert.assertEquals(10, J2clUiTokens.EVENTS_NAV.length);
+  public void dataAttrElementAndHostValuesAreStable() {
+    Assert.assertEquals("data-j2cl-inline-rich-composer", J2clUiTokens.DATA_ATTR_INLINE_RICH_COMPOSER);
+    Assert.assertEquals("data-j2cl-read-surface-preview", J2clUiTokens.DATA_ATTR_READ_SURFACE_PREVIEW);
+    Assert.assertEquals("data-j2cl-root-return-target", J2clUiTokens.DATA_ATTR_ROOT_RETURN_TARGET);
+    Assert.assertEquals("data-j2cl-root-signin", J2clUiTokens.DATA_ATTR_ROOT_SIGNIN);
+    Assert.assertEquals("data-j2cl-root-signout", J2clUiTokens.DATA_ATTR_ROOT_SIGNOUT);
+    Assert.assertEquals("wavy-depth-nav-bar", J2clUiTokens.CUSTOM_ELEMENT_DEPTH_NAV_BAR);
+    Assert.assertEquals("j2cl-root-create-host", J2clUiTokens.CSS_CLASS_ROOT_CREATE_HOST);
+    Assert.assertEquals("j2cl-root-toolbar-host", J2clUiTokens.CSS_CLASS_ROOT_TOOLBAR_HOST);
+    Assert.assertEquals("j2cl-root-reply-host", J2clUiTokens.CSS_CLASS_ROOT_REPLY_HOST);
+    Assert.assertEquals("j2cl-root-live-status-text", J2clUiTokens.HOST_ID_LIVE_STATUS);
+    Assert.assertEquals(
+        "j2cl-root-live-status-separator", J2clUiTokens.HOST_ID_LIVE_STATUS_SEPARATOR);
+  }
+
+  @Test
+  public void navEventListIsCompleteUniqueAndImmutable() {
+    Assert.assertEquals(10, J2clUiTokens.EVENTS_NAV.size());
     Set<String> unique = new HashSet<String>();
     for (String event : J2clUiTokens.EVENTS_NAV) {
       Assert.assertTrue("duplicate nav event: " + event, unique.add(event));
     }
     Assert.assertTrue(unique.contains(J2clUiTokens.EVENT_NAV_RECENT));
     Assert.assertTrue(unique.contains(J2clUiTokens.EVENT_NAV_VERSION_HISTORY));
-    // The depth-chrome subset is the up/root/jump-to-crumb clicks.
-    Assert.assertEquals(3, J2clUiTokens.EVENTS_DEPTH_CHROME.length);
+    Assert.assertEquals(3, J2clUiTokens.EVENTS_DEPTH_CHROME.size());
+    // The published arrays are immutable so a caller can't corrupt the contract.
+    try {
+      J2clUiTokens.EVENTS_NAV.set(0, "hacked");
+      Assert.fail("EVENTS_NAV must be immutable");
+    } catch (UnsupportedOperationException expected) {
+      // good
+    }
   }
 }

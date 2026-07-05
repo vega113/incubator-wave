@@ -82,11 +82,11 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
     this.selectedWaveView = selectedWaveView;
     HTMLElement selectedWaveComposeHost = selectedWaveView.getComposeHost();
     HTMLElement selectedCreateHost =
-        createSiblingHostBefore(selectedWaveComposeHost, "j2cl-root-create-host");
+        createSiblingHostBefore(selectedWaveComposeHost, J2clUiTokens.CSS_CLASS_ROOT_CREATE_HOST);
     HTMLElement selectedToolbarHost =
-        createChildHost(selectedWaveComposeHost, "j2cl-root-toolbar-host");
+        createChildHost(selectedWaveComposeHost, J2clUiTokens.CSS_CLASS_ROOT_TOOLBAR_HOST);
     HTMLElement selectedReplyHost =
-        createChildHost(selectedWaveComposeHost, "j2cl-root-reply-host");
+        createChildHost(selectedWaveComposeHost, J2clUiTokens.CSS_CLASS_ROOT_REPLY_HOST);
     boolean inlineRichComposerEnabled = isInlineRichComposerEnabled(host);
     String rootShellSessionSeed = buildRootShellSessionSeed();
     final J2clSearchPanelController[] searchControllerRef = new J2clSearchPanelController[1];

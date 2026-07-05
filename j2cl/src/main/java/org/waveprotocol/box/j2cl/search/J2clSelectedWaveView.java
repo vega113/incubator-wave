@@ -506,7 +506,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
    * controller wiring on top.
    */
   private void bindChromeEvents(HTMLElement card, J2clClientTelemetry.Sink sink) {
-    String[] navEvents = J2clUiTokens.EVENTS_NAV;
+    List<String> navEvents = J2clUiTokens.EVENTS_NAV;
     for (final String navEvent : navEvents) {
       disposeRegistry.addListener(
           card,
@@ -522,7 +522,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
             }
           });
     }
-    String[] depthEvents = J2clUiTokens.EVENTS_DEPTH_CHROME;
+    List<String> depthEvents = J2clUiTokens.EVENTS_DEPTH_CHROME;
     for (final String depthEvent : depthEvents) {
       disposeRegistry.addListener(
           card,
