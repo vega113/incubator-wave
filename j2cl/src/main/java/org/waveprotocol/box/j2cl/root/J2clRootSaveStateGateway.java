@@ -58,17 +58,25 @@ public final class J2clRootSaveStateGateway implements J2clComposeSurfaceControl
     // Guard against a delegate that invokes both callbacks (or one twice): the
     // ref-count must move exactly once per submit or the chip could latch.
     final boolean[] settled = new boolean[] {false};
-    delegate.submit(
-        bootstrap,
-        request,
-        response -> {
-          endSubmit(settled);
-          onSuccess.accept(response);
-        },
-        error -> {
-          endSubmit(settled);
-          onError.accept(error);
-        });
+    try {
+      delegate.submit(
+          bootstrap,
+          request,
+          response -> {
+            endSubmit(settled);
+            onSuccess.accept(response);
+          },
+          error -> {
+            endSubmit(settled);
+            onError.accept(error);
+          });
+    } catch (RuntimeException | Error e) {
+      // A delegate that throws synchronously (e.g. WebSocket allocation /
+      // input validation) must still release the ref-count, or the savestatus
+      // chip latches on "saving" for the rest of the session.
+      endSubmit(settled);
+      throw e;
+    }
   }
 
   private void beginSubmit() {

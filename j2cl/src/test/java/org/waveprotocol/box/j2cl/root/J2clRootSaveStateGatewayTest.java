@@ -80,6 +80,33 @@ public class J2clRootSaveStateGatewayTest {
   }
 
   @Test
+  public void synchronousDelegateThrowReleasesRefCountAndRethrows() {
+    ThrowingGateway delegate = new ThrowingGateway();
+    List<String> transitions = new ArrayList<String>();
+    J2clRootSaveStateGateway gateway = new J2clRootSaveStateGateway(delegate, transitions::add);
+
+    try {
+      gateway.submit(null, null, response -> {}, error -> {});
+      Assert.fail("Expected the synchronous delegate failure to propagate.");
+    } catch (RuntimeException expected) {
+      Assert.assertEquals("submit exploded", expected.getMessage());
+    }
+
+    // The chip must not latch on "saving": the ref-count was released.
+    Assert.assertEquals("saved", lastOf(transitions));
+
+    // And a subsequent healthy submit still transitions correctly.
+    FakeGateway healthy = new FakeGateway();
+    List<String> healthyTransitions = new ArrayList<String>();
+    J2clRootSaveStateGateway healthyGateway =
+        new J2clRootSaveStateGateway(healthy, healthyTransitions::add);
+    healthyGateway.submit(null, null, response -> {}, error -> {});
+    Assert.assertEquals("saving", lastOf(healthyTransitions));
+    healthy.settleSuccess(0);
+    Assert.assertEquals("saved", lastOf(healthyTransitions));
+  }
+
+  @Test
   public void forwardsSuccessResponseAndErrorToCaller() {
     FakeGateway delegate = new FakeGateway();
     List<String> transitions = new ArrayList<String>();
@@ -170,6 +197,23 @@ public class J2clRootSaveStateGatewayTest {
 
     private void settleError(int index, String message) {
       errors.get(index).accept(message);
+    }
+  }
+
+  /** Delegate whose {@code submit} throws synchronously, before wiring callbacks. */
+  private static final class ThrowingGateway implements J2clComposeSurfaceController.Gateway {
+    @Override
+    public void fetchRootSessionBootstrap(
+        J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> onSuccess,
+        J2clSearchPanelController.ErrorCallback onError) {}
+
+    @Override
+    public void submit(
+        SidecarSessionBootstrap bootstrap,
+        SidecarSubmitRequest request,
+        J2clSearchPanelController.SuccessCallback<SidecarSubmitResponse> onSuccess,
+        J2clSearchPanelController.ErrorCallback onError) {
+      throw new RuntimeException("submit exploded");
     }
   }
 }
