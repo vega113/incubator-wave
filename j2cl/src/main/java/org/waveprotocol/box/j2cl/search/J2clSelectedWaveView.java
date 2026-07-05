@@ -23,6 +23,7 @@ import java.util.Set;
 import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
+import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
@@ -1650,7 +1651,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (text == null || text.isEmpty()) {
       return "";
     }
-    if ("Read.".equals(text) || "Selected digest is read.".equals(text)) {
+    // #1277: the model now localizes these read-state sentinels, so compare
+    // against the localized values (same keys/fallbacks the model uses) rather
+    // than the English literals — otherwise non-English locales would leak the
+    // diagnostic text into the header.
+    if (J2clI18n.t("selectedWave.read", "Read.").equals(text)
+        || J2clI18n.t("selectedWave.digestRead", "Selected digest is read.").equals(text)) {
       return "";
     }
     return text;

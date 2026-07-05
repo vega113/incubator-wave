@@ -268,14 +268,12 @@ public final class SidecarSessionBootstrap {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
     String websocketAddress = parseWebSocketAddress(html);
-    // Legacy path intentionally keeps admin=false (as before); only locale is
-    // newly surfaced here per #1277.
-    return new SidecarSessionBootstrap(
-        address,
-        websocketAddress,
-        Collections.<String>emptyList(),
-        false,
-        extractLocale(session));
+    // #1277: locale is intentionally NOT scraped from the legacy root HTML.
+    // Per the #963 contract, bootstrap metadata must come from the explicit
+    // server-owned bootstrap JSON, not from parsing arbitrary root HTML — and
+    // this path is deprecated (removal tracked in #978). Locale is surfaced
+    // only through fromBootstrapJson.
+    return new SidecarSessionBootstrap(address, websocketAddress);
   }
 
   private static String parseWebSocketAddress(String html) {

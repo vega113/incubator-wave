@@ -711,7 +711,9 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
-  public void rootHtmlSurfacesSessionLocale() {
+  public void rootHtmlDoesNotScrapeSessionLocale() {
+    // #1277: the deprecated root-HTML path must NOT scrape locale — bootstrap
+    // metadata comes from the explicit server-owned bootstrap JSON (#963).
     String html =
         "<html><script>window.__session={\"address\":\"user@example.com\",\"locale\":\"zh_TW\"};"
             + "window.__websocket_address=\"socket.example.test:7443\";"
@@ -719,7 +721,7 @@ public class SidecarTransportCodecTest {
 
     SidecarSessionBootstrap bootstrap = SidecarSessionBootstrap.fromRootHtml(html);
 
-    Assert.assertEquals("zh_TW", bootstrap.getLocale());
+    Assert.assertEquals("", bootstrap.getLocale());
   }
 
   @Test

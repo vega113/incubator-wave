@@ -43,7 +43,10 @@ public final class J2clI18n {
     try {
       String result = translate.translate(key, safeFallback);
       return result == null ? safeFallback : result;
-    } catch (RuntimeException e) {
+    } catch (RuntimeException | Error e) {
+      // Mirror the other JS-interop guards in this repo: a JS-thrown value can
+      // translate to a Java Error (not just RuntimeException); either way the
+      // chip/status must fall back to English rather than break rendering.
       return safeFallback;
     }
   }
