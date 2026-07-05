@@ -105,6 +105,41 @@ public final class J2clRootLiveSurfaceController {
     publish();
   }
 
+  /**
+   * #1233: apply a real transport connection state ({@code online} /
+   * {@code connecting} / {@code offline}) sourced from the live selected-wave
+   * socket. Unknown values normalize to {@code online} in the model. Republishes
+   * only when the state actually changes so status-chip churn stays minimal.
+   */
+  public void onConnectionState(String connectionState) {
+    if (!active) {
+      return;
+    }
+    J2clRootLiveSurfaceModel next = model.withConnectionState(connectionState);
+    if (next == model) {
+      return;
+    }
+    model = next;
+    publish();
+  }
+
+  /**
+   * #1233: apply a real save state ({@code saved} / {@code saving} /
+   * {@code unsaved}) sourced from in-flight wave-operation submits. Unknown
+   * values normalize to {@code saved}. Republishes only on change.
+   */
+  public void onSaveState(String saveState) {
+    if (!active) {
+      return;
+    }
+    J2clRootLiveSurfaceModel next = model.withSaveState(saveState);
+    if (next == model) {
+      return;
+    }
+    model = next;
+    publish();
+  }
+
   private void publish() {
     if (!active) {
       return;

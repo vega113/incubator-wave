@@ -423,6 +423,87 @@ public class J2clRootLiveSurfaceControllerTest {
     }
   }
 
+  @Test
+  public void onConnectionStatePublishesRealStateAndNormalizesUnknown() {
+    FakeShellSurface shell = new FakeShellSurface();
+    J2clRootLiveSurfaceController controller = startedController(shell);
+
+    controller.onConnectionState("offline");
+    Assert.assertEquals("offline", shell.lastModel().getConnectionState());
+
+    controller.onConnectionState("connecting");
+    Assert.assertEquals("connecting", shell.lastModel().getConnectionState());
+
+    controller.onConnectionState("bogus");
+    Assert.assertEquals("online", shell.lastModel().getConnectionState());
+  }
+
+  @Test
+  public void onSaveStatePublishesRealStateAndNormalizesUnknown() {
+    FakeShellSurface shell = new FakeShellSurface();
+    J2clRootLiveSurfaceController controller = startedController(shell);
+
+    controller.onSaveState("saving");
+    Assert.assertEquals("saving", shell.lastModel().getSaveState());
+
+    controller.onSaveState("nonsense");
+    Assert.assertEquals("saved", shell.lastModel().getSaveState());
+  }
+
+  @Test
+  public void unchangedConnectionOrSaveStateDoesNotRepublish() {
+    FakeShellSurface shell = new FakeShellSurface();
+    J2clRootLiveSurfaceController controller = startedController(shell);
+
+    // Defaults are online/saved, so re-asserting them must not republish.
+    controller.onConnectionState("online");
+    controller.onSaveState("saved");
+    Assert.assertEquals(0, shell.models.size());
+
+    controller.onConnectionState("offline");
+    Assert.assertEquals(1, shell.models.size());
+    controller.onConnectionState("offline");
+    Assert.assertEquals(1, shell.models.size());
+  }
+
+  @Test
+  public void realConnectionAndSaveStatePreservedAcrossRouteTransitions() {
+    FakeShellSurface shell = new FakeShellSurface();
+    J2clRootLiveSurfaceController controller = startedController(shell);
+
+    controller.onConnectionState("offline");
+    controller.onSaveState("saving");
+    controller.onRouteUrlChanged("?view=j2cl-root&q=in%3Ainbox");
+
+    Assert.assertEquals("offline", shell.lastModel().getConnectionState());
+    Assert.assertEquals("saving", shell.lastModel().getSaveState());
+    Assert.assertEquals("in:inbox", shell.lastModel().getQuery());
+  }
+
+  @Test
+  public void connectionAndSaveCallbacksBeforeStartAreSuppressed() {
+    FakeShellSurface shell = new FakeShellSurface();
+    J2clRootLiveSurfaceController controller =
+        new J2clRootLiveSurfaceController(shell, () -> {});
+
+    controller.onConnectionState("offline");
+    controller.onSaveState("saving");
+
+    Assert.assertEquals(0, shell.models.size());
+  }
+
+  @Test
+  public void connectionAndSaveCallbacksAfterStopAreSuppressed() {
+    FakeShellSurface shell = new FakeShellSurface();
+    J2clRootLiveSurfaceController controller = startedController(shell);
+
+    controller.stop();
+    controller.onConnectionState("offline");
+    controller.onSaveState("saving");
+
+    Assert.assertEquals(0, shell.models.size());
+  }
+
   private static J2clSearchDigestItem digest(String waveId) {
     return new J2clSearchDigestItem(
         waveId,

@@ -109,6 +109,63 @@ public class J2clSelectedWaveControllerTest {
   }
 
   @Test
+  public void connectionListenerReportsConnectingThenOfflineOnExhaustedReconnect() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(true);
+    List<String> states = harness.captureConnectionStates(controller);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello from the sidecar");
+    // A healthy first update matches the online default, so no redundant fire.
+    Assert.assertTrue(states.isEmpty());
+
+    harness.fireDisconnect(0);
+    Assert.assertEquals(Arrays.asList("connecting"), states);
+
+    for (int attempt = 1; attempt <= 8; attempt++) {
+      harness.runScheduledRetry(attempt - 1);
+      harness.rejectBootstrap(attempt, "Network failure for /");
+    }
+
+    Assert.assertEquals(Arrays.asList("connecting", "offline"), states);
+  }
+
+  @Test
+  public void connectionListenerReportsOnlineAfterReconnectRecovery() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(true);
+    List<String> states = harness.captureConnectionStates(controller);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello from the sidecar");
+
+    harness.fireDisconnect(0);
+    harness.runScheduledRetry(0);
+    harness.resolveBootstrap(1);
+    harness.deliverUpdate(1, "Recovered after restart");
+
+    Assert.assertEquals(Arrays.asList("connecting", "online"), states);
+  }
+
+  @Test
+  public void connectionListenerRevertsToOnlineWhenSelectionCleared() throws Exception {
+    Harness harness = new Harness();
+    Object controller = harness.createController(true);
+    List<String> states = harness.captureConnectionStates(controller);
+
+    harness.selectWave(controller, "example.com/w+1", null);
+    harness.resolveBootstrap(0);
+    harness.deliverUpdate(0, "Hello from the sidecar");
+    harness.fireDisconnect(0);
+
+    harness.selectWave(controller, null, null);
+
+    Assert.assertEquals(Arrays.asList("connecting", "online"), states);
+  }
+
+  @Test
   public void bootstrapErrorRendersSelectedWaveError() throws Exception {
     Harness harness = new Harness();
     Object controller = harness.createController(false);
@@ -2726,6 +2783,32 @@ public class J2clSelectedWaveControllerTest {
       } else {
         onWaveSelectedWithDigestMethod.invoke(controller, waveId, digestItem);
       }
+    }
+
+    /**
+     * #1233: register a proxy ConnectionStateListener on the reflectively-built
+     * controller and return the list it appends each reported state to.
+     */
+    private List<String> captureConnectionStates(Object controller) throws Exception {
+      Class<?> listenerClass =
+          Class.forName(
+              "org.waveprotocol.box.j2cl.search.J2clSelectedWaveController$ConnectionStateListener");
+      final List<String> states = new ArrayList<String>();
+      Object listener =
+          Proxy.newProxyInstance(
+              listenerClass.getClassLoader(),
+              new Class<?>[] {listenerClass},
+              (proxy, method, args) -> {
+                if ("onConnectionStateChanged".equals(method.getName())) {
+                  states.add((String) args[0]);
+                }
+                return null;
+              });
+      controller
+          .getClass()
+          .getMethod("setConnectionStateListener", listenerClass)
+          .invoke(controller, listener);
+      return states;
     }
 
     private void refreshSelectedWave(Object controller) throws Exception {

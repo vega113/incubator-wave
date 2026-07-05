@@ -214,6 +214,22 @@ public final class J2clSelectedWaveController
     void onReadStateChanged(String waveId, int unreadCount, boolean stale);
   }
 
+  /**
+   * #1233: listener notified of real live-socket connection transitions for the
+   * selected wave so the root shell can drive the {@code netstatus} chip. The
+   * {@code state} is one of {@code "online"} (a live update arrived),
+   * {@code "connecting"} (the socket dropped and a reconnect is scheduled), or
+   * {@code "offline"} (reconnect attempts were exhausted).
+   */
+  @FunctionalInterface
+  public interface ConnectionStateListener {
+    void onConnectionStateChanged(String state);
+  }
+
+  static final String CONNECTION_ONLINE = "online";
+  static final String CONNECTION_CONNECTING = "connecting";
+  static final String CONNECTION_OFFLINE = "offline";
+
   private final Gateway gateway;
   private final View view;
   private final RetryScheduler retryScheduler;
@@ -240,6 +256,8 @@ public final class J2clSelectedWaveController
   // surface or scrolling away and back.
   private final Set<String> markBlipReadInFlight = new HashSet<String>();
   private ReadStateListener readStateListener;
+  private ConnectionStateListener connectionStateListener;
+  private String lastConnectionState = CONNECTION_ONLINE;
 
   public J2clSelectedWaveController(Gateway gateway, View view) {
     this(
@@ -537,6 +555,8 @@ public final class J2clSelectedWaveController
       // F-2 slice 5 (#1055): clear nav-row folder state when the
       // selection drops so the chrome reverts to the default pin/inbox.
       publishNavRowFolderState();
+      // #1233: no wave open — revert the netstatus chip to the online default.
+      notifyConnectionState(CONNECTION_ONLINE);
       return;
     }
 
@@ -667,6 +687,8 @@ public final class J2clSelectedWaveController
               requestAttachmentMetadataForCurrentViewport(generation);
               activeReconnectCount[0] = 0;
               this.reconnectCount = projectedReconnectCount;
+              // #1233: a live update means the socket is healthy.
+              notifyConnectionState(CONNECTION_ONLINE);
               scheduleReadStateFetch(generation);
             },
             error -> {
@@ -1140,8 +1162,12 @@ public final class J2clSelectedWaveController
               currentModel);
       view.render(currentModel);
       publishWriteSession();
+      // #1233: reconnect budget exhausted — the wave is offline.
+      notifyConnectionState(CONNECTION_OFFLINE);
       return;
     }
+    // #1233: the socket dropped and a reconnect is scheduled.
+    notifyConnectionState(CONNECTION_CONNECTING);
     int nextReconnectCount = reconnectCount + 1;
     retryScheduler.scheduleRetry(
         buildReconnectDelayMs(reconnectCount),
@@ -1593,6 +1619,21 @@ public final class J2clSelectedWaveController
    */
   public void setReadStateListener(ReadStateListener listener) {
     this.readStateListener = listener;
+  }
+
+  /** #1233: register the live-connection listener used to drive the netstatus chip. */
+  public void setConnectionStateListener(ConnectionStateListener listener) {
+    this.connectionStateListener = listener;
+  }
+
+  private void notifyConnectionState(String state) {
+    if (state == null || state.equals(lastConnectionState)) {
+      return;
+    }
+    lastConnectionState = state;
+    if (connectionStateListener != null) {
+      connectionStateListener.onConnectionStateChanged(state);
+    }
   }
 
   /**
