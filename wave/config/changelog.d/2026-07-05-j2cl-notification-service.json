@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-notification-service",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "New UI: create/reply failures now announced consistently to screen readers",
+  "summary": "The new UI gains a shared notification service with a toast surface and ARIA live regions. Create and reply failures are now surfaced through it — announced to assistive technology and auto-dismissed on a consistent timer — instead of only overwriting a per-surface error string. The existing inline error text is unchanged, so nothing is lost visually.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: wave create and reply failures are now routed through a shared notification service that announces them via an ARIA live region and shows an auto-dismissing toast, in addition to the existing inline error text — giving screen-reader users a consistent, non-overwriting notification of failures."
+      ]
+    }
+  ]
+}

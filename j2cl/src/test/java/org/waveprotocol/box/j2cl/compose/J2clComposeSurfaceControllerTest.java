@@ -11,6 +11,8 @@ import org.junit.Test;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentComposerController;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentIdGenerator;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentUploadClient;
+import org.waveprotocol.box.j2cl.notify.J2clNotificationService;
+import org.waveprotocol.box.j2cl.notify.RecordingNotificationSink;
 import org.waveprotocol.box.j2cl.search.J2clPlainTextDeltaFactory;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelController;
 import org.waveprotocol.box.j2cl.search.J2clSidecarWriteSession;
@@ -1011,6 +1013,44 @@ public class J2clComposeSurfaceControllerTest {
     Assert.assertEquals("", view.model.getReplyDraft());
     Assert.assertEquals(Arrays.asList("example.com/w+1"), refreshed);
     Assert.assertEquals("Reply", factory.lastReplyText);
+  }
+
+  @Test
+  public void replyFailureIsRoutedToNotificationServiceWithExactText() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.submitError = "Reply rejected by server.";
+    FakeView view = new FakeView();
+    RecordingNotificationSink sink = new RecordingNotificationSink();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+    controller.setNotificationService(sink);
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Reply");
+
+    // Inline error text is preserved (compat) AND surfaced via the shared service.
+    Assert.assertEquals("Reply rejected by server.", view.model.getReplyErrorText());
+    Assert.assertEquals("Reply rejected by server.", sink.last().message);
+    Assert.assertEquals(J2clNotificationService.Level.ERROR, sink.last().level);
+  }
+
+  @Test
+  public void noNotificationServiceInjectedDoesNotThrowOnFailure() {
+    FakeGateway gateway = new FakeGateway();
+    gateway.submitError = "boom";
+    FakeView view = new FakeView();
+    J2clComposeSurfaceController controller =
+        newController(gateway, view, new FakeFactory(), new ArrayList<String>(), new ArrayList<String>());
+
+    controller.start();
+    controller.onWriteSessionChanged(
+        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
+    controller.onReplySubmitted("Reply");
+
+    // Without a service injected the inline text still works and nothing throws.
+    Assert.assertEquals("boom", view.model.getReplyErrorText());
   }
 
   @Test
@@ -4993,6 +5033,7 @@ public class J2clComposeSurfaceControllerTest {
     private int submitCalls;
     private boolean autoResolveBootstrap = true;
     private String bootstrapError;
+    private String submitError;
     private SidecarSubmitResponse submitResponse = new SidecarSubmitResponse(1, "", 45L);
     private SidecarSubmitRequest lastSubmitRequest;
     private J2clSearchPanelController.SuccessCallback<SidecarSessionBootstrap> pendingBootstrapSuccess;
@@ -5023,6 +5064,10 @@ public class J2clComposeSurfaceControllerTest {
         J2clSearchPanelController.ErrorCallback onError) {
       submitCalls++;
       lastSubmitRequest = request;
+      if (submitError != null) {
+        onError.accept(submitError);
+        return;
+      }
       onSuccess.accept(submitResponse);
     }
 

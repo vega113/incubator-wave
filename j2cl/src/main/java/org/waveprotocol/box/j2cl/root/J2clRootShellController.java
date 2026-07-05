@@ -13,6 +13,8 @@ import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController.CreateSuccessHandler;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController.ReplySuccessHandler;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceView;
+import org.waveprotocol.box.j2cl.notify.J2clDomNotificationService;
+import org.waveprotocol.box.j2cl.notify.J2clNotificationService;
 import org.waveprotocol.box.j2cl.search.J2clSearchGateway;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelController;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelView;
@@ -183,6 +185,10 @@ public final class J2clRootShellController {
     // not leave a stale submit-query stamp that scopes the next
     // successful create's stub to the wrong rail.
     composeController.setCreateFailureHook(controller::discardOldestSubmitStamp);
+    // #1271: mount the shared notification service (toast + ARIA live region)
+    // under the shell host and route compose failures through it.
+    J2clNotificationService notificationService = new J2clDomNotificationService(host);
+    composeController.setNotificationService(notificationService);
     // J-UI-3 (#1081, R-5.1): the rail's New Wave button focuses the create
     // form's title input. Listening on document.body so the event bubbles
     // up regardless of where the rail is currently mounted.
@@ -261,6 +267,8 @@ public final class J2clRootShellController {
         "wavy-back-to-inbox-clicked",
         event -> {
           event.preventDefault();
+          // #1271: a wave switch should not carry stale error toasts across.
+          notificationService.clear();
           routeControllerRef[0].selectWave(null);
         });
     liveSurfaceController.start();
