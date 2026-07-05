@@ -5,8 +5,9 @@ import { t } from "../i18n/t.js";
  * <wavy-back-to-inbox> — F-2.S4 (#1048, J.5) "Back to inbox" header
  * affordance shown on mobile breakpoints. Renders an anchor (so it
  * behaves like a normal link for AT + browser middle-click) but also
- * emits a `wavy-back-to-inbox-clicked` CustomEvent so the future router
- * can intercept (without preventing the default link traversal).
+ * emits a cancelable `wavy-back-to-inbox-clicked` CustomEvent so a
+ * router can intercept and handle the transition in-shell (calling
+ * preventDefault() on the event cancels the anchor navigation).
  *
  * Properties:
  *   - href: string — the URL to navigate to. Defaults to "#inbox".

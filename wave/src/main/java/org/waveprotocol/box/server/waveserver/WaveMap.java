@@ -172,6 +172,11 @@ public class WaveMap {
    * was first cached: wavelets created after that moment (e.g. a wave created
    * in this process lifetime whose entry was cached during its own creation)
    * are only visible through the in-memory containers.
+   *
+   * <p>This method deliberately uses {@code getIfPresent} and never loads the
+   * wave entry itself. Callers combining it with {@link #lookupWavelets} must
+   * call {@code lookupWavelets} first — that call populates the cache entry,
+   * after which this method sees its containers.
    */
   public ImmutableSet<WaveletId> getInMemoryWaveletIds(WaveId waveId) {
     Wave wave = waveId == null ? null : waves.getIfPresent(waveId);

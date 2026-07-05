@@ -161,6 +161,34 @@ public final class SelectedWaveReadStateHelperTest extends TestCase {
     assertEquals(1, result.getUnreadCount());
   }
 
+  public void testComputeReadStateUnionsStoredAndInMemoryWavelets() throws Exception {
+    WaveMap waveMap = mock(WaveMap.class);
+    WaveDigester digester = mock(WaveDigester.class);
+    SelectedWaveReadStateHelper helper =
+        new SelectedWaveReadStateHelper(DOMAIN, waveMap, digester);
+
+    // The conversational wavelet is already persisted while the user-data
+    // wavelet only exists in memory (e.g. created moments ago); both must
+    // contribute to the digest view.
+    when(waveMap.lookupWavelets(WAVE_ID)).thenReturn(ImmutableSet.of(ACCESSIBLE_CONV));
+    when(waveMap.getInMemoryWaveletIds(WAVE_ID)).thenReturn(ImmutableSet.of(USER_UDW));
+
+    stubWaveletContainer(waveMap, ACCESSIBLE_CONV, wavelet(ACCESSIBLE_CONV, USER));
+    stubWaveletContainer(waveMap, USER_UDW, wavelet(USER_UDW, USER));
+
+    when(digester.getUnreadBlipState(eq(USER), any(WaveViewData.class)))
+        .thenReturn(new WaveDigester.UnreadBlipState(Arrays.asList("b+1")));
+
+    SelectedWaveReadStateHelper.Result result = helper.computeReadState(USER, WAVE_ID);
+
+    assertTrue(result.exists());
+    ArgumentCaptor<WaveViewData> viewCaptor = ArgumentCaptor.forClass(WaveViewData.class);
+    verify(digester).getUnreadBlipState(eq(USER), viewCaptor.capture());
+    WaveViewData digestedView = viewCaptor.getValue();
+    assertNotNull(digestedView.getWavelet(ACCESSIBLE_CONV));
+    assertNotNull(digestedView.getWavelet(USER_UDW));
+  }
+
   private static ObservableWaveletData wavelet(WaveletId waveletId, ParticipantId participant) {
     ObservableWaveletData wavelet = mock(ObservableWaveletData.class);
     when(wavelet.getWaveletId()).thenReturn(waveletId);

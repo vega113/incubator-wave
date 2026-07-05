@@ -168,6 +168,40 @@ public class DeltaStoreBasedWaveletStateTest extends WaveletStateTestBase {
     assertNotNull(durable.getDelta(first.getResultingVersion().getVersion()));
   }
 
+  public void testTransformedDeltaHistoryReadsFromCacheWhenFileReadHitsEof() throws Exception {
+    // Regression test: the delta reader used to consult the file before the
+    // in-memory cache, so a history read racing an in-flight append could
+    // hit a partially flushed record (EOFException) and surface as a 500
+    // (e.g. mark-blip-read transforming against just-submitted history).
+    // Cache-first reads must serve unflushed deltas without touching the
+    // file at all.
+    DeltaStore.DeltasAccess durable = store.open(NAME);
+    WaveletState state = DeltaStoreBasedWaveletState.create(
+        new EofThrowingDeltasAccess(durable), PERSIST_EXECUTOR);
+    WaveletDeltaRecord first = makeDelta(V0, 1234567890L, 1);
+    WaveletDeltaRecord second = makeDelta(first.getResultingVersion(), 1234567891L, 1);
+
+    state.appendDelta(first);
+    state.appendDelta(second);
+
+    // Both deltas are cache-only (not flushed); every file read throws EOF.
+    java.util.List<TransformedWaveletDelta> received =
+        new java.util.ArrayList<TransformedWaveletDelta>();
+    state.getTransformedDeltaHistory(
+        V0,
+        second.getResultingVersion(),
+        new org.waveprotocol.box.common.Receiver<TransformedWaveletDelta>() {
+          @Override
+          public boolean put(TransformedWaveletDelta delta) {
+            received.add(delta);
+            return true;
+          }
+        });
+
+    assertEquals(2, received.size());
+    assertEquals(second.getResultingVersion(), received.get(1).getResultingVersion());
+  }
+
   // TODO(soren): We need to add tests here that verify interactions with storage.
   // The base tests only test the public interface, not any interactions with the storage system.
 
@@ -179,6 +213,74 @@ public class DeltaStoreBasedWaveletStateTest extends WaveletStateTestBase {
         appliedAtVersion,
         applied,
         AppliedDeltaUtil.buildTransformedDelta(applied, delta));
+  }
+
+  /**
+   * Delegates everything to the real access but simulates an in-flight file
+   * append: every per-version file read fails with {@link java.io.EOFException}.
+   */
+  private static final class EofThrowingDeltasAccess implements DeltaStore.DeltasAccess {
+    private final DeltaStore.DeltasAccess delegate;
+
+    private EofThrowingDeltasAccess(DeltaStore.DeltasAccess delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public WaveletName getWaveletName() {
+      return delegate.getWaveletName();
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return delegate.isEmpty();
+    }
+
+    @Override
+    public HashedVersion getEndVersion() {
+      return delegate.getEndVersion();
+    }
+
+    @Override
+    public WaveletDeltaRecord getDelta(long version) throws java.io.IOException {
+      throw new java.io.EOFException("simulated in-flight append");
+    }
+
+    @Override
+    public WaveletDeltaRecord getDeltaByEndVersion(long version) throws java.io.IOException {
+      throw new java.io.EOFException("simulated in-flight append");
+    }
+
+    @Override
+    public HashedVersion getAppliedAtVersion(long version) throws java.io.IOException {
+      throw new java.io.EOFException("simulated in-flight append");
+    }
+
+    @Override
+    public HashedVersion getResultingVersion(long version) throws java.io.IOException {
+      throw new java.io.EOFException("simulated in-flight append");
+    }
+
+    @Override
+    public ByteStringMessage<org.waveprotocol.wave.federation.Proto.ProtocolAppliedWaveletDelta>
+        getAppliedDelta(long version) throws java.io.IOException {
+      throw new java.io.EOFException("simulated in-flight append");
+    }
+
+    @Override
+    public TransformedWaveletDelta getTransformedDelta(long version) throws java.io.IOException {
+      throw new java.io.EOFException("simulated in-flight append");
+    }
+
+    @Override
+    public void append(java.util.Collection<WaveletDeltaRecord> deltas) throws PersistenceException {
+      delegate.append(deltas);
+    }
+
+    @Override
+    public void close() throws java.io.IOException {
+      delegate.close();
+    }
   }
 
   private static final class PartiallyFailingDeltasAccess implements DeltaStore.DeltasAccess {

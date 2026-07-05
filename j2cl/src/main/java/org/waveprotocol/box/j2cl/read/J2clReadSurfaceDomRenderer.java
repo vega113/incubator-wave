@@ -3655,6 +3655,20 @@ public final class J2clReadSurfaceDomRenderer {
       return false;
     }
     HTMLElement active = (HTMLElement) DomGlobal.document.activeElement;
+    // document.activeElement stops at shadow hosts; descend through
+    // shadowRoot.activeElement so a contenteditable inside any shadow tree
+    // (not just <wavy-composer>) is recognized as an editing surface.
+    for (int depth = 0; depth < 16; depth++) {
+      Object shadowRoot = Js.asPropertyMap(active).get("shadowRoot");
+      if (shadowRoot == null) {
+        break;
+      }
+      Object inner = Js.asPropertyMap(shadowRoot).get("activeElement");
+      if (!(inner instanceof HTMLElement) || inner == active) {
+        break;
+      }
+      active = (HTMLElement) inner;
+    }
     // elemental2's HTMLElement does not expose isContentEditable; read the
     // live DOM property instead.
     if (Js.isTruthy(Js.asPropertyMap(active).get("isContentEditable"))) {

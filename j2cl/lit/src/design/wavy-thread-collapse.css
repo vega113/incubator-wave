@@ -330,7 +330,10 @@ wavy-search-rail .waveform > svg {
  * wavy-nav-drawer-toggled), so the fixed-position hamburger was a dead
  * control painting on top of the topbar user menu. Keep it mounted for
  * the floating-mount parity contract but suppress it until the drawer
- * lands. */
+ * lands.
+ * TODO(F-2.S5 / shell-nav-drawer): remove this rule when the drawer
+ * ships, and re-position the toggle so it does not overlap the compact
+ * topbar user menu (its :host default is fixed top-right 12px). */
 wavy-nav-drawer-toggle {
   display: none;
 }

@@ -697,6 +697,11 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     String waveId = waveIdHost == null ? null : waveIdHost.getAttribute("data-wave-id");
     if (waveId != null && !waveId.isEmpty()) {
       trigger.setAttribute("wave-id", waveId);
+    } else {
+      // Never keep a previous wave's id across a transition where the host
+      // lookup fails — a click would emit wave-root-reply-requested for the
+      // wrong wave.
+      trigger.removeAttribute("wave-id");
     }
     if (trigger.parentNode != surface || trigger.nextElementSibling != null) {
       surface.appendChild(trigger);

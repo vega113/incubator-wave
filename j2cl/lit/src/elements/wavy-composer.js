@@ -2846,10 +2846,12 @@ export class WavyComposer extends LitElement {
       this._pendingFocusRequest = false;
       // Focusing synchronously inside updated() does not stick on a
       // freshly mounted composer (Chromium drops focus applied while the
-      // shadow tree is still being committed), so defer one frame.
+      // shadow tree is still being committed), so defer one frame. Re-arm
+      // the pending request if focus could not land so a later update can
+      // retry instead of dropping the request silently.
       requestAnimationFrame(() => {
-        if (this.isConnected) {
-          this.focusComposer();
+        if (this.isConnected && !this.focusComposer()) {
+          this._pendingFocusRequest = true;
         }
       });
     }
