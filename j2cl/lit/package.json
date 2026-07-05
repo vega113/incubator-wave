@@ -8,7 +8,8 @@
     "audit:buttons": "node scripts/audit-buttons.mjs",
     "prebuild": "node scripts/audit-buttons.mjs",
     "build": "node esbuild.config.mjs",
-    "test": "web-test-runner"
+    "test": "web-test-runner",
+    "test:coverage": "web-test-runner --coverage"
   },
   "dependencies": {
     "lit": "3.2.1"
