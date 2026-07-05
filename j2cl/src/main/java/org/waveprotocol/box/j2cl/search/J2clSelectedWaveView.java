@@ -23,6 +23,7 @@ import jsinterop.base.JsPropertyMap;
 import org.waveprotocol.box.j2cl.common.Disposable;
 import org.waveprotocol.box.j2cl.common.J2clDisposeRegistry;
 import org.waveprotocol.box.j2cl.common.J2clJsInteropUtils;
+import org.waveprotocol.box.j2cl.common.J2clUiTokens;
 import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
@@ -173,7 +174,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
     // F-2 slice 2 (#1046, R-3.7-chrome): depth-nav bar (G.2 + G.3).
     // Hidden by default until S5 writes a current depth.
-    depthNavBar = (HTMLElement) DomGlobal.document.createElement("wavy-depth-nav-bar");
+    depthNavBar = (HTMLElement) DomGlobal.document.createElement(J2clUiTokens.CUSTOM_ELEMENT_DEPTH_NAV_BAR);
     depthNavBar.setAttribute("hidden", "");
     coldCard.appendChild(depthNavBar);
 
@@ -263,12 +264,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
    */
   private static HTMLElement ensureDepthNavBar(HTMLElement card) {
     removeSelectedWaveEyebrow(card);
-    HTMLElement existing = (HTMLElement) card.querySelector("wavy-depth-nav-bar");
+    HTMLElement existing = (HTMLElement) card.querySelector(J2clUiTokens.CUSTOM_ELEMENT_DEPTH_NAV_BAR);
     if (existing != null) {
       return existing;
     }
     HTMLElement bar =
-        (HTMLElement) DomGlobal.document.createElement("wavy-depth-nav-bar");
+        (HTMLElement) DomGlobal.document.createElement(J2clUiTokens.CUSTOM_ELEMENT_DEPTH_NAV_BAR);
     bar.setAttribute("hidden", "");
     card.insertBefore(bar, card.firstChild);
     return bar;
@@ -382,7 +383,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     }
     disposeRegistry.addListener(
         contentList,
-        "wave-blip-task-toggled",
+        J2clUiTokens.EVENT_BLIP_TASK_TOGGLED,
         evt -> {
           Object detail = jsinterop.base.Js.asPropertyMap(evt).get("detail");
           if (detail == null) {
@@ -481,7 +482,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     }
     disposeRegistry.addListener(
         card,
-        "wavy-selected-wave-refresh-requested",
+        J2clUiTokens.EVENT_SELECTED_WAVE_REFRESH,
         evt -> {
           if (selectedWaveRefreshHandler == null) {
             return;
@@ -505,18 +506,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
    * controller wiring on top.
    */
   private void bindChromeEvents(HTMLElement card, J2clClientTelemetry.Sink sink) {
-    String[] navEvents = {
-      "wave-nav-recent-requested",
-      "wave-nav-next-unread-requested",
-      "wave-nav-previous-requested",
-      "wave-nav-next-requested",
-      "wave-nav-end-requested",
-      "wave-nav-prev-mention-requested",
-      "wave-nav-next-mention-requested",
-      "wave-nav-archive-toggle-requested",
-      "wave-nav-pin-toggle-requested",
-      "wave-nav-version-history-requested"
-    };
+    String[] navEvents = J2clUiTokens.EVENTS_NAV;
     for (final String navEvent : navEvents) {
       disposeRegistry.addListener(
           card,
@@ -532,7 +522,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
             }
           });
     }
-    String[] depthEvents = {"wavy-depth-up", "wavy-depth-root", "wavy-depth-jump-to-crumb"};
+    String[] depthEvents = J2clUiTokens.EVENTS_DEPTH_CHROME;
     for (final String depthEvent : depthEvents) {
       disposeRegistry.addListener(
           card,
@@ -554,17 +544,18 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     // #1273: the nav-row events are thin callers into the single focus owner.
     // #1268: bound through the dispose registry so they are removed on destroy().
     disposeRegistry.addListener(
-        card, "wave-nav-recent-requested", evt -> blipFocus.focusMostRecent());
+        card, J2clUiTokens.EVENT_NAV_RECENT, evt -> blipFocus.focusMostRecent());
     disposeRegistry.addListener(
-        card, "wave-nav-next-unread-requested", evt -> blipFocus.focusNextMatching("unread", 1));
+        card, J2clUiTokens.EVENT_NAV_NEXT_UNREAD, evt -> blipFocus.focusNextMatching("unread", 1));
     disposeRegistry.addListener(
-        card, "wave-nav-previous-requested", evt -> blipFocus.focusAdjacent(-1));
-    disposeRegistry.addListener(card, "wave-nav-next-requested", evt -> blipFocus.focusAdjacent(1));
-    disposeRegistry.addListener(card, "wave-nav-end-requested", evt -> blipFocus.focusLast());
+        card, J2clUiTokens.EVENT_NAV_PREVIOUS, evt -> blipFocus.focusAdjacent(-1));
     disposeRegistry.addListener(
-        card, "wave-nav-prev-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", -1));
+        card, J2clUiTokens.EVENT_NAV_NEXT, evt -> blipFocus.focusAdjacent(1));
+    disposeRegistry.addListener(card, J2clUiTokens.EVENT_NAV_END, evt -> blipFocus.focusLast());
     disposeRegistry.addListener(
-        card, "wave-nav-next-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", 1));
+        card, J2clUiTokens.EVENT_NAV_PREV_MENTION, evt -> blipFocus.focusNextMatching("has-mention", -1));
+    disposeRegistry.addListener(
+        card, J2clUiTokens.EVENT_NAV_NEXT_MENTION, evt -> blipFocus.focusNextMatching("has-mention", 1));
   }
 
   /**

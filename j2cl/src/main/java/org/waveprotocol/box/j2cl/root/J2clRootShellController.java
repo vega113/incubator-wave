@@ -13,6 +13,7 @@ import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController.CreateSuccessHandler;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController.ReplySuccessHandler;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceView;
+import org.waveprotocol.box.j2cl.common.J2clUiTokens;
 import org.waveprotocol.box.j2cl.notify.J2clDomNotificationService;
 import org.waveprotocol.box.j2cl.notify.J2clNotificationService;
 import org.waveprotocol.box.j2cl.search.J2clSearchGateway;
@@ -200,23 +201,23 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
     // form's title input. Listening on document.body so the event bubbles
     // up regardless of where the rail is currently mounted.
     disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
-        "wavy-new-wave-requested",
+        J2clUiTokens.EVENT_NEW_WAVE_REQUESTED,
         evt -> composeController.focusCreateSurface(newWaveTriggerFromEvent(evt)));
     disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
-        "wave-new-with-participants-requested",
+        J2clUiTokens.EVENT_NEW_WITH_PARTICIPANTS,
         evt -> composeController.onCreateRequestedWithParticipants(participantsFromEvent(evt)));
     disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
-        "wave-add-participant-requested",
+        J2clUiTokens.EVENT_ADD_PARTICIPANT,
         evt ->
             composeController.onAddParticipantsRequested(
                 sourceWaveIdFromEvent(evt), addParticipantAddressesFromEvent(evt)));
     disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
-        "wave-publicity-toggle-requested",
+        J2clUiTokens.EVENT_PUBLICITY_TOGGLE,
         evt ->
             composeController.onPublicityToggleRequested(
                 sourceWaveIdFromEvent(evt), nextPublicFromEvent(evt)));
     disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
-        "wave-root-lock-toggle-requested",
+        J2clUiTokens.EVENT_ROOT_LOCK_TOGGLE,
         evt ->
             composeController.onLockStateToggleRequested(
                 sourceWaveIdFromEvent(evt),
@@ -271,7 +272,7 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
     // returning to the inbox is an instant in-shell transition (the anchor
     // href stays functional for middle-click / no-JS fallbacks).
     disposeRegistry.addListener(DomGlobal.document.body, 
-        "wavy-back-to-inbox-clicked",
+        J2clUiTokens.EVENT_BACK_TO_INBOX_CLICKED,
         event -> {
           event.preventDefault();
           // #1271: a wave switch should not carry stale error toasts across.
@@ -280,7 +281,7 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
         });
     // #1268: final teardown on navigation away releases the selected-wave view's
     // listeners (which cascade to the read surface) so they do not leak.
-    disposeRegistry.addListener(DomGlobal.window, "pagehide", event -> destroy());
+    disposeRegistry.addListener(DomGlobal.window, J2clUiTokens.EVENT_PAGE_HIDE, event -> destroy());
     liveSurfaceController.start();
   }
 
@@ -324,7 +325,7 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
     // #j2cl-root-shell-workflow section where the controller is mounted.
     elemental2.dom.Element shellRoot = host.closest("shell-root");
     elemental2.dom.Element target = shellRoot != null ? shellRoot : host;
-    return "true".equals(target.getAttribute("data-j2cl-inline-rich-composer"));
+    return "true".equals(target.getAttribute(J2clUiTokens.DATA_ATTR_INLINE_RICH_COMPOSER));
   }
 
   static boolean isReadSurfacePreviewHost(boolean hostMarked, boolean bodyMarked) {
@@ -334,10 +335,10 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
   private boolean isReadSurfacePreviewHost(HTMLElement candidate) {
     boolean hostMarked =
         candidate != null
-            && "true".equals(candidate.getAttribute("data-j2cl-read-surface-preview"));
+            && "true".equals(candidate.getAttribute(J2clUiTokens.DATA_ATTR_READ_SURFACE_PREVIEW));
     HTMLElement body = (HTMLElement) elemental2.dom.DomGlobal.document.body;
     boolean bodyMarked =
-        body != null && "true".equals(body.getAttribute("data-j2cl-read-surface-preview"));
+        body != null && "true".equals(body.getAttribute(J2clUiTokens.DATA_ATTR_READ_SURFACE_PREVIEW));
     return isReadSurfacePreviewHost(hostMarked, bodyMarked);
   }
 
@@ -451,7 +452,7 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
     }
     disposeRegistry.addListener(
         card,
-        "wavy-depth-drill-in",
+        J2clUiTokens.EVENT_DEPTH_DRILL_IN,
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
           if (detail == null) {
@@ -469,7 +470,7 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
         });
     disposeRegistry.addListener(
         card,
-        "wavy-depth-up",
+        J2clUiTokens.EVENT_DEPTH_UP,
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
           String parentId = "";
@@ -486,14 +487,14 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
         });
     disposeRegistry.addListener(
         card,
-        "wavy-depth-root",
+        J2clUiTokens.EVENT_DEPTH_ROOT,
         (Event evt) -> {
           routeController.onDepthChanged(null);
           view.setDepthFocus("", "", "");
         });
     disposeRegistry.addListener(
         card,
-        "wavy-depth-jump-to-crumb",
+        J2clUiTokens.EVENT_DEPTH_JUMP_TO_CRUMB,
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
           String blipId = "";
