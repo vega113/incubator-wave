@@ -298,7 +298,9 @@ public class ClientFrontendImpl implements ClientFrontend, WaveBus.Subscriber {
       // or initialization failure) without invoking the listener. Release the
       // outstanding-submit bookkeeping and report the failure to the client.
       if (responded.compareAndSet(false, true)) {
-        listener.onFailure(e.toString());
+        LOG.warning("Submit to " + waveletName + " failed synchronously", e);
+        // Don't leak internal exception details to the client.
+        listener.onFailure("Submit failed");
         waveletInfo.getUserManager(author).submitResponse(channelId, waveletName, null);
       } else {
         throw e;
