@@ -595,7 +595,10 @@ public final class HtmlRendererJ2clRootShellIntegrationTest extends TestCase {
                 + "J2clReadSurfaceDomRenderer.java");
     assertTrue(
         "Renderer must listen to page scroll events when selected wave content no longer owns a nested scrollbar.",
-        source.contains("DomGlobal.window.addEventListener(\"scroll\", this::onHostScroll);"));
+        // #1268: scroll listeners are now bound through the dispose registry so
+        // they are released on destroy(); still listens to window scroll.
+        source.contains(
+            "disposeRegistry.addListener(DomGlobal.window, \"scroll\", this::onHostScroll);"));
     assertTrue(
         "Viewport edge loading must use host-relative edge helpers, not hard-coded host.scrollTop in onHostScroll.",
         source.contains("if (isNearTopEdge())")

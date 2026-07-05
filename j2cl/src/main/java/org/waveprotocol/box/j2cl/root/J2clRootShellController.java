@@ -28,9 +28,15 @@ import org.waveprotocol.box.j2cl.toolbar.J2clToolbarSurfaceController;
 import org.waveprotocol.box.j2cl.toolbar.J2clToolbarSurfaceView;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 
-public final class J2clRootShellController {
+public final class J2clRootShellController implements org.waveprotocol.box.j2cl.common.Disposable {
   private final HTMLElement host;
   private boolean started;
+  // #1268: retained for teardown so a pagehide / destroy() releases the
+  // selected-wave view's listeners (which cascade to the read surface).
+  private J2clSelectedWaveView selectedWaveView;
+  // #1268: this shell's own global body/window listeners, released on destroy().
+  private final org.waveprotocol.box.j2cl.common.J2clDisposeRegistry disposeRegistry =
+      new org.waveprotocol.box.j2cl.common.J2clDisposeRegistry();
 
   public J2clRootShellController(HTMLElement host) {
     this.host = host;
@@ -72,6 +78,7 @@ public final class J2clRootShellController {
     J2clSelectedWaveView selectedWaveView =
         new J2clSelectedWaveView(searchView.getSelectedWaveHost(), telemetrySink);
     selectedWaveViewRef[0] = selectedWaveView;
+    this.selectedWaveView = selectedWaveView;
     HTMLElement selectedWaveComposeHost = selectedWaveView.getComposeHost();
     HTMLElement selectedCreateHost =
         createSiblingHostBefore(selectedWaveComposeHost, "j2cl-root-create-host");
@@ -192,23 +199,23 @@ public final class J2clRootShellController {
     // J-UI-3 (#1081, R-5.1): the rail's New Wave button focuses the create
     // form's title input. Listening on document.body so the event bubbles
     // up regardless of where the rail is currently mounted.
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wavy-new-wave-requested",
         evt -> composeController.focusCreateSurface(newWaveTriggerFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-new-with-participants-requested",
         evt -> composeController.onCreateRequestedWithParticipants(participantsFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-add-participant-requested",
         evt ->
             composeController.onAddParticipantsRequested(
                 sourceWaveIdFromEvent(evt), addParticipantAddressesFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-publicity-toggle-requested",
         evt ->
             composeController.onPublicityToggleRequested(
                 sourceWaveIdFromEvent(evt), nextPublicFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-root-lock-toggle-requested",
         evt ->
             composeController.onLockStateToggleRequested(
@@ -263,7 +270,7 @@ public final class J2clRootShellController {
     // Intercept it to clear the selection through the route controller so
     // returning to the inbox is an instant in-shell transition (the anchor
     // href stays functional for middle-click / no-JS fallbacks).
-    DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(DomGlobal.document.body, 
         "wavy-back-to-inbox-clicked",
         event -> {
           event.preventDefault();
@@ -271,7 +278,24 @@ public final class J2clRootShellController {
           notificationService.clear();
           routeControllerRef[0].selectWave(null);
         });
+    // #1268: final teardown on navigation away releases the selected-wave view's
+    // listeners (which cascade to the read surface) so they do not leak.
+    disposeRegistry.addListener(DomGlobal.window, "pagehide", event -> destroy());
     liveSurfaceController.start();
+  }
+
+  /**
+   * #1268: release the surfaces this shell owns. Idempotent — safe to call from
+   * both {@code pagehide} and an explicit host teardown.
+   */
+  @Override
+  public void destroy() {
+    // Release this shell's own global body/window listeners (incl. pagehide)...
+    disposeRegistry.destroy();
+    // ...then cascade to the selected-wave view (which cascades to the read surface).
+    if (selectedWaveView != null) {
+      selectedWaveView.destroy();
+    }
   }
 
   /**
@@ -417,13 +441,16 @@ public final class J2clRootShellController {
    * the read-surface attribute (kept in sync by setDepthFocus); and for
    * {@code wavy-depth-root} we clear the depth.
    */
-  private static void bindDepthEventsToRoute(
+  // #1268: instance so the depth listeners bind through the shell's dispose
+  // registry and are removed on destroy().
+  private void bindDepthEventsToRoute(
       J2clSelectedWaveView view, J2clSidecarRouteController routeController) {
     HTMLElement card = view.getCardElement();
     if (card == null || routeController == null) {
       return;
     }
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-drill-in",
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
@@ -440,7 +467,8 @@ public final class J2clRootShellController {
             view.setDepthFocus(resolved, "", "");
           }
         });
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-up",
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");
@@ -456,13 +484,15 @@ public final class J2clRootShellController {
           routeController.onDepthChanged(parentId.isEmpty() ? null : parentId);
           view.setDepthFocus(parentId.isEmpty() ? "" : parentId, "", "");
         });
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-root",
         (Event evt) -> {
           routeController.onDepthChanged(null);
           view.setDepthFocus("", "", "");
         });
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-depth-jump-to-crumb",
         evt -> {
           Object detail = Js.asPropertyMap(evt).get("detail");

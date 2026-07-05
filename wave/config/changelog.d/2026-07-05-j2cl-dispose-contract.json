@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-dispose-contract",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "New UI: event listeners are now cleaned up on teardown",
+  "summary": "The new UI's wave view and read surface now release their DOM/custom-event listeners when the page is torn down, via an explicit dispose contract. This prevents listener leaks and duplicate handlers building up over long sessions and rapid wave switching, and lays the groundwork for cleaner sidecar/shell lifecycle work.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: introduced an explicit dispose/destroy lifecycle contract; the selected-wave view and read-surface renderer now register their persistent listeners through a dispose registry and release them on page teardown (pagehide), preventing listener leaks and duplicate-handler double-fires in long sessions."
+      ]
+    }
+  ]
+}
