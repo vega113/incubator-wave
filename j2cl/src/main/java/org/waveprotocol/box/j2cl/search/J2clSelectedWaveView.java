@@ -1,17 +1,14 @@
 package org.waveprotocol.box.j2cl.search;
 
 import elemental2.core.JsArray;
-import elemental2.core.JsDate;
 import elemental2.dom.CustomEvent;
 import elemental2.dom.CustomEventInit;
 import elemental2.dom.DomGlobal;
 import elemental2.dom.Element;
 import elemental2.dom.Event;
-import elemental2.dom.Element.FocusOptionsType;
 import elemental2.dom.HTMLDivElement;
 import elemental2.dom.HTMLElement;
 import elemental2.dom.NodeList;
-import elemental2.dom.ScrollIntoViewOptions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -75,6 +72,8 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   private final HTMLElement composeHost;
   private final HTMLDivElement contentList;
   private final J2clReadSurfaceDomRenderer readSurface;
+  // #1273: single owner of imperative roving-focus + save/restore.
+  private final J2clBlipFocusController blipFocus;
   private final HTMLElement emptyState;
   // F-2 slice 2 (#1046) chrome handles. Mounted in both the cold-mount
   // and server-first paths; the view re-binds the live nodes on
@@ -134,6 +133,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       contentList = queryRequired(existingCard, ".sidecar-selected-content");
       configureContentList(contentList);
       readSurface = new J2clReadSurfaceDomRenderer(contentList, effectiveTelemetrySink);
+      blipFocus = new J2clBlipFocusController(contentList, readSurface::markFocusedBlipReadNow);
       readSurface.enhanceExistingSurface();
       bindOptimisticTaskToggleListener(contentList, readSurface);
       emptyState = queryOrCreate(existingCard, ".sidecar-empty-state", "div", "sidecar-empty-state");
@@ -233,6 +233,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     configureContentList(contentList);
     coldCard.appendChild(contentList);
     readSurface = new J2clReadSurfaceDomRenderer(contentList, effectiveTelemetrySink);
+    blipFocus = new J2clBlipFocusController(contentList, readSurface::markFocusedBlipReadNow);
     bindOptimisticTaskToggleListener(contentList, readSurface);
 
     emptyState = (HTMLElement) DomGlobal.document.createElement("div");
@@ -541,159 +542,17 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   }
 
   private void bindNavigationEvents(HTMLElement card) {
-    card.addEventListener("wave-nav-recent-requested", evt -> focusMostRecentBlip());
+    // #1273: the nav-row events are thin callers into the single focus owner.
+    card.addEventListener("wave-nav-recent-requested", evt -> blipFocus.focusMostRecent());
     card.addEventListener(
-        "wave-nav-next-unread-requested", evt -> focusNextMatchingBlip("unread", 1));
-    card.addEventListener("wave-nav-previous-requested", evt -> focusAdjacentBlip(-1));
-    card.addEventListener("wave-nav-next-requested", evt -> focusAdjacentBlip(1));
-    card.addEventListener("wave-nav-end-requested", evt -> focusLastBlip());
+        "wave-nav-next-unread-requested", evt -> blipFocus.focusNextMatching("unread", 1));
+    card.addEventListener("wave-nav-previous-requested", evt -> blipFocus.focusAdjacent(-1));
+    card.addEventListener("wave-nav-next-requested", evt -> blipFocus.focusAdjacent(1));
+    card.addEventListener("wave-nav-end-requested", evt -> blipFocus.focusLast());
     card.addEventListener(
-        "wave-nav-prev-mention-requested", evt -> focusNextMatchingBlip("has-mention", -1));
+        "wave-nav-prev-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", -1));
     card.addEventListener(
-        "wave-nav-next-mention-requested", evt -> focusNextMatchingBlip("has-mention", 1));
-  }
-
-  private void focusMostRecentBlip() {
-    List<HTMLElement> blips = renderedBlips();
-    if (blips.isEmpty()) {
-      return;
-    }
-    HTMLElement newest = blips.get(blips.size() - 1);
-    long newestTime = parseBlipTime(newest.getAttribute("data-blip-time"));
-    for (HTMLElement blip : blips) {
-      long time = parseBlipTime(blip.getAttribute("data-blip-time"));
-      if (time > newestTime) {
-        newest = blip;
-        newestTime = time;
-      }
-    }
-    focusBlip(newest);
-  }
-
-  private static long parseBlipTime(String value) {
-    if (value == null || value.isEmpty()) {
-      return Long.MIN_VALUE;
-    }
-    try {
-      return Long.parseLong(value);
-    } catch (NumberFormatException ignored) {
-      double epochMs = new JsDate(value).getTime();
-      return Double.isNaN(epochMs) ? Long.MIN_VALUE : (long) epochMs;
-    }
-  }
-
-  private void focusLastBlip() {
-    List<HTMLElement> blips = renderedBlips();
-    if (!blips.isEmpty()) {
-      focusBlip(blips.get(blips.size() - 1));
-    }
-  }
-
-  private void focusAdjacentBlip(int direction) {
-    List<HTMLElement> blips = renderedBlips();
-    if (blips.isEmpty()) {
-      return;
-    }
-    int current = focusedBlipIndex(blips);
-    int next = current < 0 ? (direction > 0 ? 0 : blips.size() - 1) : current + direction;
-    if (next < 0) {
-      next = 0;
-    }
-    if (next >= blips.size()) {
-      next = blips.size() - 1;
-    }
-    focusBlip(blips.get(next));
-  }
-
-  private void focusNextMatchingBlip(String attributeName, int direction) {
-    List<HTMLElement> blips = renderedBlips();
-    if (blips.isEmpty()) {
-      return;
-    }
-    int current = focusedBlipIndex(blips);
-    int start = current < 0 ? (direction > 0 ? -1 : blips.size()) : current;
-    for (int offset = 1; offset <= blips.size(); offset++) {
-      int index = positiveModulo(start + (direction * offset), blips.size());
-      HTMLElement candidate = blips.get(index);
-      if (candidate.hasAttribute(attributeName)) {
-        focusBlip(candidate);
-        return;
-      }
-    }
-  }
-
-  private static int positiveModulo(int value, int modulo) {
-    int result = value % modulo;
-    return result < 0 ? result + modulo : result;
-  }
-
-  private int focusedBlipIndex(List<HTMLElement> blips) {
-    elemental2.dom.Element active = DomGlobal.document.activeElement;
-    if (active != null) {
-      for (int index = 0; index < blips.size(); index++) {
-        HTMLElement blip = blips.get(index);
-        if (blip == active || blip.contains(active)) {
-          return index;
-        }
-      }
-    }
-    for (int index = 0; index < blips.size(); index++) {
-      HTMLElement blip = blips.get(index);
-      if (blip.hasAttribute("focused")
-          || "true".equals(blip.getAttribute("data-blip-focused"))
-          || blip.classList.contains("j2cl-read-blip-focused")) {
-        return index;
-      }
-    }
-    return -1;
-  }
-
-  private void focusBlip(HTMLElement target) {
-    focusBlip(target, /* markRead= */ true);
-  }
-
-  private void focusBlip(HTMLElement target, boolean markRead) {
-    if (target == null) {
-      return;
-    }
-    List<HTMLElement> blips = renderedBlips();
-    for (HTMLElement blip : blips) {
-      blip.setAttribute("tabindex", blip == target ? "0" : "-1");
-      if (blip == target) {
-        blip.setAttribute("focused", "");
-        blip.setAttribute("data-blip-focused", "true");
-        blip.setAttribute("aria-current", "true");
-        blip.classList.add("j2cl-read-blip-focused");
-      } else {
-        blip.removeAttribute("focused");
-        blip.removeAttribute("data-blip-focused");
-        blip.removeAttribute("aria-current");
-        blip.classList.remove("j2cl-read-blip-focused");
-      }
-    }
-    FocusOptionsType focusOptions = FocusOptionsType.create();
-    focusOptions.setPreventScroll(true);
-    target.focus(focusOptions);
-    if (markRead) {
-      readSurface.markFocusedBlipReadNow(target);
-    }
-    ScrollIntoViewOptions scrollOptions = ScrollIntoViewOptions.create();
-    scrollOptions.setBlock("center");
-    scrollOptions.setInline("nearest");
-    target.scrollIntoView(scrollOptions);
-  }
-
-  private List<HTMLElement> renderedBlips() {
-    elemental2.dom.NodeList<elemental2.dom.Element> nodes =
-        contentList.querySelectorAll("wave-blip[data-blip-id], div.blip[data-blip-id]");
-    List<HTMLElement> blips = new ArrayList<HTMLElement>();
-    for (int index = 0; index < nodes.length; index++) {
-      HTMLElement blip = (HTMLElement) nodes.item(index);
-      if (blip != null) {
-        blips.add(blip);
-      }
-    }
-    return blips;
+        "wave-nav-next-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", 1));
   }
 
   static void configureContentList(HTMLElement contentList) {
@@ -734,6 +593,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
   @Override
   public void render(J2clSelectedWaveModel model) {
+    // #1273: remember the roving-focused blip before the read surface may
+    // rebuild the blip DOM, so it can be restored below if focus is dropped.
+    blipFocus.saveFocus();
     String renderedWaveId = model.getSelectedWaveId() == null ? "" : model.getSelectedWaveId();
     if (!renderedWaveId.equals(lastRenderedWaveId)) {
       readSurface.clearViewportScrollMemory();
@@ -787,6 +649,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (shouldPreserveServerFirstCard(model)) {
       renderPreservedServerFirstState(model);
       maybeApplyInitialFocus(renderedWaveId, model);
+      blipFocus.restoreFocus();
       return;
     }
 
@@ -871,6 +734,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
     if (hasRenderedReadSurface) {
       maybeApplyInitialFocus(renderedWaveId, model);
+      blipFocus.restoreFocus();
     }
   }
 
@@ -888,27 +752,15 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
         || !model.hasSelection()) {
       return;
     }
-    List<HTMLElement> blips = renderedBlips();
-    if (blips.isEmpty()) {
-      return;
-    }
-    HTMLElement target = null;
-    for (int i = blips.size() - 1; i >= 0; i--) {
-      HTMLElement blip = blips.get(i);
-      if (blip.hasAttribute("unread")) {
-        target = blip;
-        break;
-      }
-    }
-    if (target == null) {
-      target = blips.get(blips.size() - 1);
-    }
-    pendingInitialFocusWaveId = "";
     // Auto-focus on wave-open mirrors GWT's selectInitialBlip + FocusFramePresenter.focus.
     // GWT marks blips read via dwell-based Reader observers, not on focus, so the
     // J2CL parity path skips the immediate mark-read side effect; the first user
     // action (next-unread key, click, or scroll dwell) takes that responsibility.
-    focusBlip(target, /* markRead= */ false);
+    // The pending flag is cleared only once there is content to focus so a
+    // subsequent render can apply it after content lands.
+    if (blipFocus.focusInitialUnreadOrLast()) {
+      pendingInitialFocusWaveId = "";
+    }
   }
 
   private void publishTaskBinder(J2clSelectedWaveModel model) {
