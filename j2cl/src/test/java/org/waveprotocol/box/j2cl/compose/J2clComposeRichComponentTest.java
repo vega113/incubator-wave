@@ -2,20 +2,22 @@ package org.waveprotocol.box.j2cl.compose;
 
 import com.google.j2cl.junit.apt.J2clTestInput;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 import org.waveprotocol.box.j2cl.search.J2clSidecarWriteSession;
-import org.waveprotocol.box.j2cl.transport.SidecarSubmitRequest;
+import org.waveprotocol.box.j2cl.testsupport.FakeGateway;
+import org.waveprotocol.box.j2cl.testsupport.FakeView;
 
 /**
- * #1270: split out of the J2clComposeSurfaceControllerTest monster class — the
- * rich-text component / annotation reply-submit path (J-UI-5, #1083). Uses the
- * shared package doubles in {@link ComposeTestDoubles}.
+ * #1270: split from the monster J2clComposeSurfaceControllerTest. Covers the
+ * rich-text component / annotation reply-submit path (J-UI-5, #1083). Shared
+ * doubles live in the testsupport package; scaffolding in
+ * {@link J2clComposeControllerTestSupport}.
  */
 @J2clTestInput(J2clComposeRichComponentTest.class)
-public class J2clComposeRichComponentTest {
+public class J2clComposeRichComponentTest extends J2clComposeControllerTestSupport {
+
 
   // J-UI-5 (#1083, R-5.1 + R-5.7): the inline rich-text composer
   // forwards a per-fragment component list on reply submit. The
@@ -272,18 +274,5 @@ public class J2clComposeRichComponentTest {
     assertContains(delta, "\"2\":\"hi\"");
     assertContains(delta, "\"2\":\" \"");
     assertContains(delta, "\"2\":\"there\"");
-  }
-
-  private static void openWaveForReply(J2clComposeSurfaceController controller) {
-    controller.onWriteSessionChanged(
-        new J2clSidecarWriteSession("example.com/w+1", "chan-1", 44L, "ABCD", "b+root"));
-  }
-
-  private static void assertContains(String value, String... expectedSubstrings) {
-    for (String expectedSubstring : expectedSubstrings) {
-      Assert.assertTrue(
-          "Expected to find <" + expectedSubstring + "> in <" + value + ">",
-          value.contains(expectedSubstring));
-    }
   }
 }

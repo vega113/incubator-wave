@@ -75,3 +75,26 @@ the lane has one traceable classification record.
 | --- | --- | --- | --- | --- |
 | `wave/src/test/java/org/waveprotocol/wave/client/editor/content/ContentTestBase.java`, `LazyPersistentContentDocumentGwtTest.java`, `NodeEventRouterGwtTest.java`, `DomGwtTest.java`, `ContentElementGwtTest.java`, `ContentTextNodeGwtTest.java` | inherited through `EditorGwtTestCase` and `ContentTestBase` | browser/J2CL-facing later | These suites validate DOM-backed content documents, node routing, and editor content structure. Plain JVM execution would not prove the same browser/editor invariants. | Later editor DOM work under `#904` |
 | `wave/src/test/java/org/waveprotocol/wave/client/editor/integration/ElementTestBase.java`, `OperationGwtTest.java`, `MobileWebkitFocusGwtTest.java`, `MobileImeFlushGwtTest.java`, `ParagraphGwtTest.java` | inherited through `TestBase` and `ElementTestBase` | browser/J2CL-facing later | These suites depend on browser focus, IME, paragraph layout, and editor integration behavior. | Later editor DOM work under `#904` |
+
+## #1270 — compose test split + `testsupport` package
+
+The J2CL compose surface tests (plain JVM JUnit4 under `@J2clTestInput`, not
+`GWTTestCase`) were split out of the former ~5 kLOC
+`J2clComposeSurfaceControllerTest` into focused per-flow classes, each < 800 LOC
+and all extending `org.waveprotocol.box.j2cl.compose.J2clComposeControllerTestSupport`
+(shared controller builders + assertions):
+
+- `J2clComposeReplyEditFlowTest`, `J2clComposeSelectedWaveContextTest`,
+  `J2clComposeStaleGenerationRetryTest`, `J2clComposeRichToolbarFormattingTest`,
+  `J2clComposeAttachmentGuardsTest`, `J2clComposeAttachmentUploadTest`,
+  `J2clComposeRichReplyFailureRetryTest`, `J2clComposeAttachmentCancelLifecycleTest`,
+  `J2clComposeSignedOutLifecycleTest`, `J2clComposeCreateFlowTest`,
+  `J2clComposeMentionsTest`, `J2clComposeTaskReactionTest`,
+  `J2clComposeWaveHeaderActionsTest`, `J2clComposeDropAndDeleteBlipTest`,
+  `J2clComposeRichComponentTest`.
+
+The stateless doubles (`FakeGateway`, `FakeView`, `FakeAttachmentTransport`,
+`CapturingDeltaFactory`, `FakeFactory`) now live as public classes in
+`org.waveprotocol.box.j2cl.testsupport` — they carry no `@J2clTestInput` (only
+the owning public `*Test` entry points do) and all remain under the same J2CL
+test gates.
