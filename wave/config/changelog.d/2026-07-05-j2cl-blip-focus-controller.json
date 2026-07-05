@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-blip-focus-controller",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "New UI: more reliable keyboard focus in an opened wave",
+  "summary": "Keyboard roving-focus in the new wave view (jump-to-recent, next/previous, next-unread, mentions, end) is now driven by a single focus owner instead of scattered ad-hoc logic. It also remembers the focused blip across a live re-render, so focus no longer silently drops to the top of the page when the wave updates underneath you — while never stealing focus from a composer you are typing in.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: roving keyboard focus in an opened wave (recent / next / previous / next-unread / mention / end) is consolidated behind one controller, and now survives a live re-render — focus returns to the blip you were on instead of jumping to the page body, and is never pulled away from an active composer."
+      ]
+    }
+  ]
+}
