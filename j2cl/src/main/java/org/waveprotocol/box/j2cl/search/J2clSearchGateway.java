@@ -2,13 +2,13 @@ package org.waveprotocol.box.j2cl.search;
 
 import elemental2.dom.DomGlobal;
 import elemental2.dom.WebSocket;
-import elemental2.dom.XMLHttpRequest;
 import java.util.List;
 import java.util.Map;
 import jsinterop.annotations.JsMethod;
 import jsinterop.annotations.JsPackage;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadataClient;
 import org.waveprotocol.box.j2cl.compose.J2clComposeSurfaceController;
+import org.waveprotocol.box.j2cl.transport.J2clHttpClient;
 import org.waveprotocol.box.j2cl.transport.SidecarFragmentsResponse;
 import org.waveprotocol.box.j2cl.transport.SidecarOpenRequest;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveReadState;
@@ -30,6 +30,8 @@ public final class J2clSearchGateway
   private static final String CROSS_HOST_WEBSOCKET_ERROR =
       "The J2CL sidecar requires core.http_websocket_presented_address to use the current page host when HttpOnly session cookies are enabled.";
   private final J2clAttachmentMetadataClient attachmentMetadataClient;
+  // #1276: single lifecycle-aware HTTP primitive for text/JSON fetches.
+  private final J2clHttpClient httpClient = new J2clHttpClient();
 
   public J2clSearchGateway() {
     this(new J2clAttachmentMetadataClient());
@@ -169,49 +171,40 @@ public final class J2clSearchGateway
       return;
     }
     String body = buildMarkBlipReadBody(waveId, blipId);
-    XMLHttpRequest request = new XMLHttpRequest();
-    request.open("POST", "/j2cl/mark-blip-read");
-    request.setRequestHeader("Content-Type", "application/json");
-    request.onload =
-        event -> {
-          if (request.status >= 200 && request.status < 300) {
-            try {
-              Map<String, Object> json = SidecarTransportCodec.parseJsonObject(request.responseText);
-              Object rawCount = json == null ? null : json.get("unreadCount");
-              Integer unreadCount = null;
-              if (rawCount instanceof Number) {
-                unreadCount = Integer.valueOf(((Number) rawCount).intValue());
-              } else if (rawCount instanceof String) {
-                try {
-                  unreadCount = Integer.valueOf(Integer.parseInt((String) rawCount));
-                } catch (NumberFormatException ignored) {
-                  // fall through to null check
-                }
+    // #1276: POST through the shared HTTP client; parse the response body here.
+    httpClient.postJson(
+        "/j2cl/mark-blip-read",
+        body,
+        responseText -> {
+          try {
+            Map<String, Object> json = SidecarTransportCodec.parseJsonObject(responseText);
+            Object rawCount = json == null ? null : json.get("unreadCount");
+            Integer unreadCount = null;
+            if (rawCount instanceof Number) {
+              unreadCount = Integer.valueOf(((Number) rawCount).intValue());
+            } else if (rawCount instanceof String) {
+              try {
+                unreadCount = Integer.valueOf(Integer.parseInt((String) rawCount));
+              } catch (NumberFormatException ignored) {
+                // fall through to null check
               }
-              if (unreadCount == null) {
-                onError.accept("Invalid markBlipRead response: missing or non-numeric unreadCount.");
-                return;
-              }
-              // The "alreadyRead" flag from the helper is informational —
-              // currently routed only through the success Integer because
-              // the controller doesn't need to distinguish "OK" from
-              // "ALREADY_READ" for live-decrement purposes (both converge
-              // on the same unreadCount). Expose it as an extra signal in
-              // a follow-up if telemetry buckets demand finer breakdown.
-              onSuccess.accept(unreadCount);
-            } catch (RuntimeException e) {
-              onError.accept(messageOrDefault(e, "Unable to decode the markBlipRead response."));
             }
-          } else {
-            onError.accept("HTTP " + request.status + " for /j2cl/mark-blip-read");
+            if (unreadCount == null) {
+              onError.accept("Invalid markBlipRead response: missing or non-numeric unreadCount.");
+              return;
+            }
+            // The "alreadyRead" flag from the helper is informational —
+            // currently routed only through the success Integer because
+            // the controller doesn't need to distinguish "OK" from
+            // "ALREADY_READ" for live-decrement purposes (both converge
+            // on the same unreadCount). Expose it as an extra signal in
+            // a follow-up if telemetry buckets demand finer breakdown.
+            onSuccess.accept(unreadCount);
+          } catch (RuntimeException e) {
+            onError.accept(messageOrDefault(e, "Unable to decode the markBlipRead response."));
           }
-        };
-    request.onerror =
-        event -> {
-          onError.accept("Network failure for /j2cl/mark-blip-read");
-          return null;
-        };
-    request.send(body);
+        },
+        onError::accept);
   }
 
   static String buildMarkBlipReadBody(String waveId, String blipId) {
@@ -471,26 +464,13 @@ public final class J2clSearchGateway
     target.append((char) (nibble < 10 ? '0' + nibble : 'A' + (nibble - 10)));
   }
 
-  private static void requestText(
+  private void requestText(
       String url,
       J2clSearchPanelController.SuccessCallback<String> onSuccess,
       J2clSearchPanelController.ErrorCallback onError) {
-    XMLHttpRequest request = new XMLHttpRequest();
-    request.open("GET", url);
-    request.onload =
-        event -> {
-          if (request.status >= 200 && request.status < 300) {
-            onSuccess.accept(request.responseText);
-          } else {
-            onError.accept("HTTP " + request.status + " for " + url);
-          }
-        };
-    request.onerror =
-        event -> {
-          onError.accept("Network failure for " + url);
-          return null;
-        };
-    request.send();
+    // #1276: route through the shared HTTP client (timeout + 5xx/network retry
+    // + cancellation) instead of a bespoke XMLHttpRequest.
+    httpClient.getText(url, onSuccess::accept, onError::accept);
   }
 
   private static String messageOrDefault(RuntimeException error, String fallback) {

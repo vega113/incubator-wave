@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-http-client",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "New UI: network requests now retry transient failures and cancel cleanly",
+  "summary": "The new UI's text/JSON network calls (bootstrap, read-state, mark-as-read) now go through a single HTTP client that adds a per-request timeout, automatic retry on transient 5xx/network/timeout errors, and cancellation — so a flaky connection recovers on its own and a late response can't be processed after you've navigated away.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: consolidated the duplicated XMLHttpRequest logic behind a single HTTP client with per-request timeout, bounded retry on transient 5xx/network/timeout failures, and cancellation; the selected-wave bootstrap, read-state, and mark-as-read calls now recover from transient errors and no longer process late responses after cancellation."
+      ]
+    }
+  ]
+}
