@@ -397,5 +397,32 @@ export const en = {
   "waveNav.prevMention": "Jump to previous mention",
   "waveNav.nextMention": "Jump to next mention",
   "waveNav.versionHistoryShortcut": "Open version history (h)",
-  "waveNav.overflow": "More wave navigation actions"
+  "waveNav.overflow": "More wave navigation actions",
+  // #1277: dynamic status/error strings emitted by the J2CL Java surfaces
+  // (root live-surface + selected-wave). Resolved via J2clI18n -> t().
+  "rootStatus.loading": "Loading workspace.",
+  "rootStatus.ready": "Workspace is ready.",
+  "rootStatus.selectedWave": "Selected wave is active.",
+  "rootStatus.searchResults": "Showing search results for {query}.",
+  "selectedWave.selectTitle": "Select a wave",
+  "selectedWave.chooseDigest":
+    "Choose a digest from the search results to open a read-only selected-wave panel.",
+  "selectedWave.copiedUrls":
+    "Copied URLs can restore the selected wave when the route includes it.",
+  "selectedWave.reconnecting": "Reconnecting selected wave.",
+  "selectedWave.opening": "Opening selected wave.",
+  "selectedWave.reusingSession": "Reusing the current session after a disconnect.",
+  "selectedWave.waitingFirstUpdate": "Waiting for the first live selected-wave update.",
+  "selectedWave.defaultTitle": "Selected wave",
+  "selectedWave.digestRead": "Selected digest is read.",
+  "selectedWave.digestUnread": "{count} unread in the selected digest.",
+  "selectedWave.read": "Read.",
+  "selectedWave.unread": "{count} unread.",
+  "selectedWave.errorOpen": "Unable to open selected wave.",
+  "selectedWave.errorStream": "Selected wave stream failed.",
+  "selectedWave.errorDisconnected": "Selected wave disconnected.",
+  "selectedWave.errorDisconnectedDetail":
+    "The selected-wave sidecar stopped retrying after {count} reconnect attempts.",
+  "selectedWave.liveReconnected": "Live updates reconnected.",
+  "selectedWave.liveConnected": "Live updates connected."
 };

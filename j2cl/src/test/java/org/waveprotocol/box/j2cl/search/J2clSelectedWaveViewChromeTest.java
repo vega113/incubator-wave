@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
+import jsinterop.base.JsPropertyMap;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -159,6 +161,78 @@ public class J2clSelectedWaveViewChromeTest {
     Assert.assertTrue(
         "Top wave chrome must not show text like 'Read.'; per-blip read state is visual.",
         readState.hidden);
+  }
+
+  @Test
+  public void renderSuppressesLocalizedReadSentinelInWaveChrome() {
+    // #1277 regression: once the read-state sentinels are localized, the view's
+    // suppression must compare against the localized value, not the English
+    // literal — otherwise a German "Gelesen." would leak into the header.
+    assumeBrowserDom();
+    installDeReadBridge();
+    try {
+      HTMLElement host = createHost();
+      J2clSelectedWaveView view = new J2clSelectedWaveView(host);
+      view.render(readSentinelModel("example.com/w+de", "Gelesen."));
+
+      HTMLElement readState = (HTMLElement) host.querySelector(".sidecar-selected-unread");
+      Assert.assertNotNull(readState);
+      Assert.assertEquals(
+          "Localized read sentinel must be suppressed, not leaked into the header.",
+          "",
+          readState.textContent);
+    } finally {
+      removeI18nBridge();
+    }
+  }
+
+  @JsFunction
+  private interface DeTranslate {
+    String translate(String key, String fallback);
+  }
+
+  private static void installDeReadBridge() {
+    JsPropertyMap<Object> bridge = JsPropertyMap.of();
+    DeTranslate translate =
+        (key, fallback) -> {
+          if ("selectedWave.read".equals(key)) {
+            return "Gelesen.";
+          }
+          if ("selectedWave.digestRead".equals(key)) {
+            return "Ausgewählter Eintrag ist gelesen.";
+          }
+          return fallback;
+        };
+    bridge.set("t", translate);
+    Js.asPropertyMap(DomGlobal.window).set("__j2clI18n", bridge);
+  }
+
+  private static void removeI18nBridge() {
+    if (DomGlobal.window != null) {
+      Js.asPropertyMap(DomGlobal.window).set("__j2clI18n", null);
+    }
+  }
+
+  private static J2clSelectedWaveModel readSentinelModel(String waveId, String localizedReadText) {
+    return new J2clSelectedWaveModel(
+        true,
+        false,
+        false,
+        waveId,
+        "Selected wave",
+        "",
+        localizedReadText,
+        "",
+        "",
+        0,
+        Collections.<String>emptyList(),
+        Arrays.<String>asList(),
+        Arrays.<J2clReadBlip>asList(),
+        null,
+        0,
+        true,
+        true,
+        false);
   }
 
   @Test

@@ -12,6 +12,7 @@ import java.util.Set;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadata;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentMetadataClient;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
 import org.waveprotocol.box.j2cl.transport.SidecarConversationManifest;
 import org.waveprotocol.box.j2cl.transport.SidecarFragmentsResponse;
@@ -624,7 +625,7 @@ public final class J2clSelectedWaveController
               J2clSelectedWaveModel.error(
                   selectedWaveId,
                   selectedDigestItem,
-                  "Unable to open selected wave.",
+                  J2clI18n.t("selectedWave.errorOpen", "Unable to open selected wave."),
                   error,
                   currentModel);
           view.render(currentModel);
@@ -708,7 +709,7 @@ public final class J2clSelectedWaveController
                   J2clSelectedWaveModel.error(
                       selectedWaveId,
                       selectedDigestItem,
-                      "Selected wave stream failed.",
+                      J2clI18n.t("selectedWave.errorStream", "Selected wave stream failed."),
                       error,
                       currentModel);
               view.render(currentModel);
@@ -1155,10 +1156,12 @@ public final class J2clSelectedWaveController
           J2clSelectedWaveModel.error(
               selectedWaveId,
               selectedDigestItem,
-              "Selected wave disconnected.",
-              "The selected-wave sidecar stopped retrying after "
-                  + MAX_RECONNECT_ATTEMPTS
-                  + " reconnect attempts.",
+              J2clI18n.t("selectedWave.errorDisconnected", "Selected wave disconnected."),
+              J2clI18n.format(
+                  "selectedWave.errorDisconnectedDetail",
+                  "The selected-wave sidecar stopped retrying after {count} reconnect attempts.",
+                  "{count}",
+                  String.valueOf(MAX_RECONNECT_ATTEMPTS)),
               currentModel);
       view.render(currentModel);
       publishWriteSession();

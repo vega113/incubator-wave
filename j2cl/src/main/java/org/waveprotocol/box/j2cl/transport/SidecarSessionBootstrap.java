@@ -15,6 +15,11 @@ public final class SidecarSessionBootstrap {
   // when the field is absent or signed-out.
   private final List<String> enabledFeatures;
   private final boolean admin;
+  // #1277: the user's locale (e.g. "en", "de", "zh_TW") from the bootstrap
+  // JSON's session.locale. Already on the wire since J-UI-8 (post-#963) and
+  // consumed by the Lit i18n catalog; this surfaces it to the Java side so the
+  // i18n bridge can resolve dynamic status/error strings. Empty when absent.
+  private final String locale;
 
   public SidecarSessionBootstrap(String address, String websocketAddress) {
     this(address, websocketAddress, Collections.<String>emptyList(), false);
@@ -27,6 +32,15 @@ public final class SidecarSessionBootstrap {
 
   public SidecarSessionBootstrap(
       String address, String websocketAddress, List<String> enabledFeatures, boolean admin) {
+    this(address, websocketAddress, enabledFeatures, admin, "");
+  }
+
+  public SidecarSessionBootstrap(
+      String address,
+      String websocketAddress,
+      List<String> enabledFeatures,
+      boolean admin,
+      String locale) {
     this.address = address;
     this.websocketAddress = websocketAddress;
     this.enabledFeatures =
@@ -34,6 +48,7 @@ public final class SidecarSessionBootstrap {
             ? Collections.<String>emptyList()
             : Collections.unmodifiableList(new ArrayList<String>(enabledFeatures));
     this.admin = admin;
+    this.locale = locale == null ? "" : locale.trim();
   }
 
   public String getAddress() {
@@ -62,6 +77,17 @@ public final class SidecarSessionBootstrap {
   /** Returns true when the signed-in user has server-admin or owner privileges. */
   public boolean isAdmin() {
     return admin;
+  }
+
+  /**
+   * #1277: returns the user's locale from the bootstrap JSON's
+   * {@code session.locale} (e.g. {@code "en"}, {@code "de"}, {@code "zh_TW"}),
+   * or an empty string when the session did not carry one. The i18n bridge uses
+   * this only as an initial hint — the Lit catalog remains the source of truth
+   * and resolves the active locale from {@code window.__bootstrap} itself.
+   */
+  public String getLocale() {
+    return locale;
   }
 
   public static boolean usesCompatibleCookieHost(String pageHostname, String websocketAddress) {
@@ -149,7 +175,23 @@ public final class SidecarSessionBootstrap {
       throw new IllegalArgumentException("Bootstrap JSON did not include a socket address");
     }
     boolean isAdmin = extractIsAdmin(session);
-    return new SidecarSessionBootstrap(address, socketAddress, extractFeatures(session), isAdmin);
+    return new SidecarSessionBootstrap(
+        address, socketAddress, extractFeatures(session), isAdmin, extractLocale(session));
+  }
+
+  /**
+   * #1277: pulls the user's locale out of {@code session.locale}. Tolerant:
+   * missing or non-string values yield an empty locale rather than throwing,
+   * since a missing locale must never block bootstrap (the Lit catalog falls
+   * back to {@code <html lang>} then English).
+   */
+  private static String extractLocale(Map<String, Object> session) {
+    Object localeValue = session.get("locale");
+    if (!(localeValue instanceof String)) {
+      return "";
+    }
+    String locale = ((String) localeValue).trim();
+    return "null".equals(locale) ? "" : locale;
   }
 
   private static boolean extractIsAdmin(Map<String, Object> session) {
@@ -226,6 +268,11 @@ public final class SidecarSessionBootstrap {
       throw new IllegalArgumentException("Session bootstrap did not include an address");
     }
     String websocketAddress = parseWebSocketAddress(html);
+    // #1277: locale is intentionally NOT scraped from the legacy root HTML.
+    // Per the #963 contract, bootstrap metadata must come from the explicit
+    // server-owned bootstrap JSON, not from parsing arbitrary root HTML — and
+    // this path is deprecated (removal tracked in #978). Locale is surfaced
+    // only through fromBootstrapJson.
     return new SidecarSessionBootstrap(address, websocketAddress);
   }
 

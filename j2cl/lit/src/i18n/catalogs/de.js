@@ -363,5 +363,32 @@ export const de = {
   "waveNav.prevMention": "Zur vorherigen Erwähnung springen",
   "waveNav.nextMention": "Zur nächsten Erwähnung springen",
   "waveNav.versionHistoryShortcut": "Versionsverlauf öffnen (h)",
-  "waveNav.overflow": "Weitere Wave-Navigations-Aktionen"
+  "waveNav.overflow": "Weitere Wave-Navigations-Aktionen",
+  // #1277: dynamische Status-/Fehlermeldungen der J2CL-Java-Oberflächen.
+  "rootStatus.loading": "Arbeitsbereich wird geladen.",
+  "rootStatus.ready": "Arbeitsbereich ist bereit.",
+  "rootStatus.selectedWave": "Ausgewählte Wave ist aktiv.",
+  "rootStatus.searchResults": "Suchergebnisse für {query} werden angezeigt.",
+  "selectedWave.selectTitle": "Wave auswählen",
+  "selectedWave.chooseDigest":
+    "Wählen Sie einen Eintrag aus den Suchergebnissen, um ein schreibgeschütztes Wave-Panel zu öffnen.",
+  "selectedWave.copiedUrls":
+    "Kopierte URLs können die ausgewählte Wave wiederherstellen, wenn die Route sie enthält.",
+  "selectedWave.reconnecting": "Ausgewählte Wave wird neu verbunden.",
+  "selectedWave.opening": "Ausgewählte Wave wird geöffnet.",
+  "selectedWave.reusingSession": "Aktuelle Sitzung wird nach einer Unterbrechung wiederverwendet.",
+  "selectedWave.waitingFirstUpdate":
+    "Warten auf die erste Live-Aktualisierung der ausgewählten Wave.",
+  "selectedWave.defaultTitle": "Ausgewählte Wave",
+  "selectedWave.digestRead": "Ausgewählter Eintrag ist gelesen.",
+  "selectedWave.digestUnread": "{count} ungelesen im ausgewählten Eintrag.",
+  "selectedWave.read": "Gelesen.",
+  "selectedWave.unread": "{count} ungelesen.",
+  "selectedWave.errorOpen": "Ausgewählte Wave kann nicht geöffnet werden.",
+  "selectedWave.errorStream": "Stream der ausgewählten Wave fehlgeschlagen.",
+  "selectedWave.errorDisconnected": "Verbindung zur ausgewählten Wave getrennt.",
+  "selectedWave.errorDisconnectedDetail":
+    "Der Selected-Wave-Sidecar hat nach {count} Wiederverbindungsversuchen aufgegeben.",
+  "selectedWave.liveReconnected": "Live-Aktualisierungen wieder verbunden.",
+  "selectedWave.liveConnected": "Live-Aktualisierungen verbunden."
 };
