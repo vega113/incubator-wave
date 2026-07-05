@@ -472,6 +472,31 @@ wired to `J2clClientTelemetry` + the notification service.
 | `J2clReadSurfaceDomRenderer` `ensureFocusFrame` querySelector paths | missing DOM node | `queryOptionalElement` / `requireElement` |
 | `J2clRootShellController` event-detail reads | missing CustomEvent detail | `safeGetString/Boolean` |
 
+## 13b. J2CL ↔ Host/Lit DOM Contract Tokens (#1269)
+
+`org.waveprotocol.box.j2cl.common.J2clUiTokens` is the **single source of truth
+for the DOM contract** between the J2CL Java surfaces and the host page / Lit
+layer: custom-event names (`EVENT_NAV_*`, `EVENT_DEPTH_*`, the shell/compose
+body events, `EVENT_BLIP_TASK_TOGGLED`), the `data-j2cl-*` host attributes, and
+custom-element tags. Previously these literals were scattered across the Java
+sources and duplicated on the Lit side, so a typo only failed at runtime in the
+compiled JS and a rename meant hunting every call site.
+
+Rules:
+- Java call sites reference the constants (e.g. `J2clUiTokens.EVENT_NAV_RECENT`);
+  the nav family can be iterated via `J2clUiTokens.EVENTS_NAV`.
+- The Lit vocabulary in `j2cl/lit/src/` (nav-row events, `data-j2cl-*` attrs)
+  must stay in sync with these values; `J2clUiTokensTest` pins each value to its
+  exact wire string so a drift is caught at build time.
+- Adding/renaming a nav event or data attribute touches `J2clUiTokens` + the call
+  sites only.
+
+Migrated first: the selected-wave view and root-shell controller (nav, depth,
+shell/compose body events, and the `data-j2cl-inline-rich-composer` /
+`data-j2cl-read-surface-preview` helpers). Remaining files (renderer, search
+panel, compose views) adopt the constants incrementally; standard DOM events
+(`scroll`) intentionally stay literal.
+
 ## 14. Bottom Line
 
 The repo should not choose between:

@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-ui-tokens",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "Internal: centralize the new UI's DOM event/attribute contract",
+  "summary": "Developer-facing cleanup: the custom event names and data-attributes that form the contract between the new UI's Java layer and the host page/Lit layer are now defined once in a single constants file, instead of being copy-pasted string literals scattered across the code. This removes a class of typo bugs that only failed at runtime and makes renames a one-file change. No user-visible behavior change.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI (internal): introduced J2clUiTokens as the single source of truth for the J2CL↔host/Lit DOM contract (nav/depth/shell custom event names, data-j2cl-* attributes, custom-element tags), and migrated the selected-wave view and root-shell controller off hard-coded literals. A test pins each token to its wire value so the Lit side can't silently drift."
+      ]
+    }
+  ]
+}

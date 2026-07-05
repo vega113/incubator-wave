@@ -270,12 +270,14 @@ public final class HtmlRendererJ2clRootShellIntegrationTest extends TestCase {
         "Root-shell New Wave must use a dedicated visible create child host so "
             + "J2clComposeSurfaceView does not clear the reply/toolbar hosts.",
         source.contains(
-            "createSiblingHostBefore(selectedWaveComposeHost, \"j2cl-root-create-host\")"));
+            "createSiblingHostBefore(selectedWaveComposeHost, "
+                + "J2clUiTokens.CSS_CLASS_ROOT_CREATE_HOST)"));
     assertFalse(
         "Root-shell New Wave must not create the dedicated create host inside "
             + "sidecar-selected-compose because that breaks the :empty collapse sentinel.",
         source.contains(
-            "createChildHost(selectedWaveComposeHost, \"j2cl-root-create-host\")"));
+            "createChildHost(selectedWaveComposeHost, "
+                + "J2clUiTokens.CSS_CLASS_ROOT_CREATE_HOST)"));
     assertFalse(
         "Root-shell New Wave must not bind createHost to searchView.getComposeHost(), "
             + "because the root shell hides the legacy search card.",
