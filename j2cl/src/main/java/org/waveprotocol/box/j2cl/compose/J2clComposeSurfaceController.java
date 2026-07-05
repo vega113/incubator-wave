@@ -13,6 +13,7 @@ import java.util.Set;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentComposerController;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentIdGenerator;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentUploadClient;
+import org.waveprotocol.box.j2cl.notify.J2clNotificationService;
 import org.waveprotocol.box.j2cl.search.J2clPlainTextDeltaFactory;
 import org.waveprotocol.box.j2cl.search.J2clSearchPanelController;
 import org.waveprotocol.box.j2cl.search.J2clSidecarWriteSession;
@@ -688,6 +689,10 @@ public final class J2clComposeSurfaceController {
   private final CreateSuccessHandler createSuccessHandler;
   private final ReplySuccessHandler replySuccessHandler;
   private final J2clClientTelemetry.Sink telemetrySink;
+  // #1271: optional shared notification service. When injected, create/reply
+  // failures are also surfaced through the consolidated toast + ARIA live
+  // region (in addition to the existing inline error text, for compat).
+  private J2clNotificationService notificationService;
   // F-3.S3 (#1038, R-5.5): listener invoked after each successful
   // bootstrap with the resolved signed-in address. The root shell uses
   // this to set the selected-wave view's current-user address so the
@@ -2066,6 +2071,22 @@ public final class J2clComposeSurfaceController {
     this.preCreateSubmitHook = hook;
   }
 
+  /** #1271: inject the shared notification service used to surface failures. */
+  public void setNotificationService(J2clNotificationService service) {
+    this.notificationService = service;
+  }
+
+  /**
+   * #1271: route a failure message to the shared notification service (toast +
+   * ARIA live region). No-op when no service is injected; the inline error text
+   * continues to render for compat during the migration.
+   */
+  private void notifyError(String message) {
+    if (notificationService != null && message != null && !message.isEmpty()) {
+      notificationService.showError(message);
+    }
+  }
+
   /**
    * J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DA7T: install a
    * hook fired on every create-failure path so the search panel can drop
@@ -2254,6 +2275,7 @@ public final class J2clComposeSurfaceController {
       replyGeneration++;
       if (wasReplySubmitting) {
         replyErrorText = STALE_REPLY_MESSAGE;
+        notifyError(replyErrorText);
         replyStaleBasis = true;
         // submitReply() guarantees a non-empty selected wave id here, but stay defensive.
         replyStaleWaveId = writeSession == null ? null : writeSession.getSelectedWaveId();
@@ -2485,6 +2507,7 @@ public final class J2clComposeSurfaceController {
     createSubmitting = false;
     createStatusText = "";
     createErrorText = error == null || error.isEmpty() ? "Create wave failed." : error;
+    notifyError(createErrorText);
     render();
     // J-UI-3 (#1081, R-5.1) — codex P2 PRRT_kwDOBwxLXs5-DA7T + PRRT_kwDOBwxLXs5-DZqM:
     // pair the pre-submit stamp with a failure-time drop, gated by
@@ -2758,6 +2781,7 @@ public final class J2clComposeSurfaceController {
     replySubmitting = false;
     replyStatusText = "";
     replyErrorText = error == null || error.isEmpty() ? "Reply failed." : error;
+    notifyError(replyErrorText);
     activeCommandId = "";
     // Preserve annotationCommandId so the user can retry with the same formatting intent.
     commandStatusText = "";
