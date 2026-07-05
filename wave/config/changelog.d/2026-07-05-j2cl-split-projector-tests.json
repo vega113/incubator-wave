@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-split-projector-tests",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "Internal: split the monster selected-wave projector test class",
+  "summary": "Developer-facing cleanup and the second half of the #1270 test split: the ~4.1k-line J2clSelectedWaveProjectorTest was broken up into 9 focused per-scenario test classes (each under 800 lines) sharing a common base. No production code or user-visible behavior changed; the same 110 tests still run and pass.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI (internal): split J2clSelectedWaveProjectorTest (~4.1 kLOC) into 9 focused per-scenario test classes — read-state, viewport projection, document fallback, interaction metadata, viewport-window merge, document-viewport merge, write-session, read-blip metadata, and lock/manifest — each under 800 LOC and extending a shared J2clSelectedWaveProjectorTestSupport base that holds the update/fragment/document builders. Same 110 tests, easier to navigate and extend. Completes the compose + projector split called for in #1270."
+      ]
+    }
+  ]
+}

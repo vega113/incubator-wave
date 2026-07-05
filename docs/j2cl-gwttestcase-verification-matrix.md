@@ -98,3 +98,21 @@ The stateless doubles (`FakeGateway`, `FakeView`, `FakeAttachmentTransport`,
 `org.waveprotocol.box.j2cl.testsupport` — they carry no `@J2clTestInput` (only
 the owning public `*Test` entry points do) and all remain under the same J2CL
 test gates.
+
+## #1270 — selected-wave projector test split
+
+Companion to the compose split above: the ~4.1 kLOC
+`J2clSelectedWaveProjectorTest` (plain JVM JUnit4 under `@J2clTestInput`) was
+split by projection scenario into 9 classes, each < 800 LOC and all extending
+`org.waveprotocol.box.j2cl.search.J2clSelectedWaveProjectorTestSupport` (shared
+update/fragment/document builders + constants):
+
+- `J2clSelectedWaveProjectorReadStateTest`,
+  `J2clSelectedWaveProjectorViewportProjectionTest`,
+  `J2clSelectedWaveProjectorDocumentFallbackTest`,
+  `J2clSelectedWaveProjectorInteractionMetadataTest`,
+  `J2clSelectedWaveProjectorViewportWindowTest`,
+  `J2clSelectedWaveProjectorDocumentViewportMergeTest`,
+  `J2clSelectedWaveProjectorWriteSessionTest`,
+  `J2clSelectedWaveProjectorReadBlipMetadataTest`,
+  `J2clSelectedWaveProjectorLockAndManifestTest`.
