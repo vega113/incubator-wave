@@ -113,15 +113,19 @@ public final class J2clDomNotificationService implements J2clNotificationService
     toast.textContent = message;
     toastStack.appendChild(toast);
     if (timeoutMs > 0) {
-      double handle =
+      final double[] handleHolder = new double[1];
+      handleHolder[0] =
           DomGlobal.setTimeout(
               ignored -> {
                 if (toast.parentNode != null) {
                   toast.parentNode.removeChild(toast);
                 }
+                // Drop the fired handle so the pending list does not grow
+                // unbounded over a long session.
+                pendingTimers.remove(Double.valueOf(handleHolder[0]));
               },
               timeoutMs);
-      pendingTimers.add(handle);
+      pendingTimers.add(handleHolder[0]);
     }
   }
 }

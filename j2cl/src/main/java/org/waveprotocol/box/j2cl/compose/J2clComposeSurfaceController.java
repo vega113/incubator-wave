@@ -2082,8 +2082,15 @@ public final class J2clComposeSurfaceController {
    * continues to render for compat during the migration.
    */
   private void notifyError(String message) {
-    if (notificationService != null && message != null && !message.isEmpty()) {
+    if (notificationService == null || message == null || message.isEmpty()) {
+      return;
+    }
+    // Best-effort: a notification failure must never block the inline error
+    // render that follows this call.
+    try {
       notificationService.showError(message);
+    } catch (RuntimeException | Error e) {
+      // Swallow — the inline error text still renders.
     }
   }
 

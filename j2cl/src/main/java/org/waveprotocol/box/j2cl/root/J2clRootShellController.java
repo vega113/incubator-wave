@@ -267,6 +267,8 @@ public final class J2clRootShellController {
         "wavy-back-to-inbox-clicked",
         event -> {
           event.preventDefault();
+          // #1271: a wave switch should not carry stale error toasts across.
+          notificationService.clear();
           routeControllerRef[0].selectWave(null);
         });
     liveSurfaceController.start();
