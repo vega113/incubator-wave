@@ -963,7 +963,9 @@ ThisBuild / j2clLitTest := {
   if (!(litDir / "node_modules").exists()) {
     runCmd(log)(Seq("npm", "ci"), litDir)
   }
-  runCmd(log)(Seq("npm", "test"), litDir)
+  // #1275: run with coverage so numbers are emitted and the floor thresholds
+  // in web-test-runner.config.mjs gate regressions in CI.
+  runCmd(log)(Seq("npm", "run", "test:coverage"), litDir)
 }
 
 ThisBuild / j2clProductionBuild := {

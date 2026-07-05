@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-j2cl-lit-coverage-gate",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "Internal: measure and gate Lit UI test coverage",
+  "summary": "Developer-facing cleanup: the new UI's Lit test suite (897 tests) now reports code coverage and fails CI if it drops below a pinned baseline, so regressions in the custom elements and shell controllers are visible instead of silent. No user-visible behavior change.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI (internal): enabled v8 coverage reporting in the Lit web-test-runner harness with floor thresholds pinned just below the current baseline (statements ~95.8% / branches ~90.9% / functions ~96.6% / lines ~95.8%); the j2clLitTest sbt task now runs it so CI gates regressions. Added a j2cl/lit README documenting the run commands and the rule that every new wavy-*/shell-* element or controller must ship a test in the same PR."
+      ]
+    }
+  ]
+}
