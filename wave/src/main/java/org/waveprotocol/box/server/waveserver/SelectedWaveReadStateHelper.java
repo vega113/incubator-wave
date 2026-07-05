@@ -25,7 +25,9 @@ import com.google.inject.name.Named;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.waveprotocol.box.server.CoreSettingsNames;
 import org.waveprotocol.box.server.util.WaveletDataUtil;
 import org.waveprotocol.wave.model.id.IdUtil;
@@ -128,14 +130,27 @@ public class SelectedWaveReadStateHelper {
       return Result.notFound();
     }
 
-    ImmutableSet<WaveletId> waveletIds;
+    ImmutableSet<WaveletId> storedWaveletIds;
     try {
-      waveletIds = waveMap.lookupWavelets(waveId);
+      storedWaveletIds = waveMap.lookupWavelets(waveId);
     } catch (WaveletStateException e) {
       LOG.warning("read-state: failed to look up wavelets for " + waveId, e);
       throw new RuntimeException("Failed to load read state for " + waveId, e);
     }
-    if (waveletIds == null || waveletIds.isEmpty()) {
+    // lookupWavelets is a storage snapshot taken when the wave entry was
+    // first cached — a wave created in this process lifetime resolves to an
+    // empty snapshot forever. Union in the live in-memory containers (the
+    // same combination MemoryPerUserWaveViewHandlerImpl uses) so read-state
+    // works for freshly created waves without a server restart.
+    Set<WaveletId> waveletIds = new HashSet<WaveletId>();
+    if (storedWaveletIds != null) {
+      waveletIds.addAll(storedWaveletIds);
+    }
+    ImmutableSet<WaveletId> inMemoryWaveletIds = waveMap.getInMemoryWaveletIds(waveId);
+    if (inMemoryWaveletIds != null) {
+      waveletIds.addAll(inMemoryWaveletIds);
+    }
+    if (waveletIds.isEmpty()) {
       return Result.notFound();
     }
 
@@ -156,7 +171,7 @@ public class SelectedWaveReadStateHelper {
   }
 
   private WaveViewData buildAccessibleWaveView(
-      WaveId waveId, ImmutableSet<WaveletId> waveletIds, ParticipantId user) {
+      WaveId waveId, Set<WaveletId> waveletIds, ParticipantId user) {
     // Build the view directly rather than via
     // AbstractSearchProviderImpl.buildWaveViewData, which swallows
     // WaveletStateException per wavelet. A swallowed conversational-wavelet

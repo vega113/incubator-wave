@@ -5,8 +5,9 @@ import { t } from "../i18n/t.js";
  * <wavy-back-to-inbox> — F-2.S4 (#1048, J.5) "Back to inbox" header
  * affordance shown on mobile breakpoints. Renders an anchor (so it
  * behaves like a normal link for AT + browser middle-click) but also
- * emits a `wavy-back-to-inbox-clicked` CustomEvent so the future router
- * can intercept (without preventing the default link traversal).
+ * emits a cancelable `wavy-back-to-inbox-clicked` CustomEvent so a
+ * router can intercept and handle the transition in-shell (calling
+ * preventDefault() on the event cancels the anchor navigation).
  *
  * Properties:
  *   - href: string — the URL to navigate to. Defaults to "#inbox".
@@ -20,8 +21,11 @@ import { t } from "../i18n/t.js";
  * A11y:
  *   - aria-label="Back to inbox"
  *
- * Events emitted (CustomEvent, bubbles + composed, NOT cancelling):
- *   - `wavy-back-to-inbox-clicked` — no detail.
+ * Events emitted (CustomEvent, bubbles + composed, cancelable):
+ *   - `wavy-back-to-inbox-clicked` — no detail. Calling preventDefault()
+ *     on it cancels the anchor's default navigation so a router can
+ *     handle the transition in-shell (the href remains functional for
+ *     middle-click, new-tab, and no-listener fallbacks).
  */
 export class WavyBackToInbox extends LitElement {
   static properties = {
@@ -67,13 +71,26 @@ export class WavyBackToInbox extends LitElement {
     this.href = "#inbox";
   }
 
-  _onClick() {
-    this.dispatchEvent(
+  _onClick(e) {
+    // Modified or non-primary clicks (ctrl/cmd/shift/alt, middle-click)
+    // keep native anchor semantics — open in new tab/window — so neither
+    // dispatch the router event nor cancel the navigation for them.
+    if (
+      e &&
+      (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    ) {
+      return;
+    }
+    const notPrevented = this.dispatchEvent(
       new CustomEvent("wavy-back-to-inbox-clicked", {
         bubbles: true,
-        composed: true
+        composed: true,
+        cancelable: true
       })
     );
+    if (!notPrevented && e) {
+      e.preventDefault();
+    }
   }
 
   render() {

@@ -165,6 +165,31 @@ public class WaveMap {
     return ExceptionalIterator.FromIterator.create(inner);
   }
 
+  /**
+   * Returns the ids of this wave's wavelet containers that are live in memory
+   * right now, without touching storage. Complements {@link #lookupWavelets},
+   * whose result is a point-in-time storage snapshot taken when the wave entry
+   * was first cached: wavelets created after that moment (e.g. a wave created
+   * in this process lifetime whose entry was cached during its own creation)
+   * are only visible through the in-memory containers.
+   *
+   * <p>This method deliberately uses {@code getIfPresent} and never loads the
+   * wave entry itself. Callers combining it with {@link #lookupWavelets} must
+   * call {@code lookupWavelets} first — that call populates the cache entry,
+   * after which this method sees its containers.
+   */
+  public ImmutableSet<WaveletId> getInMemoryWaveletIds(WaveId waveId) {
+    Wave wave = waveId == null ? null : waves.getIfPresent(waveId);
+    if (wave == null) {
+      return ImmutableSet.of();
+    }
+    ImmutableSet.Builder<WaveletId> ids = ImmutableSet.builder();
+    for (WaveletContainer container : wave) {
+      ids.add(container.getWaveletName().waveletId);
+    }
+    return ids.build();
+  }
+
   public ImmutableSet<WaveletId> lookupWavelets(WaveId waveId) throws WaveletStateException {
     try {
       ListenableFuture<ImmutableSet<WaveletId>> future = waves.get(waveId).getLookedupWavelets();

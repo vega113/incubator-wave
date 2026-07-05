@@ -288,6 +288,24 @@ describe("<wavy-composer>", () => {
     el.remove();
   });
 
+  it("honors a composer-focus-request dispatched before first render", async () => {
+    // Mirrors J2clComposeSurfaceView.openInlineComposer: the element is
+    // created, configured, appended and receives composer-focus-request
+    // synchronously — before Lit's first async render creates the body.
+    const el = document.createElement("wavy-composer");
+    el.available = true;
+    el.mode = "reply";
+    document.body.appendChild(el);
+    el.dispatchEvent(new Event("composer-focus-request"));
+    await el.updateComplete;
+    // The pending focus lands one animation frame after first render.
+    for (let i = 0; i < 10 && el.renderRoot.activeElement !== getBody(el); i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    expect(el.renderRoot.activeElement === getBody(el)).to.equal(true);
+    el.remove();
+  });
+
   it("renders the hint strip and save indicator", async () => {
     const el = await fixture(html`<wavy-composer available submitting></wavy-composer>`);
     expect(el.renderRoot.querySelector("[data-hint-strip]")).to.exist;

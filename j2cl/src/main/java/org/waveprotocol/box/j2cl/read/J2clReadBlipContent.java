@@ -343,7 +343,13 @@ public final class J2clReadBlipContent {
       decodedVisibleLength = Math.max(0, decodedVisibleLength - 1);
       clampInlineReplyAnchorOffsets(inlineReplyAnchors, decodedVisibleLength);
     }
-    if (stripped.length() > 0 && stripped.charAt(stripped.length() - 1) != '\n') {
+    // GWT parity (R-3.1 content fidelity): every <line/> after the first
+    // starts a new rendered line, including consecutive <line/> tags that
+    // produce intentional blank lines between paragraphs. Only the leading
+    // <line/> (no text yet) is swallowed so documents do not start with a
+    // phantom blank line. The previous `!= '\n'` guard collapsed blank
+    // lines entirely.
+    if (stripped.length() > 0) {
       stripped.append('\n');
       decodedVisibleLength++;
     }

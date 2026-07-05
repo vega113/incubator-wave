@@ -3,6 +3,7 @@ package org.waveprotocol.box.j2cl.compose;
 import elemental2.core.JsArray;
 import elemental2.core.JsDate;
 import elemental2.dom.DomGlobal;
+import elemental2.dom.Element;
 import elemental2.dom.Event;
 import elemental2.dom.File;
 import elemental2.dom.FileList;
@@ -256,7 +257,10 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
           event -> closeInlineComposer(eventDetailString(event, "replyTargetBlipId")));
       DomGlobal.document.body.addEventListener(
           "wavy-read-surface-rendered",
-          event -> ensureActiveInlineComposerMounted(activeInlineComposer()));
+          event -> {
+            ensureActiveInlineComposerMounted(activeInlineComposer());
+            ensureRootReplyTriggerMounted();
+          });
     }
 
     // F-3.S2 (#1038): mention popover + per-blip task affordance events.
@@ -524,6 +528,7 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
         setProperty(cached, "mode", mode);
         cached.dispatchEvent(new Event("composer-focus-request"));
         activeInlineComposerKey = key;
+        syncRootReplyTriggerVisibility();
         return;
       }
       // Cached entry is detached (blip DOM was rebuilt); evict and remount.
@@ -647,6 +652,7 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     if (scrollAnchor != null) {
       scrollAnchor.scrollTop = scrollTopBeforeMount;
     }
+    syncRootReplyTriggerVisibility();
   }
 
   private void closeInlineComposer(String blipId) {
@@ -658,10 +664,69 @@ public final class J2clComposeSurfaceView implements J2clComposeSurfaceControlle
     if (key.equals(activeInlineComposerKey)) {
       activeInlineComposerKey = "";
     }
+    syncRootReplyTriggerVisibility();
   }
 
   private HTMLElement activeInlineComposer() {
     return inlineComposers.get(activeInlineComposerKey);
+  }
+
+  /**
+   * F-3.S1 (#1038, J.1): GWT renders a persistent full-width "Click here to
+   * reply" box after the root thread ({@code ReplyBoxViewBuilder}); the Lit
+   * equivalent {@code <wavy-wave-root-reply-trigger>} existed but nothing
+   * mounted it on live waves. Keep it as the read surface's last child on
+   * every render — the renderer rebuilds and reorders blip DOM, so this
+   * re-appends after each {@code wavy-read-surface-rendered}.
+   */
+  private void ensureRootReplyTriggerMounted() {
+    if (!inlineRichComposerEnabled) {
+      return;
+    }
+    HTMLElement surface =
+        (HTMLElement) DomGlobal.document.querySelector("[data-j2cl-read-surface='true']");
+    if (surface == null) {
+      return;
+    }
+    Element existing = surface.querySelector("wavy-wave-root-reply-trigger");
+    HTMLElement trigger =
+        existing != null
+            ? (HTMLElement) existing
+            : (HTMLElement) DomGlobal.document.createElement("wavy-wave-root-reply-trigger");
+    Element waveIdHost = surface.closest("[data-wave-id]");
+    String waveId = waveIdHost == null ? null : waveIdHost.getAttribute("data-wave-id");
+    if (waveId != null && !waveId.isEmpty()) {
+      trigger.setAttribute("wave-id", waveId);
+    } else {
+      // Never keep a previous wave's id across a transition where the host
+      // lookup fails — a click would emit wave-root-reply-requested for the
+      // wrong wave.
+      trigger.removeAttribute("wave-id");
+    }
+    if (trigger.parentNode != surface || trigger.nextElementSibling != null) {
+      surface.appendChild(trigger);
+    }
+    syncRootReplyTriggerVisibility();
+  }
+
+  /**
+   * GWT hides the bottom reply box while the wave-root editor is open (the
+   * editor takes its place); mirror that by hiding the trigger whenever the
+   * wave-root composer (key "") is mounted.
+   */
+  private void syncRootReplyTriggerVisibility() {
+    Element trigger =
+        DomGlobal.document.querySelector(
+            "[data-j2cl-read-surface='true'] wavy-wave-root-reply-trigger");
+    if (trigger == null) {
+      return;
+    }
+    boolean rootComposerOpen = inlineComposers.containsKey("");
+    if (rootComposerOpen) {
+      trigger.setAttribute("hidden", "");
+    } else {
+      trigger.removeAttribute("hidden");
+    }
   }
 
   @Override

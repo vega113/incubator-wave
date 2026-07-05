@@ -52,6 +52,7 @@ import org.waveprotocol.wave.model.wave.data.WaveletData;
 import org.waveprotocol.wave.util.escapers.jvm.JavaUrlCodec;
 import org.waveprotocol.wave.util.logging.Log;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -262,11 +263,29 @@ class DeltaStoreBasedWaveletState implements WaveletState {
   private static WaveletDeltaRecord getDelta(WaveletDeltaRecordReader reader,
       ConcurrentNavigableMap<HashedVersion, WaveletDeltaRecord> cachedDeltas,
       HashedVersion version) throws IOException {
-    WaveletDeltaRecord delta = reader.getDelta(version.getVersion());
-    if (delta == null && cachedDeltas != null) {
-      delta = cachedDeltas.get(version);
+    // Not-yet-persisted deltas live in cachedDeltas until the async persist
+    // completes and evicts them, so the cache is authoritative for recent
+    // versions. Consult it first: reading the file for a delta whose append
+    // is still in flight can hit a partially flushed record (EOFException),
+    // which used to surface as a 500 when e.g. mark-blip-read transformed
+    // against history submitted moments earlier.
+    if (cachedDeltas != null) {
+      WaveletDeltaRecord cached = cachedDeltas.get(version);
+      if (cached != null) {
+        return cached;
+      }
     }
-    return delta;
+    try {
+      return reader.getDelta(version.getVersion());
+    } catch (EOFException e) {
+      // The record is mid-append. If persistence completed between the cache
+      // miss above and the file read, retry the cache once before failing.
+      WaveletDeltaRecord cached = cachedDeltas == null ? null : cachedDeltas.get(version);
+      if (cached != null) {
+        return cached;
+      }
+      throw e;
+    }
   }
 
   private final Executor persistExecutor;

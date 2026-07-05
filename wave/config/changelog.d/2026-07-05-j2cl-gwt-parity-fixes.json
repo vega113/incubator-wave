@@ -1,0 +1,20 @@
+{
+  "releaseId": "2026-07-05-j2cl-gwt-parity-fixes",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "J2CL/Lit UI parity fixes: mobile wave view, reply focus, blank lines, unread state",
+  "summary": "A GWT vs Lit side-by-side audit found and fixed the biggest remaining gaps in the new UI: opening a wave on a phone now actually shows the wave, replying places the caret in the editor without losing keystrokes, paragraph spacing matches the classic client, the bottom 'Click here to reply' box is back, and per-wave unread state works for freshly created waves.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Mobile: selecting a wave now switches to a full-screen wave view with a working '← Inbox' control instead of leaving the inbox list on screen with the wave unreachable below the fold.",
+        "Mobile: removed the dead hamburger toggle that painted on top of the user menu, hid the topbar Admin link that overflowed the 375px topbar (it remains in the user menu), and stopped the floating 'Inbox' link from painting over the brand.",
+        "Reply: clicking a reply/edit affordance now scrolls the inline composer into view and places the caret in it, and typing into the composer no longer loses focus to blip keyboard shortcuts after characters like 'g'.",
+        "Read surface: blank lines between paragraphs are preserved again, matching the GWT client's rendering of consecutive line tags.",
+        "Read surface: the GWT bottom-of-wave 'Click here to reply' box is now mounted on live waves and hides while the wave-root composer is open.",
+        "Unread state: /read-state and mark-blip-read no longer 404/500 for waves created since the last server restart (stale storage-snapshot lookup now unions live in-memory wavelets; delta reads prefer the in-memory cache to avoid racing in-flight writes)."
+      ]
+    }
+  ]
+}

@@ -294,6 +294,34 @@ public class SidecarTransportCodecTest {
   }
 
   @Test
+  public void decodeSelectedWaveUpdatePreservesBlankLinesBetweenParagraphs() {
+    // GWT parity (R-3.1): consecutive <line/> tags are intentional blank
+    // lines between paragraphs and must survive text extraction. Only the
+    // leading <line/> of a document is swallowed.
+    String json =
+        "{\"sequenceNumber\":14,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"
+            + "\"1\":\"local.net!w+s4635670bfbwA/~/conv+root\","
+            + "\"5\":{\"1\":\"conv+root\",\"2\":[\"user@example.com\"],"
+            + "\"3\":[{\"1\":\"b+abc123\","
+            + "\"2\":{\"1\":[{\"3\":{\"1\":\"body\",\"2\":[]}},"
+            + "{\"2\":\"para1\"},"
+            + "{\"3\":{\"1\":\"line\",\"2\":[]}},"
+            + "{\"4\":true},"
+            + "{\"3\":{\"1\":\"line\",\"2\":[]}},"
+            + "{\"4\":true},"
+            + "{\"2\":\"para2\"},"
+            + "{\"4\":true}]},"
+            + "\"3\":\"user@example.com\",\"5\":[1,0],\"6\":[2,0]}]},"
+            + "\"6\":true,\"7\":\"ch3\"}}";
+
+    SidecarSelectedWaveDocument document =
+        SidecarTransportCodec.decodeSelectedWaveUpdate(json).getDocuments().get(0);
+
+    Assert.assertEquals("para1\n\npara2", document.getTextContent());
+    Assert.assertEquals(16, document.getBodyItemCount());
+  }
+
+  @Test
   public void decodeSelectedWaveUpdateReadsRootLockDocumentState() {
     String json =
         "{\"sequenceNumber\":14,\"messageType\":\"ProtocolWaveletUpdate\",\"message\":{"

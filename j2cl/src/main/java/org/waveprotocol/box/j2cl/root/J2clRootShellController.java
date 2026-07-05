@@ -1,6 +1,7 @@
 package org.waveprotocol.box.j2cl.root;
 
 import elemental2.core.JsArray;
+import elemental2.dom.DomGlobal;
 import elemental2.dom.Event;
 import elemental2.dom.HTMLElement;
 import java.util.ArrayList;
@@ -243,6 +244,17 @@ public final class J2clRootShellController {
     // The rehydration runs inside the live-surface starter so the URL
     // depth value is applied right after route.start().
     bindDepthEventsToRoute(selectedWaveView, routeController);
+    // Mobile list<->wave switch (GWT parity): <wavy-back-to-inbox> emits a
+    // cancelable wavy-back-to-inbox-clicked before its anchor navigates.
+    // Intercept it to clear the selection through the route controller so
+    // returning to the inbox is an instant in-shell transition (the anchor
+    // href stays functional for middle-click / no-JS fallbacks).
+    DomGlobal.document.body.addEventListener(
+        "wavy-back-to-inbox-clicked",
+        event -> {
+          event.preventDefault();
+          routeControllerRef[0].selectWave(null);
+        });
     liveSurfaceController.start();
   }
 
