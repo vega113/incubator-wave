@@ -123,8 +123,9 @@ final class UserManager {
   }
 
   /**
-   * Tell the user manager that we have a submit request outstanding. While a
-   * submit request is outstanding, all wavelet updates are queued.
+   * Tell the user manager that we have a submit request outstanding. A client
+   * may have several submit requests outstanding on a wavelet at once; while any
+   * is outstanding, all wavelet updates are queued.
    *
    * @param channelId the channel identifying the specific client
    * @param waveletName the name of the wavelet

@@ -199,4 +199,103 @@ public class UserManagerTest extends TestCase {
     m.submitResponse("ch", W1A, V2);
     verifyZeroInteractions(listener);
   }
+
+  /**
+   * Tests that two overlapping submit requests on the same wavelet (which can
+   * happen because client submit RPCs are processed concurrently on a
+   * multi-threaded executor) do not throw. Previously the second concurrent
+   * submit tripped an {@code IllegalStateException} that failed the client's
+   * delta submission.
+   */
+  public void testOverlappingSubmitsAreTolerated() {
+    OpenListener listener = mock(OpenListener.class);
+    m.subscribe(W1, IdFilters.ALL_IDS, "ch", listener);
+
+    m.submitRequest("ch", W1A);
+    m.submitRequest("ch", W1A); // Second submit while the first is still in flight.
+
+    m.submitResponse("ch", W1A, V2);
+    m.submitResponse("ch", W1A, V3);
+    verifyZeroInteractions(listener);
+  }
+
+  /**
+   * Tests the production failure mode: while two submits overlap, the client's
+   * own echoed delta is held back and then dropped once both submits resolve.
+   */
+  public void testOwnDeltaDroppedAcrossOverlappingSubmits() {
+    OpenListener listener = mock(OpenListener.class);
+    m.subscribe(W1, IdFilters.ALL_IDS, "ch", listener);
+
+    m.submitRequest("ch", W1A);
+    m.submitRequest("ch", W1A);
+    m.onUpdate(W1A, DELTAS); // Echo of the client's own delta (end version V2).
+
+    m.submitResponse("ch", W1A, V2); // Resolves one submit at the echoed version.
+    m.submitResponse("ch", W1A, V3); // Resolves the last; flush drops the own delta.
+    verifyZeroInteractions(listener);
+  }
+
+  /**
+   * Tests that when overlapping submits resolve with mixed outcomes (one fails,
+   * one succeeds), a genuine remote delta held during the overlap is still
+   * delivered after the last submit resolves.
+   */
+  public void testHeldBackRemoteDeltaDeliveredAfterMixedOutcomeOverlap() {
+    OpenListener listener = mock(OpenListener.class);
+    m.subscribe(W1, IdFilters.ALL_IDS, "ch", listener);
+
+    m.submitRequest("ch", W1A);
+    m.submitRequest("ch", W1A);
+    m.onUpdate(W1A, DELTAS); // Remote delta (end version V2, not a submitted version).
+
+    m.submitResponse("ch", W1A, null); // First submit fails.
+    verifyZeroInteractions(listener); // Still one submit in flight.
+
+    m.submitResponse("ch", W1A, V3); // Last submit succeeds; V2 != V3 so delta is forwarded.
+    verify(listener).onUpdate(W1A, null, DELTAS, null, null, "ch");
+  }
+
+  /**
+   * Tests that more than two submits can overlap and that updates flow normally
+   * once the counter returns to zero.
+   */
+  public void testThreeOverlappingSubmits() {
+    OpenListener listener = mock(OpenListener.class);
+    m.subscribe(W1, IdFilters.ALL_IDS, "ch", listener);
+
+    m.submitRequest("ch", W1A);
+    m.submitRequest("ch", W1A);
+    m.submitRequest("ch", W1A);
+    m.submitResponse("ch", W1A, V2);
+    m.submitResponse("ch", W1A, V3);
+    m.submitResponse("ch", W1A, HashedVersion.unsigned(4));
+
+    // Counter back to zero: a later remote delta is delivered immediately.
+    TransformedWaveletDelta remote = UTIL.makeTransformedDelta(0L, HashedVersion.unsigned(5), 5);
+    DeltaSequence remoteDeltas = DeltaSequence.of(remote);
+    m.onUpdate(W1A, remoteDeltas);
+    verify(listener).onUpdate(W1A, null, remoteDeltas, null, null, "ch");
+  }
+
+  /**
+   * Tests that held-back deltas are only forwarded once every outstanding
+   * submit on the wavelet has resolved, not after the first one.
+   */
+  public void testHeldBackDeltasFlushedOnlyAfterAllSubmitsResolve() {
+    OpenListener listener = mock(OpenListener.class);
+    m.subscribe(W1, IdFilters.ALL_IDS, "ch", listener);
+
+    m.submitRequest("ch", W1A);
+    m.submitRequest("ch", W1A);
+    m.onUpdate(W1A, DELTAS);
+
+    // First response resolves; a submit is still outstanding so nothing is sent.
+    m.submitResponse("ch", W1A, V3);
+    verifyZeroInteractions(listener);
+
+    // Second response resolves the last submit; the held-back delta is now sent.
+    m.submitResponse("ch", W1A, HashedVersion.unsigned(4));
+    verify(listener).onUpdate(W1A, null, DELTAS, null, null, "ch");
+  }
 }

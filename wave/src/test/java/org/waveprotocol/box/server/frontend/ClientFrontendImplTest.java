@@ -333,6 +333,42 @@ public class ClientFrontendImplTest extends TestCase {
     verifyZeroInteractions(submitListener);
   }
 
+  /**
+   * Tests that if the wavelet provider rejects a submit synchronously (e.g. a
+   * signing or initialization failure) without invoking the submit listener,
+   * the client is still told the submit failed and the outstanding-submit
+   * bookkeeping is released, so later updates on the channel are not stranded.
+   */
+  public void testSubmitReleasesHeldBackUpdatesWhenProviderThrowsSynchronously() throws Exception {
+    CommittedWaveletSnapshot snapshot = provideWavelet(WN1);
+    when(waveletProvider.getWaveletIds(WAVE_ID)).thenReturn(ImmutableSet.of(W1));
+    when(waveletProvider.checkAccessPermission(WN1, USER)).thenReturn(true);
+
+    OpenListener listener = openWave(IdFilters.ALL_IDS);
+    ArgumentCaptor<String> channelIdCaptor = ArgumentCaptor.forClass(String.class);
+    verify(listener).onUpdate(eq(WN1), eq(snapshot), eq(DeltaSequence.empty()),
+        eq(V0), isNullMarker(), channelIdCaptor.capture());
+    String channelId = channelIdCaptor.getValue();
+
+    Mockito.doThrow(new RuntimeException("synchronous submit failure"))
+        .when(waveletProvider).submitRequest(eq(WN1), eq(SERIALIZED_DELTA),
+            any(SubmitRequestListener.class));
+
+    SubmitRequestListener submitListener = mock(SubmitRequestListener.class);
+    clientFrontend.submitRequest(USER, WN1, SERIALIZED_DELTA, channelId, submitListener);
+
+    // The client is notified of failure rather than the exception propagating.
+    verify(submitListener).onFailure(anyString());
+
+    // The channel was released: a subsequent update is delivered, not held back.
+    TransformedWaveletDelta delta = TransformedWaveletDelta.cloneOperations(USER, V2, 1234567890L,
+        Arrays.asList(UTIL.noOp()));
+    DeltaSequence deltas = DeltaSequence.of(delta);
+    clientFrontend.waveletUpdate(snapshot.snapshot, deltas);
+    verify(listener).onUpdate(eq(WN1), isNullSnapshot(), eq(deltas),
+        isNullVersion(), isNullMarker(), anyString());
+  }
+
   public void testCannotSubmitAsDifferentUser() {
     ParticipantId otherParticipant = new ParticipantId("another@example.com");
     OpenListener openListener = openWave(IdFilters.ALL_IDS);

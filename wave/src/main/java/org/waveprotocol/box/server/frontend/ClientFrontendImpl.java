@@ -49,6 +49,7 @@ import org.waveprotocol.wave.util.logging.Log;
 
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nullable;
@@ -267,22 +268,42 @@ public class ClientFrontendImpl implements ClientFrontend, WaveBus.Subscriber {
     }
 
     waveletInfo.getUserManager(author).submitRequest(channelId, waveletName);
-    waveletProvider.submitRequest(waveletName, delta, new SubmitRequestListener() {
-      @Override
-      public void onSuccess(int operationsApplied,
-          HashedVersion hashedVersionAfterApplication, long applicationTimestamp) {
-        listener.onSuccess(operationsApplied, hashedVersionAfterApplication,
-            applicationTimestamp);
-        waveletInfo.getUserManager(author).submitResponse(channelId, waveletName,
-            hashedVersionAfterApplication);
-      }
+    // The outstanding-submit bookkeeping above must be paired with exactly one
+    // submitResponse, otherwise the channel's updates are held back forever.
+    // Guard against both a missing response and a double response.
+    final AtomicBoolean responded = new AtomicBoolean(false);
+    try {
+      waveletProvider.submitRequest(waveletName, delta, new SubmitRequestListener() {
+        @Override
+        public void onSuccess(int operationsApplied,
+            HashedVersion hashedVersionAfterApplication, long applicationTimestamp) {
+          if (responded.compareAndSet(false, true)) {
+            listener.onSuccess(operationsApplied, hashedVersionAfterApplication,
+                applicationTimestamp);
+            waveletInfo.getUserManager(author).submitResponse(channelId, waveletName,
+                hashedVersionAfterApplication);
+          }
+        }
 
-      @Override
-      public void onFailure(String error) {
-        listener.onFailure(error);
+        @Override
+        public void onFailure(String error) {
+          if (responded.compareAndSet(false, true)) {
+            listener.onFailure(error);
+            waveletInfo.getUserManager(author).submitResponse(channelId, waveletName, null);
+          }
+        }
+      });
+    } catch (RuntimeException e) {
+      // The wavelet provider rejected the submit synchronously (e.g. a signing
+      // or initialization failure) without invoking the listener. Release the
+      // outstanding-submit bookkeeping and report the failure to the client.
+      if (responded.compareAndSet(false, true)) {
+        listener.onFailure(e.toString());
         waveletInfo.getUserManager(author).submitResponse(channelId, waveletName, null);
+      } else {
+        throw e;
       }
-    });
+    }
   }
 
   @Override

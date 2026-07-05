@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-05-overlapping-submit-fix",
+  "version": "PR #TBD",
+  "date": "2026-07-05",
+  "title": "More reliable editing under rapid changes",
+  "summary": "Fixed a race that could reject an edit when several changes to the same wave were submitted in quick succession.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Concurrent submits to the same wave no longer fail with an internal 'overlapping submit requests' error"
+      ]
+    }
+  ]
+}
