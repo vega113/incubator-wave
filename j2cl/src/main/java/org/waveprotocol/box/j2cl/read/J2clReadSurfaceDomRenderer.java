@@ -3655,6 +3655,14 @@ public final class J2clReadSurfaceDomRenderer {
       return false;
     }
     HTMLElement active = (HTMLElement) DomGlobal.document.activeElement;
+    // Check the outer host chain BEFORE descending into shadow roots:
+    // closest() does not cross shadow boundaries, so once `active` is
+    // replaced by a shadow descendant (e.g. the composer's Cancel button),
+    // closest("wavy-composer") would return null and a read-surface rebuild
+    // could steal focus from a composer control mid-interaction.
+    if (active.closest("wavy-composer") != null) {
+      return true;
+    }
     // document.activeElement stops at shadow hosts; descend through
     // shadowRoot.activeElement so a contenteditable inside any shadow tree
     // (not just <wavy-composer>) is recognized as an editing surface.

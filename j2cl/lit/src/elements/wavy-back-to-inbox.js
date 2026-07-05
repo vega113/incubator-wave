@@ -72,6 +72,15 @@ export class WavyBackToInbox extends LitElement {
   }
 
   _onClick(e) {
+    // Modified or non-primary clicks (ctrl/cmd/shift/alt, middle-click)
+    // keep native anchor semantics — open in new tab/window — so neither
+    // dispatch the router event nor cancel the navigation for them.
+    if (
+      e &&
+      (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+    ) {
+      return;
+    }
     const notPrevented = this.dispatchEvent(
       new CustomEvent("wavy-back-to-inbox-clicked", {
         bubbles: true,
