@@ -28,9 +28,12 @@ import org.waveprotocol.box.j2cl.toolbar.J2clToolbarSurfaceController;
 import org.waveprotocol.box.j2cl.toolbar.J2clToolbarSurfaceView;
 import org.waveprotocol.box.j2cl.transport.SidecarSelectedWaveDocument;
 
-public final class J2clRootShellController {
+public final class J2clRootShellController implements org.waveprotocol.box.j2cl.common.Disposable {
   private final HTMLElement host;
   private boolean started;
+  // #1268: retained for teardown so a pagehide / destroy() releases the
+  // selected-wave view's listeners (which cascade to the read surface).
+  private J2clSelectedWaveView selectedWaveView;
 
   public J2clRootShellController(HTMLElement host) {
     this.host = host;
@@ -72,6 +75,7 @@ public final class J2clRootShellController {
     J2clSelectedWaveView selectedWaveView =
         new J2clSelectedWaveView(searchView.getSelectedWaveHost(), telemetrySink);
     selectedWaveViewRef[0] = selectedWaveView;
+    this.selectedWaveView = selectedWaveView;
     HTMLElement selectedWaveComposeHost = selectedWaveView.getComposeHost();
     HTMLElement selectedCreateHost =
         createSiblingHostBefore(selectedWaveComposeHost, "j2cl-root-create-host");
@@ -271,7 +275,21 @@ public final class J2clRootShellController {
           notificationService.clear();
           routeControllerRef[0].selectWave(null);
         });
+    // #1268: final teardown on navigation away releases the selected-wave view's
+    // listeners (which cascade to the read surface) so they do not leak.
+    DomGlobal.window.addEventListener("pagehide", event -> destroy());
     liveSurfaceController.start();
+  }
+
+  /**
+   * #1268: release the surfaces this shell owns. Idempotent — safe to call from
+   * both {@code pagehide} and an explicit host teardown.
+   */
+  @Override
+  public void destroy() {
+    if (selectedWaveView != null) {
+      selectedWaveView.destroy();
+    }
   }
 
   /**

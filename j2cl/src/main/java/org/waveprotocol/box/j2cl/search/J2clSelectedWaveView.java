@@ -20,6 +20,8 @@ import java.util.Set;
 import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
+import org.waveprotocol.box.j2cl.common.Disposable;
+import org.waveprotocol.box.j2cl.common.J2clDisposeRegistry;
 import org.waveprotocol.box.j2cl.common.J2clJsInteropUtils;
 import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
@@ -36,7 +38,9 @@ import org.waveprotocol.box.j2cl.transport.SidecarViewportHints;
 import org.waveprotocol.box.j2cl.common.J2clDebugFlags;
 import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
 
-public final class J2clSelectedWaveView implements J2clSelectedWaveController.View {
+public final class J2clSelectedWaveView implements J2clSelectedWaveController.View, Disposable {
+  // #1268: tracks this view's persistent card/content listeners for teardown.
+  private final J2clDisposeRegistry disposeRegistry = new J2clDisposeRegistry();
   /**
    * Initial selected-wave viewport size for normal client-side opens.
    *
@@ -371,12 +375,13 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
    * <p>The compose surface's own body-level listener still owns the delta
    * submission; this hook is purely about the in-flight UI state.
    */
-  private static void bindOptimisticTaskToggleListener(
+  private void bindOptimisticTaskToggleListener(
       HTMLElement contentList, J2clReadSurfaceDomRenderer renderer) {
     if (contentList == null || renderer == null) {
       return;
     }
-    contentList.addEventListener(
+    disposeRegistry.addListener(
+        contentList,
         "wave-blip-task-toggled",
         evt -> {
           Object detail = jsinterop.base.Js.asPropertyMap(evt).get("detail");
@@ -474,7 +479,8 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (card == null) {
       return;
     }
-    card.addEventListener(
+    disposeRegistry.addListener(
+        card,
         "wavy-selected-wave-refresh-requested",
         evt -> {
           if (selectedWaveRefreshHandler == null) {
@@ -498,7 +504,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
    * surface. S2 records telemetry for each click; S5 will add the
    * controller wiring on top.
    */
-  private static void bindChromeEvents(HTMLElement card, J2clClientTelemetry.Sink sink) {
+  private void bindChromeEvents(HTMLElement card, J2clClientTelemetry.Sink sink) {
     String[] navEvents = {
       "wave-nav-recent-requested",
       "wave-nav-next-unread-requested",
@@ -512,7 +518,8 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       "wave-nav-version-history-requested"
     };
     for (final String navEvent : navEvents) {
-      card.addEventListener(
+      disposeRegistry.addListener(
+          card,
           navEvent,
           evt -> {
             try {
@@ -527,7 +534,8 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     }
     String[] depthEvents = {"wavy-depth-up", "wavy-depth-root", "wavy-depth-jump-to-crumb"};
     for (final String depthEvent : depthEvents) {
-      card.addEventListener(
+      disposeRegistry.addListener(
+          card,
           depthEvent,
           evt -> {
             try {
@@ -544,16 +552,31 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
   private void bindNavigationEvents(HTMLElement card) {
     // #1273: the nav-row events are thin callers into the single focus owner.
-    card.addEventListener("wave-nav-recent-requested", evt -> blipFocus.focusMostRecent());
-    card.addEventListener(
-        "wave-nav-next-unread-requested", evt -> blipFocus.focusNextMatching("unread", 1));
-    card.addEventListener("wave-nav-previous-requested", evt -> blipFocus.focusAdjacent(-1));
-    card.addEventListener("wave-nav-next-requested", evt -> blipFocus.focusAdjacent(1));
-    card.addEventListener("wave-nav-end-requested", evt -> blipFocus.focusLast());
-    card.addEventListener(
-        "wave-nav-prev-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", -1));
-    card.addEventListener(
-        "wave-nav-next-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", 1));
+    // #1268: bound through the dispose registry so they are removed on destroy().
+    disposeRegistry.addListener(
+        card, "wave-nav-recent-requested", evt -> blipFocus.focusMostRecent());
+    disposeRegistry.addListener(
+        card, "wave-nav-next-unread-requested", evt -> blipFocus.focusNextMatching("unread", 1));
+    disposeRegistry.addListener(
+        card, "wave-nav-previous-requested", evt -> blipFocus.focusAdjacent(-1));
+    disposeRegistry.addListener(card, "wave-nav-next-requested", evt -> blipFocus.focusAdjacent(1));
+    disposeRegistry.addListener(card, "wave-nav-end-requested", evt -> blipFocus.focusLast());
+    disposeRegistry.addListener(
+        card, "wave-nav-prev-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", -1));
+    disposeRegistry.addListener(
+        card, "wave-nav-next-mention-requested", evt -> blipFocus.focusNextMatching("has-mention", 1));
+  }
+
+  /**
+   * #1268: release this view's persistent card/content listeners and cascade to
+   * the read surface. Idempotent and safe to call more than once.
+   */
+  @Override
+  public void destroy() {
+    disposeRegistry.destroy();
+    if (readSurface != null) {
+      readSurface.destroy();
+    }
   }
 
   static void configureContentList(HTMLElement contentList) {

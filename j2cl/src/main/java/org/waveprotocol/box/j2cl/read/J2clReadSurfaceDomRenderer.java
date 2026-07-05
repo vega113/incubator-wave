@@ -23,6 +23,8 @@ import java.util.Set;
 import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
 import org.waveprotocol.box.j2cl.attachment.J2clAttachmentRenderModel;
+import org.waveprotocol.box.j2cl.common.Disposable;
+import org.waveprotocol.box.j2cl.common.J2clDisposeRegistry;
 import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
 import org.waveprotocol.box.j2cl.overlay.J2clReactionSummary;
 import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
@@ -30,7 +32,9 @@ import org.waveprotocol.box.j2cl.telemetry.J2clClientTelemetry;
 import org.waveprotocol.box.j2cl.transport.SidecarConversationManifest;
 import org.waveprotocol.box.j2cl.viewport.J2clViewportGrowthDirection;
 
-public final class J2clReadSurfaceDomRenderer {
+public final class J2clReadSurfaceDomRenderer implements Disposable {
+  // #1268: tracks the host + window scroll listeners for teardown.
+  private final J2clDisposeRegistry disposeRegistry = new J2clDisposeRegistry();
   // Roughly one compact blip of lead time before a viewport edge reaches the exact scroll boundary.
   private static final double EDGE_SCROLL_THRESHOLD_PX = 64;
   private static final String ATTACHMENT_TELEMETRY_BOUND = "data-attachment-telemetry-bound";
@@ -257,8 +261,10 @@ public final class J2clReadSurfaceDomRenderer {
       lastScrollDirection = null;
     }
     if (!scrollListenerBound) {
-      host.addEventListener("scroll", this::onHostScroll);
-      DomGlobal.window.addEventListener("scroll", this::onHostScroll);
+      // #1268: bound through the dispose registry so both scroll listeners are
+      // removed on destroy() instead of leaking for the page's lifetime.
+      disposeRegistry.addListener(host, "scroll", this::onHostScroll);
+      disposeRegistry.addListener(DomGlobal.window, "scroll", this::onHostScroll);
       scrollListenerBound = true;
     }
   }
@@ -314,8 +320,10 @@ public final class J2clReadSurfaceDomRenderer {
       evaluateDwellTimers();
     }
     if (!scrollListenerBound) {
-      host.addEventListener("scroll", this::onHostScroll);
-      DomGlobal.window.addEventListener("scroll", this::onHostScroll);
+      // #1268: bound through the dispose registry so both scroll listeners are
+      // removed on destroy() instead of leaking for the page's lifetime.
+      disposeRegistry.addListener(host, "scroll", this::onHostScroll);
+      disposeRegistry.addListener(DomGlobal.window, "scroll", this::onHostScroll);
       scrollListenerBound = true;
     }
   }
@@ -3087,6 +3095,16 @@ public final class J2clReadSurfaceDomRenderer {
     } catch (Throwable ignored) {
       // Telemetry is observational.
     }
+  }
+
+  /**
+   * #1268: remove the host + window scroll listeners. Idempotent; the renderer
+   * stops responding to scroll once destroyed.
+   */
+  @Override
+  public void destroy() {
+    disposeRegistry.destroy();
+    scrollListenerBound = false;
   }
 
   private void onHostScroll(Event event) {
