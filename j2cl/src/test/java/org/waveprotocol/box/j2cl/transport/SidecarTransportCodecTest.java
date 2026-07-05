@@ -682,6 +682,44 @@ public class SidecarTransportCodecTest {
 
     Assert.assertEquals("user@example.com", bootstrap.getAddress());
     Assert.assertEquals("socket.example.test:7443", bootstrap.getWebSocketAddress());
+    // #1277: session.locale absent here → empty locale, never null.
+    Assert.assertEquals("", bootstrap.getLocale());
+  }
+
+  @Test
+  public void bootstrapJsonSurfacesSessionLocale() {
+    String json =
+        "{\"session\":{\"address\":\"user@example.com\",\"locale\":\"de\"},"
+            + "\"socket\":{\"address\":\"socket.example.test:7443\"}}";
+
+    SidecarSessionBootstrap bootstrap = SidecarSessionBootstrap.fromBootstrapJson(json);
+
+    Assert.assertEquals("de", bootstrap.getLocale());
+  }
+
+  @Test
+  public void bootstrapJsonLocaleIgnoresNonStringAndNullLiteral() {
+    String jsonNull =
+        "{\"session\":{\"address\":\"user@example.com\",\"locale\":\"null\"},"
+            + "\"socket\":{\"address\":\"socket.example.test:7443\"}}";
+    Assert.assertEquals("", SidecarSessionBootstrap.fromBootstrapJson(jsonNull).getLocale());
+
+    String jsonNumber =
+        "{\"session\":{\"address\":\"user@example.com\",\"locale\":42},"
+            + "\"socket\":{\"address\":\"socket.example.test:7443\"}}";
+    Assert.assertEquals("", SidecarSessionBootstrap.fromBootstrapJson(jsonNumber).getLocale());
+  }
+
+  @Test
+  public void rootHtmlSurfacesSessionLocale() {
+    String html =
+        "<html><script>window.__session={\"address\":\"user@example.com\",\"locale\":\"zh_TW\"};"
+            + "window.__websocket_address=\"socket.example.test:7443\";"
+            + "</script></html>";
+
+    SidecarSessionBootstrap bootstrap = SidecarSessionBootstrap.fromRootHtml(html);
+
+    Assert.assertEquals("zh_TW", bootstrap.getLocale());
   }
 
   @Test

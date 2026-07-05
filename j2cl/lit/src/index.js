@@ -86,6 +86,11 @@ import "./elements/wavy-confirm-dialog.js";
 // per-row archive/pin/version-history buttons to the /folder servlet
 // and the existing <wavy-version-history> overlay.
 import "./controllers/wave-action-bar-controller.js";
+// #1277: publish the i18n catalog to the J2CL sidecar bundle so Java-emitted
+// dynamic status/error strings resolve through the same `t()` + catalogs.
+import { installI18nBridge } from "./i18n/j2cl-bridge.js";
+
+installI18nBridge();
 
 window.__litShellInput =
   window.__bootstrap && typeof window.__bootstrap === "object"

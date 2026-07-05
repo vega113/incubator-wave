@@ -1,9 +1,12 @@
 package org.waveprotocol.box.j2cl.root;
 
+import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.search.J2clSidecarRouteState;
 import org.waveprotocol.box.j2cl.search.J2clSidecarRouteCodec;
 
 public final class J2clRootLiveSurfaceModel {
+  // #1277: English fallbacks; the localized text lives in the Lit catalog under
+  // these keys and is resolved through J2clI18n at each transition.
   private static final String ROUTE_READY_STATUS = "Workspace is ready.";
   private static final String SELECTED_WAVE_STATUS = "Selected wave is active.";
   private static final String STARTING_STATUS = "Loading workspace.";
@@ -42,14 +45,14 @@ public final class J2clRootLiveSurfaceModel {
 
   public static J2clRootLiveSurfaceModel starting() {
     return new J2clRootLiveSurfaceModel(
-        "", "", null, STARTING_STATUS, CONNECTION_ONLINE, SAVE_SAVED);
+        "", "", null, startingStatus(), CONNECTION_ONLINE, SAVE_SAVED);
   }
 
   public J2clRootLiveSurfaceModel withRouteUrl(String nextRouteUrl) {
     String normalizedRouteUrl = nullToEmpty(nextRouteUrl);
     if (normalizedRouteUrl.isEmpty()) {
       return new J2clRootLiveSurfaceModel(
-          "", "", null, STARTING_STATUS, connectionState, saveState);
+          "", "", null, startingStatus(), connectionState, saveState);
     }
     J2clSidecarRouteState routeState = parseRouteUrl(normalizedRouteUrl);
     return new J2clRootLiveSurfaceModel(
@@ -170,20 +173,28 @@ public final class J2clRootLiveSurfaceModel {
     return SAVE_SAVED;
   }
 
+  private static String startingStatus() {
+    return J2clI18n.t("rootStatus.loading", STARTING_STATUS);
+  }
+
   private static String routeStatus(String routeUrl, String query) {
     String normalizedQuery = nullToEmpty(query);
     if (!normalizedQuery.isEmpty()) {
-      return "Showing search results for " + normalizedQuery + ".";
+      return J2clI18n.format(
+          "rootStatus.searchResults",
+          "Showing search results for {query}.",
+          "{query}",
+          normalizedQuery);
     }
     String normalizedRouteUrl = nullToEmpty(routeUrl);
     if (normalizedRouteUrl.isEmpty()) {
-      return STARTING_STATUS;
+      return startingStatus();
     }
-    return ROUTE_READY_STATUS;
+    return J2clI18n.t("rootStatus.ready", ROUTE_READY_STATUS);
   }
 
   private static String selectedWaveStatus() {
-    return SELECTED_WAVE_STATUS;
+    return J2clI18n.t("rootStatus.selectedWave", SELECTED_WAVE_STATUS);
   }
 
   private static String statusFor(String routeUrl, String query, String selectedWaveId) {

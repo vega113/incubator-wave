@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-07-05-j2cl-java-surface-i18n",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "New UI: workspace and wave status/error messages are now localizable",
+  "summary": "Previously, a German user under the new UI still saw English text for the dynamic status and error messages that the J2CL/Java layer produces (workspace loading state, selected-wave status, reconnect/disconnect and open-failure errors). These now flow through the same Lit i18n catalog as the rest of the UI, so they render in the user's locale (German shipped alongside English) with English as a safe fallback.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: dynamic status and error strings emitted by the J2CL layer — 'Loading workspace.', 'Showing search results for …', selected-wave open/reconnect status, and errors like 'Selected wave disconnected.' / 'Unable to open selected wave.' — are now resolved through the Lit i18n catalog and localized (German included), instead of always rendering in English.",
+        "New UI: the user's locale from the session bootstrap is now available to the J2CL layer, and a single i18n bridge lets the Java surfaces reuse the existing translation catalog without duplicating any strings."
+      ]
+    }
+  ]
+}

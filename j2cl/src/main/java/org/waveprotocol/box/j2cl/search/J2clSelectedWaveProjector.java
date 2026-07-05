@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.waveprotocol.box.j2cl.common.J2clDebugFlags;
+import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.overlay.J2clTaskItemModel;
 import org.waveprotocol.box.j2cl.read.J2clInlineReplyAnchor;
@@ -139,7 +140,9 @@ public final class J2clSelectedWaveProjector {
 
     String detailText = J2clDebugFlags.DEBUG_OVERLAY_ENABLED ? buildDetailText(update) : "";
     String baseStatusText =
-        reconnectCount > 0 ? "Live updates reconnected." : "Live updates connected.";
+        reconnectCount > 0
+            ? J2clI18n.t("selectedWave.liveReconnected", "Live updates reconnected.")
+            : J2clI18n.t("selectedWave.liveConnected", "Live updates connected.");
 
     int unreadCount;
     boolean read;

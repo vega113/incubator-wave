@@ -3,6 +3,7 @@ package org.waveprotocol.box.j2cl.search;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.read.J2clReadBlip;
 import org.waveprotocol.box.j2cl.transport.SidecarConversationManifest;
@@ -232,11 +233,15 @@ public final class J2clSelectedWaveModel {
         false,
         false,
         selectedWaveId,
-        "Select a wave",
+        J2clI18n.t("selectedWave.selectTitle", "Select a wave"),
         "",
         "",
-        "Choose a digest from the search results to open a read-only selected-wave panel.",
-        "Copied URLs can restore the selected wave when the route includes it.",
+        J2clI18n.t(
+            "selectedWave.chooseDigest",
+            "Choose a digest from the search results to open a read-only selected-wave panel."),
+        J2clI18n.t(
+            "selectedWave.copiedUrls",
+            "Copied URLs can restore the selected wave when the route includes it."),
         0,
         Collections.<String>emptyList(),
         Collections.<String>emptyList(),
@@ -270,10 +275,16 @@ public final class J2clSelectedWaveModel {
         resolveTitle(selectedWaveId, digestItem),
         resolveSnippet(digestItem),
         resolveUnreadText(digestItem, prevUnreadCount, prevRead, prevKnown),
-        reconnectCount > 0 ? "Reconnecting selected wave." : "Opening selected wave.",
         reconnectCount > 0
-            ? "Reusing the current session after a disconnect."
-            : "Waiting for the first live selected-wave update.",
+            ? J2clI18n.t("selectedWave.reconnecting", "Reconnecting selected wave.")
+            : J2clI18n.t("selectedWave.opening", "Opening selected wave."),
+        reconnectCount > 0
+            ? J2clI18n.t(
+                "selectedWave.reusingSession",
+                "Reusing the current session after a disconnect.")
+            : J2clI18n.t(
+                "selectedWave.waitingFirstUpdate",
+                "Waiting for the first live selected-wave update."),
         reconnectCount,
         Collections.<String>emptyList(),
         Collections.<String>emptyList(),
@@ -321,7 +332,9 @@ public final class J2clSelectedWaveModel {
     if (digestItem != null && digestItem.getTitle() != null && !digestItem.getTitle().isEmpty()) {
       return digestItem.getTitle();
     }
-    return selectedWaveId == null ? "Selected wave" : selectedWaveId;
+    return selectedWaveId == null
+        ? J2clI18n.t("selectedWave.defaultTitle", "Selected wave")
+        : selectedWaveId;
   }
 
   private static String resolveSnippet(J2clSearchDigestItem digestItem) {
@@ -338,15 +351,20 @@ public final class J2clSelectedWaveModel {
     }
     int digestUnreadCount = digestItem.getUnreadCount();
     return digestUnreadCount <= 0
-        ? "Selected digest is read."
-        : digestUnreadCount + " unread in the selected digest.";
+        ? J2clI18n.t("selectedWave.digestRead", "Selected digest is read.")
+        : J2clI18n.format(
+            "selectedWave.digestUnread",
+            "{count} unread in the selected digest.",
+            "{count}",
+            String.valueOf(digestUnreadCount));
   }
 
   static String formatUnreadText(int unreadCount, boolean read) {
     if (unreadCount <= 0 || read) {
-      return "Read.";
+      return J2clI18n.t("selectedWave.read", "Read.");
     }
-    return unreadCount + " unread.";
+    return J2clI18n.format(
+        "selectedWave.unread", "{count} unread.", "{count}", String.valueOf(unreadCount));
   }
 
   public boolean hasSelection() {
