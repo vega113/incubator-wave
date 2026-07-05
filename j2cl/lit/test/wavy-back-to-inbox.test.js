@@ -40,6 +40,23 @@ describe("<wavy-back-to-inbox>", () => {
     expect(ev.composed).to.equal(true);
   });
 
+  it("preventDefault on wavy-back-to-inbox-clicked cancels anchor navigation", async () => {
+    const el = await fixture(html`<wavy-back-to-inbox></wavy-back-to-inbox>`);
+    el.addEventListener("wavy-back-to-inbox-clicked", (ev) => ev.preventDefault());
+    const a = el.renderRoot.querySelector("a");
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    a.dispatchEvent(click);
+    expect(click.defaultPrevented).to.equal(true);
+  });
+
+  it("anchor navigation proceeds when no listener intercepts", async () => {
+    const el = await fixture(html`<wavy-back-to-inbox></wavy-back-to-inbox>`);
+    const a = el.renderRoot.querySelector("a");
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    a.dispatchEvent(click);
+    expect(click.defaultPrevented).to.equal(false);
+  });
+
   it("clearing href falls back to #inbox in the rendered output", async () => {
     const el = await fixture(html`<wavy-back-to-inbox></wavy-back-to-inbox>`);
     el.href = "";

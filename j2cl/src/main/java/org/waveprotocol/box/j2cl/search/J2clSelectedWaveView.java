@@ -746,6 +746,16 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     // <wave-blip> renderer can lift it onto each rendered card without
     // changing the renderer signature. Cleared explicitly when no wave is
     // selected so a stale id is not propagated to the next opened wave.
+    // Mobile list<->wave switch (GWT parity): the <=860px layout shows the
+    // search rail and the opened wave as alternating full-screen views.
+    // Surface the selection state on <body> so the document stylesheet can
+    // collapse the rail while a wave is open and reveal the back-to-inbox
+    // affordance. No-op for desktop layouts, which show both regions.
+    if (renderedWaveId.isEmpty()) {
+      DomGlobal.document.body.removeAttribute("data-j2cl-wave-open");
+    } else {
+      DomGlobal.document.body.setAttribute("data-j2cl-wave-open", "true");
+    }
     if (renderedWaveId.isEmpty()) {
       contentList.removeAttribute("data-wave-id");
       if (waveNavRow != null) {

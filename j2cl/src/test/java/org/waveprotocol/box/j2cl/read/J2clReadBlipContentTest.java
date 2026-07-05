@@ -120,11 +120,14 @@ public class J2clReadBlipContentTest {
   }
 
   @Test
-  public void consecutiveLineTagsInsideTextCollapseToSingleSeparator() {
+  public void consecutiveLineTagsInsideTextPreserveBlankLine() {
+    // GWT parity (R-3.1): consecutive <line/> tags are intentional blank
+    // lines between paragraphs (WelcomeWaveContentBuilder#appendBlankLine)
+    // and must survive extraction instead of collapsing to one separator.
     J2clReadBlipContent parsed =
         J2clReadBlipContent.parseRawSnapshot("<body>Hello<line/><line/>World</body>");
 
-    Assert.assertEquals("Hello\nWorld", parsed.getText());
+    Assert.assertEquals("Hello\n\nWorld", parsed.getText());
   }
 
   @Test

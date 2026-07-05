@@ -20,8 +20,11 @@ import { t } from "../i18n/t.js";
  * A11y:
  *   - aria-label="Back to inbox"
  *
- * Events emitted (CustomEvent, bubbles + composed, NOT cancelling):
- *   - `wavy-back-to-inbox-clicked` — no detail.
+ * Events emitted (CustomEvent, bubbles + composed, cancelable):
+ *   - `wavy-back-to-inbox-clicked` — no detail. Calling preventDefault()
+ *     on it cancels the anchor's default navigation so a router can
+ *     handle the transition in-shell (the href remains functional for
+ *     middle-click, new-tab, and no-listener fallbacks).
  */
 export class WavyBackToInbox extends LitElement {
   static properties = {
@@ -67,13 +70,17 @@ export class WavyBackToInbox extends LitElement {
     this.href = "#inbox";
   }
 
-  _onClick() {
-    this.dispatchEvent(
+  _onClick(e) {
+    const notPrevented = this.dispatchEvent(
       new CustomEvent("wavy-back-to-inbox-clicked", {
         bubbles: true,
-        composed: true
+        composed: true,
+        cancelable: true
       })
     );
+    if (!notPrevented && e) {
+      e.preventDefault();
+    }
   }
 
   render() {

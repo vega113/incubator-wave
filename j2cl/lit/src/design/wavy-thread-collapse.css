@@ -269,3 +269,68 @@ wavy-search-rail .waveform > svg {
 .wavy-awareness-pill[hidden] {
   display: none;
 }
+
+/* Mobile list<->wave switch (GWT parity). On <=860px the shell grid
+ * stacks the search rail above the wave region, and the rail's auto row
+ * consumed nearly the whole 100vh shell, leaving the opened wave an
+ * unreachable sliver below the fold. Mirror the GWT mobile model
+ * instead: the rail and the opened wave are alternating full-screen
+ * views, switched by the body[data-j2cl-wave-open] attribute that
+ * J2clSelectedWaveView.render maintains.
+ *
+ * These are document-level rules on purpose: they coordinate the
+ * shell grid, slotted light-DOM regions, and fixed-position floating
+ * controls that live outside <shell-root>, which no single element's
+ * shadow stylesheet can reach. */
+@media (max-width: 860px) {
+  body[data-j2cl-wave-open] shell-root > [slot="nav"] {
+    display: none;
+  }
+
+  /* The read surface may inherit a desktop min-width through the rail
+   * sizing tokens; clamp it to the viewport so the opened wave cannot
+   * force horizontal scrolling inside the clipped shell. */
+  body[data-j2cl-wave-open] shell-main-region .j2cl-read-surface,
+  body[data-j2cl-wave-open] shell-main-region [data-j2cl-read-surface] {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* J.5 back-to-inbox: only meaningful while a wave is open (the rail
+   * IS the inbox otherwise), and it must sit inside the 40px compact
+   * topbar band where the brand normally paints — so the brand yields
+   * while the affordance is shown. Document-level rules deliberately
+   * override the element's :host defaults (top/left 12px), which were
+   * sized for the dark full-bleed wavy chrome, not the compact topbar. */
+  wavy-back-to-inbox {
+    display: none;
+  }
+
+  body[data-j2cl-wave-open] wavy-back-to-inbox {
+    display: inline-flex;
+    top: 4px;
+    left: 4px;
+    z-index: 95;
+  }
+
+  body[data-j2cl-wave-open] shell-header[compact-gwt-topbar] > [slot="brand"] {
+    visibility: hidden;
+  }
+
+  /* The SSR topbar Admin link is redundant on phones (the user menu
+   * carries the same destination) and overflowed the 375px topbar,
+   * painting as a clipped half-button. */
+  shell-header[compact-gwt-topbar] > a[data-j2cl-root-admin-link] {
+    display: none;
+  }
+}
+
+/* J.4 nav-drawer toggle: the drawer chrome itself has not shipped yet
+ * (#shell-nav-drawer is a hidden placeholder and nothing consumes
+ * wavy-nav-drawer-toggled), so the fixed-position hamburger was a dead
+ * control painting on top of the topbar user menu. Keep it mounted for
+ * the floating-mount parity contract but suppress it until the drawer
+ * lands. */
+wavy-nav-drawer-toggle {
+  display: none;
+}

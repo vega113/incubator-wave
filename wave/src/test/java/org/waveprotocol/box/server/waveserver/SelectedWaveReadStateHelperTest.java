@@ -135,6 +135,32 @@ public final class SelectedWaveReadStateHelperTest extends TestCase {
     assertNull(digestedView.getWavelet(OTHER_UDW));
   }
 
+  public void testComputeReadStateFindsFreshWaveViaInMemoryWavelets() throws Exception {
+    WaveMap waveMap = mock(WaveMap.class);
+    WaveDigester digester = mock(WaveDigester.class);
+    SelectedWaveReadStateHelper helper =
+        new SelectedWaveReadStateHelper(DOMAIN, waveMap, digester);
+
+    // Freshly created wave: the storage snapshot is empty because the wave
+    // entry was cached during its own creation (Wave#lookedupWavelets is a
+    // one-shot future). Only the in-memory containers know the wavelets, so
+    // read-state must union them in instead of returning 404.
+    when(waveMap.lookupWavelets(WAVE_ID)).thenReturn(ImmutableSet.<WaveletId>of());
+    when(waveMap.getInMemoryWaveletIds(WAVE_ID))
+        .thenReturn(ImmutableSet.of(ACCESSIBLE_CONV, USER_UDW));
+
+    stubWaveletContainer(waveMap, ACCESSIBLE_CONV, wavelet(ACCESSIBLE_CONV, USER));
+    stubWaveletContainer(waveMap, USER_UDW, wavelet(USER_UDW, USER));
+
+    when(digester.getUnreadBlipState(eq(USER), any(WaveViewData.class)))
+        .thenReturn(new WaveDigester.UnreadBlipState(Arrays.asList("b+1")));
+
+    SelectedWaveReadStateHelper.Result result = helper.computeReadState(USER, WAVE_ID);
+
+    assertTrue(result.exists());
+    assertEquals(1, result.getUnreadCount());
+  }
+
   private static ObservableWaveletData wavelet(WaveletId waveletId, ParticipantId participant) {
     ObservableWaveletData wavelet = mock(ObservableWaveletData.class);
     when(wavelet.getWaveletId()).thenReturn(waveletId);

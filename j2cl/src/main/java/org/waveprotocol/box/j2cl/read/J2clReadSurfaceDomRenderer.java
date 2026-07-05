@@ -2938,6 +2938,16 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   private void onBlipKeyDown(Event event) {
+    // GWT parity (R-5.1): keystrokes originating inside an editable or
+    // interactive element belong to that control, never to blip
+    // navigation. The inline <wavy-composer> body is a contenteditable in
+    // a shadow root mounted within the blip DOM, so its keydowns bubble
+    // here with a retargeted event.target — without this guard, typing
+    // "g" into a reply yanked focus to the first blip (Home alias) and
+    // the rest of the sentence was lost to shortcut handling.
+    if (isInteractiveClick(event)) {
+      return;
+    }
     KeyboardEvent keyEvent = (KeyboardEvent) event;
     String key = keyEvent.key;
     if (event.currentTarget != null && currentVisibleBlipIndex(visibleBlips()) < 0) {
@@ -3629,7 +3639,39 @@ public final class J2clReadSurfaceDomRenderer {
     return false;
   }
 
+  /**
+   * True when keyboard focus currently lives in an editing surface — the
+   * inline {@code <wavy-composer>} (focus composes up to the host element),
+   * a form field, or any contenteditable. A read-surface rebuild must not
+   * steal focus back to the focus-frame blip while the user is typing:
+   * the inline composer mounts inside the blip DOM, so
+   * {@code currentFocusedBlipId()} resolves it to its containing blip and
+   * the restore would re-focus that blip mid-keystroke (GWT keeps the
+   * editor caret across incremental renders).
+   */
+  private static boolean focusIsInEditingSurface() {
+    if (DomGlobal.document == null
+        || !(DomGlobal.document.activeElement instanceof HTMLElement)) {
+      return false;
+    }
+    HTMLElement active = (HTMLElement) DomGlobal.document.activeElement;
+    // elemental2's HTMLElement does not expose isContentEditable; read the
+    // live DOM property instead.
+    if (Js.isTruthy(Js.asPropertyMap(active).get("isContentEditable"))) {
+      return true;
+    }
+    String tag = active.tagName == null ? "" : active.tagName.toLowerCase();
+    if ("textarea".equals(tag) || "input".equals(tag) || "select".equals(tag)) {
+      return true;
+    }
+    return active.closest("wavy-composer") != null;
+  }
+
   private void restoreFocusedBlip(HTMLElement previousFocusedBlip) {
+    if (focusIsInEditingSurface()) {
+      ensureSingleTabStop();
+      return;
+    }
     HTMLElement restored = visibleRenderedBlip(previousFocusedBlip);
     if (restored == null) {
       restored = visibleRenderedBlip((HTMLElement) DomGlobal.document.activeElement);
@@ -3645,6 +3687,10 @@ public final class J2clReadSurfaceDomRenderer {
   }
 
   private void restoreFocusedBlipById(String blipId) {
+    if (focusIsInEditingSurface()) {
+      ensureSingleTabStop();
+      return;
+    }
     HTMLElement restored = visibleRenderedBlip(renderedBlipById(blipId));
     if (restored != null) {
       focusBlip(restored);

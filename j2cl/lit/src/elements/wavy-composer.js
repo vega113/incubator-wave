@@ -565,7 +565,17 @@ export class WavyComposer extends LitElement {
     // because `document.getSelection()` does not reliably pierce the
     // shadow root in WebKit / Firefox.
     this._lastSelectionRange = null;
-    this._handleFocusRequest = () => this.focusComposer();
+    // GWT parity (R-5.1): the controller dispatches composer-focus-request
+    // synchronously right after mounting the element, before Lit's first
+    // async render creates the contenteditable body. Remember the request
+    // and honor it from updated() once the body exists, so opening an
+    // inline reply/edit composer lands the caret in the editor like GWT.
+    this._pendingFocusRequest = false;
+    this._handleFocusRequest = () => {
+      if (!this.focusComposer()) {
+        this._pendingFocusRequest = true;
+      }
+    };
     this._handleSelectionChange = () => this._onSelectionChange();
   }
 
@@ -2802,11 +2812,22 @@ export class WavyComposer extends LitElement {
     card.activeSelection = this._activeSelection;
   }
 
-  /** Focus the contenteditable body. Bound to `composer-focus-request`. */
+  /**
+   * Focus the contenteditable body. Bound to `composer-focus-request`.
+   * Returns true when focus landed; false when the body is not ready yet
+   * (first render pending) so the caller can retry after render.
+   */
   focusComposer() {
-    if (!this.available) return;
+    if (!this.available) return false;
     const body = this._bodyElement;
-    if (!body || !body.isConnected) return;
+    if (!body || !body.isConnected) return false;
+    // The controller intentionally restores the scroll position of the
+    // surrounding surface after mounting an inline composer, which can
+    // leave the editor below the fold. Focusing must bring it into view
+    // (GWT scrolls the caret into view when a reply editor opens).
+    if (typeof body.scrollIntoView === "function") {
+      body.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
     body.focus();
     // Place caret at end if the body is non-empty.
     const range = document.createRange();
@@ -2817,9 +2838,21 @@ export class WavyComposer extends LitElement {
       selection.removeAllRanges();
       selection.addRange(range);
     }
+    return true;
   }
 
   updated(changed) {
+    if (this._pendingFocusRequest && this._bodyElement && this.available) {
+      this._pendingFocusRequest = false;
+      // Focusing synchronously inside updated() does not stick on a
+      // freshly mounted composer (Chromium drops focus applied while the
+      // shadow tree is still being committed), so defer one frame.
+      requestAnimationFrame(() => {
+        if (this.isConnected) {
+          this.focusComposer();
+        }
+      });
+    }
     if (changed.has("draft") && this._bodyElement) {
       // F-3.S2 (#1038, R-5.3): skip the textContent overwrite when the
       // body has rich content (mention chips, task lists) the plain

@@ -645,7 +645,14 @@ public final class SidecarTransportCodec {
       text.deleteCharAt(text.length() - 1);
       clampInlineReplyAnchorOffsets(inlineReplyAnchors, text.length());
     }
-    if (text.length() > 0 && text.charAt(text.length() - 1) != '\n') {
+    // GWT parity (R-3.1 content fidelity): every <line/> after the first
+    // starts a new rendered line, including consecutive <line/> tags that
+    // produce intentional blank lines between paragraphs. Only the leading
+    // <line/> (text still empty) is swallowed so documents do not start
+    // with a phantom blank line. The previous `!= '\n'` guard collapsed
+    // blank lines entirely, so paragraph spacing present in the GWT client
+    // vanished in the J2CL read surface.
+    if (text.length() > 0) {
       text.append('\n');
     }
   }
