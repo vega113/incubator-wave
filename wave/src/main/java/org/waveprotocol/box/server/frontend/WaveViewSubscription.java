@@ -64,9 +64,12 @@ final class WaveViewSubscription {
      */
     public HashedVersion lastVersion = null;
     /**
-     * Whether a submit request is awaiting a response.
+     * Number of submit requests awaiting a response. Client submit RPCs are
+     * processed concurrently on a multi-threaded executor, so a client can have
+     * more than one submit in flight on the same wavelet at once; this counter
+     * tolerates that rather than failing the overlapping submit.
      */
-    public boolean hasOutstandingSubmit = false;
+    public int outstandingSubmits = 0;
     /**
      * Outbound deltas held back while a submit is in-flight.
      */
@@ -121,17 +124,17 @@ final class WaveViewSubscription {
 
   /** This client sent a submit request */
   public synchronized void submitRequest(WaveletName waveletName) {
-    // A given client can only have one outstanding submit per wavelet.
+    // A client may have several submits in flight on the same wavelet at once,
+    // since submit RPCs are processed concurrently; hold back updates until the
+    // last of them has resolved.
     WaveletChannelState state;
     try {
       state = channels.get(waveletName.waveletId);
     } catch (ExecutionException ex) {
       throw new RuntimeException(ex);
     }
-    Preconditions.checkState(!state.hasOutstandingSubmit,
-        "Received overlapping submit requests to subscription %s", this);
+    state.outstandingSubmits++;
     LOG.info("Submit oustandinding on channel " + channelId);
-    state.hasOutstandingSubmit = true;
   }
 
   /**
@@ -146,34 +149,30 @@ final class WaveViewSubscription {
     } catch (ExecutionException ex) {
       throw new RuntimeException(ex);
     }
-    Preconditions.checkState(state.hasOutstandingSubmit);
-    state.hasOutstandingSubmit = false;
+    Preconditions.checkState(state.outstandingSubmits > 0);
+    state.outstandingSubmits--;
 
     if (version == null) {
       // Submit failed — no version to record for this submit.
       LOG.info("Submit failed (null version) on channel " + channelId);
-      List<TransformedWaveletDelta> filteredDeltas =
-          filterOwnDeltas(state.heldBackDeltas, state);
-      if (!filteredDeltas.isEmpty()) {
-        for (TransformedWaveletDelta delta : filteredDeltas) {
-          sendUpdate(waveletName, Collections.singletonList(delta), null);
-        }
-      }
-      state.heldBackDeltas.clear();
+    } else {
+      state.submittedEndVersions.add(version.getVersion());
+      LOG.info("Submit resolved on channel " + channelId);
+    }
+
+    // Only forward queued deltas once every outstanding submit has resolved, so
+    // the client still receives its own submit responses before the updates
+    // that were held back while any submit was in flight.
+    if (state.outstandingSubmits > 0) {
       return;
     }
 
-    state.submittedEndVersions.add(version.getVersion());
-    LOG.info("Submit resolved on channel " + channelId);
-
-    // Forward any queued deltas.
-    List<TransformedWaveletDelta> filteredDeltas =  filterOwnDeltas(state.heldBackDeltas, state);
-      if (!filteredDeltas.isEmpty()) {
-          for (TransformedWaveletDelta delta : filteredDeltas) {
-              List<TransformedWaveletDelta> singletonDeltaList = Collections.singletonList(delta);
-              sendUpdate(waveletName, singletonDeltaList, null);
-          }
+    List<TransformedWaveletDelta> filteredDeltas = filterOwnDeltas(state.heldBackDeltas, state);
+    if (!filteredDeltas.isEmpty()) {
+      for (TransformedWaveletDelta delta : filteredDeltas) {
+        sendUpdate(waveletName, Collections.singletonList(delta), null);
       }
+    }
     state.heldBackDeltas.clear();
   }
 
@@ -194,7 +193,7 @@ final class WaveViewSubscription {
     }
     checkUpdateVersion(waveletName, deltas, state);
     state.lastVersion = deltas.getEndVersion();
-    if (state.hasOutstandingSubmit) {
+    if (state.outstandingSubmits > 0) {
       state.heldBackDeltas.addAll(deltas);
     } else {
       List<TransformedWaveletDelta> filteredDeltas = filterOwnDeltas(deltas, state);
