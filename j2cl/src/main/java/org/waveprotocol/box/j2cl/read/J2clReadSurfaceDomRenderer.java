@@ -3104,6 +3104,9 @@ public final class J2clReadSurfaceDomRenderer implements Disposable {
   @Override
   public void destroy() {
     disposeRegistry.destroy();
+    // #1268: cancel pending viewport-dwell mark-read timers so they cannot fire
+    // (and mark blips read / mutate) after teardown.
+    cancelAllDwellTimers();
     scrollListenerBound = false;
   }
 

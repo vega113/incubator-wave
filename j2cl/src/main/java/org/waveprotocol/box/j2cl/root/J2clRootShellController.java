@@ -34,6 +34,9 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
   // #1268: retained for teardown so a pagehide / destroy() releases the
   // selected-wave view's listeners (which cascade to the read surface).
   private J2clSelectedWaveView selectedWaveView;
+  // #1268: this shell's own global body/window listeners, released on destroy().
+  private final org.waveprotocol.box.j2cl.common.J2clDisposeRegistry disposeRegistry =
+      new org.waveprotocol.box.j2cl.common.J2clDisposeRegistry();
 
   public J2clRootShellController(HTMLElement host) {
     this.host = host;
@@ -196,23 +199,23 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
     // J-UI-3 (#1081, R-5.1): the rail's New Wave button focuses the create
     // form's title input. Listening on document.body so the event bubbles
     // up regardless of where the rail is currently mounted.
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wavy-new-wave-requested",
         evt -> composeController.focusCreateSurface(newWaveTriggerFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-new-with-participants-requested",
         evt -> composeController.onCreateRequestedWithParticipants(participantsFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-add-participant-requested",
         evt ->
             composeController.onAddParticipantsRequested(
                 sourceWaveIdFromEvent(evt), addParticipantAddressesFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-publicity-toggle-requested",
         evt ->
             composeController.onPublicityToggleRequested(
                 sourceWaveIdFromEvent(evt), nextPublicFromEvent(evt)));
-    elemental2.dom.DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(elemental2.dom.DomGlobal.document.body, 
         "wave-root-lock-toggle-requested",
         evt ->
             composeController.onLockStateToggleRequested(
@@ -267,7 +270,7 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
     // Intercept it to clear the selection through the route controller so
     // returning to the inbox is an instant in-shell transition (the anchor
     // href stays functional for middle-click / no-JS fallbacks).
-    DomGlobal.document.body.addEventListener(
+    disposeRegistry.addListener(DomGlobal.document.body, 
         "wavy-back-to-inbox-clicked",
         event -> {
           event.preventDefault();
@@ -277,7 +280,7 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
         });
     // #1268: final teardown on navigation away releases the selected-wave view's
     // listeners (which cascade to the read surface) so they do not leak.
-    DomGlobal.window.addEventListener("pagehide", event -> destroy());
+    disposeRegistry.addListener(DomGlobal.window, "pagehide", event -> destroy());
     liveSurfaceController.start();
   }
 
@@ -287,6 +290,9 @@ public final class J2clRootShellController implements org.waveprotocol.box.j2cl.
    */
   @Override
   public void destroy() {
+    // Release this shell's own global body/window listeners (incl. pagehide)...
+    disposeRegistry.destroy();
+    // ...then cascade to the selected-wave view (which cascades to the read surface).
     if (selectedWaveView != null) {
       selectedWaveView.destroy();
     }
