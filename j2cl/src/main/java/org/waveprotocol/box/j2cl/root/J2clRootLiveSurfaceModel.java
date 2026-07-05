@@ -8,34 +8,57 @@ public final class J2clRootLiveSurfaceModel {
   private static final String SELECTED_WAVE_STATUS = "Selected wave is active.";
   private static final String STARTING_STATUS = "Loading workspace.";
 
+  // Connection chip states understood by the compact wavy-header topbar
+  // (`netstatus[data-state]`): online | connecting | offline.
+  static final String CONNECTION_ONLINE = "online";
+  static final String CONNECTION_CONNECTING = "connecting";
+  static final String CONNECTION_OFFLINE = "offline";
+  // Save chip states (`savestatus[data-state]`): saved | saving | unsaved.
+  static final String SAVE_SAVED = "saved";
+  static final String SAVE_SAVING = "saving";
+  static final String SAVE_UNSAVED = "unsaved";
+
   private final String routeUrl;
   private final String query;
   private final String selectedWaveId;
   private final String statusText;
+  private final String connectionState;
+  private final String saveState;
 
   private J2clRootLiveSurfaceModel(
-      String routeUrl, String query, String selectedWaveId, String statusText) {
+      String routeUrl,
+      String query,
+      String selectedWaveId,
+      String statusText,
+      String connectionState,
+      String saveState) {
     this.routeUrl = nullToEmpty(routeUrl);
     this.query = nullToEmpty(query);
     this.selectedWaveId = emptyToNull(selectedWaveId);
     this.statusText = nullToEmpty(statusText);
+    this.connectionState = normalizeConnectionState(connectionState);
+    this.saveState = normalizeSaveState(saveState);
   }
 
   public static J2clRootLiveSurfaceModel starting() {
-    return new J2clRootLiveSurfaceModel("", "", null, STARTING_STATUS);
+    return new J2clRootLiveSurfaceModel(
+        "", "", null, STARTING_STATUS, CONNECTION_ONLINE, SAVE_SAVED);
   }
 
   public J2clRootLiveSurfaceModel withRouteUrl(String nextRouteUrl) {
     String normalizedRouteUrl = nullToEmpty(nextRouteUrl);
     if (normalizedRouteUrl.isEmpty()) {
-      return new J2clRootLiveSurfaceModel("", "", null, STARTING_STATUS);
+      return new J2clRootLiveSurfaceModel(
+          "", "", null, STARTING_STATUS, connectionState, saveState);
     }
     J2clSidecarRouteState routeState = parseRouteUrl(normalizedRouteUrl);
     return new J2clRootLiveSurfaceModel(
         normalizedRouteUrl,
         routeState.getQuery(),
         routeState.getSelectedWaveId(),
-        statusFor(normalizedRouteUrl, routeState.getQuery(), routeState.getSelectedWaveId()));
+        statusFor(normalizedRouteUrl, routeState.getQuery(), routeState.getSelectedWaveId()),
+        connectionState,
+        saveState);
   }
 
   public J2clRootLiveSurfaceModel withRouteState(J2clSidecarRouteState routeState) {
@@ -47,7 +70,9 @@ public final class J2clRootLiveSurfaceModel {
         routeUrl,
         routeState.getQuery(),
         nextSelectedWaveId,
-        statusFor(routeUrl, routeState.getQuery(), nextSelectedWaveId));
+        statusFor(routeUrl, routeState.getQuery(), nextSelectedWaveId),
+        connectionState,
+        saveState);
   }
 
   public J2clRootLiveSurfaceModel withSelectedWaveId(String nextSelectedWaveId) {
@@ -56,7 +81,36 @@ public final class J2clRootLiveSurfaceModel {
         routeUrl,
         query,
         normalizedSelectedWaveId,
-        statusFor(routeUrl, query, normalizedSelectedWaveId));
+        statusFor(routeUrl, query, normalizedSelectedWaveId),
+        connectionState,
+        saveState);
+  }
+
+  /**
+   * Returns a model carrying the given real transport connection state. Unknown
+   * values fall back to {@code online}. All route/selection fields are preserved
+   * so a route change while offline does not reset the chip.
+   */
+  public J2clRootLiveSurfaceModel withConnectionState(String nextConnectionState) {
+    String normalized = normalizeConnectionState(nextConnectionState);
+    if (normalized.equals(connectionState)) {
+      return this;
+    }
+    return new J2clRootLiveSurfaceModel(
+        routeUrl, query, selectedWaveId, statusText, normalized, saveState);
+  }
+
+  /**
+   * Returns a model carrying the given real save state. Unknown values fall back
+   * to {@code saved}. All other fields are preserved.
+   */
+  public J2clRootLiveSurfaceModel withSaveState(String nextSaveState) {
+    String normalized = normalizeSaveState(nextSaveState);
+    if (normalized.equals(saveState)) {
+      return this;
+    }
+    return new J2clRootLiveSurfaceModel(
+        routeUrl, query, selectedWaveId, statusText, connectionState, normalized);
   }
 
   public String getRouteUrl() {
@@ -89,13 +143,31 @@ public final class J2clRootLiveSurfaceModel {
   }
 
   public String getConnectionState() {
-    String status = statusText.toLowerCase();
-    return status.contains("offline") || status.contains("disconnected") ? "offline" : "online";
+    return connectionState;
   }
 
   public String getSaveState() {
-    String status = statusText.toLowerCase();
-    return status.contains("saving") || status.contains("unsaved") ? "saving" : "saved";
+    return saveState;
+  }
+
+  static String normalizeConnectionState(String value) {
+    if (CONNECTION_OFFLINE.equals(value)) {
+      return CONNECTION_OFFLINE;
+    }
+    if (CONNECTION_CONNECTING.equals(value)) {
+      return CONNECTION_CONNECTING;
+    }
+    return CONNECTION_ONLINE;
+  }
+
+  static String normalizeSaveState(String value) {
+    if (SAVE_SAVING.equals(value)) {
+      return SAVE_SAVING;
+    }
+    if (SAVE_UNSAVED.equals(value)) {
+      return SAVE_UNSAVED;
+    }
+    return SAVE_SAVED;
   }
 
   private static String routeStatus(String routeUrl, String query) {

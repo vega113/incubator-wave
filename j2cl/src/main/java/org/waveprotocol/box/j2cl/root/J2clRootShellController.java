@@ -100,9 +100,14 @@ public final class J2clRootShellController {
             routeControllerRef[0].selectWave(waveId);
           }
         };
+    // #1233: route every compose write through a save-state-tracking decorator
+    // so the topbar savestatus chip reflects real in-flight/acknowledged ops
+    // instead of a hardcoded "saved".
+    J2clComposeSurfaceController.Gateway composeGateway =
+        new J2clRootSaveStateGateway(gateway, liveSurfaceController::onSaveState);
     J2clComposeSurfaceController composeController =
         new J2clComposeSurfaceController(
-            gateway,
+            composeGateway,
             new J2clComposeSurfaceView(selectedCreateHost, selectedReplyHost),
             J2clComposeSurfaceController.richContentDeltaFactory(rootShellSessionSeed),
             J2clComposeSurfaceController.attachmentControllerFactory(rootShellSessionSeed, telemetrySink),
@@ -156,6 +161,9 @@ public final class J2clRootShellController {
             },
             telemetrySink);
     selectedWaveControllerRef[0] = selectedWaveController;
+    // #1233: feed real selected-wave socket connection transitions into the
+    // root live-surface so the netstatus chip tracks online/connecting/offline.
+    selectedWaveController.setConnectionStateListener(liveSurfaceController::onConnectionState);
     J2clSearchPanelController controller =
         new J2clSearchPanelController(
             gateway,

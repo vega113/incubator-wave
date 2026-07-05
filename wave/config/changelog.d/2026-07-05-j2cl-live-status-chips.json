@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-07-05-j2cl-live-status-chips",
+  "version": "unreleased",
+  "date": "2026-07-05",
+  "title": "J2CL topbar status chips now reflect real connection and save state",
+  "summary": "In the new UI, the topbar 'Online' and 'All changes saved' chips used to be hardcoded green regardless of what was actually happening. They now track the live wave socket and in-flight edits: the network chip shows Connecting/Offline when the selected-wave stream drops and reconnects, and the save chip shows Saving while a create/reply/edit is in flight and returns to Saved once the server acknowledges it.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: the topbar network chip now reflects the real selected-wave socket — Online when live updates are flowing, Connecting while a dropped stream is retrying, and Offline once reconnect attempts are exhausted, instead of always showing Online.",
+        "New UI: the topbar save chip now shows Saving while a wave create, reply, or edit is in flight and returns to Saved once every pending operation is acknowledged (or fails), instead of always showing All changes saved."
+      ]
+    }
+  ]
+}
