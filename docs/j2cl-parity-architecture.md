@@ -425,6 +425,38 @@ This keeps the current rollback contract intact while moving the architecture to
 - React `hydrateRoot`: https://react.dev/reference/react-dom/client/hydrateRoot
 - React `renderToPipeableStream`: https://react.dev/reference/react-dom/server/renderToPipeableStream
 
+## 13a. J2CL ↔ JS Defensive Interop (#1272)
+
+`org.waveprotocol.box.j2cl.common.J2clJsInteropUtils` is the **blessed seam for
+every JS ↔ Java boundary** — property-map reads, DOM lookups, and JSON parsing.
+Direct interop (`Js.asPropertyMap(payload).get(...)`, `host.querySelector(...)`,
+`parseJsonObject(...)`) turns a single bad server response or missing DOM node
+into a Java NPE that only surfaces as a cryptic minified JS console error after
+the J2CL optimiser runs. All **new** interop sites (including Lit ↔ Java bridges)
+MUST go through these helpers; existing sites migrate incrementally.
+
+| Method | Behavior on bad input |
+| --- | --- |
+| `safeGetString/Boolean/Int/Long(source, key, fallback)` | returns `fallback` (accepts both parsed-JSON `Map`s and live JS objects) |
+| `safeParseJsonObject(text)` | returns `null` on malformed/empty (graceful degradation for bad bootstrap/fragment envelopes) |
+| `queryOptionalElement(host, selector)` | returns `null` when absent |
+| `requireNonNull(value, what)` | throws `J2clInteropException` preserving `what` |
+| `requireElement(host, selector, context)` | throws `J2clInteropException` preserving `selector` + `context` |
+
+`J2clInteropException` carries the human context string so a failure is
+diagnosable post-minification. The `require*` helpers **fail loudly** (the caller
+catches and reports via `J2clClientTelemetry` / the notification service #1271
+rather than crashing the whole surface); the `safe*` helpers **degrade
+gracefully**. A deliberately malformed bootstrap/fragment envelope therefore
+resolves to `null` and lets the caller fall back instead of NPE-ing the
+selected-wave surface.
+
+**Initial adoption:** `J2clSelectedWaveView.queryRequired` now delegates to
+`requireElement`. Highest-risk remaining sites to migrate next (audit):
+`J2clSearchGateway` response decode, `SidecarTransportCodec` envelope decodes,
+`J2clSelectedWaveProjector` update coercion, `SidecarSessionBootstrap` field
+reads, `J2clAttachmentMetadataClient`, and the renderer `querySelector` paths.
+
 ## 14. Bottom Line
 
 The repo should not choose between:

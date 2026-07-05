@@ -20,6 +20,7 @@ import java.util.Set;
 import jsinterop.annotations.JsFunction;
 import jsinterop.base.Js;
 import jsinterop.base.JsPropertyMap;
+import org.waveprotocol.box.j2cl.common.J2clJsInteropUtils;
 import org.waveprotocol.box.j2cl.i18n.J2clI18n;
 import org.waveprotocol.box.j2cl.overlay.J2clInteractionBlipModel;
 import org.waveprotocol.box.j2cl.overlay.J2clMentionRange;
@@ -1516,12 +1517,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
   @SuppressWarnings("unchecked")
   private static <T> T queryRequired(HTMLElement root, String selector) {
-    Object element = root.querySelector(selector);
-    if (element == null) {
-      throw new IllegalStateException(
-          "Missing required DOM element for selector '" + selector + "'");
-    }
-    return (T) element;
+    // #1272: route through the blessed defensive-interop seam so a missing
+    // required element fails with a context-preserving J2clInteropException.
+    return (T) J2clJsInteropUtils.requireElement(root, selector, "J2clSelectedWaveView");
   }
 
   @SuppressWarnings("unchecked")
