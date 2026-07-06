@@ -64,7 +64,7 @@ Mandatory worktree constraints:
 - Implement from `/Users/vega/devroot/worktrees/<branch-name>`.
 - Do not run implementation from the main repo checkout.
 - Do not create worktrees under `.claude/worktrees/`.
-- Launch tmux lanes from the worktree directory.
+- Open the agent (Claude Code or Codex) on the worktree directory before doing any work.
 
 ## Shell Tool Rubric
 - Find files: `fd`

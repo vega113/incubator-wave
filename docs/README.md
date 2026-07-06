@@ -46,7 +46,6 @@ Split of responsibility:
 - [`SMOKE_TESTS.md`](SMOKE_TESTS.md)
 - [`deployment/README.md`](deployment/README.md)
 - [`E2E/sanity-check-loop.md`](E2E/sanity-check-loop.md)
-- [`pr-monitor-lanes.md`](pr-monitor-lanes.md)
 
 ## References
 

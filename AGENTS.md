@@ -47,7 +47,7 @@ For detailed role behavior and sequencing, follow:
 - When running `npm` tasks under `j2cl/lit/`, run from that directory; do not leak Node tooling into other packages.
 - Never create worktrees under `.claude/worktrees/`.
 - Do not run `git checkout` or `git switch` inside the main repo during lane execution; it flips shared HEAD for open sessions.
-- For lane execution details (tmux launch sequence, model flags, etc.), see [docs/agents/tool-usage.md](docs/agents/tool-usage.md).
+- For lane execution details (worktree boot flow, model flags, etc.), see [docs/agents/tool-usage.md](docs/agents/tool-usage.md).
 - Do not mix lane edits in the main working tree.
 
 ## Task Lifecycle
@@ -83,15 +83,13 @@ For detailed role behavior and sequencing, follow:
   when isolated persistence state is explicitly needed.
 - Do not mix agent edits in the main working tree.
 - Use `$HOME/devroot/worktrees` as the shared root for local worktrees.
-- **CRITICAL — tmux lanes must always be launched FROM the worktree directory, never from
+- **CRITICAL — every agent must operate FROM its own worktree directory, never from
   the main repo checkout or any subdirectory (e.g. `war/static`).** Any
   `git checkout` or `git switch` run inside the main repo changes the shared HEAD and flips
-  the branch for every open Claude Code session. The canonical launch sequence is:
+  the branch for every open session. The canonical setup is:
   ```bash
   git worktree add $HOME/devroot/worktrees/<branch-name> -b <branch-name>
-  # then launch claude from that directory:
-  tmux send-keys -t "<session>:<window>.<pane>" \
-    "cd $HOME/devroot/worktrees/<branch-name> && claude --model <model> --dangerously-skip-permissions < /tmp/lane-prompt.txt" Enter
+  # then open Claude Code or Codex on that directory and work from there
   ```
 - **NEVER** create worktrees under `.claude/worktrees/` inside the main repo tree. Always
   use `$HOME/devroot/worktrees/<branch-name>` as the target path for `git worktree add`.
