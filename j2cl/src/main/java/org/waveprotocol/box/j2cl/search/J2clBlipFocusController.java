@@ -124,10 +124,7 @@ public final class J2clBlipFocusController {
       if (blipId == null || blipId.isEmpty() || findBlipById(blipId) != null) {
         continue;
       }
-      HTMLElement placeholder =
-          (HTMLElement)
-              contentList.querySelector(
-                  "[data-placeholder-blip-id='" + blipId + "']");
+      HTMLElement placeholder = findPlaceholderByBlipId(blipId);
       if (placeholder == null) {
         continue;
       }
@@ -329,6 +326,24 @@ public final class J2clBlipFocusController {
     for (HTMLElement blip : renderedBlips()) {
       if (blipId.equals(blipIdOf(blip))) {
         return blip;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Attribute-value comparison instead of selector interpolation: blip ids are
+   * not guaranteed CSS-selector-safe, and an id containing a quote/backslash
+   * would make an interpolated querySelector throw or silently miss.
+   */
+  private HTMLElement findPlaceholderByBlipId(String blipId) {
+    NodeList<Element> placeholders =
+        contentList.querySelectorAll("[data-placeholder-blip-id]");
+    for (int index = 0; index < placeholders.length; index++) {
+      HTMLElement placeholder = (HTMLElement) placeholders.item(index);
+      if (placeholder != null
+          && blipId.equals(placeholder.getAttribute("data-placeholder-blip-id"))) {
+        return placeholder;
       }
     }
     return null;

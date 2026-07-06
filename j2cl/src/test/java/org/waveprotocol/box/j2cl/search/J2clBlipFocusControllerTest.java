@@ -94,6 +94,16 @@ public class J2clBlipFocusControllerTest {
   }
 
   @Test
+  public void scrollToUnloadedUnreadHandlesSelectorUnsafeBlipIds() {
+    assumeBrowserDom();
+    J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1");
+    String hostileId = "b+we'ird\\id";
+    appendPlaceholder(hostileId);
+
+    Assert.assertEquals(hostileId, focus.scrollToUnloadedUnread(Arrays.asList(hostileId)));
+  }
+
+  @Test
   public void scrollToUnloadedUnreadSkipsRenderedAndUnknownBlips() {
     assumeBrowserDom();
     J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1");

@@ -48,6 +48,7 @@ import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl;
 import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl.DefaultFollow;
 import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
 import org.waveprotocol.wave.model.util.CollectionUtils;
+import org.waveprotocol.wave.model.util.ReadableStringSet;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 import org.waveprotocol.wave.model.wave.data.ReadableBlipData;
@@ -75,6 +76,10 @@ public class WaveDigester {
   private static final int PARTICIPANTS_SNIPPET_LENGTH = 5;
   private static final String EMPTY_WAVELET_TITLE = "";
   private static final String TOMBSTONE_DELETED_ANNOTATION = "tombstone/deleted";
+  // Hoisted out of isTombstoned: it runs once per blip inside the unread
+  // traversal loops, so the key set must not be reallocated per call.
+  private static final ReadableStringSet TOMBSTONE_ANNOTATION_KEYS =
+      CollectionUtils.newStringSet(TOMBSTONE_DELETED_ANNOTATION);
 
   public static final class UnreadBlipState {
     private final int unreadCount;
@@ -514,8 +519,7 @@ public class WaveDigester {
       return false;
     }
     for (RangedAnnotation<String> annotation :
-        content.rangedAnnotations(0, content.size(),
-            CollectionUtils.newStringSet(TOMBSTONE_DELETED_ANNOTATION))) {
+        content.rangedAnnotations(0, content.size(), TOMBSTONE_ANNOTATION_KEYS)) {
       if ("true".equals(annotation.value())) {
         return true;
       }
