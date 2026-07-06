@@ -627,6 +627,86 @@ libraryDependencies ++= Seq(
   "io.gatling"                  % "gatling-test-framework"                    % "3.10.5" % GatlingTest
 )
 
+// =============================================================================
+// Zinc Java-analysis corruption defenses
+//
+// zinc's AnalyzingJavaCompiler snapshots the class files present in the output
+// directory before javac runs and extracts APIs ONLY from class files whose
+// paths did not exist before ("newClasses = paths -- oldClasses"). When a class
+// file already exists on disk but is not tracked by the zinc analysis (e.g. an
+// interrupted build wrote class files and died before persisting the analysis),
+// the next compile overwrites it in place, extracts NO API for it, and stamps
+// the source as clean. From then on every compile reports "No changes", the
+// class is absent from Test/definedTests, and `sbt test` silently never runs
+// it — while testOnly says "No tests to run". Verified against sbt 1.10.2 /
+// zinc 1.10.2; zinc's develop branch has the same logic.
+//
+// Two defenses:
+//  1. zincAnalysisHygiene (pre-compile): if the zinc analysis file is missing
+//     but the class directory already contains class files, wipe the class
+//     directory so the rebuild re-extracts every API.
+//  2. verifyTestDiscovery (pre-test): every concrete top-level *Test class
+//     file must appear in definedTests, otherwise fail the build with a
+//     remediation hint. Wired into <config>/test, so the CI unit-test gate
+//     (`sbt --batch test`) fails instead of silently skipping tests.
+// =============================================================================
+
+lazy val zincAnalysisHygiene = taskKey[Unit]("Wipe orphaned class files when the zinc analysis file is missing")
+lazy val verifyTestDiscovery = taskKey[Unit]("Fail when compiled *Test classes are absent from definedTests")
+
+def zincDiscoveryGuardSettings(cfg: Configuration): Seq[Setting[_]] = inConfig(cfg)(Seq(
+  zincAnalysisHygiene := {
+    val log = streams.value.log
+    val analysisFile = compileAnalysisFile.value
+    val classDir = classDirectory.value
+    val classFiles = (classDir ** "*.class").get
+    if (!analysisFile.exists && classFiles.nonEmpty) {
+      log.warn(
+        s"[zincAnalysisHygiene] ${cfg.id}: analysis file ${analysisFile} is missing but " +
+          s"${classFiles.size} class files exist under ${classDir}. Deleting them so zinc " +
+          "re-extracts every API (zinc only analyzes class files created by the current javac run).")
+      IO.delete(classDir)
+    }
+  },
+  compile := compile.dependsOn(zincAnalysisHygiene).value,
+  verifyTestDiscovery := {
+    val log = streams.value.log
+    val discovered = definedTests.value.map(_.name).toSet
+    val classDir = classDirectory.value
+    val classpath = fullClasspath.value.map(_.data.toURI.toURL).toArray
+    val compiledTestClasses = (classDir ** "*.class").get.flatMap { f =>
+      IO.relativize(classDir, f).map(_.stripSuffix(".class").replace('/', '.').replace('\\', '.'))
+    }.filter(name => name.endsWith("Test") && !name.contains("$"))
+    val undiscovered = compiledTestClasses.filterNot(discovered).sorted
+    val missing =
+      if (undiscovered.isEmpty) undiscovered
+      else {
+        // Abstract classes are legitimately not test entry points; anything that
+        // fails to load stays flagged (zinc could not have discovered it either).
+        val loader = new java.net.URLClassLoader(classpath, null)
+        try undiscovered.filter { name =>
+          try !java.lang.reflect.Modifier.isAbstract(Class.forName(name, false, loader).getModifiers)
+          catch { case _: Throwable => true }
+        } finally loader.close()
+      }
+    if (missing.nonEmpty) {
+      missing.foreach(name => log.error(s"[verifyTestDiscovery] compiled but not discovered: $name"))
+      sys.error(
+        s"[verifyTestDiscovery] ${cfg.id}: ${missing.size} compiled *Test classes are absent from " +
+          "definedTests — the zinc analysis lost their APIs (typically an interrupted earlier build). " +
+          s"Fix: delete ${classDir} plus the ${cfg.id} zinc analysis (or run `sbt clean`) and rebuild.")
+    } else {
+      log.info(s"[verifyTestDiscovery] ${cfg.id}: OK — all ${compiledTestClasses.size} compiled *Test classes are discovered (definedTests=${discovered.size}).")
+    }
+  },
+  test := test.dependsOn(verifyTestDiscovery).value
+))
+
+zincDiscoveryGuardSettings(Test)
+zincDiscoveryGuardSettings(JakartaTest)
+zincDiscoveryGuardSettings(StacktraceTest)
+zincDiscoveryGuardSettings(ThumbTest)
+
 // --- Convenience aliases (Gradle task equivalents) ---
 // testMongo: run MongoDB-specific tests from default test source set
 lazy val testMongo = taskKey[Unit]("Run MongoDB persistence tests")
