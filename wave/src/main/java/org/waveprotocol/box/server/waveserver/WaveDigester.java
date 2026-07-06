@@ -37,6 +37,7 @@ import org.waveprotocol.wave.model.conversation.TitleHelper;
 import org.waveprotocol.wave.model.conversation.WaveletBasedConversation;
 import org.waveprotocol.wave.model.document.Document;
 import org.waveprotocol.wave.model.document.RangedAnnotation;
+import org.waveprotocol.wave.model.document.util.DocHelper;
 import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.ModernIdSerialiser;
 import org.waveprotocol.wave.model.id.WaveId;
@@ -194,6 +195,15 @@ public class WaveDigester {
     return 0;
   }
 
+  // Fallback counting path, used only when no conversation-backed supplement is
+  // available (context.supplement == null — malformed or non-conversational
+  // waves). Unlike the supplement-based countUnread/collectUnreadBlipIds, this
+  // raw document-id scan does NOT exclude tombstoned or empty (non-renderable)
+  // blips, so it can still over-count phantom unread state. That is
+  // intentionally deferred: the J2CL inbox badge, read-state endpoint, and
+  // jump-to-next-unread all flow through the supplement-based path, and only
+  // conversation-less waves reach here. See contributesToUnread /
+  // hasRenderableText for the rationale.
   private int countUnreadFromReadState(PrimitiveSupplement readState,
       Iterable<? extends ObservableWaveletData> conversationalWavelets) {
     int unreadCount = 0;
@@ -368,7 +378,7 @@ public class WaveDigester {
         continue;
       }
       for (ConversationBlip blip : BlipIterators.breadthFirst(conversation)) {
-        if (supplement.isUnread(blip) && !isTombstoned(blip)) {
+        if (contributesToUnread(supplement, blip)) {
           unreadBlipIds.add(blip.getId());
         }
       }
@@ -497,12 +507,52 @@ public class WaveDigester {
         continue;
       }
       for (ConversationBlip blip : BlipIterators.breadthFirst(conversation)) {
-        if (supplement.isUnread(blip) && !isTombstoned(blip)) {
+        if (contributesToUnread(supplement, blip)) {
           unreadCount++;
         }
       }
     }
     return unreadCount;
+  }
+
+  /**
+   * A blip contributes to unread state only when it is genuinely unread for
+   * the viewer AND a client would actually render it — otherwise the viewer
+   * can never mark it read and the unread badge is stuck forever. Two kinds of
+   * blip are counted by the raw supplement but never rendered:
+   * <ul>
+   *   <li>tombstoned (F.6-deleted) blips — see {@link #isTombstoned}; and</li>
+   *   <li>blips with no text characters (an empty body of just
+   *       {@code <body><line/></body>}, or an element-only body such as an
+   *       image/attachment placeholder). The J2CL read surface derives each
+   *       renderable blip from its extracted {@code textContent} and skips any
+   *       blip whose {@code textContent} is empty
+   *       ({@code J2clSelectedWaveProjector.extractDocumentReadBlips}), so
+   *       such a blip is never shown and never marked read.</li>
+   * </ul>
+   */
+  private static boolean contributesToUnread(SupplementedWave supplement, ConversationBlip blip) {
+    return supplement.isUnread(blip) && !isTombstoned(blip) && hasRenderableText(blip);
+  }
+
+  /**
+   * True when the blip body contains at least one text character. This mirrors
+   * the J2CL client's renderability test: its sidecar projection builds a
+   * blip's {@code textContent} from character items only (element starts, e.g.
+   * {@code <line/>} or {@code <img/>}, contribute no text), and
+   * {@code J2clSelectedWaveProjector.extractDocumentReadBlips} drops any
+   * blip whose {@code textContent} is empty. Counting such a blip as unread
+   * produces a phantom unread badge that can never be cleared. Whitespace is
+   * intentionally preserved (not trimmed) so this predicate matches the
+   * client's condition exactly and does not under-count a rendered blip.
+   */
+  @VisibleForTesting
+  static boolean hasRenderableText(ConversationBlip blip) {
+    Document content = blip.getContent();
+    if (content == null || content.size() == 0) {
+      return false;
+    }
+    return !DocHelper.getText(content, 0, content.size()).isEmpty();
   }
 
   /**

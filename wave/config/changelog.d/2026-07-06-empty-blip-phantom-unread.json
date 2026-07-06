@@ -1,0 +1,15 @@
+{
+  "releaseId": "2026-07-06-empty-blip-phantom-unread",
+  "version": "unreleased",
+  "date": "2026-07-06",
+  "title": "Fix a stuck \"1 unread\" badge caused by empty messages",
+  "summary": "A wave could keep showing an unread badge (for example \"1 unread\") even though every message in it was already read and none looked unread. The cause was an empty message (one with no text — an empty draft, or a body that only holds an image/attachment with no caption): the server counted it as unread, but the new UI never draws empty messages, so there was nothing to open or scroll to and the badge could never be cleared. Empty messages no longer count toward unread state.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Unread counts: the search digest unread badge and the read-state endpoint's unread-message list now skip messages with no text characters. The new UI's read surface only renders a message when it has text content (an image/attachment- or draft-only body projects to empty text and is dropped), so counting such a message as unread produced a phantom badge that could never be cleared and \"jump to next unread\" had nothing to focus — the same failure mode previously fixed for deleted (tombstoned) messages."
+      ]
+    }
+  ]
+}
