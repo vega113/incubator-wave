@@ -333,6 +333,110 @@ public class WaveDigesterTest extends TestCase {
   }
 
   /**
+   * A blip with an empty body (no text characters — just the implicit
+   * {@code <body><line/></body>}) produces empty {@code textContent} in the
+   * J2CL sidecar projection, so
+   * {@code J2clSelectedWaveProjector.extractDocumentReadBlips} skips it and
+   * the read surface never renders it. Counting such a blip as unread yields a
+   * phantom unread badge that can never be cleared — the same failure mode as
+   * a tombstoned blip. The digest unread count must exclude empty blips.
+   */
+  public void testEmptyBlipIsExcludedFromUnreadCount() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    data.appendBlipWithText("blip number 1");
+    // Empty blip: appended with no text, so its body is just <body><line/></body>.
+    data.appendBlipWithText("");
+    ObservableWaveletData observableWaveletData = data.copyWaveletData().get(0);
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(observableWaveletData);
+    ObservableConversationView conversation = conversationUtil.buildConversation(wavelet);
+
+    SupplementedWave supplement = mock(SupplementedWave.class);
+    when(supplement.isUnread(any(ConversationBlip.class))).thenReturn(true);
+
+    Digest digest =
+        digester.generateDigest(
+            conversation,
+            supplement,
+            observableWaveletData,
+            Collections.singletonList(observableWaveletData));
+
+    assertEquals(1, digest.getUnreadCount());
+  }
+
+  /**
+   * The read-state endpoint's unread blip ids must skip empty blips for the
+   * same reason as the digest unread count: the J2CL read surface never
+   * renders an empty-body blip, so "jump to next unread" could never reach it
+   * and the badge could never be cleared.
+   */
+  public void testEmptyBlipIsExcludedFromUnreadBlipIds() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    ConversationBlip liveBlip = data.appendBlipWithTextAndReturn("live blip");
+    // Empty blip: no text characters, so its body is just <body><line/></body>.
+    data.appendBlipWithText("");
+
+    WaveDigester.UnreadBlipState unreadState =
+        digester.getUnreadBlipState(PARTICIPANT, data.copyViewData());
+
+    assertEquals(Collections.singletonList(liveBlip.getId()),
+        unreadState.getUnreadBlipIds());
+    assertEquals(1, unreadState.getUnreadCount());
+  }
+
+  /**
+   * A blip whose body holds only an element (e.g. an image/attachment) with no
+   * caption text also projects to empty {@code textContent} on the J2CL read
+   * surface — element starts contribute no characters — so it is never
+   * rendered and must not count as unread.
+   */
+  public void testImageOnlyBlipWithoutCaptionIsExcludedFromUnreadCount() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    data.appendBlipWithText("caption blip");
+    // Element-only body: an attachment with no caption text -> empty textContent.
+    data.appendBlipWithXml("<image attachment=\"att+1\"/>");
+    ObservableWaveletData observableWaveletData = data.copyWaveletData().get(0);
+    ObservableWavelet wavelet = OpBasedWavelet.createReadOnly(observableWaveletData);
+    ObservableConversationView conversation = conversationUtil.buildConversation(wavelet);
+
+    SupplementedWave supplement = mock(SupplementedWave.class);
+    when(supplement.isUnread(any(ConversationBlip.class))).thenReturn(true);
+
+    Digest digest =
+        digester.generateDigest(
+            conversation,
+            supplement,
+            observableWaveletData,
+            Collections.singletonList(observableWaveletData));
+
+    assertEquals(1, digest.getUnreadCount());
+  }
+
+  /**
+   * Direct coverage of {@link WaveDigester#hasRenderableText} — in particular
+   * the whitespace case. A blip whose only text is whitespace still projects to
+   * a non-empty {@code textContent} on the client and IS rendered, so it must
+   * count as unread. This guards against a future refactor adding a
+   * {@code trim()} that would silently under-count such blips.
+   */
+  public void testHasRenderableTextMirrorsClientRenderability() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    ConversationBlip textBlip = data.appendBlipWithTextAndReturn("hello");
+    ConversationBlip emptyBlip = data.appendBlipWithTextAndReturn("");
+    ConversationBlip whitespaceBlip = data.appendBlipWithTextAndReturn("   ");
+
+    assertTrue("text blip has renderable content",
+        WaveDigester.hasRenderableText(textBlip));
+    assertFalse("empty-body blip has no renderable content",
+        WaveDigester.hasRenderableText(emptyBlip));
+    assertTrue("whitespace-only blip is rendered by the client, so it must count",
+        WaveDigester.hasRenderableText(whitespaceBlip));
+  }
+
+  /**
    * Non-blip documents must not contribute to unread counts.
    */
   public void testCountUnreadViaContextPathIgnoresNonBlipDocuments() {
