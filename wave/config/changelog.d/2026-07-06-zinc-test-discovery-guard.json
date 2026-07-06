@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-07-06-zinc-test-discovery-guard",
+  "version": "unreleased",
+  "date": "2026-07-06",
+  "title": "Internal: unit-test gate can no longer silently skip compiled tests",
+  "summary": "Fixed a build-infrastructure gap where zinc (sbt's incremental compiler) could permanently lose track of compiled JUnit test classes after an interrupted build: the classes still compiled, but Test/definedTests omitted them, so `sbt test` and CI silently never ran them (at one point ~200 server test classes, including the entire box.server.rpc package). The build now self-heals the corrupted state and fails loudly if any compiled *Test class is missing from test discovery.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "Build (internal): zincAnalysisHygiene wipes stale class files when the zinc analysis file is missing, so an interrupted build can no longer leave the incremental compiler blind to recompiled Java test classes (zinc only extracts APIs from class files created by the current javac run)",
+        "CI (internal): verifyTestDiscovery runs before test/jakartaTest/stacktraceTest/thumbTest and fails the build when a compiled, concrete top-level *Test class is absent from definedTests, with remediation instructions — the unit-test gate can no longer pass while silently skipping test classes"
+      ]
+    }
+  ]
+}
