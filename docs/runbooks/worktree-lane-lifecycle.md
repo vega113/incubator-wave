@@ -1,6 +1,6 @@
 Status: Current
 Owner: Project Maintainers
-Updated: 2026-04-17
+Updated: 2026-07-06
 Review cadence: quarterly
 
 # Worktree Lane Lifecycle
@@ -22,18 +22,15 @@ git -C /Users/vega/devroot/incubator-wave worktree add \
 cd /Users/vega/devroot/worktrees/issue-585-worktree-boot-lifecycle
 ```
 
-Do not launch tmux lanes or run `git switch` from the primary checkout. Lane
-commands must run from the assigned worktree directory.
+Do not run `git switch` from the primary checkout. Lane commands must run from
+the assigned worktree directory.
 
-## 2. Launch the lane from the worktree
+## 2. Open the worktree in the agent
 
-The lane entry command must `cd` into the worktree first:
-
-```bash
-tmux send-keys -t "wave-lanes:0.0" \
-  "cd /Users/vega/devroot/worktrees/issue-585-worktree-boot-lifecycle && claude --model gpt-5.4-mini --dangerously-skip-permissions" \
-  Enter
-```
+Point Claude Code or Codex at the worktree directory
+(`/Users/vega/devroot/worktrees/issue-585-worktree-boot-lifecycle`) and run all
+lane work from there. Every command below assumes the worktree is the working
+directory.
 
 ## 3. Reuse shared local file-store state when needed
 

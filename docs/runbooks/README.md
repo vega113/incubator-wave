@@ -62,7 +62,6 @@ setup, smoke checks, deployment, and operational routines.
 
 ## Operational Procedures
 
-- [`../pr-monitor-lanes.md`](../pr-monitor-lanes.md)
 - [`../gpt-bot.md`](../gpt-bot.md)
 
 If you need durable system background instead of a procedure, switch to
