@@ -22,7 +22,9 @@ package org.waveprotocol.box.server.waveserver;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.waveprotocol.box.server.util.testing.TestingConstants.OTHER_USER;
 import static org.waveprotocol.box.server.util.testing.TestingConstants.PARTICIPANT;
+import static org.waveprotocol.box.server.util.testing.TestingConstants.USER;
 import static org.waveprotocol.box.server.util.testing.TestingConstants.WAVE_ID;
 
 import com.google.wave.api.SearchResult.Digest;
@@ -49,6 +51,7 @@ import org.waveprotocol.wave.model.wave.opbased.OpBasedWavelet;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -330,6 +333,67 @@ public class WaveDigesterTest extends TestCase {
     assertEquals(Collections.singletonList(liveBlip.getId()),
         unreadState.getUnreadBlipIds());
     assertEquals(1, unreadState.getUnreadCount());
+  }
+
+  /**
+   * The read-state endpoint's mentioned blip ids must list exactly the blips
+   * whose body carries a {@code mention/}-prefixed annotation naming the
+   * viewer, so "jump to next/previous mention" can reach mentions in unloaded
+   * viewport-window regions. Address matching is case-insensitive, mirroring
+   * the {@code mentions:} search filter.
+   */
+  public void testMentionedBlipIdsListBlipsMentioningTheViewer() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    ConversationBlip mentioned = data.appendBlipWithTextAndReturn("hey @" + USER);
+    Document mentionedContent = mentioned.getContent();
+    mentionedContent.setAnnotation(
+        0, mentionedContent.size(), "mention/user", USER.toUpperCase(Locale.ROOT));
+    ConversationBlip otherMention = data.appendBlipWithTextAndReturn("hey @" + OTHER_USER);
+    Document otherContent = otherMention.getContent();
+    otherContent.setAnnotation(0, otherContent.size(), "mention/user", OTHER_USER);
+    data.appendBlipWithText("no mention here");
+
+    WaveDigester.UnreadBlipState state =
+        digester.getUnreadBlipState(PARTICIPANT, data.copyViewData());
+
+    assertEquals(Collections.singletonList(mentioned.getId()), state.getMentionedBlipIds());
+  }
+
+  /**
+   * Tombstoned blips are never rendered, so a mention inside one must not be
+   * navigable — same rationale as excluding tombstones from unread state.
+   */
+  public void testTombstonedBlipIsExcludedFromMentionedBlipIds() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    ConversationBlip liveMention = data.appendBlipWithTextAndReturn("live @" + USER);
+    Document liveContent = liveMention.getContent();
+    liveContent.setAnnotation(0, liveContent.size(), "mention/user", USER);
+    ConversationBlip deletedMention = data.appendBlipWithTextAndReturn("deleted @" + USER);
+    Document deletedContent = deletedMention.getContent();
+    deletedContent.setAnnotation(0, deletedContent.size(), "mention/user", USER);
+    deletedContent.setAnnotation(
+        0, deletedContent.size(), "tombstone/deleted", "true");
+
+    WaveDigester.UnreadBlipState state =
+        digester.getUnreadBlipState(PARTICIPANT, data.copyViewData());
+
+    assertEquals(Collections.singletonList(liveMention.getId()), state.getMentionedBlipIds());
+  }
+
+  /** Without a viewer there is no "me" to match mentions against. */
+  public void testMentionedBlipIdsEmptyForNullParticipant() {
+    TestingWaveletData data =
+        new TestingWaveletData(WAVE_ID, CONVERSATION_WAVELET_ID, PARTICIPANT, true);
+    ConversationBlip mentioned = data.appendBlipWithTextAndReturn("hey @" + USER);
+    Document mentionedContent = mentioned.getContent();
+    mentionedContent.setAnnotation(0, mentionedContent.size(), "mention/user", USER);
+
+    WaveDigester.UnreadBlipState state =
+        digester.getUnreadBlipState(null, data.copyViewData());
+
+    assertTrue(state.getMentionedBlipIds().isEmpty());
   }
 
   /**

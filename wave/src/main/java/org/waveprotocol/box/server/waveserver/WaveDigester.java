@@ -28,6 +28,7 @@ import com.google.wave.api.SearchResult.Digest;
 import org.waveprotocol.box.common.Snippets;
 import org.waveprotocol.box.server.robots.util.ConversationUtil;
 import org.waveprotocol.box.server.waveserver.SimpleSearchProviderImpl.WaveSupplementContext;
+import org.waveprotocol.wave.model.conversation.AnnotationConstants;
 import org.waveprotocol.wave.model.conversation.BlipIterators;
 import org.waveprotocol.wave.model.conversation.ConversationBlip;
 import org.waveprotocol.wave.model.conversation.ObservableConversation;
@@ -61,6 +62,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -79,13 +81,22 @@ public class WaveDigester {
   public static final class UnreadBlipState {
     private final int unreadCount;
     private final List<String> unreadBlipIds;
+    private final List<String> mentionedBlipIds;
 
     public UnreadBlipState(List<String> unreadBlipIds) {
+      this(unreadBlipIds, Collections.<String>emptyList());
+    }
+
+    public UnreadBlipState(List<String> unreadBlipIds, List<String> mentionedBlipIds) {
       this.unreadBlipIds =
           unreadBlipIds == null
               ? Collections.<String>emptyList()
               : Collections.unmodifiableList(new ArrayList<String>(unreadBlipIds));
       this.unreadCount = this.unreadBlipIds.size();
+      this.mentionedBlipIds =
+          mentionedBlipIds == null
+              ? Collections.<String>emptyList()
+              : Collections.unmodifiableList(new ArrayList<String>(mentionedBlipIds));
     }
 
     public int getUnreadCount() {
@@ -94,6 +105,16 @@ public class WaveDigester {
 
     public List<String> getUnreadBlipIds() {
       return unreadBlipIds;
+    }
+
+    /**
+     * Conversation blip ids whose body carries a {@code mention/}-prefixed
+     * annotation naming the viewer. Independent of read state — the J2CL
+     * mention nav buttons use these ids to reach mentions in unloaded
+     * viewport-window regions.
+     */
+    public List<String> getMentionedBlipIds() {
+      return mentionedBlipIds;
     }
   }
 
@@ -279,6 +300,12 @@ public class WaveDigester {
             context.conversationalWavelets,
             context.supplement,
             context.conversations,
+            context.waveletAdapters),
+        collectMentionedBlipIds(
+            participant,
+            context.convWavelet,
+            context.conversationalWavelets,
+            context.conversations,
             context.waveletAdapters));
   }
 
@@ -369,6 +396,73 @@ public class WaveDigester {
       }
     }
     return unreadBlipIds;
+  }
+
+  /**
+   * Collects the ids of conversation blips whose body carries a
+   * {@code mention/}-prefixed annotation naming {@code participant}
+   * (case-insensitive address match, mirroring the {@code mentions:} search
+   * filter). Traverses the same conversation structure as
+   * {@link #collectUnreadBlipIds} so ordering matches the digest/read-state
+   * view, and skips tombstoned blips for the same reason unread state does:
+   * clients never render them.
+   */
+  private List<String> collectMentionedBlipIds(
+      ParticipantId participant,
+      WaveletData convWavelet,
+      Iterable<? extends ObservableWaveletData> conversationalWavelets,
+      ObservableConversationView conversations,
+      Map<ObservableWaveletData, OpBasedWavelet> waveletAdapters) {
+    if (participant == null || convWavelet == null || conversations == null) {
+      return Collections.emptyList();
+    }
+    String viewerAddress = participant.getAddress().toLowerCase(Locale.ROOT);
+    List<String> mentionedBlipIds = new ArrayList<String>();
+    ObservableConversation rootConversation = chooseDigestConversation(conversations);
+    for (ObservableWaveletData conversationalWavelet : conversationalWavelets) {
+      ObservableConversation conversation;
+      if (conversationalWavelet == convWavelet) {
+        conversation = rootConversation;
+      } else {
+        OpBasedWavelet wavelet = getOrCreateReadOnlyWavelet(conversationalWavelet, waveletAdapters);
+        if (!WaveletBasedConversation.waveletHasConversation(wavelet)) {
+          continue;
+        }
+        conversation = chooseDigestConversation(conversationUtil.buildConversation(wavelet));
+      }
+      if (conversation == null) {
+        continue;
+      }
+      for (ConversationBlip blip : BlipIterators.breadthFirst(conversation)) {
+        if (!isTombstoned(blip) && blipMentions(blip, viewerAddress)) {
+          mentionedBlipIds.add(blip.getId());
+        }
+      }
+    }
+    return mentionedBlipIds;
+  }
+
+  /**
+   * True when the blip body carries a mention annotation whose value is the
+   * given lower-cased participant address.
+   */
+  @VisibleForTesting
+  static boolean blipMentions(ConversationBlip blip, String lowerCaseAddress) {
+    Document content = blip.getContent();
+    if (content == null || content.size() == 0) {
+      return false;
+    }
+    for (RangedAnnotation<String> annotation :
+        content.rangedAnnotations(0, content.size(), null)) {
+      if (annotation == null || annotation.value() == null) {
+        continue;
+      }
+      if (AnnotationConstants.isMentionKey(annotation.key())
+          && lowerCaseAddress.equals(annotation.value().toLowerCase(Locale.ROOT))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static ObservableWaveletData findViewerUserDataWavelet(

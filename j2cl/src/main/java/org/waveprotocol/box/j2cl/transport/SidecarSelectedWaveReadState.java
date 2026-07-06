@@ -13,6 +13,7 @@ public final class SidecarSelectedWaveReadState {
   private final int unreadCount;
   private final boolean read;
   private final List<String> unreadBlipIds;
+  private final List<String> mentionedBlipIds;
 
   public SidecarSelectedWaveReadState(String waveId, int unreadCount, boolean read) {
     this(waveId, unreadCount, read, Collections.<String>emptyList());
@@ -20,6 +21,15 @@ public final class SidecarSelectedWaveReadState {
 
   public SidecarSelectedWaveReadState(
       String waveId, int unreadCount, boolean read, List<String> unreadBlipIds) {
+    this(waveId, unreadCount, read, unreadBlipIds, Collections.<String>emptyList());
+  }
+
+  public SidecarSelectedWaveReadState(
+      String waveId,
+      int unreadCount,
+      boolean read,
+      List<String> unreadBlipIds,
+      List<String> mentionedBlipIds) {
     this.waveId = waveId;
     this.unreadCount = unreadCount;
     this.read = read;
@@ -27,6 +37,10 @@ public final class SidecarSelectedWaveReadState {
         unreadBlipIds == null
             ? Collections.<String>emptyList()
             : Collections.unmodifiableList(new ArrayList<String>(unreadBlipIds));
+    this.mentionedBlipIds =
+        mentionedBlipIds == null
+            ? Collections.<String>emptyList()
+            : Collections.unmodifiableList(new ArrayList<String>(mentionedBlipIds));
   }
 
   public String getWaveId() {
@@ -43,5 +57,13 @@ public final class SidecarSelectedWaveReadState {
 
   public List<String> getUnreadBlipIds() {
     return unreadBlipIds;
+  }
+
+  /**
+   * Blip ids carrying a mention annotation for the signed-in user; may include
+   * blips whose viewport-window regions are still unloaded placeholders.
+   */
+  public List<String> getMentionedBlipIds() {
+    return mentionedBlipIds;
   }
 }

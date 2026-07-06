@@ -43,6 +43,11 @@ public final class J2clSelectedWaveModel {
   // blips whose viewport-window regions are still unloaded placeholders, so
   // "jump to next unread" can navigate to them.
   private List<String> unreadBlipIds = Collections.emptyList();
+  // Blip ids mentioning the signed-in user, from the same read-state endpoint.
+  // Unlike the has-mention flags on readBlips (loaded blips only), this list
+  // also names mentions in unloaded placeholder regions, so the prev/next
+  // mention nav can navigate to them.
+  private List<String> mentionedBlipIds = Collections.emptyList();
 
   J2clSelectedWaveModel(
       boolean hasSelection,
@@ -458,6 +463,23 @@ public final class J2clSelectedWaveModel {
     return this;
   }
 
+  /**
+   * Server-reported blip ids mentioning the signed-in user; may include blips
+   * not yet loaded into the viewport.
+   */
+  public List<String> getMentionedBlipIds() {
+    return mentionedBlipIds;
+  }
+
+  /** Package-private setter used by the projector. */
+  J2clSelectedWaveModel withMentionedBlipIds(List<String> nextMentionedBlipIds) {
+    this.mentionedBlipIds =
+        nextMentionedBlipIds == null || nextMentionedBlipIds.isEmpty()
+            ? Collections.<String>emptyList()
+            : Collections.unmodifiableList(new ArrayList<String>(nextMentionedBlipIds));
+    return this;
+  }
+
   public J2clSelectedWaveViewportState getViewportState() {
     return viewportState;
   }
@@ -500,7 +522,8 @@ public final class J2clSelectedWaveModel {
         // viewport-windowed renders keep nesting after fragment growth.
         .withConversationManifest(conversationManifest)
         .withLockState(lockState)
-        .withUnreadBlipIds(unreadBlipIds);
+        .withUnreadBlipIds(unreadBlipIds)
+        .withMentionedBlipIds(mentionedBlipIds);
   }
 
   J2clSelectedWaveModel withReadBlips(List<J2clReadBlip> newReadBlips) {
@@ -527,7 +550,8 @@ public final class J2clSelectedWaveModel {
         readStateStale)
         .withConversationManifest(conversationManifest)
         .withLockState(lockState)
-        .withUnreadBlipIds(unreadBlipIds);
+        .withUnreadBlipIds(unreadBlipIds)
+        .withMentionedBlipIds(mentionedBlipIds);
   }
 
   J2clSelectedWaveModel withStatus(String nextStatusText, String nextDetailText) {
@@ -556,7 +580,8 @@ public final class J2clSelectedWaveModel {
         readStateStale)
         .withConversationManifest(conversationManifest)
         .withLockState(lockState)
-        .withUnreadBlipIds(unreadBlipIds);
+        .withUnreadBlipIds(unreadBlipIds)
+        .withMentionedBlipIds(mentionedBlipIds);
   }
 
   public int getUnreadCount() {

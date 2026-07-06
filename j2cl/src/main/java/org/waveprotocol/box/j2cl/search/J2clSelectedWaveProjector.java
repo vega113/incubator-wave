@@ -212,6 +212,14 @@ public final class J2clSelectedWaveProjector {
                 ? readState.getUnreadBlipIds()
                 : (previousMatchesWave && previous.isReadStateKnown()
                     ? previous.getUnreadBlipIds()
+                    : Collections.<String>emptyList()))
+        // Same for mention blip ids: prev/next mention nav uses them to
+        // reach mentions beyond the loaded viewport window.
+        .withMentionedBlipIds(
+            readStateMatchesWave
+                ? readState.getMentionedBlipIds()
+                : (previousMatchesWave && previous.isReadStateKnown()
+                    ? previous.getMentionedBlipIds()
                     : Collections.<String>emptyList()));
   }
 
@@ -341,7 +349,11 @@ public final class J2clSelectedWaveProjector {
         .withUnreadBlipIds(
             readStateMatchesWave
                 ? readState.getUnreadBlipIds()
-                : previous.getUnreadBlipIds());
+                : previous.getUnreadBlipIds())
+        .withMentionedBlipIds(
+            readStateMatchesWave
+                ? readState.getMentionedBlipIds()
+                : previous.getMentionedBlipIds());
   }
 
   public static List<J2clReadBlip> applyReadStateToReadBlips(

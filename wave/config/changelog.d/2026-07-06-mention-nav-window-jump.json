@@ -1,0 +1,16 @@
+{
+  "releaseId": "2026-07-06-mention-nav-window-jump",
+  "version": "unreleased",
+  "date": "2026-07-06",
+  "title": "Make prev/next-mention navigation reach unloaded parts of long waves in the new UI",
+  "summary": "In long waves, the \"previous mention\" and \"next mention\" toolbar buttons only scanned the messages already loaded on screen, so mentions further down (or up) in a not-yet-loaded part of the wave were unreachable, and the mention highlight on the toolbar only reflected loaded content. The server now reports which messages mention you, and the jump buttons use that list to scroll unloaded regions into view and land on the mention once it renders.",
+  "sections": [
+    {
+      "type": "fix",
+      "items": [
+        "New UI: \"previous/next mention\" only scanned the blips already rendered in the viewport window, so in long waves the buttons silently did nothing when the nearest mention lived in a not-yet-loaded placeholder region. The read-state endpoint now also returns the blip ids carrying a mention of the signed-in user (skipping deleted tombstones, case-insensitive address match like the mentions: search filter), and the mention nav buttons fall back to scrolling the matching placeholder into view, loading its content, and focusing the mention once it renders — the same windowed-viewport fallback \"jump to next unread\" uses.",
+        "New UI: the mention emphasis on the wave toolbar is now driven by the server-reported mention list instead of never lighting up — it highlights whenever the wave mentions you, including mentions in unloaded regions."
+      ]
+    }
+  ]
+}

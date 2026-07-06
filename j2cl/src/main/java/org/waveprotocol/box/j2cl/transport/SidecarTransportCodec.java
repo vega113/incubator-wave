@@ -323,7 +323,9 @@ public final class SidecarTransportCodec {
     int unreadCount = getInt(root, "unreadCount");
     boolean read = getBoolean(root, "isRead");
     List<String> unreadBlipIds = getStringList(root, "unreadBlipIds");
-    return new SidecarSelectedWaveReadState(waveId, unreadCount, read, unreadBlipIds);
+    List<String> mentionedBlipIds = getStringList(root, "mentionedBlipIds");
+    return new SidecarSelectedWaveReadState(
+        waveId, unreadCount, read, unreadBlipIds, mentionedBlipIds);
   }
 
   public static boolean decodeRpcFinishedFailed(Map<String, Object> envelope) {

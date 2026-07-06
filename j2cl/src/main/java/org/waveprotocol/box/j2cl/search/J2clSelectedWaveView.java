@@ -109,6 +109,10 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   // placeholder fragment loads and renders.
   private List<String> lastUnreadBlipIds = Collections.emptyList();
   private String pendingUnreadJumpBlipId = "";
+  // Same pair for prev/next mention: server-reported blip ids mentioning the
+  // signed-in user, plus the pending focus target for an unloaded mention.
+  private List<String> lastMentionedBlipIds = Collections.emptyList();
+  private String pendingMentionJumpBlipId = "";
   // F-3.S3 (#1038, R-5.5): publisher installed by the root shell to
   // forward per-blip reaction snapshots to the compose controller.
   private ReactionSnapshotPublisher reactionSnapshotPublisher;
@@ -559,9 +563,9 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
         card, J2clUiTokens.EVENT_NAV_NEXT, evt -> blipFocus.focusAdjacent(1));
     disposeRegistry.addListener(card, J2clUiTokens.EVENT_NAV_END, evt -> blipFocus.focusLast());
     disposeRegistry.addListener(
-        card, J2clUiTokens.EVENT_NAV_PREV_MENTION, evt -> blipFocus.focusNextMatching("has-mention", -1));
+        card, J2clUiTokens.EVENT_NAV_PREV_MENTION, evt -> handleMentionNavRequested(-1));
     disposeRegistry.addListener(
-        card, J2clUiTokens.EVENT_NAV_NEXT_MENTION, evt -> blipFocus.focusNextMatching("has-mention", 1));
+        card, J2clUiTokens.EVENT_NAV_NEXT_MENTION, evt -> handleMentionNavRequested(1));
   }
 
   /**
@@ -577,7 +581,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       pendingUnreadJumpBlipId = "";
       return;
     }
-    pendingUnreadJumpBlipId = blipFocus.scrollToUnloadedUnread(lastUnreadBlipIds);
+    pendingUnreadJumpBlipId = blipFocus.scrollToUnloadedBlip(lastUnreadBlipIds, 1);
   }
 
   private void maybeApplyPendingUnreadJump() {
@@ -586,6 +590,31 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     }
     if (blipFocus.focusBlipById(pendingUnreadJumpBlipId)) {
       pendingUnreadJumpBlipId = "";
+    }
+  }
+
+  /**
+   * Prev/next mention with the same windowed-viewport fallback as
+   * {@link #handleNextUnreadRequested}: prefer a rendered blip carrying the
+   * {@code has-mention} attribute; when none matches but the server-reported
+   * mention list (read-state endpoint) still names blips in unloaded
+   * placeholder regions, scroll the matching placeholder into view and focus
+   * the blip on the render pass that materializes it.
+   */
+  private void handleMentionNavRequested(int direction) {
+    if (blipFocus.focusNextMatching("has-mention", direction)) {
+      pendingMentionJumpBlipId = "";
+      return;
+    }
+    pendingMentionJumpBlipId = blipFocus.scrollToUnloadedBlip(lastMentionedBlipIds, direction);
+  }
+
+  private void maybeApplyPendingMentionJump() {
+    if (pendingMentionJumpBlipId.isEmpty()) {
+      return;
+    }
+    if (blipFocus.focusBlipById(pendingMentionJumpBlipId)) {
+      pendingMentionJumpBlipId = "";
     }
   }
 
@@ -647,11 +676,13 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
       readSurface.clearViewportScrollMemory();
       lastRenderedWaveId = renderedWaveId;
       pendingUnreadJumpBlipId = "";
+      pendingMentionJumpBlipId = "";
       if (!renderedWaveId.isEmpty()) {
         pendingInitialFocusWaveId = renderedWaveId;
       }
     }
     lastUnreadBlipIds = model.getUnreadBlipIds();
+    lastMentionedBlipIds = model.getMentionedBlipIds();
     publishReactionState(model);
     // F-2 (#1037, R-3.1) — surface the wave id on the content host so the
     // <wave-blip> renderer can lift it onto each rendered card without
@@ -690,6 +721,11 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (waveNavRow != null) {
       int navUnread = Math.max(0, model.getUnreadCount());
       waveNavRow.setAttribute("unread-count", Integer.toString(navUnread));
+      // E.6/E.7 violet mention emphasis: derived from the server-reported
+      // mention list (read-state endpoint) rather than loaded blips, so the
+      // emphasis also reflects mentions in unloaded viewport-window regions.
+      waveNavRow.setAttribute(
+          "mention-count", Integer.toString(model.getMentionedBlipIds().size()));
       // Pin/archive state is published separately through setNavRowFolderState
       // after render sets source-wave-id, so the Lit action-bar observer does
       // not clear the state while reusing the nav row for another wave.
@@ -783,6 +819,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (hasRenderedReadSurface) {
       maybeApplyInitialFocus(renderedWaveId, model);
       maybeApplyPendingUnreadJump();
+      maybeApplyPendingMentionJump();
       blipFocus.restoreFocus();
     }
   }

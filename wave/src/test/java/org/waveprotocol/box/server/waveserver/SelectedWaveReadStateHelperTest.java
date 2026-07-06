@@ -189,6 +189,32 @@ public final class SelectedWaveReadStateHelperTest extends TestCase {
     assertNotNull(digestedView.getWavelet(USER_UDW));
   }
 
+  /**
+   * The digester's mentioned blip ids must flow through to the read-state
+   * result untouched: the J2CL mention nav buttons rely on them to reach
+   * mentions in unloaded viewport-window regions.
+   */
+  public void testComputeReadStatePropagatesMentionedBlipIds() throws Exception {
+    WaveMap waveMap = mock(WaveMap.class);
+    WaveDigester digester = mock(WaveDigester.class);
+    SelectedWaveReadStateHelper helper =
+        new SelectedWaveReadStateHelper(DOMAIN, waveMap, digester);
+
+    when(waveMap.lookupWavelets(WAVE_ID)).thenReturn(ImmutableSet.of(ACCESSIBLE_CONV));
+    stubWaveletContainer(waveMap, ACCESSIBLE_CONV, wavelet(ACCESSIBLE_CONV, USER));
+
+    when(digester.getUnreadBlipState(eq(USER), any(WaveViewData.class)))
+        .thenReturn(
+            new WaveDigester.UnreadBlipState(
+                Arrays.asList("b+1"), Arrays.asList("b+3", "b+9")));
+
+    SelectedWaveReadStateHelper.Result result = helper.computeReadState(USER, WAVE_ID);
+
+    assertTrue(result.exists());
+    assertEquals(Arrays.asList("b+1"), result.getUnreadBlipIds());
+    assertEquals(Arrays.asList("b+3", "b+9"), result.getMentionedBlipIds());
+  }
+
   private static ObservableWaveletData wavelet(WaveletId waveletId, ParticipantId participant) {
     ObservableWaveletData wavelet = mock(ObservableWaveletData.class);
     when(wavelet.getWaveletId()).thenReturn(waveletId);

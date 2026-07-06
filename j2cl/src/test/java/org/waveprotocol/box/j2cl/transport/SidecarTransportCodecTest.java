@@ -34,6 +34,18 @@ public class SidecarTransportCodecTest {
     Assert.assertEquals(0, state.getUnreadCount());
     Assert.assertFalse(state.isRead());
     Assert.assertTrue(state.getUnreadBlipIds().isEmpty());
+    Assert.assertTrue(state.getMentionedBlipIds().isEmpty());
+  }
+
+  @Test
+  public void decodeSelectedWaveReadStateReadsMentionedBlipIds() {
+    String json =
+        "{\"waveId\":\"example.com/w+abc\",\"unreadCount\":1,\"isRead\":false,"
+            + "\"unreadBlipIds\":[\"b+2\"],\"mentionedBlipIds\":[\"b+5\",\"b+9\"]}";
+
+    SidecarSelectedWaveReadState state = SidecarTransportCodec.decodeSelectedWaveReadState(json);
+
+    Assert.assertEquals(Arrays.asList("b+5", "b+9"), state.getMentionedBlipIds());
   }
 
   @Test

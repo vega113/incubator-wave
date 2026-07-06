@@ -85,21 +85,34 @@ public class J2clBlipFocusControllerTest {
   }
 
   @Test
-  public void scrollToUnloadedUnreadReturnsPlaceholderBlipId() {
+  public void scrollToUnloadedBlipReturnsPlaceholderBlipId() {
     assumeBrowserDom();
     J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1", "b2:2");
     appendPlaceholder("b9");
 
-    Assert.assertEquals("b9", focus.scrollToUnloadedUnread(Arrays.asList("b9")));
+    Assert.assertEquals("b9", focus.scrollToUnloadedBlip(Arrays.asList("b9"), 1));
   }
 
   @Test
-  public void scrollToUnloadedUnreadSkipsRenderedAndUnknownBlips() {
+  public void scrollToUnloadedBlipSkipsRenderedAndUnknownBlips() {
     assumeBrowserDom();
     J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1");
 
     // b1 is already rendered (jump handles it); b7 has no placeholder at all.
-    Assert.assertEquals("", focus.scrollToUnloadedUnread(Arrays.asList("b1", "b7")));
+    Assert.assertEquals("", focus.scrollToUnloadedBlip(Arrays.asList("b1", "b7"), 1));
+  }
+
+  @Test
+  public void scrollToUnloadedBlipScansBackwardForPreviousDirection() {
+    assumeBrowserDom();
+    J2clBlipFocusController focus = controllerWithBlips(new ArrayList<String>(), "b1:1");
+    appendPlaceholder("b8");
+    appendPlaceholder("b9");
+
+    // "next" (direction > 0) picks the first unloaded id in list order;
+    // "previous" (direction < 0) picks the last.
+    Assert.assertEquals("b8", focus.scrollToUnloadedBlip(Arrays.asList("b8", "b9"), 1));
+    Assert.assertEquals("b9", focus.scrollToUnloadedBlip(Arrays.asList("b8", "b9"), -1));
   }
 
   @Test

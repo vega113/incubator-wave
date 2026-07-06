@@ -102,7 +102,13 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
       return;
     }
 
-    writeJson(resp, rawWaveId, result.getUnreadCount(), result.isRead(), result.getUnreadBlipIds());
+    writeJson(
+        resp,
+        rawWaveId,
+        result.getUnreadCount(),
+        result.isRead(),
+        result.getUnreadBlipIds(),
+        result.getMentionedBlipIds());
   }
 
   private static void writeJson(
@@ -110,32 +116,41 @@ public final class SelectedWaveReadStateServlet extends HttpServlet {
       String waveId,
       int unreadCount,
       boolean isRead,
-      List<String> unreadBlipIds)
+      List<String> unreadBlipIds,
+      List<String> mentionedBlipIds)
       throws IOException {
     resp.setStatus(HttpServletResponse.SC_OK);
     resp.setContentType("application/json; charset=utf-8");
     StringBuilder body = new StringBuilder(64);
     body.append("{\"waveId\":\"").append(escapeJson(waveId)).append("\",\"unreadCount\":")
         .append(unreadCount).append(",\"isRead\":").append(isRead)
-        .append(",\"unreadBlipIds\":[");
-    if (unreadBlipIds != null) {
+        .append(",\"unreadBlipIds\":");
+    appendJsonStringArray(body, unreadBlipIds);
+    body.append(",\"mentionedBlipIds\":");
+    appendJsonStringArray(body, mentionedBlipIds);
+    body.append('}');
+    try (var w = resp.getWriter()) {
+      w.append(body.toString());
+      w.flush();
+    }
+  }
+
+  private static void appendJsonStringArray(StringBuilder body, List<String> values) {
+    body.append('[');
+    if (values != null) {
       boolean first = true;
-      for (String blipId : unreadBlipIds) {
-        if (blipId == null) {
+      for (String value : values) {
+        if (value == null) {
           continue;
         }
         if (!first) {
           body.append(',');
         }
-        body.append('"').append(escapeJson(blipId)).append('"');
+        body.append('"').append(escapeJson(value)).append('"');
         first = false;
       }
     }
-    body.append("]}");
-    try (var w = resp.getWriter()) {
-      w.append(body.toString());
-      w.flush();
-    }
+    body.append(']');
   }
 
   private static String escapeJson(String value) {

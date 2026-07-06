@@ -66,13 +66,15 @@ public class SelectedWaveReadStateHelper {
     private final int unreadCount;
     private final boolean read;
     private final List<String> unreadBlipIds;
+    private final List<String> mentionedBlipIds;
 
     private Result(
         boolean exists,
         boolean accessAllowed,
         int unreadCount,
         boolean read,
-        List<String> unreadBlipIds) {
+        List<String> unreadBlipIds,
+        List<String> mentionedBlipIds) {
       this.exists = exists;
       this.accessAllowed = accessAllowed;
       this.unreadCount = unreadCount;
@@ -81,6 +83,10 @@ public class SelectedWaveReadStateHelper {
           unreadBlipIds == null
               ? Collections.<String>emptyList()
               : Collections.unmodifiableList(new ArrayList<String>(unreadBlipIds));
+      this.mentionedBlipIds =
+          mentionedBlipIds == null
+              ? Collections.<String>emptyList()
+              : Collections.unmodifiableList(new ArrayList<String>(mentionedBlipIds));
     }
 
     public boolean exists() { return exists; }
@@ -89,8 +95,16 @@ public class SelectedWaveReadStateHelper {
     public boolean isRead() { return read; }
     public List<String> getUnreadBlipIds() { return unreadBlipIds; }
 
+    /**
+     * Conversation blip ids carrying a mention annotation for the signed-in
+     * user, in digest traversal order; independent of read state.
+     */
+    public List<String> getMentionedBlipIds() { return mentionedBlipIds; }
+
     public static Result notFound() {
-      return new Result(false, false, 0, true, Collections.<String>emptyList());
+      return new Result(
+          false, false, 0, true,
+          Collections.<String>emptyList(), Collections.<String>emptyList());
     }
 
     public static Result found(int unreadCount) {
@@ -98,7 +112,13 @@ public class SelectedWaveReadStateHelper {
     }
 
     public static Result found(int unreadCount, List<String> unreadBlipIds) {
-      return new Result(true, true, unreadCount, unreadCount <= 0, unreadBlipIds);
+      return found(unreadCount, unreadBlipIds, Collections.<String>emptyList());
+    }
+
+    public static Result found(
+        int unreadCount, List<String> unreadBlipIds, List<String> mentionedBlipIds) {
+      return new Result(
+          true, true, unreadCount, unreadCount <= 0, unreadBlipIds, mentionedBlipIds);
     }
   }
 
@@ -163,7 +183,8 @@ public class SelectedWaveReadStateHelper {
       WaveDigester.UnreadBlipState readState = digester.getUnreadBlipState(user, view);
       return Result.found(
           Math.max(0, readState.getUnreadCount()),
-          readState.getUnreadBlipIds());
+          readState.getUnreadBlipIds(),
+          readState.getMentionedBlipIds());
     } catch (RuntimeException e) {
       LOG.warning("read-state: unread state build failed for " + waveId, e);
       throw e;

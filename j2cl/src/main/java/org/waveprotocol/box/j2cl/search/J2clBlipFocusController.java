@@ -86,9 +86,9 @@ public final class J2clBlipFocusController {
 
   /**
    * Focuses the next rendered blip carrying {@code attributeName}. Returns
-   * false when no rendered blip matches — e.g. when the only unread blips sit
-   * in unloaded viewport-window placeholder regions — so callers can fall back
-   * to {@link #scrollToUnloadedUnread}.
+   * false when no rendered blip matches — e.g. when the only unread or
+   * mentioned blips sit in unloaded viewport-window placeholder regions — so
+   * callers can fall back to {@link #scrollToUnloadedBlip}.
    */
   public boolean focusNextMatching(String attributeName, int direction) {
     List<HTMLElement> blips = renderedBlips();
@@ -109,18 +109,25 @@ public final class J2clBlipFocusController {
   }
 
   /**
-   * Windowed-viewport fallback for "jump to next unread": when the next unread
-   * blip is not rendered (its region is an unloaded placeholder), scroll that
-   * placeholder into view so the renderer's visible-placeholder machinery
-   * fetches its fragment. Returns the blip id whose placeholder was scrolled
-   * into view, or the empty string when no unread blip has a placeholder; the
-   * caller re-focuses the blip once it renders.
+   * Windowed-viewport fallback for nav jumps ("next unread", "next/previous
+   * mention"): when the target blip is not rendered (its region is an unloaded
+   * placeholder), scroll that placeholder into view so the renderer's
+   * visible-placeholder machinery fetches its fragment. {@code blipIds} is the
+   * server-reported candidate list in conversation order; {@code direction}
+   * picks the scan order — forward for "next" (first unloaded candidate wins),
+   * backward for "previous" (last unloaded candidate wins). Returns the blip
+   * id whose placeholder was scrolled into view, or the empty string when no
+   * candidate has a placeholder; the caller re-focuses the blip once it
+   * renders.
    */
-  public String scrollToUnloadedUnread(List<String> unreadBlipIds) {
-    if (unreadBlipIds == null || unreadBlipIds.isEmpty()) {
+  public String scrollToUnloadedBlip(List<String> blipIds, int direction) {
+    if (blipIds == null || blipIds.isEmpty()) {
       return "";
     }
-    for (String blipId : unreadBlipIds) {
+    int start = direction < 0 ? blipIds.size() - 1 : 0;
+    int step = direction < 0 ? -1 : 1;
+    for (int index = start; index >= 0 && index < blipIds.size(); index += step) {
+      String blipId = blipIds.get(index);
       if (blipId == null || blipId.isEmpty() || findBlipById(blipId) != null) {
         continue;
       }

@@ -152,6 +152,59 @@ public final class SelectedWaveReadStateServletTest extends TestCase {
     assertTrue("body missing waveId: " + json, json.contains("\"waveId\":\"" + VALID_WAVE_ID + "\""));
   }
 
+  /**
+   * The success body must carry the server-computed mentioned blip ids so the
+   * J2CL mention nav buttons can reach mentions in unloaded viewport-window
+   * regions.
+   */
+  public void testReturnsJsonWithMentionedBlipIdsOnSuccess() throws Exception {
+    SessionManager sessionManager = mock(SessionManager.class);
+    when(sessionManager.getLoggedInUser(any())).thenReturn(USER);
+    SelectedWaveReadStateHelper helper = mock(SelectedWaveReadStateHelper.class);
+    when(helper.computeReadState(any(ParticipantId.class), any(WaveId.class)))
+        .thenReturn(SelectedWaveReadStateHelper.Result.found(1,
+            java.util.Arrays.asList("b+2"),
+            java.util.Arrays.asList("b+5", "b+8")));
+
+    SelectedWaveReadStateServlet servlet =
+        new SelectedWaveReadStateServlet(sessionManager, helper);
+    HttpServletRequest request = requestWith(VALID_WAVE_ID);
+    StringWriter body = new StringWriter();
+    HttpServletResponse response = responseWithWriter(body);
+
+    servlet.doGet(request, response);
+
+    String json = body.toString();
+    assertTrue("body missing unreadBlipIds: " + json,
+        json.contains("\"unreadBlipIds\":[\"b+2\"]"));
+    assertTrue("body missing mentionedBlipIds: " + json,
+        json.contains("\"mentionedBlipIds\":[\"b+5\",\"b+8\"]"));
+  }
+
+  /**
+   * Results built without mention data (the two-arg found overload) must still
+   * emit an empty mentionedBlipIds array so clients can parse one shape.
+   */
+  public void testReturnsEmptyMentionedBlipIdsWhenAbsent() throws Exception {
+    SessionManager sessionManager = mock(SessionManager.class);
+    when(sessionManager.getLoggedInUser(any())).thenReturn(USER);
+    SelectedWaveReadStateHelper helper = mock(SelectedWaveReadStateHelper.class);
+    when(helper.computeReadState(any(ParticipantId.class), any(WaveId.class)))
+        .thenReturn(SelectedWaveReadStateHelper.Result.found(0));
+
+    SelectedWaveReadStateServlet servlet =
+        new SelectedWaveReadStateServlet(sessionManager, helper);
+    HttpServletRequest request = requestWith(VALID_WAVE_ID);
+    StringWriter body = new StringWriter();
+    HttpServletResponse response = responseWithWriter(body);
+
+    servlet.doGet(request, response);
+
+    String json = body.toString();
+    assertTrue("body missing empty mentionedBlipIds: " + json,
+        json.contains("\"mentionedBlipIds\":[]"));
+  }
+
   public void testReturnsReadTrueWhenUnreadCountZero() throws Exception {
     SessionManager sessionManager = mock(SessionManager.class);
     when(sessionManager.getLoggedInUser(any())).thenReturn(USER);
