@@ -103,6 +103,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
   // Set when lastRenderedWaveId transitions to a new (non-empty) wave; cleared
   // once initial focus has been applied to a non-empty rendered surface.
   private String pendingInitialFocusWaveId = "";
+  // Windowed-viewport "jump to next unread": server-reported unread blip ids
+  // from the latest rendered model (may include blips whose regions are still
+  // unloaded placeholders), plus the blip id waiting to be focused once its
+  // placeholder fragment loads and renders.
+  private List<String> lastUnreadBlipIds = Collections.emptyList();
+  private String pendingUnreadJumpBlipId = "";
   // F-3.S3 (#1038, R-5.5): publisher installed by the root shell to
   // forward per-blip reaction snapshots to the compose controller.
   private ReactionSnapshotPublisher reactionSnapshotPublisher;
@@ -546,7 +552,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     disposeRegistry.addListener(
         card, J2clUiTokens.EVENT_NAV_RECENT, evt -> blipFocus.focusMostRecent());
     disposeRegistry.addListener(
-        card, J2clUiTokens.EVENT_NAV_NEXT_UNREAD, evt -> blipFocus.focusNextMatching("unread", 1));
+        card, J2clUiTokens.EVENT_NAV_NEXT_UNREAD, evt -> handleNextUnreadRequested());
     disposeRegistry.addListener(
         card, J2clUiTokens.EVENT_NAV_PREVIOUS, evt -> blipFocus.focusAdjacent(-1));
     disposeRegistry.addListener(
@@ -556,6 +562,31 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
         card, J2clUiTokens.EVENT_NAV_PREV_MENTION, evt -> blipFocus.focusNextMatching("has-mention", -1));
     disposeRegistry.addListener(
         card, J2clUiTokens.EVENT_NAV_NEXT_MENTION, evt -> blipFocus.focusNextMatching("has-mention", 1));
+  }
+
+  /**
+   * "Jump to next unread" with windowed-viewport fallback: prefer the next
+   * rendered blip carrying the {@code unread} attribute; when every rendered
+   * blip is read but the server still reports unread blips, scroll the first
+   * matching unloaded placeholder into view so its fragment loads, then focus
+   * it on the render pass that materializes it (GWT parity — the legacy client
+   * navigates the conversation model, not just the visible DOM).
+   */
+  private void handleNextUnreadRequested() {
+    if (blipFocus.focusNextMatching("unread", 1)) {
+      pendingUnreadJumpBlipId = "";
+      return;
+    }
+    pendingUnreadJumpBlipId = blipFocus.scrollToUnloadedUnread(lastUnreadBlipIds);
+  }
+
+  private void maybeApplyPendingUnreadJump() {
+    if (pendingUnreadJumpBlipId.isEmpty()) {
+      return;
+    }
+    if (blipFocus.focusBlipById(pendingUnreadJumpBlipId)) {
+      pendingUnreadJumpBlipId = "";
+    }
   }
 
   /**
@@ -615,10 +646,12 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
     if (!renderedWaveId.equals(lastRenderedWaveId)) {
       readSurface.clearViewportScrollMemory();
       lastRenderedWaveId = renderedWaveId;
+      pendingUnreadJumpBlipId = "";
       if (!renderedWaveId.isEmpty()) {
         pendingInitialFocusWaveId = renderedWaveId;
       }
     }
+    lastUnreadBlipIds = model.getUnreadBlipIds();
     publishReactionState(model);
     // F-2 (#1037, R-3.1) — surface the wave id on the content host so the
     // <wave-blip> renderer can lift it onto each rendered card without
@@ -749,6 +782,7 @@ public final class J2clSelectedWaveView implements J2clSelectedWaveController.Vi
 
     if (hasRenderedReadSurface) {
       maybeApplyInitialFocus(renderedWaveId, model);
+      maybeApplyPendingUnreadJump();
       blipFocus.restoreFocus();
     }
   }

@@ -84,10 +84,16 @@ public final class J2clBlipFocusController {
     focusBlip(blips.get(next));
   }
 
-  public void focusNextMatching(String attributeName, int direction) {
+  /**
+   * Focuses the next rendered blip carrying {@code attributeName}. Returns
+   * false when no rendered blip matches — e.g. when the only unread blips sit
+   * in unloaded viewport-window placeholder regions — so callers can fall back
+   * to {@link #scrollToUnloadedUnread}.
+   */
+  public boolean focusNextMatching(String attributeName, int direction) {
     List<HTMLElement> blips = renderedBlips();
     if (blips.isEmpty()) {
-      return;
+      return false;
     }
     int current = focusedBlipIndex(blips);
     int start = current < 0 ? (direction > 0 ? -1 : blips.size()) : current;
@@ -96,9 +102,55 @@ public final class J2clBlipFocusController {
       HTMLElement candidate = blips.get(index);
       if (candidate.hasAttribute(attributeName)) {
         focusBlip(candidate);
-        return;
+        return true;
       }
     }
+    return false;
+  }
+
+  /**
+   * Windowed-viewport fallback for "jump to next unread": when the next unread
+   * blip is not rendered (its region is an unloaded placeholder), scroll that
+   * placeholder into view so the renderer's visible-placeholder machinery
+   * fetches its fragment. Returns the blip id whose placeholder was scrolled
+   * into view, or the empty string when no unread blip has a placeholder; the
+   * caller re-focuses the blip once it renders.
+   */
+  public String scrollToUnloadedUnread(List<String> unreadBlipIds) {
+    if (unreadBlipIds == null || unreadBlipIds.isEmpty()) {
+      return "";
+    }
+    for (String blipId : unreadBlipIds) {
+      if (blipId == null || blipId.isEmpty() || findBlipById(blipId) != null) {
+        continue;
+      }
+      HTMLElement placeholder = findPlaceholderByBlipId(blipId);
+      if (placeholder == null) {
+        continue;
+      }
+      ScrollIntoViewOptions scrollOptions = ScrollIntoViewOptions.create();
+      scrollOptions.setBlock("center");
+      scrollOptions.setInline("nearest");
+      placeholder.scrollIntoView(scrollOptions);
+      return blipId;
+    }
+    return "";
+  }
+
+  /**
+   * Focuses (and marks read) the rendered blip with {@code blipId}. Returns
+   * false when the blip is not rendered yet.
+   */
+  public boolean focusBlipById(String blipId) {
+    if (blipId == null || blipId.isEmpty()) {
+      return false;
+    }
+    HTMLElement target = findBlipById(blipId);
+    if (target == null) {
+      return false;
+    }
+    focusBlip(target);
+    return true;
   }
 
   /**
@@ -274,6 +326,24 @@ public final class J2clBlipFocusController {
     for (HTMLElement blip : renderedBlips()) {
       if (blipId.equals(blipIdOf(blip))) {
         return blip;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Attribute-value comparison instead of selector interpolation: blip ids are
+   * not guaranteed CSS-selector-safe, and an id containing a quote/backslash
+   * would make an interpolated querySelector throw or silently miss.
+   */
+  private HTMLElement findPlaceholderByBlipId(String blipId) {
+    NodeList<Element> placeholders =
+        contentList.querySelectorAll("[data-placeholder-blip-id]");
+    for (int index = 0; index < placeholders.length; index++) {
+      HTMLElement placeholder = (HTMLElement) placeholders.item(index);
+      if (placeholder != null
+          && blipId.equals(placeholder.getAttribute("data-placeholder-blip-id"))) {
+        return placeholder;
       }
     }
     return null;

@@ -138,6 +138,69 @@ public class J2clSelectedWaveProjectorReadStateTest extends J2clSelectedWaveProj
   }
 
   @Test
+  public void projectExposesServerUnreadBlipIdsOnModel() {
+    J2clSelectedWaveModel projected =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            fragmentUpdate("b+root", "Root text", "b+reply", "Reply text"),
+            null,
+            0,
+            new SidecarSelectedWaveReadState(
+                WAVE_ID, 1, false, Arrays.asList("b+unloaded")),
+            false);
+
+    Assert.assertEquals(Arrays.asList("b+unloaded"), projected.getUnreadBlipIds());
+  }
+
+  @Test
+  public void projectCarriesForwardPreviousUnreadBlipIdsAcrossUpdates() {
+    J2clSelectedWaveModel first =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            sampleUpdate(),
+            null,
+            0,
+            new SidecarSelectedWaveReadState(
+                WAVE_ID, 1, false, Arrays.asList("b+unloaded")),
+            false);
+
+    J2clSelectedWaveModel second =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            sampleUpdate(),
+            first,
+            0);
+
+    Assert.assertEquals(Arrays.asList("b+unloaded"), second.getUnreadBlipIds());
+  }
+
+  @Test
+  public void reprojectReadStateReplacesUnreadBlipIds() {
+    J2clSelectedWaveModel first =
+        J2clSelectedWaveProjector.project(
+            WAVE_ID,
+            digest("Wave A", "snippet", 0),
+            sampleUpdate(),
+            null,
+            0,
+            new SidecarSelectedWaveReadState(
+                WAVE_ID, 2, false, Arrays.asList("b+one", "b+two")),
+            false);
+
+    J2clSelectedWaveModel reprojected =
+        J2clSelectedWaveProjector.reprojectReadState(
+            first,
+            digest("Wave A", "snippet", 1),
+            new SidecarSelectedWaveReadState(WAVE_ID, 1, false, Arrays.asList("b+two")),
+            false);
+
+    Assert.assertEquals(Arrays.asList("b+two"), reprojected.getUnreadBlipIds());
+  }
+
+  @Test
   public void applyReadStatePreservesExistingBlipMarkersWhenUnreadIdsAreAbsent() {
     java.util.List<J2clReadBlip> blips =
         Arrays.asList(

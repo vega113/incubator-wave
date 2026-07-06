@@ -36,6 +36,7 @@ import org.waveprotocol.wave.model.conversation.ObservableConversationView;
 import org.waveprotocol.wave.model.conversation.TitleHelper;
 import org.waveprotocol.wave.model.conversation.WaveletBasedConversation;
 import org.waveprotocol.wave.model.document.Document;
+import org.waveprotocol.wave.model.document.RangedAnnotation;
 import org.waveprotocol.wave.model.id.IdUtil;
 import org.waveprotocol.wave.model.id.ModernIdSerialiser;
 import org.waveprotocol.wave.model.id.WaveId;
@@ -47,6 +48,7 @@ import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl;
 import org.waveprotocol.wave.model.supplement.SupplementedWaveImpl.DefaultFollow;
 import org.waveprotocol.wave.model.supplement.WaveletBasedSupplement;
 import org.waveprotocol.wave.model.util.CollectionUtils;
+import org.waveprotocol.wave.model.util.ReadableStringSet;
 import org.waveprotocol.wave.model.wave.ParticipantId;
 import org.waveprotocol.wave.model.wave.ParticipantIdUtil;
 import org.waveprotocol.wave.model.wave.data.ReadableBlipData;
@@ -73,6 +75,11 @@ public class WaveDigester {
   private static final int DIGEST_SNIPPET_LENGTH = 140;
   private static final int PARTICIPANTS_SNIPPET_LENGTH = 5;
   private static final String EMPTY_WAVELET_TITLE = "";
+  private static final String TOMBSTONE_DELETED_ANNOTATION = "tombstone/deleted";
+  // Hoisted out of isTombstoned: it runs once per blip inside the unread
+  // traversal loops, so the key set must not be reallocated per call.
+  private static final ReadableStringSet TOMBSTONE_ANNOTATION_KEYS =
+      CollectionUtils.newStringSet(TOMBSTONE_DELETED_ANNOTATION);
 
   public static final class UnreadBlipState {
     private final int unreadCount;
@@ -361,7 +368,7 @@ public class WaveDigester {
         continue;
       }
       for (ConversationBlip blip : BlipIterators.breadthFirst(conversation)) {
-        if (supplement.isUnread(blip)) {
+        if (supplement.isUnread(blip) && !isTombstoned(blip)) {
           unreadBlipIds.add(blip.getId());
         }
       }
@@ -490,12 +497,34 @@ public class WaveDigester {
         continue;
       }
       for (ConversationBlip blip : BlipIterators.breadthFirst(conversation)) {
-        if (supplement.isUnread(blip)) {
+        if (supplement.isUnread(blip) && !isTombstoned(blip)) {
           unreadCount++;
         }
       }
     }
     return unreadCount;
+  }
+
+  /**
+   * True when the blip carries the J2CL F.6 deletion tombstone
+   * ({@code tombstone/deleted=true} annotation across the blip body). Such
+   * blips remain in the conversation manifest but are never rendered by
+   * clients, so they must not contribute to unread state — a tombstoned
+   * unread blip could otherwise never be marked read.
+   */
+  @VisibleForTesting
+  static boolean isTombstoned(ConversationBlip blip) {
+    Document content = blip.getContent();
+    if (content == null || content.size() == 0) {
+      return false;
+    }
+    for (RangedAnnotation<String> annotation :
+        content.rangedAnnotations(0, content.size(), TOMBSTONE_ANNOTATION_KEYS)) {
+      if ("true".equals(annotation.value())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private ObservableConversation chooseDigestConversation(ObservableConversationView conversations) {
